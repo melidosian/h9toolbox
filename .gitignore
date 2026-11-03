@@ -1,0 +1,20 @@
+# Radio images and exported configurations can contain private settings.
+*.img
+TD-H9-*-config-*.json
+TD-H9-*-archive-*.json
+TD-H9-*-channels-*.json
+backups/
+exports/
+private/
+
+# Local credentials and key material.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local Sites hosting project metadata; GitHub Pages uses the workflow above.
+.openai/

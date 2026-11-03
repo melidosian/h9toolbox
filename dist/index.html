@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; object-src 'none'; base-uri 'self'">
+  <meta name="theme-color" content="#111f2c">
+  <meta name="description" content="H9 Toolbox is a direct Bluetooth programmer for the TIDRADIO TD-H9.">
+  <title>H9 Toolbox | TD-H9 Programmer</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="mark">H9</span><span><strong>H9 Toolbox</strong><small>TD-H9 PROGRAMMER</small></span></div>
+      <span class="connection" id="connection"><i></i> Disconnected</span>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div class="eyebrow">DIRECT TO RADIO · NO ODMASTER ACCOUNT</div>
+        <h1>H9 Toolbox.<br><em>Your radio, your way.</em></h1>
+        <p>Connect over Bluetooth, save a full backup, and edit channels and radio settings. Everything stays in this browser unless you download a file.</p>
+        <div class="intro-actions"><a class="button ghost" href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">View GitHub repository ↗</a></div>
+        <p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; save an untouched backup and verify settings before writing to your radio.</p>
+      </section>
+
+      <div class="layout">
+        <div class="primary">
+          <section class="card" aria-labelledby="radio-title">
+            <div class="card-head"><div><span class="step">01</span><h2 id="radio-title">Connect to your TD-H9</h2></div><span class="hint">Chrome or Edge · HTTPS</span></div>
+            <p class="subtext">Turn on the radio’s Bluetooth programming mode, then choose it from the browser’s device list.</p>
+            <div class="controls"><button id="connect" class="button primary-button">Connect Bluetooth</button><button id="disconnect" class="button ghost" disabled>Disconnect</button></div>
+            <details class="advanced"><summary>Bluetooth options</summary>
+              <div class="option-row"><label for="profile">UART service</label><select id="profile"><option value="auto">Auto-detect known profiles</option><option value="h9">TD-H9 / FF00</option><option value="nordic">Nordic UART</option><option value="hm10">HM-10 / FFE0</option><option value="feasycom">Feasycom / FFF0</option><option value="custom">Custom service UUID</option></select></div>
+              <div class="option-row"><label for="customUuid">Additional service UUID</label><input id="customUuid" type="text" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+              <div class="option-row"><label for="checksum">Read reply</label><select id="checksum"><option value="auto">Auto-detect 36 or 37 bytes</option><option value="no">36 bytes (no checksum)</option><option value="yes">37 bytes (with checksum)</option></select></div>
+              <p class="fine">The browser can only inspect services listed before you choose a device. If your radio uses another service, enter its UUID and reconnect.</p>
+            </details>
+          </section>
+
+          <section class="card" aria-labelledby="backup-title">
+            <div class="card-head"><div><span class="step">02</span><h2 id="backup-title">Read &amp; back up</h2></div><span id="radioMode" class="chip">No image</span></div>
+            <p class="subtext">Read the radio before editing. Keep the untouched backup so you can recover your original configuration.</p>
+            <div class="controls"><button id="read" class="button primary-button" disabled>Read from radio</button><button id="save" class="button ghost" disabled>Save backup .img</button><label class="button ghost file-label">Open backup .img<input id="open" type="file" accept=".img,application/octet-stream"></label></div>
+            <div class="controls portable-controls"><button id="exportJson" class="button ghost" disabled>Download config JSON</button><label class="button ghost file-label">Open JSON<input id="openJson" type="file" accept=".json,application/json"></label><button id="exportImg" class="button ghost" disabled>Download working .img</button></div>
+            <p class="fine">Config JSON contains readable channels and settings only. To import it, first read the destination radio or open its .img backup. It includes stored callsigns and relay passwords.</p>
+            <details class="advanced"><summary>Lossless JSON archive</summary><p class="fine">A complete image needs its raw bytes. Use this only when you want one JSON file that can recreate the original .img without a separate backup. Older JSON exports with memoryBlocks still open.</p><div class="controls portable-controls"><button id="exportArchive" class="button ghost" disabled>Download archive JSON</button></div></details>
+            <div class="progress-wrap" id="progressWrap" hidden><div class="progress-track"><div id="progressBar"></div></div><span id="progressLabel">0%</span></div>
+            <p class="fine" id="imageInfo">No radio image loaded.</p>
+          </section>
+
+          <section class="card channels" aria-labelledby="channels-title">
+            <div class="card-head"><div><span class="step">03</span><h2 id="channels-title">Channels</h2></div><span class="chip" id="channelCount">0 loaded</span></div>
+            <p class="subtext">Create, edit, and remove memory channels. Changes stay in the image until you write them to the radio.</p>
+            <div class="channel-tools"><input id="search" type="search" placeholder="Find channel or frequency" aria-label="Find channel" disabled><div class="channel-tool-actions"><label class="toggle"><input id="showAll" type="checkbox" disabled> Show empty</label><input id="newChannelNumber" type="number" min="1" max="199" placeholder="Next free" aria-label="New channel number; leave blank for next free" disabled><button id="createChannel" class="button primary-button" disabled>Create channel</button></div></div>
+              <div class="controls channel-import-actions"><label class="button ghost file-label">Import channels JSON<input id="openChannels" type="file" accept=".json,application/json"></label><button id="exportChannels" class="button ghost" disabled>Export channels JSON</button><span class="fine">Import into a loaded image. Files with replaceAll clear old channels after confirmation.</span></div>
+            <div class="table-wrap"><table><thead><tr><th>CH</th><th>Name</th><th>RX MHz</th><th>TX MHz</th><th>Mode</th><th>Tones</th><th>Power</th><th>Scan</th><th></th></tr></thead><tbody id="channelRows"><tr><td colspan="9" class="empty">Read from the radio or open a backup to see channels.</td></tr></tbody></table></div>
+            <div class="edit-panel" id="editPanel" hidden>
+              <div class="edit-title"><h3 id="editHeading">Edit channel</h3><button id="cancelEdit" class="text-button">Cancel</button></div>
+              <p class="fine editor-intro">Changing RX updates TX for simplex or a recognized repeater output. Select + or − when needed; enter TX yourself for a custom split or leave it blank for receive-only.</p>
+              <fieldset class="editor-section"><legend>Frequency &amp; display</legend><div class="edit-grid">
+                <label>Name<input id="editName" maxlength="8" autocomplete="off"></label>
+                <label>RX MHz<input id="editRx" type="text" inputmode="decimal" placeholder="146.52000"></label>
+                <label>TX MHz<input id="editTx" type="text" inputmode="decimal" placeholder="146.52000"></label>
+                <label>Offset direction<select id="editDirection"><option value="0">None / split</option><option value="1">Minus (−)</option><option value="2">Plus (+)</option><option value="3">Unknown / preserve</option></select></label>
+                <label>Modulation &amp; width<select id="editMode"><option value="FM">FM · wide</option><option value="NFM">FM · narrow</option><option value="AM">AM · wide</option><option value="NAM">AM · narrow</option></select></label>
+                <label>Transmit power<select id="editPower"><option value="0">Low · 1 W</option><option value="1">Mid · 5 W</option><option value="2">High · 10 W</option><option value="3">Unknown · preserve</option></select></label>
+              </div><div class="tx-assist"><span id="txHint" class="fine">Changing RX updates TX.</span><button id="suggestTx" class="text-button" type="button">Use suggested TX</button></div><p class="fine">US suggestions: 2 m ±0.600 MHz, 1.25 m −1.600 MHz, 70 cm ±5.000 MHz. 70 cm direction varies locally; verify the repeater listing. <a href="https://www.arrl.org/band-plan" target="_blank" rel="noreferrer">ARRL band plan</a></p></fieldset>
+              <fieldset class="editor-section"><legend>Squelch tones</legend><div class="tone-grid">
+                <div class="tone-box"><h4>Transmit tone</h4><div class="edit-grid">
+                  <label>Type<select id="editTxToneType"><option value="off">Off</option><option value="ctcss">CTCSS</option><option value="dcs">DCS</option><option value="raw">Unknown · preserve</option></select></label>
+                  <label id="editTxCtcssWrap">CTCSS Hz<select id="editTxCtcss"></select></label>
+                  <label id="editTxDcsWrap">DCS code<select id="editTxDcs"></select></label>
+                  <label id="editTxPolarityWrap">DCS polarity<select id="editTxPolarity"><option value="N">Normal</option><option value="R">Reverse</option></select></label>
+                </div></div>
+                <div class="tone-box"><h4>Receive tone</h4><div class="edit-grid">
+                  <label>Type<select id="editRxToneType"><option value="off">Off</option><option value="ctcss">CTCSS</option><option value="dcs">DCS</option><option value="raw">Unknown · preserve</option></select></label>
+                  <label id="editRxCtcssWrap">CTCSS Hz<select id="editRxCtcss"></select></label>
+                  <label id="editRxDcsWrap">DCS code<select id="editRxDcs"></select></label>
+                  <label id="editRxPolarityWrap">DCS polarity<select id="editRxPolarity"><option value="N">Normal</option><option value="R">Reverse</option></select></label>
+                </div></div>
+              </div></fieldset>
+              <fieldset class="editor-section"><legend>Channel behavior</legend><div class="edit-grid">
+                <label>PTT ID<select id="editPttId"><option value="0">Off</option><option value="1">Beginning</option><option value="2">End</option><option value="3">Both</option></select></label>
+                <label>Scramble code<select id="editScramble"></select></label>
+                <label class="check-option"><input id="editUsed" type="checkbox"> Channel enabled</label>
+                <label class="check-option"><input id="editScan" type="checkbox"> Include in scan</label>
+                <label class="check-option"><input id="editBusyLock" type="checkbox"> Busy channel lockout</label>
+                <label class="check-option"><input id="editHopping" type="checkbox"> Hopping RX</label>
+              </div></fieldset>
+              <div class="editor-actions"><button id="applyEdit" class="button primary-button">Apply to image</button><button id="clearEdit" class="button danger" type="button">Remove channel</button><span id="editError" class="error" role="alert"></span></div>
+            </div>
+          </section>
+
+          <section class="card settings" aria-labelledby="settings-title">
+            <div class="card-head"><div><span class="step">04</span><h2 id="settings-title">Radio settings</h2></div><span class="chip" id="settingsCount">0 loaded</span></div>
+            <p class="subtext">Inspect and edit documented radio, Bluetooth, GNSS, and APRS options from the full backup. Open a group to see its controls. Unknown values remain unchanged unless you select a new value.</p>
+            <div id="settingsGroups" class="settings-groups">Read from the radio or open a backup to inspect its settings.</div>
+            <div class="editor-actions"><button id="applySettings" class="button primary-button" type="button">Apply settings to image</button><span id="settingsError" class="error" role="alert"></span></div>
+            <p class="fine">Fixed GNSS coordinates, stored DTMF codes, FM broadcast presets, and undocumented firmware bytes remain in the backup and are not edited here. Changing APRS beacon or relay options can cause transmissions; review those values before writing.</p>
+          </section>
+
+          <section class="card" aria-labelledby="write-title">
+            <div class="card-head"><div><span class="step">05</span><h2 id="write-title">Write changes</h2></div><span class="chip warn" id="changeCount">No changes</span></div>
+            <p class="subtext">Only changed 32-byte blocks are sent. Before each write, the app checks that the radio still matches the original backup, then reads the block back.</p>
+            <label class="confirm"><input id="backupConfirmed" type="checkbox" disabled><span>I saved the untouched backup and checked the edited channels and settings.</span></label>
+            <div class="controls"><button id="write" class="button write-button" disabled>Write changed blocks</button></div>
+          </section>
+        </div>
+
+        <aside class="sidebar">
+          <section class="card status-card" aria-labelledby="activity-title"><div class="card-head"><div><span class="step">●</span><h2 id="activity-title">Activity</h2></div></div><div id="status" class="status">Ready to connect.</div><ol id="log" class="log" aria-live="polite"></ol></section>
+          <section class="note"><strong>Before writing</strong><p>This is an early TD-H9 tool. Confirm the channel list against your radio after the first read. A different firmware layout could make an image look plausible while containing different settings.</p><p>Bluetooth and programming stay local to your browser.</p></section>
+        </aside>
+      </div>
+    </main>
+    <footer>H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></footer>
+  </div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
