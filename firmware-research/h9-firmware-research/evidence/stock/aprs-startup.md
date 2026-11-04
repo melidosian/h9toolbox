@@ -24,6 +24,11 @@ stack pointer is `0x20001A50`; reset vector is `0x080020D5`.
   `0x200000C4` to zero, `0x200000C8` to 4, and the tick step at
   `0x200000CC` to **1 ms**. The clock setup later selects 24 MHz. Other
   nonzero initialized words are emitted by `decode_aprs_startup.py`.
+  The record also sets TX lead at `0x20000110` to **500 ms** and TX tail at
+  `0x20000114` to **100 ms**. Literals at `0x080026C8` and `0x080026D0`
+  identify those words as the timing inputs to `0x08002664`. The replacement
+  diagnostic board entry now uses these defaults, while its RF TX gate stays
+  disabled until the board signal is identified.
   A replacement image may use normal uncompressed `.data` copying instead.
 - `0x080021FC` copies 48 words from the image vector table at `0x08002000`
   to `0x20000000`, writes that RAM address to SCB VTOR at `0xE000ED08`, then

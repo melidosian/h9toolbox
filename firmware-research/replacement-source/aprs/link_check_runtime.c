@@ -4,6 +4,7 @@
 #include "h9_aprs_clock.h"
 #include "h9_aprs_runtime_state.h"
 #include "h9_aprs_status.h"
+#include "h9_aprs_tx_defaults.h"
 
 static H9AprsRuntimeState runtime;
 
@@ -146,7 +147,9 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     hardware.tx_wave_active = board_tx_wave_active;
     hardware.next_tx_wave_sample = board_next_tx_wave;
     h9_aprs_controller_init(&runtime.controller, &hardware);
-    h9_aprs_tx_service_init(&runtime.tx_service, 0, 0, 0);
+    h9_aprs_tx_service_init(&runtime.tx_service, 0,
+                            H9_APRS_STOCK_TX_LEAD_MS,
+                            H9_APRS_STOCK_TX_TAIL_MS);
     h9_aprs_tx_runtime_bind(&runtime.tx_runtime, &runtime.tx_service);
     h9_aprs_uart_receive_init(&runtime.uart_receive);
     h9_aprs_uart1_dma_bind_target(&runtime.uart1_dma,

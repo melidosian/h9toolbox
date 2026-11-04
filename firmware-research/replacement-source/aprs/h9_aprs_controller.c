@@ -1,4 +1,5 @@
 #include "h9_aprs_controller.h"
+#include "h9_aprs_tx_defaults.h"
 #include <string.h>
 
 static bool send_frame(H9AprsController *controller, uint8_t command,
@@ -113,7 +114,8 @@ void h9_aprs_controller_init(H9AprsController *controller,
     h9_wire_reset(&controller->wire);
     h9_aprs_demod_init(&controller->demod);
     h9_aprs_frame_init(&controller->frame);
-    h9_aprs_tx_init(&controller->tx, 0, 0);
+    h9_aprs_tx_init(&controller->tx, H9_APRS_STOCK_TX_LEAD_MS,
+                    H9_APRS_STOCK_TX_TAIL_MS);
 }
 
 void h9_aprs_controller_uart_byte(H9AprsController *controller, uint8_t byte)

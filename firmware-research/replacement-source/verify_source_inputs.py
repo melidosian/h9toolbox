@@ -22,11 +22,20 @@ CRC_TABLE_OFFSET = 0x4158
 
 
 def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
-           tx_frequency_source: str) -> None:
+           tx_frequency_source: str, tx_defaults_source: str) -> None:
     if sha256(main_app).hexdigest() != MAIN_SHA256:
         raise ValueError("main app is not the analyzed v1.0.38 image")
     if sha256(aprs_image).hexdigest() != APRS_SHA256:
         raise ValueError("APRS image is not the analyzed v1.0.15 image")
+    for literal, address in ((0x080026C8, 0x20000110),
+                             (0x080026D0, 0x20000114)):
+        if struct.unpack_from("<I", aprs_image, literal - APRS_BASE)[0] != address:
+            raise ValueError(f"APRS TX timing pointer differs at 0x{literal:08X}")
+    for name, expected in (("LEAD", 500), ("TAIL", 100)):
+        match = re.search(rf"H9_APRS_STOCK_TX_{name}_MS\s*=\s*(\d+)",
+                          tx_defaults_source)
+        if match is None or int(match.group(1)) != expected:
+            raise ValueError(f"APRS stock TX {name.lower()} default differs")
     if main_app[0x05C324:0x05C329] != bytes.fromhex("03 05 09 08 18"):
         raise ValueError("main APRS TX mode table differs")
     if main_app[0x082F0E:0x082F12] != bytes.fromhex("BE EA E1 C9"):
@@ -170,10 +179,12 @@ def main() -> None:
     args = parser.parse_args()
     source = Path(__file__).resolve().parent / "aprs" / "h9_aprs_oscillator.c"
     tx_source = Path(__file__).resolve().parent / "main" / "h9_main_tx_frequency.c"
+    tx_defaults = Path(__file__).resolve().parent / "aprs" / "h9_aprs_tx_defaults.h"
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"),
-           tx_source.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/tables/limits and Dual Watch side and frequency copies, control group 07 timer/volume paths, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
+           tx_source.read_text(encoding="utf-8"),
+           tx_defaults.read_text(encoding="utf-8"))
+    print("Exact stock hashes, TX call/tables/limits and Dual Watch side and frequency copies, control group 07 timer/volume paths, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, APRS TX timing pointers/defaults, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

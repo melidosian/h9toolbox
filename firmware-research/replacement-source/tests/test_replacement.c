@@ -10,6 +10,7 @@
 #include "h9_aprs_status.h"
 #include "h9_aprs_systick.h"
 #include "h9_aprs_tx.h"
+#include "h9_aprs_tx_defaults.h"
 #include "h9_aprs_tx_gate.h"
 #include "h9_aprs_tx_packet.h"
 #include "h9_aprs_tx_service.h"
@@ -1737,6 +1738,8 @@ static void test_aprs_tx_service(void)
     hw.context = &fake;
     hw.transmit_aprs_packet = submit_service_packet;
     h9_aprs_controller_init(&controller, &hw);
+    assert(controller.tx.lead_ms == H9_APRS_STOCK_TX_LEAD_MS &&
+           controller.tx.tail_ms == H9_APRS_STOCK_TX_TAIL_MS);
     serial_length = h9_main_aprs_wire_encode(0x00u, packet, packet_length,
                                               serial, sizeof serial);
     assert(serial_length != 0);
