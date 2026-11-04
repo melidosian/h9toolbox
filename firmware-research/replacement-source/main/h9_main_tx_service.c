@@ -17,7 +17,9 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
 
     if (config == NULL || packet == NULL || length == 0u ||
         length > H9_MAIN_AX25_MAX_PACKET || hardware == NULL ||
-        hardware->read_current_side == NULL || hardware->prepare_tx == NULL ||
+        hardware->read_current_side == NULL ||
+        hardware->validate_frequency == NULL ||
+        hardware->prepare_tx == NULL ||
         hardware->read_prepared_tx == NULL || hardware->send_packet == NULL ||
         hardware->stop_tx == NULL || hardware->restore_receive == NULL ||
         !hardware->read_current_side(opaque, &previous_side))
@@ -25,6 +27,8 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
 
     plan = h9_main_tx_plan(config, previous_side, a_tx_hz, b_tx_hz);
     if (!plan.allowed) return H9_MAIN_TX_REJECTED;
+    if (!hardware->validate_frequency(opaque, plan.expected_tx_hz))
+        return H9_MAIN_TX_REJECTED;
 
     result = H9_MAIN_TX_PREPARE_FAILED;
     if (hardware->prepare_tx(opaque, plan.side, plan.expected_tx_hz)) {

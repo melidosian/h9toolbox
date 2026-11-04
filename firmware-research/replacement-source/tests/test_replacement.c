@@ -43,6 +43,7 @@
 #include "h9_main_uart1_tx.h"
 #include "h9_main_uart1_tx_queue.h"
 #include "h9_main_tx_service.h"
+#include "h9_main_tx_frequency.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
 #include <string.h>
@@ -1032,6 +1033,47 @@ static void test_main_policy(void)
                                       445390000u, 144390000u));
 }
 
+static void test_main_tx_frequency_precheck(void)
+{
+    H9MainTxFrequencyPolicy policy = { 0 };
+    uint32_t tx;
+    assert(h9_main_tx_apply_shift(14439000u, false, 1u, 60000u, &tx));
+    assert(tx == 14379000u);
+    assert(h9_main_tx_apply_shift(14439000u, false, 2u, 60000u, &tx));
+    assert(tx == 14499000u);
+    assert(h9_main_tx_apply_shift(14439000u, true, 2u, 60000u, &tx));
+    assert(tx == 14439000u);
+    assert(!h9_main_tx_apply_shift(1u, false, 1u, 60000u, &tx));
+    assert(!h9_main_tx_apply_shift(UINT32_MAX, false, 2u, 1u, &tx));
+    assert(!h9_main_tx_apply_shift(14439000u, false, 3u, 0u, &tx));
+    assert(h9_main_tx_hz_allowed(&policy, 144390000u));
+    assert(!h9_main_tx_hz_allowed(&policy, 144390001u));
+    assert(!h9_main_tx_frequency_allowed(&policy, 13599999u));
+    assert(!h9_main_tx_frequency_allowed(&policy, 20000000u));
+    policy.allow_200_to_300_mhz = true;
+    assert(h9_main_tx_frequency_allowed(&policy, 20000000u));
+    assert(!h9_main_tx_frequency_allowed(&policy, 30000000u));
+    policy.allow_300_to_400_mhz = true;
+    assert(h9_main_tx_frequency_allowed(&policy, 30000000u));
+    assert(!h9_main_tx_frequency_allowed(&policy, 50000000u));
+    policy.allow_500_mhz_plus = true;
+    assert(h9_main_tx_frequency_allowed(&policy, 50000000u));
+    policy.region_mode = 1u;
+    assert(h9_main_tx_frequency_allowed(&policy, 14400000u));
+    assert(h9_main_tx_frequency_allowed(&policy, 14800000u));
+    assert(!h9_main_tx_frequency_allowed(&policy, 14800001u));
+    assert(!h9_main_tx_frequency_allowed(&policy, 41999999u));
+    assert(h9_main_tx_frequency_allowed(&policy, 42000000u));
+    assert(h9_main_tx_frequency_allowed(&policy, 45000000u));
+    assert(!h9_main_tx_frequency_allowed(&policy, 45000001u));
+    policy.region_mode = 2u;
+    assert(h9_main_tx_frequency_allowed(&policy, 46256250u));
+    assert(h9_main_tx_frequency_allowed(&policy, 46772500u));
+    assert(!h9_main_tx_frequency_allowed(&policy, 46256251u));
+    policy.region_mode = 3u;
+    assert(!h9_main_tx_frequency_allowed(&policy, 14439000u));
+}
+
 typedef struct {
     H9Side current_side;
     H9Side prepared_side;
@@ -1041,6 +1083,8 @@ typedef struct {
     bool fail_stop;
     bool wrong_readback_side;
     bool wrong_readback_hz;
+    H9MainTxFrequencyPolicy frequency_policy;
+    unsigned validate_calls;
     unsigned prepare_calls;
     unsigned readback_calls;
     unsigned send_calls;
@@ -1056,10 +1100,19 @@ static bool main_read_side(void *opaque, H9Side *side)
     return true;
 }
 
+static bool main_validate_frequency(void *opaque, uint32_t hz)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    assert(fake->step == 0u);
+    ++fake->validate_calls;
+    return h9_main_tx_hz_allowed(&fake->frequency_policy, hz);
+}
+
 static bool main_prepare(void *opaque, H9Side side, uint32_t hz)
 {
     FakeMainTx *fake = (FakeMainTx *)opaque;
     assert(fake->step == 0u);
+    assert(fake->validate_calls == 1u);
     fake->step = 1u;
     fake->prepare_calls++;
     fake->prepared_side = side;
@@ -1111,7 +1164,7 @@ static void test_main_tx_service(void)
 {
     const uint8_t packet[] = { 0x82u };
     const H9MainTxHardware hardware = {
-        main_read_side, main_prepare, main_read_prepared,
+        main_read_side, main_validate_frequency, main_prepare, main_read_prepared,
         main_send_packet, main_stop_tx, main_restore_receive
     };
     H9MainAprsConfig cfg = { true, false, H9_RX_B, H9_TX_B_LOCK };
@@ -1122,6 +1175,14 @@ static void test_main_tx_service(void)
     result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
                              packet, sizeof packet, &hardware, &fake);
     assert(result == H9_MAIN_TX_REJECTED && fake.prepare_calls == 0u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.frequency_policy.region_mode = 1u;
+    result = h9_main_tx_send(&cfg, 445390000u, 149000000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_REJECTED && fake.validate_calls == 1u &&
+           fake.prepare_calls == 0u && fake.send_calls == 0u);
 
     memset(&fake, 0, sizeof fake);
     fake.current_side = H9_SIDE_B;
@@ -2856,6 +2917,7 @@ int main(void)
     test_main_uart_ring();
     test_main_aprs_session();
     test_main_policy();
+    test_main_tx_frequency_precheck();
     test_main_tx_service();
     test_main_boot_record();
     test_main_serial_profile();

@@ -21,7 +21,8 @@ TABLE_SIZE = 128
 CRC_TABLE_OFFSET = 0x4158
 
 
-def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str) -> None:
+def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
+           tx_frequency_source: str) -> None:
     if sha256(main_app).hexdigest() != MAIN_SHA256:
         raise ValueError("main app is not the analyzed v1.0.38 image")
     if sha256(aprs_image).hexdigest() != APRS_SHA256:
@@ -30,6 +31,15 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str) -> None:
         raise ValueError("main APRS TX mode table differs")
     if main_app[0x082F0E:0x082F12] != bytes.fromhex("BE EA E1 C9"):
         raise ValueError("timed beacon no longer calls the known selector")
+    match = re.search(r"mode2_frequency_10hz\[30\]\s*=\s*\{([^}]+)\}",
+                      tx_frequency_source, re.S)
+    if match is None:
+        raise ValueError("main mode-2 frequency table not found in source")
+    source_frequencies = tuple(int(value) for value in
+                               re.findall(r"\b(\d+)u\b", match.group(1)))
+    stock_frequencies = struct.unpack_from("<30I", main_app, 0x0B4F78)
+    if source_frequencies != stock_frequencies:
+        raise ValueError("main mode-2 frequency table differs from stock")
     pointer = struct.unpack_from("<I", aprs_image, 0x5E0)[0]
     if pointer != APRS_BASE + TABLE_OFFSET:
         raise ValueError("APRS waveform table pointer differs")
@@ -88,9 +98,11 @@ def main() -> None:
     parser.add_argument("aprs_image", type=Path)
     args = parser.parse_args()
     source = Path(__file__).resolve().parent / "aprs" / "h9_aprs_oscillator.c"
+    tx_source = Path(__file__).resolve().parent / "main" / "h9_main_tx_frequency.c"
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
-           source.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/table, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
+           source.read_text(encoding="utf-8"),
+           tx_source.read_text(encoding="utf-8"))
+    print("Exact stock hashes, TX call/tables, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":
