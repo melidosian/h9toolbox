@@ -40,5 +40,5 @@ with injected RAM pointers. It computes all fields before writing any output
 and rejects zero inputs and a 0..255 divider search that never terminates.
 The stock routine has no such bounds; its loop can wrap its eight-bit index.
 The diagnostic board entry calls the port after a successful clock match,
-then stops before the stock ROM `0x02001634` clock-apply call, `csync`, and
-subsequent register writes. No radio has run the replacement.
+then invokes the first clock-apply transition described in
+[the apply trace](main-clock-apply.md). No radio has run the replacement.

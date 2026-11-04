@@ -62,6 +62,7 @@ SOURCES = {
         "main/h9_main_gps_fix.c",
         "main/h9_main_board_markers.c",
         "main/h9_main_clock_probe.c",
+        "main/h9_main_clock_apply.c",
         "main/h9_main_clock_timing.c",
         "main/h9_main_heap_bitmap.c",
         "main/h9_main_memory_window.c",

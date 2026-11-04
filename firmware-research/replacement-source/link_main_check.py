@@ -163,10 +163,22 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_match",
         "h9_main_clock_timing_bind_target",
         "h9_main_clock_timing_calculate",
+        "h9_main_clock_apply_bind_target",
+        "h9_main_clock_apply_first",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
         raise ValueError("Linked board entry lost ROM and bitmap call order")
+    for name, required in (
+        ("target_rom_apply", "2001634"),
+        ("target_synchronize", "csync"),
+        ("target_delay_nops", "nop"),
+    ):
+        helper = re.search(
+            rf"(?ms)^{name}:\n(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+        )
+        if helper is None or required not in helper.group(1):
+            raise ValueError(f"Linked clock-apply helper lacks {required}")
     bitmap_match = re.search(
         r"(?ms)^mark_blocks:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
         disassembly,

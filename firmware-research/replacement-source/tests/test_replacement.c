@@ -43,6 +43,7 @@
 #include "h9_main_boot_validator.h"
 #include "h9_main_board_markers.h"
 #include "h9_main_clock_probe.h"
+#include "h9_main_clock_apply.h"
 #include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
@@ -4217,6 +4218,50 @@ static void test_main_clock_timing(void)
     assert(fifth == 0u && timebase == 40000000u);
 }
 
+typedef struct {
+    volatile uint32_t *control;
+    unsigned calls;
+} ClockApplyCapture;
+
+static void clock_apply_rom(void *context)
+{
+    ClockApplyCapture *capture = (ClockApplyCapture *)context;
+    assert(capture->calls == 0u && *capture->control == 0x1CCu);
+    capture->calls++;
+}
+
+static void clock_apply_sync(void *context)
+{
+    ClockApplyCapture *capture = (ClockApplyCapture *)context;
+    assert(capture->calls == 1u && *capture->control == 0x1CCu);
+    capture->calls++;
+}
+
+static void clock_apply_delay(void *context, uint32_t count)
+{
+    ClockApplyCapture *capture = (ClockApplyCapture *)context;
+    assert(capture->calls == 2u && count == 100u &&
+           *capture->control == 0x1C2u);
+    capture->calls++;
+}
+
+static void test_main_clock_apply_first(void)
+{
+    uint32_t control = 0x1CCu;
+    ClockApplyCapture capture = { &control, 0u };
+    H9MainClockApply apply = {
+        &control, &capture, clock_apply_rom,
+        clock_apply_sync, clock_apply_delay
+    };
+    assert(!h9_main_clock_apply_first(NULL));
+    apply.synchronize = NULL;
+    assert(!h9_main_clock_apply_first(&apply));
+    assert(control == 0x1CCu && capture.calls == 0u);
+    apply.synchronize = clock_apply_sync;
+    assert(h9_main_clock_apply_first(&apply));
+    assert(capture.calls == 3u && control == 2u);
+}
+
 static void test_main_clock_source_registers(void)
 {
     uint32_t storage[15];
@@ -4326,6 +4371,7 @@ int main(void)
     test_main_clock_calculation();
     test_main_clock_match();
     test_main_clock_timing();
+    test_main_clock_apply_first();
     test_main_clock_source_registers();
     test_main_clock_aux_fields();
     test_main_serial_profile();
