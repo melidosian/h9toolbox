@@ -35,8 +35,19 @@ precheck callback before RF preparation. The board adapter must supply
 the active region and band flags to that callback; the host test does so
 with the ported function.
 
-The stock TX setup next calls `FUN_01e56712` at app+`0x056612`, which
-uses additional RAM limits. Its Ghidra decompilation truncates at a bad
-instruction in the branch for argument 1, and its full behavior has not
-been ported. The precheck does not prove an emitted frequency or resolve
-the stock PTT assertion point. No radio transmit was performed.
+The stock TX setup next calls `FUN_01e56712` at app+`0x056612`. The
+independent Pi32 decoder resolves both range branches, including the
+instruction at `0x01E56730` where Ghidra stops. The initial limit words
+are copied by stock startup from app+`0x0D22A4..0x0D22B0` into RAM:
+range 0 at `0xC120/0xC124` is 136–174 MHz; range 1 at
+`0xC118/0xC11C` is 400–520 MHz. `verify_source_inputs.py` checks the
+four source constants against those image words. The selector at RAM
+`0x12B9D` is 0 through 299.99999 MHz and 1 above, as assigned earlier
+in TX setup. A candidate above its range wraps to the low boundary and
+returns failure; one below wraps to the high boundary and fails. The
+range-0 branch lets an enabled 200–300 MHz candidate exceed its ordinary
+upper limit. The replacement ports both branches and uses the observed
+band selector for its combined precheck. Other call contexts and any
+runtime changes to the limit words still need verification. This does
+not prove an emitted frequency or resolve the stock PTT assertion point.
+No radio transmit was performed.

@@ -40,6 +40,17 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
     stock_frequencies = struct.unpack_from("<30I", main_app, 0x0B4F78)
     if source_frequencies != stock_frequencies:
         raise ValueError("main mode-2 frequency table differs from stock")
+    limits = re.search(r"h9_main_stock_tx_limits\s*=\s*\{([^}]+)\}",
+                       tx_frequency_source, re.S)
+    if limits is None:
+        raise ValueError("main TX limits not found in source")
+    source_limits = tuple(int(value) for value in
+                          re.findall(r"\b(\d+)u\b", limits.group(1)))
+    uhf_low, uhf_high, vhf_low, vhf_high = struct.unpack_from(
+        "<4I", main_app, 0x0D22A4)
+    stock_limits = (vhf_low, vhf_high, uhf_low, uhf_high)
+    if source_limits != stock_limits:
+        raise ValueError("main TX limits differ from stock")
     pointer = struct.unpack_from("<I", aprs_image, 0x5E0)[0]
     if pointer != APRS_BASE + TABLE_OFFSET:
         raise ValueError("APRS waveform table pointer differs")
@@ -102,7 +113,7 @@ def main() -> None:
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"),
            tx_source.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/tables, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, TX call/tables/limits, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

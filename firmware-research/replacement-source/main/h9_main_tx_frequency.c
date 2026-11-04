@@ -2,6 +2,10 @@
 
 #include <stddef.h>
 
+const H9MainTxLimits h9_main_stock_tx_limits = {
+    13600000u, 17400000u, 40000000u, 52000000u
+};
+
 /* Exact 30-word mode-2 table at app+0x0B4F78, in 10 Hz units. */
 static const uint32_t mode2_frequency_10hz[30] = {
     46256250u, 46258750u, 46261250u, 46263750u,
@@ -60,4 +64,51 @@ bool h9_main_tx_hz_allowed(const H9MainTxFrequencyPolicy *policy,
 {
     return tx_hz != 0u && tx_hz % 10u == 0u &&
            h9_main_tx_frequency_allowed(policy, tx_hz / 10u);
+}
+
+bool h9_main_tx_limit_check(uint32_t *frequency_10hz,
+                             const H9MainTxLimits *limits,
+                             uint8_t range_selector,
+                             bool normalize_to_lower,
+                             bool allow_200_to_300_mhz)
+{
+    uint32_t low;
+    uint32_t high;
+    uint32_t base;
+    uint32_t candidate;
+    if (frequency_10hz == NULL || limits == NULL || range_selector > 1u)
+        return false;
+    low = range_selector == 0u ? limits->range0_low_10hz :
+                                  limits->range1_low_10hz;
+    high = range_selector == 0u ? limits->range0_high_10hz :
+                                   limits->range1_high_10hz;
+    if (low == 0u || high < low) return false;
+    base = normalize_to_lower ? low : 0u;
+    low -= base;
+    high -= base;
+    candidate = *frequency_10hz;
+    if (candidate > high &&
+        !(range_selector == 0u && allow_200_to_300_mhz &&
+          candidate >= 20000000u && candidate < 30000000u)) {
+        *frequency_10hz = low;
+        return false;
+    }
+    if (candidate < low) {
+        *frequency_10hz = high;
+        return false;
+    }
+    return true;
+}
+
+bool h9_main_tx_hz_allowed_with_limits(
+    const H9MainTxFrequencyPolicy *policy,
+    const H9MainTxLimits *limits, uint32_t tx_hz)
+{
+    uint32_t candidate;
+    if (!h9_main_tx_hz_allowed(policy, tx_hz) || limits == NULL)
+        return false;
+    candidate = tx_hz / 10u;
+    return h9_main_tx_limit_check(&candidate, limits,
+                                  candidate > 29999999u ? 1u : 0u, false,
+                                  policy->allow_200_to_300_mhz);
 }

@@ -1036,6 +1036,7 @@ static void test_main_policy(void)
 static void test_main_tx_frequency_precheck(void)
 {
     H9MainTxFrequencyPolicy policy = { 0 };
+    H9MainTxLimits limits = h9_main_stock_tx_limits;
     uint32_t tx;
     assert(h9_main_tx_apply_shift(14439000u, false, 1u, 60000u, &tx));
     assert(tx == 14379000u);
@@ -1072,6 +1073,31 @@ static void test_main_tx_frequency_precheck(void)
     assert(!h9_main_tx_frequency_allowed(&policy, 46256251u));
     policy.region_mode = 3u;
     assert(!h9_main_tx_frequency_allowed(&policy, 14439000u));
+    policy.region_mode = 0u;
+    tx = 14439000u;
+    assert(h9_main_tx_limit_check(&tx, &limits, 0u, false, false));
+    assert(tx == 14439000u);
+    tx = 13599999u;
+    assert(!h9_main_tx_limit_check(&tx, &limits, 0u, false, false));
+    assert(tx == 17400000u);
+    tx = 17400001u;
+    assert(!h9_main_tx_limit_check(&tx, &limits, 0u, false, false));
+    assert(tx == 13600000u);
+    tx = 39000u;
+    assert(h9_main_tx_limit_check(&tx, &limits, 0u, true, false));
+    tx = 52000001u;
+    assert(!h9_main_tx_limit_check(&tx, &limits, 1u, false, false));
+    assert(tx == 40000000u);
+    tx = 25000000u;
+    assert(h9_main_tx_limit_check(&tx, &limits, 0u, false, true));
+    assert(!h9_main_tx_limit_check(&tx, &limits, 0u, false, false));
+    assert(tx == 13600000u);
+    assert(h9_main_tx_hz_allowed_with_limits(&policy, &limits,
+                                              445390000u));
+    assert(!h9_main_tx_hz_allowed_with_limits(&policy, &limits,
+                                               185000000u));
+    assert(h9_main_tx_hz_allowed_with_limits(&policy, &limits,
+                                              144390000u));
 }
 
 typedef struct {
@@ -1105,7 +1131,8 @@ static bool main_validate_frequency(void *opaque, uint32_t hz)
     FakeMainTx *fake = (FakeMainTx *)opaque;
     assert(fake->step == 0u);
     ++fake->validate_calls;
-    return h9_main_tx_hz_allowed(&fake->frequency_policy, hz);
+    return h9_main_tx_hz_allowed_with_limits(&fake->frequency_policy,
+                                              &h9_main_stock_tx_limits, hz);
 }
 
 static bool main_prepare(void *opaque, H9Side side, uint32_t hz)
