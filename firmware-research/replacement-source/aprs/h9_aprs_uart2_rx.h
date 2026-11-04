@@ -7,8 +7,8 @@
 #include <stdint.h>
 
 /* Stock USART2 uses two 1024-byte DMA buffers. The replacement stores one
- * 1024-byte batch for either the IRQ fallback or the DMA board path and
- * forwards at most 1020 bytes, matching the stock serial output cap. */
+ * 1024-byte batch for either the IRQ fallback or the DMA board path. The
+ * DMA adapter adds a separate 256-byte spill ring during forwarding. */
 #define H9_APRS_UART2_BATCH_CAPACITY 1024u
 typedef struct {
     volatile uint32_t *usart;

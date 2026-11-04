@@ -60,6 +60,9 @@ typedef struct {
     uint8_t afsk_packet[H9_APRS_MAX_RECEIVE];
     size_t afsk_packet_length;
     H9AprsTxService *tx_service;
+    H9AprsUart2Dma *inject_uart2_dma;
+    volatile uint32_t *inject_uart2_registers;
+    bool inject_uart2_once;
     H9AprsTxSettings tx_settings;
     unsigned tx_settings_changes;
     int demod_calls;
@@ -79,6 +82,19 @@ static void uart_write(void *opaque, const uint8_t *data, size_t length)
     memcpy(fake->uart + fake->uart_length, data, length);
     fake->uart_length += length;
     fake->uart_writes++;
+    if (fake->inject_uart2_once) {
+        static const uint8_t arriving[] = { 'B', 'C' };
+        size_t index;
+        fake->inject_uart2_once = false;
+        assert(fake->inject_uart2_dma != NULL &&
+               fake->inject_uart2_registers != NULL);
+        for (index = 0; index < sizeof arriving; ++index) {
+            fake->inject_uart2_registers[0] = 0x20u;
+            fake->inject_uart2_registers[1] = arriving[index];
+            h9_aprs_uart2_dma_usart_irq(fake->inject_uart2_dma);
+            fake->inject_uart2_registers[0] = 0u;
+        }
+    }
 }
 
 static void queue_packet(void *opaque, const uint8_t *data, size_t length)
@@ -2507,6 +2523,52 @@ static void test_aprs_uart2_dma_forward(void)
     assert(decoded.command == 0x10u && decoded.length == 2u &&
            decoded.payload[0] == 'G' && decoded.payload[1] == 'P');
 
+    /* USART2 bytes arriving while USART1 forwards a DMA batch are retained. */
+    fake.uart_length = 0u;
+    fake.inject_uart2_dma = &dma;
+    fake.inject_uart2_registers = usart;
+    fake.inject_uart2_once = true;
+    rx.bytes[0] = 'A';
+    channel[1] = H9_APRS_UART2_BATCH_CAPACITY - 1u;
+    usart[0] = 0x10u;
+    h9_aprs_uart2_dma_usart_irq(&dma);
+    assert(rx.ready && dma.spill_active && (usart[3] & 0x20u) != 0u);
+    assert(h9_aprs_uart2_dma_poll(&dma, &controller));
+    assert(!fake.inject_uart2_once && !dma.spill_active &&
+           dma.spill_head == dma.spill_tail &&
+           (channel[0] & 1u) != 0u);
+    h9_wire_reset(&decoded);
+    index = 0u;
+    while (index < fake.uart_length &&
+           h9_wire_feed(&decoded, fake.uart[index++]) != H9_WIRE_FRAME) { }
+    assert(decoded.command == 0x10u && decoded.length == 1u &&
+           decoded.payload[0] == 'A');
+    h9_wire_reset(&decoded);
+    while (index < fake.uart_length &&
+           h9_wire_feed(&decoded, fake.uart[index++]) != H9_WIRE_FRAME) { }
+    assert(decoded.command == 0x10u && decoded.length == 2u &&
+           decoded.payload[0] == 'B' && decoded.payload[1] == 'C');
+    fake.inject_uart2_dma = NULL;
+    fake.inject_uart2_registers = NULL;
+
+    /* Full spill ring drops exactly one excess byte and still rearms DMA. */
+    fake.uart_length = 0u;
+    rx.bytes[0] = 'Z';
+    channel[1] = H9_APRS_UART2_BATCH_CAPACITY - 1u;
+    usart[0] = 0x10u;
+    h9_aprs_uart2_dma_usart_irq(&dma);
+    for (index = 0u; index < 256u; ++index) {
+        usart[0] = 0x20u;
+        usart[1] = (uint32_t)index;
+        h9_aprs_uart2_dma_usart_irq(&dma);
+        usart[0] = 0u;
+    }
+    assert(dma.spill_drops == 1u && rx.dropped_count == 1u);
+    assert(h9_aprs_uart2_dma_poll(&dma, &controller));
+    assert(!rx.ready && !dma.spill_active &&
+           dma.spill_head == dma.spill_tail &&
+           channel[1] == H9_APRS_UART2_BATCH_CAPACITY);
+
     fake.uart_length = 0u;
     memset(rx.bytes, 'A', sizeof rx.bytes);
     dma_controller[0] = 0x200u;
@@ -2514,7 +2576,7 @@ static void test_aprs_uart2_dma_forward(void)
     assert(rx.ready && rx.length == H9_APRS_UART2_BATCH_CAPACITY);
     assert(h9_aprs_uart2_dma_poll(&dma, &controller));
     assert(fake.uart_length == H9_APRS_MAX_SEND + 3u &&
-           rx.dropped_count == 4u);
+           rx.dropped_count == 5u);
 
     dma_controller[0] = 0x800u;
     h9_aprs_uart2_dma_channel_irq(&dma);

@@ -17,6 +17,8 @@ enum { DMA_CCR, DMA_CNDTR, DMA_CPAR, DMA_CMAR };
 #define USART_IDLEIE 0x10u
 #define USART_RXNEIE 0x20u
 #define USART_DMAR 0x40u
+#define USART_ORE 0x08u
+#define USART_RXNE 0x20u
 
 static bool valid(const H9AprsUart2Dma *driver)
 {
@@ -46,6 +48,10 @@ void h9_aprs_uart2_dma_bind(H9AprsUart2Dma *driver,
     driver->receive = receive;
     driver->transfer_errors = 0u;
     driver->invalid_counts = 0u;
+    driver->spill_head = 0u;
+    driver->spill_tail = 0u;
+    driver->spill_active = false;
+    driver->spill_drops = 0u;
 }
 
 void h9_aprs_uart2_dma_bind_target(H9AprsUart2Dma *driver,
@@ -69,6 +75,7 @@ static void rearm(H9AprsUart2Dma *driver)
     driver->dma_channel[DMA_CPAR] =
         (uint32_t)(uintptr_t)&driver->usart[USART_DR];
     driver->dma_channel[DMA_CMAR] = (uint32_t)(uintptr_t)receive->bytes;
+    driver->spill_active = false;
     driver->usart[USART_CR1] =
         (driver->usart[USART_CR1] & ~USART_RXNEIE) | USART_IDLEIE;
     driver->usart[USART_CR3] |= USART_DMAR;
@@ -80,6 +87,9 @@ bool h9_aprs_uart2_dma_start(H9AprsUart2Dma *driver)
     if (!valid(driver)) return false;
     driver->receive->length = 0u;
     driver->receive->ready = false;
+    driver->spill_head = 0u;
+    driver->spill_tail = 0u;
+    driver->spill_active = false;
     driver->rcc[0x38u / 4u] |= DMA_CLOCK_BIT;
     driver->rcc[0x40u / 4u] |= DMA_CLOCK_BIT;
     *driver->dma_request =
@@ -98,11 +108,67 @@ static void stop_receive(H9AprsUart2Dma *driver)
     driver->usart[USART_CR1] &= ~USART_IDLEIE;
 }
 
+static void spill_push(H9AprsUart2Dma *driver, uint8_t byte)
+{
+    uint8_t next = (uint8_t)(driver->spill_head + 1u);
+    if (next == driver->spill_tail) {
+        ++driver->spill_drops;
+        ++driver->receive->dropped_count;
+        return;
+    }
+    driver->spill[driver->spill_head] = byte;
+    driver->spill_head = next;
+}
+
+static void spill_read_status(H9AprsUart2Dma *driver)
+{
+    uint32_t status = driver->usart[USART_SR];
+    uint8_t byte;
+    if ((status & (USART_ORE | USART_RXNE)) == 0u) return;
+    byte = (uint8_t)driver->usart[USART_DR];
+    if ((status & USART_ORE) != 0u) {
+        ++driver->receive->overrun_count;
+        return;
+    }
+    if ((status & USART_RXNE) != 0u) spill_push(driver, byte);
+}
+
+static void begin_spill(H9AprsUart2Dma *driver)
+{
+    driver->spill_active = true;
+    driver->usart[USART_CR1] |= USART_RXNEIE;
+}
+
+static uint32_t save_and_disable_irqs(void)
+{
+#if defined(__arm__) && defined(__thumb__)
+    uint32_t primask;
+    __asm__ volatile ("mrs %0, primask\ncpsid i" : "=r"(primask) :: "memory");
+    return primask;
+#else
+    return 0u;
+#endif
+}
+
+static void restore_irqs(uint32_t state)
+{
+#if defined(__arm__) && defined(__thumb__)
+    __asm__ volatile ("msr primask, %0" :: "r"(state) : "memory");
+#else
+    (void)state;
+#endif
+}
+
 void h9_aprs_uart2_dma_usart_irq(H9AprsUart2Dma *driver)
 {
     uint32_t status;
     uint32_t remaining;
-    if (!valid(driver) || driver->receive->ready) return;
+    if (!valid(driver)) return;
+    if (driver->spill_active) {
+        spill_read_status(driver);
+        return;
+    }
+    if (driver->receive->ready) return;
     status = driver->usart[USART_SR];
     if ((status & USART_IDLE) == 0u ||
         (driver->usart[USART_CR1] & USART_IDLEIE) == 0u) return;
@@ -122,6 +188,7 @@ void h9_aprs_uart2_dma_usart_irq(H9AprsUart2Dma *driver)
         return;
     }
     driver->receive->ready = true;
+    begin_spill(driver);
 }
 
 void h9_aprs_uart2_dma_channel_irq(H9AprsUart2Dma *driver)
@@ -140,6 +207,7 @@ void h9_aprs_uart2_dma_channel_irq(H9AprsUart2Dma *driver)
     }
     driver->receive->length = H9_APRS_UART2_BATCH_CAPACITY;
     driver->receive->ready = true;
+    begin_spill(driver);
 }
 
 bool h9_aprs_uart2_dma_poll(H9AprsUart2Dma *driver,
@@ -147,6 +215,9 @@ bool h9_aprs_uart2_dma_poll(H9AprsUart2Dma *driver,
 {
     bool sent;
     size_t forward_length;
+    uint8_t spill_chunk[64];
+    size_t spill_length;
+    uint32_t irq_state;
     if (!valid(driver) || controller == NULL || !driver->receive->ready)
         return false;
     forward_length = driver->receive->length;
@@ -158,8 +229,29 @@ bool h9_aprs_uart2_dma_poll(H9AprsUart2Dma *driver,
     sent = h9_aprs_controller_forward_aux(controller,
                                            driver->receive->bytes,
                                            forward_length);
-    driver->receive->length = 0u;
-    driver->receive->ready = false;
-    rearm(driver);
+    for (;;) {
+        spill_length = 0u;
+        while (spill_length < sizeof spill_chunk &&
+               driver->spill_tail != driver->spill_head) {
+            spill_chunk[spill_length++] = driver->spill[driver->spill_tail];
+            driver->spill_tail = (uint8_t)(driver->spill_tail + 1u);
+        }
+        if (spill_length != 0u) {
+            if (h9_aprs_controller_forward_aux(controller, spill_chunk,
+                                               spill_length)) sent = true;
+            else driver->receive->dropped_count += (uint32_t)spill_length;
+            continue;
+        }
+        irq_state = save_and_disable_irqs();
+        spill_read_status(driver); /* capture an RXNE pending at handoff */
+        if (driver->spill_tail == driver->spill_head) {
+            driver->receive->length = 0u;
+            driver->receive->ready = false;
+            rearm(driver);
+            restore_irqs(irq_state);
+            break;
+        }
+        restore_irqs(irq_state);
+    }
     return sent;
 }

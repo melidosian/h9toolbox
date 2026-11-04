@@ -35,9 +35,14 @@ afterwards. The same `0x20001624` status record contributes to command
 The replacement's `h9_aprs_uart2_dma.*` binds the observed channel register,
 request mapping, USART2, vector slots 26 and 44, and the 1,024-byte receive
 buffer. It forwards at most 1,020 bytes as serial command `0x10`, as stock
-does. A completed chunk pauses receive while the main loop forwards it,
-then rearms. This first pass can lose bytes during that pause and does not
-reproduce stock double buffering or every UART error branch. The retained
+does. When a DMA chunk completes, it stops DMA and enables USART2 RXNE
+interrupts into a 256-byte spill ring while the main loop forwards the chunk.
+It then forwards ring bytes in order and rearms DMA with interrupts briefly
+masked during the handoff. A host test injects bytes during a blocking
+USART1 callback and confirms both chunks are forwarded. The ring can still
+overflow; a boundary test confirms that excess bytes are counted. This is a
+replacement handoff, not the stock double-buffer routine, and hardware
+timing, nested interrupts, and UART error behavior remain unverified. The retained
 `h9_aprs_uart2_rx.*` RXNE path is a host-tested fallback, not the diagnostic
 entry's active receive path. Host tests cover short and full DMA chunks,
 transfer-error rearm, and request mapping. The ARM diagnostic link checks
