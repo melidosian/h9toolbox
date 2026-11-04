@@ -4,7 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Cooperative form of the busy/random loop at APRS 0x08005760. */
+/* Replacement cooperative persistence gate inspired by APRS 0x08005760.
+ * Its busy/receive inputs are abstract board signals, not verified stock
+ * inputs. Stock tests bytes inside its receive-frame buffer at +3/+4/+0xE0;
+ * those bytes must not be treated as a carrier-sense GPIO. */
 typedef struct {
     uint32_t random_state;
 } H9AprsTxGate;

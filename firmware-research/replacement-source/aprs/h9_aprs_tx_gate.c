@@ -15,7 +15,8 @@ H9AprsTxGateResult h9_aprs_tx_gate_step(H9AprsTxGate *gate,
     uint8_t draw;
     if (gate == NULL) return H9_APRS_TX_WAIT;
     if (channel_busy) {
-        /* Stock 0x08005760 processes RX frames until an RX event ends TX. */
+        /* Replacement policy: wait or drop on board-provided RX state.
+         * Stock's tested bytes are in a frame buffer, not a known RF pin. */
         if (receive_active && receive_complete) return H9_APRS_TX_DROP;
         return H9_APRS_TX_WAIT;
     }
