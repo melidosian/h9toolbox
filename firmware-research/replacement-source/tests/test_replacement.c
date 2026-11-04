@@ -32,6 +32,7 @@
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
 #include "h9_main_gps_fix.h"
+#include "h9_main_rf_output.h"
 #include "h9_main_boot_record.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_dma.h"
@@ -486,6 +487,33 @@ static void test_main_gps_fix_parser(void)
     assert(h9_main_gps_parse_fix(sentence, length, &fix) ==
            H9_MAIN_GPS_UNRECOGNIZED);
     assert(memcmp(&fix, &previous, sizeof fix) == 0);
+}
+
+static void test_main_rf_output_registers(void)
+{
+    volatile uint32_t gpio = 0xA5A50100u;
+    volatile uint32_t sync = 0x12345678u;
+    volatile uint32_t pwm[4] = { 0xA5A50000u, 0u, 1020u, 0u };
+    H9MainRfOutput output = { &gpio, &sync, pwm };
+    H9MainRfOutput target = { 0 };
+    h9_main_rf_output_bind_target(&target);
+    assert((uintptr_t)target.gpio_data == 0x001E5000u);
+    assert((uintptr_t)target.sync_register == 0x001E0200u);
+    assert((uintptr_t)target.pwm_registers == 0x001E0600u);
+    assert(h9_main_rf_output_set_gpio(&output, H9_MAIN_RF_GPIO_BIT8, false));
+    assert(gpio == 0xA5A50000u);
+    assert(h9_main_rf_output_set_gpio(&output, H9_MAIN_RF_GPIO_BIT8, true));
+    assert(gpio == 0xA5A50100u);
+    assert(h9_main_rf_output_set_gpio(&output, H9_MAIN_RF_GPIO_BIT0, true));
+    assert(gpio == 0xA5A50101u);
+    assert(h9_main_rf_output_set_gpio(&output, H9_MAIN_RF_GPIO_BIT0, false));
+    assert(gpio == 0xA5A50100u);
+    assert(!h9_main_rf_output_set_gpio(&output, (H9MainRfGpioLine)2u, true));
+    assert(h9_main_rf_output_set_pwm(&output, true, 64u));
+    assert(pwm[3] == 256u && pwm[0] == 0xA5A50100u);
+    assert(h9_main_rf_output_set_pwm(&output, false, 255u));
+    assert(pwm[3] == 1020u && pwm[0] == 0xA5A50000u);
+    assert(!h9_main_rf_output_set_pwm(NULL, true, 0u));
 }
 
 static void test_main_gpio_query_reply(void)
@@ -2687,6 +2715,7 @@ int main(void)
     test_main_received_aprs_packet();
     test_main_gps_sentence_frames();
     test_main_gps_fix_parser();
+    test_main_rf_output_registers();
     test_main_gpio_query_reply();
     test_main_control_frames();
     test_main_uart_ring();

@@ -16,6 +16,7 @@ add_library(h9_replacement_core STATIC
     main/h9_main_ax25.c
     main/h9_main_beacon.c
     main/h9_main_gps_fix.c
+    main/h9_main_rf_output.c
     main/h9_main_boot_record.c
     main/h9_main_serial_profile.c
     main/h9_main_serial_dma.c
