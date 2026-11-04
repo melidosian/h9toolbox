@@ -86,7 +86,8 @@ bool h9_main_rf_tx_input(
 }
 
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
-                               H9Side received_side)
+                               H9Side received_side,
+                               bool aprs_burst_active)
 {
     H9AudioPlan result = { false, true, true };
     bool selected;
@@ -95,7 +96,7 @@ H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
         ((config->rx_choice == H9_RX_A && received_side == H9_SIDE_A) ||
          (config->rx_choice == H9_RX_B && received_side == H9_SIDE_B));
     result.decoder_feed = selected;
-    if (selected && config->mute_aprs_audio) {
+    if (selected && aprs_burst_active && config->mute_aprs_audio) {
         result.speaker_audio = false;
         result.bluetooth_audio = false;
     }

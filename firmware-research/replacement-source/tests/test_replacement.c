@@ -1292,9 +1292,11 @@ static void test_main_policy(void)
     /* The stock branch tests A first when both channel values match. */
     assert(h9_main_track_side_bit(side_state, true, 144390000u,
                                   144390000u, 144390000u) == 0x2Du);
-    audio = h9_main_audio_plan(&cfg, H9_SIDE_B);
+    audio = h9_main_audio_plan(&cfg, H9_SIDE_B, false);
+    assert(audio.decoder_feed && audio.speaker_audio && audio.bluetooth_audio);
+    audio = h9_main_audio_plan(&cfg, H9_SIDE_B, true);
     assert(audio.decoder_feed && !audio.speaker_audio && !audio.bluetooth_audio);
-    audio = h9_main_audio_plan(&cfg, H9_SIDE_A);
+    audio = h9_main_audio_plan(&cfg, H9_SIDE_A, true);
     assert(!audio.decoder_feed && audio.speaker_audio && audio.bluetooth_audio);
     tx = h9_main_tx_plan(&cfg, H9_SIDE_A, 445390000u, 144390000u);
     assert(!tx.allowed); /* Lock never silently follows A. */

@@ -81,9 +81,12 @@ bool h9_main_rf_tx_input(
     const H9MainRfTxOverride *override, bool tx_path_flag,
     uint32_t *base_10hz, uint8_t *shift_mode);
 
-/* Policy only: actual audio gates and decoder tap have not been located. */
+/* Policy only: the caller must identify an APRS burst before audio reaches
+ * either output. Channel selection alone cannot distinguish APRS from voice.
+ * The classifier, output gates, and decoder tap are not yet located. */
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
-                               H9Side received_side);
+                               H9Side received_side,
+                               bool aprs_burst_active);
 
 /* Local comparison at main app+0x086166..0x08619C. RX_OFF bypasses only this
    comparison; other conditions can still reject or disable packet handling. */
