@@ -52,4 +52,36 @@ bool h9_main_control_volume_apply(H9MainControlVolumeState *state,
                                    H9MainControlAction action,
                                    H9MainControlVolumeEffects *effects);
 
+/* Stock 07 03 changes these RAM fields at 0x12674, 0x12C53/4, and 0x12C60.
+ * The timer callback's branch targets are retained as address-named effects
+ * until their application semantics are mapped. */
+typedef struct {
+    uint8_t flags;
+    uint8_t pending;
+    uint8_t phase;
+    uint32_t timer_handle;
+} H9MainControl07State;
+
+typedef struct {
+    bool start_timer;
+    uint16_t delay_units;
+} H9MainControl07StartEffects;
+
+typedef enum {
+    H9_MAIN_CONTROL_07_CALLBACK_NONE,
+    H9_MAIN_CONTROL_07_CALL_6172C_WITH_2,
+    H9_MAIN_CONTROL_07_CALL_ROM_0200010A
+} H9MainControl07Callback;
+
+typedef struct {
+    uint16_t timer_handle_low16;
+    H9MainControl07Callback callback;
+} H9MainControl07TimerEffects;
+
+bool h9_main_control_07_03(H9MainControl07State *state,
+                           H9MainControl07StartEffects *effects);
+bool h9_main_control_07_timer_fired(H9MainControl07State *state,
+                                    uint8_t callback_parameter,
+                                    H9MainControl07TimerEffects *effects);
+
 #endif

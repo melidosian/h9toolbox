@@ -35,6 +35,21 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "01 F8 57 0E 81 F8 53 0C"
     ):
         raise ValueError("main APRS control group 07/06 dispatch differs")
+    if main_app[0x062C58:0x062CA0] != bytes.fromhex(
+        "74 04 40 E0 A4 0B C4 FF D0 1A 01 00 D8 EE 40 10 "
+        "71 E1 C0 10 D8 EE 41 10 40 E0 83 11 D8 EE 40 00 "
+        "80 53 40 21 11 E1 80 41 98 43 40 20 98 44 10 64 "
+        "80 4B C1 FF DC A1 E8 01 40 20 4A 32 BE EA 27 0E "
+        "41 E0 64 04 D8 EC 4B 01"
+    ):
+        raise ValueError("main APRS control 07 03 state/timer path differs")
+    if main_app[0x08A0DC:0x08A10E] != bytes.fromhex(
+        "76 04 45 E0 64 04 C6 FF D0 1A 01 00 D8 EC 6A 15 "
+        "04 16 90 17 BC EA F8 D3 40 20 D8 EC 6B 05 04 F8 "
+        "05 02 84 46 40 22 36 04 FE EA 92 BA 8B EA 7F AF "
+        "56 04"
+    ):
+        raise ValueError("main APRS control 07 timer callback differs")
     if main_app[0x052228:0x05224C] != bytes.fromhex(
         "74 04 04 16 40 23 41 16 BD EA 4F 6F C0 FF D0 1A 01 00 "
         "50 EE 0D 17 72 E1 FE 40 B9 20 21 19 52 EE 0D 17 54 04"
@@ -158,7 +173,7 @@ def main() -> None:
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"),
            tx_source.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/tables/limits and Dual Watch side and frequency copies, control groups/volume clamp, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, TX call/tables/limits and Dual Watch side and frequency copies, control group 07 timer/volume paths, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

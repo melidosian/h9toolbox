@@ -108,3 +108,35 @@ bool h9_main_control_volume_apply(H9MainControlVolumeState *state,
     }
     return true;
 }
+
+bool h9_main_control_07_03(H9MainControl07State *state,
+                           H9MainControl07StartEffects *effects)
+{
+    if (state == NULL || effects == NULL) return false;
+    memset(effects, 0, sizeof *effects);
+    state->flags &= 0x3Fu;
+    if (state->pending == 0u) {
+        state->pending = 1u;
+        state->phase = 0u;
+        if (state->timer_handle == 0u) {
+            effects->start_timer = true;
+            effects->delay_units = 50u;
+        }
+    }
+    return true;
+}
+
+bool h9_main_control_07_timer_fired(H9MainControl07State *state,
+                                    uint8_t callback_parameter,
+                                    H9MainControl07TimerEffects *effects)
+{
+    if (state == NULL || effects == NULL) return false;
+    effects->timer_handle_low16 = (uint16_t)state->timer_handle;
+    state->timer_handle = 0u;
+    effects->callback = H9_MAIN_CONTROL_07_CALLBACK_NONE;
+    if (callback_parameter == 0u)
+        effects->callback = H9_MAIN_CONTROL_07_CALL_6172C_WITH_2;
+    else if (callback_parameter == 1u)
+        effects->callback = H9_MAIN_CONTROL_07_CALL_ROM_0200010A;
+    return true;
+}

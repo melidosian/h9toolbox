@@ -40,9 +40,23 @@ cancels a previous timer, then starts a 200-unit timer. The `06 02/04` paths
 cancel that timer and clear the held state. The timer unit is inferred to be
 milliseconds from its API; the physical timing has not been measured.
 
+For `07 03`, app+`0x062C58` clears bits 6 and 7 of RAM `0x12674`. If
+RAM `0x12C53` is zero, it sets that byte to 1 and clears `0x12C54`.
+If the timer handle at `0x12C60` is zero, it starts a 50-unit timer with
+callback app+`0x08A0DC` and stores the returned handle at **`0x12C60`**.
+The independent Pi32v2 decode confirms the address: base `0x11AD0` plus
+`1124 << 2`. Ghidra's pseudocode incorrectly prints `0x47CD0` for the
+same store. The callback passes the low 16 bits of the handle to
+app+`0x0248E4`, clears the handle, then calls app+`0x06162C(2)` for
+parameter zero or ROM `0x0200010A` for parameter one. Those downstream
+effects and the timer unit are not yet identified. The ported reducer
+returns explicit timer and callback effects; a board adapter must apply
+them and store the returned timer handle.
+
 The replacement source validates the CRC and returns the recognized pair.
 It also supplies a pure `0..30` volume/held-state reducer with timer and
-boundary-feedback effects for a future board adapter. It does not model the
+boundary-feedback effects, plus the `07 03` state and timer transition,
+for a future board adapter. It does not model the
 separate saved-setting comparison or downstream audio/UI calls. No hardware
 is invoked by this reducer, and the session still only emits the
 raw action. Host tests cover CRC, all eight pairs, escaped serial payload,

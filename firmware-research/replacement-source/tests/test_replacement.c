@@ -749,6 +749,34 @@ static void test_main_control_volume(void)
     assert(state.level == 0u && effects.boundary_feedback);
 }
 
+static void test_main_control_07_timer(void)
+{
+    H9MainControl07State state = { 0xC5u, 0u, 7u, 0u };
+    H9MainControl07StartEffects start;
+    H9MainControl07TimerEffects fired;
+    assert(h9_main_control_07_03(&state, &start));
+    assert(state.flags == 0x05u && state.pending == 1u &&
+           state.phase == 0u && start.start_timer &&
+           start.delay_units == 50u);
+    state.timer_handle = 0x12345678u;
+    assert(h9_main_control_07_03(&state, &start));
+    assert(!start.start_timer && state.timer_handle == 0x12345678u);
+    assert(h9_main_control_07_timer_fired(&state, 0u, &fired));
+    assert(fired.timer_handle_low16 == 0x5678u &&
+           fired.callback == H9_MAIN_CONTROL_07_CALL_6172C_WITH_2 &&
+           state.timer_handle == 0u);
+    state.pending = 0u;
+    state.phase = 7u;
+    state.timer_handle = 9u;
+    assert(h9_main_control_07_03(&state, &start));
+    assert(state.phase == 0u && !start.start_timer);
+    assert(h9_main_control_07_timer_fired(&state, 1u, &fired));
+    assert(fired.timer_handle_low16 == 9u &&
+           fired.callback == H9_MAIN_CONTROL_07_CALL_ROM_0200010A);
+    assert(h9_main_control_07_timer_fired(&state, 2u, &fired));
+    assert(fired.callback == H9_MAIN_CONTROL_07_CALLBACK_NONE);
+}
+
 typedef struct {
     unsigned calls;
     uint8_t command;
@@ -1071,9 +1099,11 @@ static void test_main_policy(void)
     const H9MainRfChannelFrequencies a = { 44539000u, 44540000u };
     const H9MainRfChannelFrequencies b = { 14439000u, 14441000u };
     const H9MainRfChannelFrequencies empty_b = { 0u, 0u };
+    const H9MainRfTxOverride tx_override = { 14500000u, 14510000u, 2u };
     H9MainRfChannelFrequencies working = { 0u, 0u };
     H9Side selected_side = H9_SIDE_A;
     uint32_t candidate_10hz = 0u;
+    uint8_t shift_mode = 0u;
     H9AudioPlan audio;
     H9TxPlan tx;
     uint8_t side_state = 0x2Du;
@@ -1097,6 +1127,15 @@ static void test_main_policy(void)
     assert(candidate_10hz == b.transmit_10hz);
     assert(h9_main_rf_tx_candidate_10hz(&working, true, &candidate_10hz));
     assert(candidate_10hz == b.receive_10hz);
+    assert(h9_main_rf_tx_input(&working, 1u, NULL, false,
+                               &candidate_10hz, &shift_mode));
+    assert(candidate_10hz == b.transmit_10hz && shift_mode == 1u);
+    assert(h9_main_rf_tx_input(NULL, 0u, &tx_override, false,
+                               &candidate_10hz, &shift_mode));
+    assert(candidate_10hz == tx_override.first_10hz && shift_mode == 2u);
+    assert(h9_main_rf_tx_input(&working, 1u, &tx_override, true,
+                               &candidate_10hz, &shift_mode));
+    assert(candidate_10hz == tx_override.second_10hz && shift_mode == 2u);
     assert(h9_main_rf_select_working_frequencies(false, 1u, 0x2Du,
                                                   &a, &b, &working,
                                                   &selected_side));
@@ -3103,6 +3142,7 @@ int main(void)
     test_main_gpio_query_reply();
     test_main_control_frames();
     test_main_control_volume();
+    test_main_control_07_timer();
     test_main_uart_ring();
     test_main_aprs_session();
     test_main_policy();

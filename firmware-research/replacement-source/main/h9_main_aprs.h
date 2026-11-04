@@ -60,6 +60,14 @@ typedef struct {
     uint32_t transmit_10hz;
 } H9MainRfChannelFrequencies;
 
+/* The optional stock TX-setup pointer contains frequency words at +0/+4
+ * and a shift-mode byte at +8. Flag 0 takes +0; flag 1 takes +4. */
+typedef struct {
+    uint32_t first_10hz;
+    uint32_t second_10hz;
+    uint8_t shift_mode;
+} H9MainRfTxOverride;
+
 bool h9_main_rf_select_working_frequencies(
     bool dual_watch, uint8_t route_side_byte, uint8_t channel_side_state,
     const H9MainRfChannelFrequencies *a,
@@ -68,6 +76,10 @@ bool h9_main_rf_select_working_frequencies(
 bool h9_main_rf_tx_candidate_10hz(
     const H9MainRfChannelFrequencies *working,
     bool use_receive_frequency, uint32_t *candidate_10hz);
+bool h9_main_rf_tx_input(
+    const H9MainRfChannelFrequencies *working, uint8_t working_shift_mode,
+    const H9MainRfTxOverride *override, bool tx_path_flag,
+    uint32_t *base_10hz, uint8_t *shift_mode);
 
 /* Policy only: actual audio gates and decoder tap have not been located. */
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,

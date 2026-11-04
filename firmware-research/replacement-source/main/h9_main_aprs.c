@@ -56,12 +56,32 @@ bool h9_main_rf_tx_candidate_10hz(
     const H9MainRfChannelFrequencies *working,
     bool use_receive_frequency, uint32_t *candidate_10hz)
 {
+    uint8_t ignored_shift_mode;
+    return h9_main_rf_tx_input(working, 0u, NULL, use_receive_frequency,
+                                candidate_10hz, &ignored_shift_mode);
+}
+
+bool h9_main_rf_tx_input(
+    const H9MainRfChannelFrequencies *working, uint8_t working_shift_mode,
+    const H9MainRfTxOverride *override, bool tx_path_flag,
+    uint32_t *base_10hz, uint8_t *shift_mode)
+{
     uint32_t candidate;
-    if (working == NULL || candidate_10hz == NULL) return false;
-    candidate = use_receive_frequency ? working->receive_10hz :
-                                        working->transmit_10hz;
+    uint8_t mode;
+    if (base_10hz == NULL || shift_mode == NULL ||
+        (working == NULL && override == NULL)) return false;
+    if (override == NULL) {
+        candidate = tx_path_flag ? working->receive_10hz :
+                                   working->transmit_10hz;
+        mode = working_shift_mode;
+    } else {
+        candidate = tx_path_flag ? override->second_10hz :
+                                   override->first_10hz;
+        mode = override->shift_mode;
+    }
     if (candidate == 0u) return false;
-    *candidate_10hz = candidate;
+    *base_10hz = candidate;
+    *shift_mode = mode;
     return true;
 }
 

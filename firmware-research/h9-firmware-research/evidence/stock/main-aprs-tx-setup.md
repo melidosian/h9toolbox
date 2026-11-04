@@ -28,11 +28,12 @@ also copy.
 
 For a null frequency override pointer, TX setup `FUN_01E5AD68` tests RAM byte
 `0x12BBA`: zero loads the second working frequency at `0x11C9C`, nonzero
-loads the first at `0x11C8C`. The selected word then enters repeater-shift
-conversion and the TX limit check. `h9_main_rf_tx_candidate_10hz` ports this
-choice with the provisional argument name `use_receive_frequency`; the flag's
-mode meaning is not yet established. A non-null override pointer instead
-selects one of that pointer's two words and remains unported. Neither trace
+loads the first at `0x11C8C`, together with shift-mode byte `0x12259`.
+For a non-null override pointer, zero selects its word at `+0`, nonzero
+selects `+4`, and the shift mode comes from byte `+8`. The selected base
+word and mode enter repeater-shift conversion and the TX limit check.
+`h9_main_rf_tx_input` ports both source choices. The flag's mode meaning
+is not yet established. Neither trace
 measures the programmed RF frequency or establishes the CHB-Lock fault's
 hardware cause.
 
