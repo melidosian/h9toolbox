@@ -1970,6 +1970,7 @@ static void test_timed_beacon_scheduler(void)
 {
     H9BeaconScheduler scheduler = { 5999u };
     H9BeaconDecision decision;
+    H9BeaconCallerState caller = { 1u, 3u, 0u, 0u };
     H9BeaconPositionStatus position = { 1u, false, 1u, 0u };
     assert(!h9_main_beacon_position_ready(NULL));
     assert(!h9_main_beacon_position_ready(&position));
@@ -1995,6 +1996,26 @@ static void test_timed_beacon_scheduler(void)
     assert(!decision.call_tx_selector && scheduler.counter == 47u);
     decision = h9_main_beacon_tick(&scheduler, 0, 60, 0, 0);
     assert(!decision.call_tx_selector && scheduler.counter == 0);
+
+    /* Stock skips the scheduler entirely when either caller flag is set;
+     * the counter is retained, even if Timed Beacon is switched off. */
+    scheduler.counter = 5999u;
+    caller.flag_11afb = 1u;
+    decision = h9_main_beacon_caller_tick(&scheduler, &caller, 0, 60, 0, 0);
+    assert(!decision.call_tx_selector && scheduler.counter == 5999u);
+    caller.flag_11afb = 0u;
+    caller.flag_11afe = 1u;
+    assert(!h9_main_beacon_caller_allows_tick(&caller));
+    caller.flag_11afe = 0u;
+    caller.state_11ac6 = 8u;
+    assert(!h9_main_beacon_caller_allows_tick(&caller));
+    caller.state_11ac6 = 3u;
+    caller.state_11ab0 = 2u;
+    assert(!h9_main_beacon_caller_allows_tick(&caller));
+    caller.state_11ab0 = 0u;
+    assert(!h9_main_beacon_caller_allows_tick(NULL));
+    decision = h9_main_beacon_caller_tick(&scheduler, &caller, 1, 60, 0, 0);
+    assert(decision.call_tx_selector && scheduler.counter == 0u);
 }
 
 typedef struct { uint8_t bytes[32]; size_t length; } BitOutput;

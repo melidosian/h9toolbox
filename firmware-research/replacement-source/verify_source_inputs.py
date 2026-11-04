@@ -64,6 +64,11 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         raise ValueError("main APRS GPS-position TX preflight differs")
     if main_app[0x082F0E:0x082F12] != bytes.fromhex("BE EA E1 C9"):
         raise ValueError("timed beacon no longer calls the known selector")
+    if main_app[0x08747C:0x087498] != bytes.fromhex(
+        "00 FC 0E 02 81 F8 0C 06 50 EE 7B 02 50 EE 7E 12 "
+        "10 19 61 FF FF 00 18 00 BF EA 0D DD"
+    ):
+        raise ValueError("timed beacon caller gate differs")
     if main_app[0x087130:0x087138] != bytes.fromhex(
         "01 F8 57 0E 81 F8 53 0C"
     ):

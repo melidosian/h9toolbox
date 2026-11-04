@@ -9,6 +9,24 @@ bool h9_main_beacon_position_ready(const H9BeaconPositionStatus *status)
             (status->latitude_raw != 0u || status->longitude_raw != 0u));
 }
 
+bool h9_main_beacon_caller_allows_tick(const H9BeaconCallerState *state)
+{
+    return state != NULL && state->state_11ab0 <= 1u &&
+           state->state_11ac6 == 3u && state->flag_11afb == 0u &&
+           state->flag_11afe == 0u;
+}
+
+H9BeaconDecision h9_main_beacon_caller_tick(
+    H9BeaconScheduler *scheduler, const H9BeaconCallerState *state,
+    uint8_t timed_beacon_setting, uint16_t interval_setting,
+    uint8_t state_11b1e, uint8_t ptt_priority)
+{
+    H9BeaconDecision skipped = { false, false };
+    if (!h9_main_beacon_caller_allows_tick(state)) return skipped;
+    return h9_main_beacon_tick(scheduler, timed_beacon_setting,
+                               interval_setting, state_11b1e, ptt_priority);
+}
+
 H9BeaconDecision h9_main_beacon_tick(H9BeaconScheduler *scheduler,
                                      uint8_t timed_beacon_setting,
                                      uint16_t interval_setting,
