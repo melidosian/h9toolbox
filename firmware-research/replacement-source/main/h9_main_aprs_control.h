@@ -15,8 +15,8 @@ typedef enum {
     H9_MAIN_CONTROL_06_04 = 0x0604,
     H9_MAIN_CONTROL_06_05 = 0x0605,
     H9_MAIN_CONTROL_06_06 = 0x0606,
-    H9_MAIN_CONTROL_0A_01 = 0x0A01,
-    H9_MAIN_CONTROL_0A_03 = 0x0A03
+    H9_MAIN_CONTROL_07_01 = 0x0701,
+    H9_MAIN_CONTROL_07_03 = 0x0703
 } H9MainControlAction;
 
 /* Stock CRC: initial 0xFFFF, polynomial 0x1021, no reflection or final XOR. */

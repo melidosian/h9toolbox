@@ -635,7 +635,7 @@ static void test_main_control_frames(void)
         H9_MAIN_CONTROL_06_01, H9_MAIN_CONTROL_06_02,
         H9_MAIN_CONTROL_06_03, H9_MAIN_CONTROL_06_04,
         H9_MAIN_CONTROL_06_05, H9_MAIN_CONTROL_06_06,
-        H9_MAIN_CONTROL_0A_01, H9_MAIN_CONTROL_0A_03
+        H9_MAIN_CONTROL_07_01, H9_MAIN_CONTROL_07_03
     };
     H9MainWireReceiver receiver;
     H9MainControlAction action;
@@ -671,7 +671,7 @@ static void test_main_control_frames(void)
         assert(!h9_main_control_from_frame(&receiver, &action));
         assert(action == H9_MAIN_CONTROL_NONE);
     }
-    receiver.payload[0] = 0x07u;
+    receiver.payload[0] = 0x0Au;
     receiver.payload[1] = 0x01u;
     crc = h9_main_control_crc(receiver.payload, 3u);
     receiver.payload[3] = (uint8_t)(crc >> 8);

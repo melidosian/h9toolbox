@@ -23,13 +23,16 @@ one as a group and opcode. The observed routes are:
 - `06 03` → app+`0x078E94(-1)`
 - `06 05` → app+`0x087086(1)`
 - `06 06` → app+`0x087086(2)`
-- `0A 01` → app+`0x05040A(0)`
-- `0A 03` → app+`0x062C58()`
+- `07 01` → app+`0x05040A(0)`
+- `07 03` → app+`0x062C58()`
 
-The `0x078E94` routine adjusts an internal value within `0..30`; this appears
-related to volume. The other side effects and user-visible names need more
-tracing. The replacement source currently validates the CRC and returns the
-raw recognized pair. It does not execute any of these effects or change radio
-settings. Host tests check the standard CRC vector `123456789 → 0x29B1`,
-all eight pairs, escaped serial payload, a corrupted CRC, and an unknown pair.
-This is offline source analysis, not runtime validation on the radio.
+The group `07` correction comes from the independent Pi32v2 decode at
+app+`0x087130`: `if (r1 == 7)`, followed by `if (r1 != 6)` for the other
+group. The earlier `0A` reading was incorrect. The `0x078E94` routine adjusts
+an internal value within `0..30`; this appears related to volume. The other
+side effects and user-visible names need more tracing. The replacement source
+currently validates the CRC and returns the raw recognized pair. It does not
+execute any of these effects or change radio settings. Host tests check the
+standard CRC vector `123456789 → 0x29B1`, all eight pairs, escaped serial
+payload, a corrupted CRC, and the unsupported `0A 01` pair. This is offline
+source analysis, not runtime validation on the radio.

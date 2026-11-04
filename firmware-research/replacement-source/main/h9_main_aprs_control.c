@@ -40,8 +40,8 @@ int h9_main_control_from_frame(const H9MainWireReceiver *receiver,
     case H9_MAIN_CONTROL_06_04:
     case H9_MAIN_CONTROL_06_05:
     case H9_MAIN_CONTROL_06_06:
-    case H9_MAIN_CONTROL_0A_01:
-    case H9_MAIN_CONTROL_0A_03:
+    case H9_MAIN_CONTROL_07_01:
+    case H9_MAIN_CONTROL_07_03:
         *action = (H9MainControlAction)code;
         return 1;
     default:
