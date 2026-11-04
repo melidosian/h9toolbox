@@ -28,6 +28,7 @@
 #include "h9_aprs_oscillator.h"
 #include "h9_aprs_wave_output.h"
 #include "h9_main_aprs.h"
+#include "h9_main_aprs_aux_control.h"
 #include "h9_main_aprs_control.h"
 #include "h9_main_aprs_metadata.h"
 #include "h9_main_aprs_mute.h"
@@ -152,6 +153,11 @@ static void capture_tx_settings(void *opaque,
 static bool read_aux_gate(void *opaque)
 {
     return ((FakeHardware *)opaque)->aux_gate;
+}
+
+static void set_aux_gate(void *opaque, bool high)
+{
+    ((FakeHardware *)opaque)->aux_gate = high;
 }
 
 static bool read_status(void *opaque, uint8_t output[H9_APRS_STATUS_BYTES])
@@ -2361,6 +2367,49 @@ static void feed_frame(H9AprsController *controller, uint8_t command,
     assert(size != 0);
     for (i = 0; i < size; ++i)
         h9_aprs_controller_uart_byte(controller, encoded[i]);
+}
+
+static bool main_aux_wire_to_controller(void *opaque, const uint8_t *frame,
+                                         size_t length)
+{
+    H9AprsController *controller = (H9AprsController *)opaque;
+    size_t i;
+    for (i = 0; i < length; ++i)
+        h9_aprs_controller_uart_byte(controller, frame[i]);
+    return true;
+}
+
+static void test_main_aux_gpio_handshake(void)
+{
+    FakeHardware fake = { 0 };
+    H9AprsHardware hardware = { 0 };
+    H9AprsController controller;
+    static const uint8_t raw_message[] = { 4u, 'G', 'P', 'S' };
+    hardware.context = &fake;
+    hardware.set_radio_gpio = set_aux_gate;
+    hardware.read_radio_gpio = read_aux_gate;
+    hardware.aux_uart_write = queue_packet;
+    h9_aprs_controller_init(&controller, &hardware);
+    assert(!h9_main_aprs_aux_set_enabled(true, false,
+                                          main_aux_wire_to_controller,
+                                          &controller));
+    assert(!fake.aux_gate);
+    feed_frame(&controller, 0x11u, raw_message, sizeof raw_message);
+    assert(fake.packet_length == 0u);
+    assert(h9_main_aprs_aux_set_enabled(true, true,
+                                         main_aux_wire_to_controller,
+                                         &controller));
+    assert(fake.aux_gate);
+    feed_frame(&controller, 0x11u, raw_message, sizeof raw_message);
+    assert(fake.packet_length == 3u &&
+           memcmp(fake.packet, "GPS", 3u) == 0);
+    fake.packet_length = 0u;
+    assert(h9_main_aprs_aux_set_enabled(false, true,
+                                         main_aux_wire_to_controller,
+                                         &controller));
+    assert(!fake.aux_gate);
+    feed_frame(&controller, 0x11u, raw_message, sizeof raw_message);
+    assert(fake.packet_length == 0u);
 }
 
 static void test_aprs_tx_service(void)
@@ -6373,6 +6422,7 @@ int main(void)
     test_aprs_tx_service();
     test_aprs_tx_interrupt_handoff();
     test_aprs_tx_runtime();
+    test_main_aux_gpio_handshake();
     test_aprs_controller();
     test_aprs_uart_receive_batches();
     test_aprs_uart1_dma_interrupts();
