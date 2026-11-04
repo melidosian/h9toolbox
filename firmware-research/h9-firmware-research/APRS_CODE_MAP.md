@@ -2,6 +2,8 @@
 
 This is a map of **observed code in two shipped binaries**, not manufacturer source. Addresses for the main application use the inferred load base `0x01E00100`; the separate APRS image uses its vector-table base `0x08002000`. Ghidra's Pi32v2 processor module is incomplete, so main-application decompilation can be wrong around unsupported instructions. These findings are for offline analysis only.
 
+The first compilable replacement core is in [replacement-source](../replacement-source/README.md). It separates observed serial and command behavior from the new APRS mute and TX verification policies. It is host tested and does not yet build either target firmware image.
+
 ## Separate APRS-1.0.15 controller
 
 The Cortex-M image was imported into Ghidra as `ARM:LE:32:Cortex` at `0x08002000`. The following paths are supported by both caller references and decompilation:

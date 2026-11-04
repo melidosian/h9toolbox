@@ -8,6 +8,7 @@ This folder collects the TD-H9 v1.0.38 firmware investigation and tools. It is r
 - [APRS code map](h9-firmware-research/APRS_CODE_MAP.md): current hypotheses and the decoded receive/transmit paths.
 - [APRS TX route models](h9-firmware-research/aprs_tx_route_model.py): offline reconstruction of the shared TX CH selector and its [timed-beacon caller](h9-firmware-research/aprs_timed_beacon_model.py); neither measures RF.
 - [Analysis scripts and text evidence](h9-firmware-research/): extraction, repacking, Pi32 tracing, APRS inspection, Ghidra scripts, and selected generated reports under `evidence/`.
+- [Replacement firmware source, first pass](replacement-source/README.md): compilable C for the observed APRS serial protocol and controller commands, plus new main-radio APRS mute and TX policy. This is a host-tested source core, not a complete target image.
 - [Windows/Linux USB-C flasher](h9-flasher/README.md): the BR23 mass-storage update path. Its vendored JieLi helper retains the upstream MIT license in `vendor/LICENSE.jl-uboot-tool`.
 - [Early browser USB probe](h9-usb-probe/index.html): exploratory WebUSB UI. The mass-storage update device cannot be accessed through WebUSB; use the Python flasher for that interface.
 
