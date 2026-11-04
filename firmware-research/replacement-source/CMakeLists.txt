@@ -7,6 +7,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 add_library(h9_replacement_core STATIC
     common/h9_aprs_wire.c
     main/h9_main_aprs.c
+    main/h9_main_beacon.c
     aprs/h9_aprs_bitstream.c
     aprs/h9_aprs_oscillator.c
     aprs/h9_aprs_ring.c

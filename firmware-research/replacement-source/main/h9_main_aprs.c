@@ -22,6 +22,19 @@ H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
     return result;
 }
 
+bool h9_main_rx_channel_matches(H9RxChoice choice, uint32_t working_rx_hz,
+                                uint32_t a_rx_hz, uint32_t b_rx_hz)
+{
+    H9Side working_side;
+    if (choice == H9_RX_OFF) return true;
+    if (choice != H9_RX_A && choice != H9_RX_B) return false;
+    if (working_rx_hz == a_rx_hz) working_side = H9_SIDE_A;
+    else if (working_rx_hz == b_rx_hz) working_side = H9_SIDE_B;
+    else return false;
+    return (choice == H9_RX_A && working_side == H9_SIDE_A) ||
+           (choice == H9_RX_B && working_side == H9_SIDE_B);
+}
+
 H9TxPlan h9_main_tx_plan(const H9MainAprsConfig *config, H9Side current_side,
                          uint32_t a_tx_hz, uint32_t b_tx_hz)
 {

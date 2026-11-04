@@ -3,6 +3,7 @@
 #include "h9_aprs_ring.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
+#include "h9_main_beacon.h"
 #include <assert.h>
 #include <string.h>
 
@@ -96,6 +97,36 @@ static void test_main_policy(void)
     cfg.tx_choice = H9_TX_B_AUTO;
     tx = h9_main_tx_plan(&cfg, H9_SIDE_A, 445390000u, 144390000u);
     assert(tx.allowed && tx.side == H9_SIDE_B);
+    assert(h9_main_rx_channel_matches(H9_RX_B, 144390000u,
+                                      445390000u, 144390000u));
+    assert(!h9_main_rx_channel_matches(H9_RX_B, 445390000u,
+                                       445390000u, 144390000u));
+    assert(!h9_main_rx_channel_matches(H9_RX_B, 145000000u,
+                                       445390000u, 144390000u));
+    assert(h9_main_rx_channel_matches(H9_RX_OFF, 145000000u,
+                                      445390000u, 144390000u));
+}
+
+static void test_timed_beacon_scheduler(void)
+{
+    H9BeaconScheduler scheduler = { 5999u };
+    H9BeaconDecision decision;
+    decision = h9_main_beacon_tick(&scheduler, 1, 60, 0, 0);
+    assert(decision.call_tx_selector);
+    assert(decision.restore_receive_if_selector_succeeds);
+    assert(scheduler.counter == 0);
+    scheduler.counter = 5999u;
+    decision = h9_main_beacon_tick(&scheduler, 1, 60, 1, 0);
+    assert(!decision.call_tx_selector && scheduler.counter == 0);
+    scheduler.counter = 5999u;
+    decision = h9_main_beacon_tick(&scheduler, 1, 60, 1, 1);
+    assert(decision.call_tx_selector);
+    assert(!decision.restore_receive_if_selector_succeeds);
+    scheduler.counter = 47u;
+    decision = h9_main_beacon_tick(&scheduler, 1, 0, 0, 0);
+    assert(!decision.call_tx_selector && scheduler.counter == 47u);
+    decision = h9_main_beacon_tick(&scheduler, 0, 60, 0, 0);
+    assert(!decision.call_tx_selector && scheduler.counter == 0);
 }
 
 typedef struct { uint8_t bytes[32]; size_t length; } BitOutput;
@@ -229,6 +260,7 @@ int main(void)
 {
     test_wire_vectors();
     test_main_policy();
+    test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();
     test_stock_waveform_vectors();

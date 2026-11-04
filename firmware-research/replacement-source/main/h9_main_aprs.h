@@ -38,6 +38,11 @@ typedef struct {
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
                                H9Side received_side);
 
+/* Local comparison at main app+0x086166..0x08619C. RX_OFF bypasses only this
+   comparison; other conditions can still reject or disable packet handling. */
+bool h9_main_rx_channel_matches(H9RxChoice choice, uint32_t working_rx_hz,
+                                uint32_t a_rx_hz, uint32_t b_rx_hz);
+
 /* Stock mode numbers, but a replacement invariant: never key on a side
    other than the planned side. Lock modes retain the stock current-side guard. */
 H9TxPlan h9_main_tx_plan(const H9MainAprsConfig *config, H9Side current_side,
