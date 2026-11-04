@@ -17,8 +17,14 @@ stack pointer is `0x20001A50`; reset vector is `0x080020D5`.
 - The table at `0x08006358` has records
   `(0x08006378, 0x20000000, 0x14C, 0x080021C0)` and
   `(0x08006398, 0x2000014C, 0x1904, 0x08005048)`. The first callback is a
-  compact data expansion routine; the second writes zero 32-bit words. A
-  replacement image may use normal uncompressed `.data` copying instead.
+  compact data expansion routine; the second writes zero 32-bit words. The
+  compressed stream is 32 bytes at `0x08006378..0x08006397`, of which 31
+  bytes are consumed and one trailing byte is zero. Its decoded 332-byte
+  record initializes `0x200000C0` to 8,000,000, the tick counter at
+  `0x200000C4` to zero, `0x200000C8` to 4, and the tick step at
+  `0x200000CC` to **1 ms**. The clock setup later selects 24 MHz. Other
+  nonzero initialized words are emitted by `decode_aprs_startup.py`.
+  A replacement image may use normal uncompressed `.data` copying instead.
 - `0x080021FC` copies 48 words from the image vector table at `0x08002000`
   to `0x20000000`, writes that RAM address to SCB VTOR at `0xE000ED08`, then
   calls the application's later initialization at `0x08005DE8`.
@@ -32,5 +38,6 @@ receive handlers, while other interrupt slots retain default handlers. Its
 board entry now selects the observed 24 MHz internal-clock path, configures
 USART1 and DMA channel 1, polls received UART batches, and sends serial
 replies through USART1. This source path
-is untested on the board. ADC/DAC initialization, the rest of the timebase,
-other interrupts, and the full APRS application are still absent.
+is untested on the board. ADC/DAC initialization, other interrupts, and the
+full APRS application are still absent. A replacement SysTick handler is now
+linked at vector 15, but its behavior has not been tested on hardware.

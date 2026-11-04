@@ -123,7 +123,8 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     h9_aprs_systick_bind_target(&runtime.systick);
     system_clock_hz = h9_aprs_clock_select_internal_target(100000u);
     if (system_clock_hz == 0u ||
-        !h9_aprs_systick_start(&runtime.systick, system_clock_hz, 1u) ||
+        !h9_aprs_systick_start(&runtime.systick, system_clock_hz,
+                               H9_APRS_STOCK_TICK_STEP_MS) ||
         !h9_aprs_gpio_board_configure(&runtime.gpio_board) ||
         !h9_aprs_uart2_board_configure(&runtime.uart2_board,
                                        system_clock_hz) ||

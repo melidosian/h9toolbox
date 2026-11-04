@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* Decoded from the stock startup record at flash 0x08006378. */
+enum { H9_APRS_STOCK_TICK_STEP_MS = 1u };
+
 /* Stock 0x08003890 reads a 32-bit tick; the vector-15 handler at
  * 0x08004984 adds the configured step. Register setup follows 0x08003EE8. */
 typedef struct {

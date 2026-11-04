@@ -21,7 +21,8 @@ byte at 41 and 42 is present in the stock instructions; it is not a presumed
 `replacement-source/aprs/h9_aprs_status.*` implements this byte layout from
 an explicit snapshot. The host test sends the encoded record through command
 `0x13` and parses the resulting frame. The semantic meanings of the ten
-words and four trailing state bytes, the units of the tick, and the sources
-that update those RAM locations are not fully traced. The diagnostic board
+words and four trailing state bytes, and the sources that update those RAM
+locations are not fully traced. The stock startup data initializes the tick
+step to 1 ms; see [the startup trace](aprs-startup.md). The diagnostic board
 entry therefore still leaves its `read_status` callback unset; it must not
 invent a live status value from zero-initialized replacement state.

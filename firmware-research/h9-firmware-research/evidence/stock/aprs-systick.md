@@ -13,9 +13,11 @@ The setup path at `0x08005DE8` calls `0x080038B4`. Its helper at
 (`0xE000E014`), clears VAL (`0xE000E018`), and writes `7` to CTRL
 (`0xE000E010`), enabling the processor-clock timer and interrupt. The
 configuration derives its period from the selected system clock and the
-configured tick step. The exact stock initial step value was not recovered
-from its startup data, so the replacement board entry chooses a 1 ms step
-after selecting the observed 24 MHz internal clock.
+configured tick step. The stock startup data at `0x08006378` decodes to
+**1 ms** at RAM `0x200000CC`; the replacement board entry uses that value
+after selecting the observed 24 MHz internal clock. The same startup data
+initializes the clock field at `0x200000C0` to 8 MHz, before the later clock
+switch. The read-only decoder is `decode_aprs_startup.py`.
 
 `replacement-source/aprs/h9_aprs_systick.*` ports the bounded register
 setup, counter, and vector-15 handler. Host tests check a 24 MHz, 1 ms
