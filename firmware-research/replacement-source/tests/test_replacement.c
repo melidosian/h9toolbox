@@ -4513,6 +4513,65 @@ static void test_main_post_clock_rom(void)
     assert(capture.reads == 2u && capture.sets == 1u);
 }
 
+typedef struct {
+    uint32_t response;
+    unsigned reads;
+} PostClockClassCapture;
+
+static uint32_t post_clock_class_read(void *context, uint32_t selector)
+{
+    PostClockClassCapture *capture = (PostClockClassCapture *)context;
+    assert(selector == 148u);
+    capture->reads++;
+    return capture->response;
+}
+
+static void test_main_post_clock_classification(void)
+{
+    uint32_t flags = 1u, channel = 3u << 21u, strap = 0u;
+    uint32_t secondary = 0xA55A1234u;
+    uint8_t mode = 0xEEu;
+    PostClockClassCapture capture = { 0x123456FEu, 0u };
+    H9MainPostClockRom rom = { &capture, post_clock_class_read, NULL };
+    H9MainPostClockClassifier classifier = {
+        &flags, &channel, &strap, &secondary, &mode, &rom
+    };
+    H9MainPostClockClassification result;
+    unsigned index;
+    assert(!h9_main_post_clock_classify(NULL, &result));
+    assert(!h9_main_post_clock_classify(&classifier, NULL));
+    rom.read_selector = NULL;
+    assert(!h9_main_post_clock_classify(&classifier, &result));
+    assert(capture.reads == 0u && mode == 0xEEu);
+    rom.read_selector = post_clock_class_read;
+
+    for (index = 0u; index < 16u; ++index) {
+        uint8_t expected = (index >= 2u && index <= 9u) ?
+            ((index & 1u) == 0u ? 2u : 4u) : 0u;
+        strap = index << 8u;
+        mode = 0xEEu;
+        capture.reads = 0u;
+        assert(h9_main_post_clock_classify(&classifier, &result));
+        assert(capture.reads == 1u && result.strap_index == index);
+        assert(result.accepted == (expected != 0u));
+        if (expected == 0u) {
+            assert(mode == 0xEEu && result.channel_flag == 3u);
+        } else {
+            assert(mode == expected && result.mode == expected);
+            assert(result.channel_flag == 0u);
+            assert(result.selector_148_masked == 0x12345600u);
+            assert(result.secondary_status == secondary);
+        }
+    }
+    channel = 1u << 21u;
+    strap = 2u << 8u;
+    assert(h9_main_post_clock_classify(&classifier, &result));
+    assert(result.accepted && result.channel_flag == 1u);
+    flags = 0u;
+    assert(h9_main_post_clock_classify(&classifier, &result));
+    assert(result.accepted && result.channel_flag == 0u);
+}
+
 int main(void)
 {
 #ifdef _MSC_VER
@@ -4559,6 +4618,7 @@ int main(void)
     test_main_clock_aux_fields();
     test_main_clock_finish();
     test_main_post_clock_rom();
+    test_main_post_clock_classification();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

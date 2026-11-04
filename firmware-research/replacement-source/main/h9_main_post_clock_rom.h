@@ -20,4 +20,29 @@ void h9_main_post_clock_rom_bind_target(H9MainPostClockRom *rom);
 bool h9_main_post_clock_rom_run(H9MainPostClockRom *rom,
                                 H9MainPostClockWords *words);
 
+/* Stock board entry app+0x05FC4C..0x05FCB2. A rejected strap index branches
+ * to a different, still-unported board path. */
+typedef struct {
+    volatile uint32_t *boot_flags_100100;
+    volatile uint32_t *channel_status_1e511c;
+    volatile uint32_t *strap_status_1f0200;
+    volatile uint32_t *secondary_status_1f0500;
+    volatile uint8_t *mode_11b43;
+    H9MainPostClockRom *rom;
+} H9MainPostClockClassifier;
+
+typedef struct {
+    uint32_t channel_flag;
+    uint32_t selector_148_masked;
+    uint32_t secondary_status;
+    uint8_t strap_index;
+    uint8_t mode;
+    bool accepted;
+} H9MainPostClockClassification;
+
+void h9_main_post_clock_classifier_bind_target(
+    H9MainPostClockClassifier *classifier, H9MainPostClockRom *rom);
+bool h9_main_post_clock_classify(H9MainPostClockClassifier *classifier,
+                                 H9MainPostClockClassification *result);
+
 #endif

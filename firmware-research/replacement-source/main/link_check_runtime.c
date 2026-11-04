@@ -64,6 +64,8 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainClockFinish clock_finish;
     H9MainPostClockRom post_clock_rom;
     H9MainPostClockWords post_clock_words;
+    H9MainPostClockClassifier post_clock_classifier;
+    H9MainPostClockClassification post_clock_classification;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -113,6 +115,10 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     h9_main_post_clock_rom_bind_target(&post_clock_rom);
     if (!h9_main_post_clock_rom_run(&post_clock_rom, &post_clock_words))
         for (;;) { }
+    h9_main_post_clock_classifier_bind_target(&post_clock_classifier,
+                                              &post_clock_rom);
+    if (!h9_main_post_clock_classify(&post_clock_classifier,
+                                     &post_clock_classification)) for (;;) { }
 #endif
     for (;;) { }
 }

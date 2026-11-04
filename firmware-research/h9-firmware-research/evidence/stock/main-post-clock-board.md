@@ -14,10 +14,19 @@ app+`0x0C54B2`. The next instructions at app+`0x05FC24..0x05FC42` are:
    arguments `(17, 1)`.
 4. Initialize the following pair of local words to `0xFFFFFFFF`.
 
-The path then reads MMIO `0x100100`, conditionally extracts two bits from
-`0x1E511C`, and calls ROM `0x02000058` with selector `148` before a larger
-branching board setup. The meaning of the selectors and resulting board
-state has not been established. `replacement-source/main/h9_main_post_clock_rom.*`
-ports the first four steps with injectable ROM callbacks. The diagnostic
-board entry stops after that block; the later MMIO and selector-148 path
-have not been implemented or tested on hardware.
+The path then reads MMIO `0x100100`. If its bit 0 is set, it extracts bits
+21–22 of `0x1E511C` into a local flag; otherwise that flag remains `-1`.
+It calls ROM `0x02000058` with selector `148`, then reads bits 8–11 of
+`0x1F0200`. Values above 9 branch to a later board path. For values 0–9,
+mask `340` selects indices 2, 4, 6, 8 and writes mode byte `2` to RAM
+`0x11B43`; mask `680` selects indices 3, 5, 7, 9 and writes mode byte `4`.
+Indices 0 and 1 also branch away without the mode write. For accepted
+indices, stock clears bits 1–7 of the selector-148 result, normalizes the
+local flag to either 1 or 0, and reads `0x1F0500`. The next branch tests
+the masked selector result and enters a larger board setup.
+
+`replacement-source/main/h9_main_post_clock_rom.*` ports the initial ROM
+block and this classifier through app+`0x05FCB2`, with injectable ROM and
+MMIO. Host tests cover all 16 index values and the flag normalization. The
+diagnostic board entry stops after classification; neither branch after it
+nor the meaning of the modes has been established on hardware.

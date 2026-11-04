@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after the first post-clock ROM reads. Optional raw output is for
+The board entry stops after the first post-clock hardware classification. Optional raw output is for
 offline inspection only.
 """
 
@@ -175,6 +175,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_finish_run",
         "h9_main_post_clock_rom_bind_target",
         "h9_main_post_clock_rom_run",
+        "h9_main_post_clock_classifier_bind_target",
+        "h9_main_post_clock_classify",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -197,6 +199,24 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         )
         if helper is None or required not in helper.group(1):
             raise ValueError(f"Linked clock-apply helper lacks {required}")
+    classifier_binder = re.search(
+        r"(?ms)^h9_main_post_clock_classifier_bind_target:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    if classifier_binder is None or not all(
+        address in classifier_binder.group(1)
+        for address in ("1048832", "1986844", "2032128", "72515")
+    ) or "r2 = r2 + 768" not in classifier_binder.group(1):
+        raise ValueError("Linked post-clock classifier lost target MMIO addresses")
+    classifier = re.search(
+        r"(?ms)^h9_main_post_clock_classify:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    if classifier is None or not all(
+        value in classifier.group(1)
+        for value in ("r1 = 148", "0x154", "0x2A8", "0xFFFFFF01")
+    ):
+        raise ValueError("Linked post-clock classifier lost stock field masks")
     bitmap_match = re.search(
         r"(?ms)^mark_blocks:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
         disassembly,
@@ -533,6 +553,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "clock_aux_field_writer_link_verified": True,
         "early_board_clock_finish_path_verified": True,
         "early_board_post_clock_rom_path_verified": True,
+        "early_board_post_clock_classifier_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
