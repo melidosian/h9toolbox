@@ -25,12 +25,25 @@ branch of the open routine at app+`0x0C57BC`, stock:
    helper at app+`0x0C56E4` with `(baud & 0x1FFFFFE) >> 1`. For the APRS
    profile, that argument is `9600` from baud field `19200`.
 
-The baud helper directly writes UART registers `+0x08` and, conditionally,
-`+0x10`. It reads clock state from RAM and another MMIO block; its branch
-conditions and live clock values have not been verified. The replacement
-`h9_main_uart1_board_open` ports the register and callback order with
-mandatory injected pin, ROM DMA, IRQ, and baud hooks. It rejects an occupied
-UART before any write, and requires the record's receive size and threshold
-to match the existing link. It does not yet implement those four target hooks,
-select a fallback UART, prove DMA cache coherency, or bind the main reset
-entry to this board adapter. The Pi32 diagnostic link remains unflashable.
+The independently decoded baud helper at app+`0x0C56E4` clears control bit
+0, sets `0x3400`, and writes `+0x08` to
+`(((48000000 + half_baud/2) / half_baud) / 4) - 1` when RAM `0xD9E4` is
+nonzero. For the APRS record's 9,600 argument this is `1249`. If control bit
+5 is set, it also writes `+0x10` using an activity word at `0x1E34C` and
+timebase word at RAM `0xD9DC`: for activity below 11 it uses
+`(activity * timebase) / 1000`, otherwise
+`(activity / 10) * ((int32_t)timebase / 10)`. It finally ORs control with
+`0x3401`. The semantic purpose and live values of the activity and timebase
+fields remain unverified. The replacement `h9_main_uart1_baud_configure`
+implements this register sequence with injected pointers and refuses a zero
+clock state before touching UART registers; it has not been exercised on the
+radio.
+
+The replacement `h9_main_uart1_board_open` ports the register and callback
+order with mandatory injected pin, ROM DMA, IRQ, and baud hooks. It rejects an
+occupied UART before any write, and requires the record's receive size and
+threshold to match the existing link. Its baud hook can now use the separate
+target binding, but pin setup, ROM DMA, IRQ registration, and a real board
+entry are still absent. It does not yet select a fallback UART, prove DMA
+cache coherency, or bind the main reset entry to this board adapter. The Pi32
+diagnostic link remains unflashable.

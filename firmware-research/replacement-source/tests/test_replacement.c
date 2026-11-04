@@ -53,6 +53,7 @@
 #include "h9_main_serial_dma.h"
 #include "h9_main_uart1_irq.h"
 #include "h9_main_uart1_board.h"
+#include "h9_main_uart1_baud.h"
 #include "h9_main_uart1_tx.h"
 #include "h9_main_uart1_tx_queue.h"
 #include "h9_main_tx_service.h"
@@ -3851,6 +3852,35 @@ static void test_main_uart1_board_open(void)
     assert(link.receive.produced == 1024u && dma_capture.rx_acks == 1u);
 }
 
+static void test_main_uart1_baud(void)
+{
+    uint32_t uart[5] = { 0x68u, 0u, 0xA5A5u, 0u, 0xB6B6u };
+    uint32_t clock_ready = 0u;
+    uint32_t timebase = 1000u;
+    uint32_t activity = 5u;
+    H9MainUart1Baud baud = { uart, &clock_ready, &timebase, &activity };
+    assert(!h9_main_uart1_baud_configure(NULL, 9600u));
+    assert(!h9_main_uart1_baud_configure(&baud, 0u));
+    assert(!h9_main_uart1_baud_configure(&baud, 9600u));
+    assert(uart[0] == 0x68u && uart[2] == 0xA5A5u &&
+           uart[4] == 0xB6B6u);
+
+    clock_ready = 48000000u;
+    assert(h9_main_uart1_baud_configure(&baud, 9600u));
+    assert(uart[0] == 0x3469u && uart[2] == 1249u && uart[4] == 5u);
+
+    uart[0] = 0x40u;
+    uart[4] = 0xB6B6u;
+    assert(h9_main_uart1_baud_configure(&baud, 9600u));
+    assert(uart[0] == 0x3441u && uart[4] == 0xB6B6u);
+
+    uart[0] = 0x68u;
+    activity = 25u;
+    timebase = 1000u;
+    assert(h9_main_uart1_baud_configure(&baud, 9600u));
+    assert(uart[4] == 200u);
+}
+
 static void test_main_heap_bitmap(void)
 {
     uint8_t initialized = 0u;
@@ -4264,6 +4294,7 @@ int main(void)
     test_main_aprs_uart1_link();
     test_main_aprs_uart1_link_forwards_gps_fix();
     test_main_uart1_board_open();
+    test_main_uart1_baud();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();
