@@ -11,7 +11,7 @@ The Cortex-M image was imported into Ghidra as `ARM:LE:32:Cortex` at `0x08002000
 | Address | Observed role |
 | --- | --- |
 | `0x08002EF8` | ADC callback reads a sample through `0x08002F82`, calls receive demodulator `0x08002308`, then conditionally calls the TX waveform generator `0x08002468`. |
-| `0x08002308` | Receive demodulator; the recovered-bit path reaches frame processing at `0x080055C4`. |
+| `0x08002308` | Receive demodulator; a five-sample delay, correlation/filter, and timing recovery feed the recovered-bit path at `0x080055C4`. The selected decompilation and state initialization at `0x08002604` are in `evidence/aprs-demod-init.txt`; the source port is in `../replacement-source/aprs/h9_aprs_demod.c`. End-to-end packet decoding is not yet verified. |
 | `0x0800555C` | Sends an assembled received frame to the main radio through `0x080048F4`. |
 | `0x08004894` | Sends a serial frame bounded by `0xC0`, escaping `0xC0` as `0xDB 0xDC` and `0xDB` as `0xDB 0xDD`. |
 | `0x08005B8C` | Parses incoming serial frames and dispatches command bytes. |

@@ -94,6 +94,7 @@ void h9_aprs_controller_init(H9AprsController *controller,
     memset(controller, 0, sizeof *controller);
     if (hardware != NULL) controller->hardware = *hardware;
     h9_wire_reset(&controller->wire);
+    h9_aprs_demod_init(&controller->demod);
 }
 
 void h9_aprs_controller_uart_byte(H9AprsController *controller, uint8_t byte)
@@ -115,6 +116,12 @@ bool h9_aprs_controller_received_packet(H9AprsController *controller,
     return send_frame(controller, 0x10u, packet, length);
 }
 
+bool h9_aprs_controller_pop_received_byte(H9AprsController *controller,
+                                          uint8_t *byte)
+{
+    return controller != NULL && h9_aprs_demod_pop_byte(&controller->demod, byte);
+}
+
 static uint8_t reverse_high_nibble(uint8_t byte)
 {
     uint8_t high = (uint8_t)(byte >> 4);
@@ -130,11 +137,12 @@ void h9_aprs_controller_adc_tick(H9AprsController *controller)
     uint8_t dac;
     if (controller == NULL) return;
     hw = &controller->hardware;
-    if (hw->read_adc == NULL || hw->demod_sample == NULL ||
-        hw->read_dac_port == NULL || hw->write_dac_port == NULL) return;
+    if (hw->read_adc == NULL) return;
     scaled = (uint8_t)((hw->read_adc(hw->context) >> 2) - 128u);
     sample = scaled < 128u ? (int16_t)scaled : (int16_t)scaled - 256;
-    hw->demod_sample(hw->context, sample);
+    (void)h9_aprs_demod_sample(&controller->demod, sample);
+    if (hw->demod_sample != NULL) hw->demod_sample(hw->context, sample);
+    if (hw->read_dac_port == NULL || hw->write_dac_port == NULL) return;
     dac = (uint8_t)(hw->read_dac_port(hw->context) & 0x0Fu);
     if (hw->tx_wave_active != NULL && hw->tx_wave_active(hw->context) &&
         hw->next_tx_wave_sample != NULL)

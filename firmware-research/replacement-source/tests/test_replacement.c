@@ -1,4 +1,5 @@
 #include "h9_aprs_controller.h"
+#include "h9_aprs_demod.h"
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_ring.h"
 #include "h9_aprs_oscillator.h"
@@ -211,6 +212,22 @@ static void test_stock_waveform_vectors(void)
     assert(!h9_aprs_oscillator_set_step(&oscillator, 0));
 }
 
+static void test_stock_demod_delay(void)
+{
+    H9AprsDemod demod_state;
+    unsigned count;
+    uint8_t byte;
+    h9_aprs_demod_init(&demod_state);
+    for (count = 0; count < 4; ++count) {
+        assert(h9_aprs_demod_sample(&demod_state, 100));
+        assert(demod_state.correlation_current == 0);
+    }
+    assert(h9_aprs_demod_sample(&demod_state, 100));
+    assert(demod_state.correlation_current == 2500);
+    assert(!h9_aprs_demod_pop_byte(&demod_state, &byte));
+    assert(!h9_aprs_demod_sample(&demod_state, 128));
+}
+
 static void feed_frame(H9AprsController *controller, uint8_t command,
                        const uint8_t *payload, size_t length)
 {
@@ -254,6 +271,11 @@ static void test_aprs_controller(void)
     fake.dac_calls = 0;
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.demod_calls == 2 && fake.dac == 0x45u);
+    controller.hardware.read_dac_port = NULL;
+    controller.hardware.write_dac_port = NULL;
+    fake.dac_calls = 0;
+    h9_aprs_controller_adc_tick(&controller);
+    assert(fake.demod_calls == 3 && fake.dac_calls == 0);
 }
 
 int main(void)
@@ -264,6 +286,7 @@ int main(void)
     test_recovered_bit_path();
     test_aprs_byte_queue();
     test_stock_waveform_vectors();
+    test_stock_demod_delay();
     test_aprs_controller();
     return 0;
 }
