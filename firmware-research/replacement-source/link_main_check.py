@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry remains inert. Optional raw output is for offline inspection only.
+The board entry stops after its first bitmap stage. Optional raw output is for
+offline inspection only.
 """
 
 from __future__ import annotations
@@ -135,6 +136,39 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     startup_positions = [runtime_body.find(item) for item in startup_order]
     if -1 in startup_positions or startup_positions != sorted(startup_positions):
         raise ValueError("Linked reset path lost retained-record call order")
+    board_match = re.search(
+        r"(?ms)^h9_main_board_entry:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if board_match is None:
+        raise ValueError("Linked main ELF lacks a disassembled board entry")
+    board_body = board_match.group(1)
+    board_order = (
+        "20000a0", "r0 = 128", "call r2", "2003174", "call r0",
+        "h9_main_heap_bitmap_bind_target",
+        "h9_main_heap_bitmap_initialize",
+    )
+    board_positions = [board_body.find(item) for item in board_order]
+    if -1 in board_positions or board_positions != sorted(board_positions):
+        raise ValueError("Linked board entry lost ROM and bitmap call order")
+    bitmap_match = re.search(
+        r"(?ms)^mark_blocks:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if bitmap_match is None or bitmap_match.group(1).count("|= 1 <<") != 2:
+        raise ValueError("Linked bitmap stage lost Pi32 bitset instructions")
+    heap_match = re.search(
+        r"(?ms)^h9_main_heap_bitmap_initialize:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if heap_match is None or not all(
+        f"r1 = {first}" in heap_match.group(1)
+        for first in (970, 1444)
+    ) or not all(
+        f"r2 = {last}" in heap_match.group(1)
+        for last in (1406, 1535)
+    ):
+        raise ValueError("Linked bitmap stage lost stock block boundaries")
 
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
@@ -248,6 +282,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "boot_argument_copy_bytes_verified": True,
         "post_ram_copy_icfg_bytes_verified": True,
         "post_copy_boot_record_path_verified": True,
+        "early_board_bitmap_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

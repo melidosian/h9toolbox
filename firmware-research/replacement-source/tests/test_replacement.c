@@ -40,6 +40,7 @@
 #include "h9_main_rf_registers.h"
 #include "h9_main_boot_record.h"
 #include "h9_main_boot_validator.h"
+#include "h9_main_heap_bitmap.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_bus.h"
 #include "h9_main_serial_commands.h"
@@ -3726,6 +3727,33 @@ static void test_main_uart1_board_open(void)
     assert(link.receive.produced == 1024u && dma_capture.rx_acks == 1u);
 }
 
+static void test_main_heap_bitmap(void)
+{
+    uint8_t initialized = 0u;
+    uint32_t words[H9_MAIN_HEAP_BITMAP_WORDS];
+    H9MainHeapBitmap bitmap = { &initialized, words };
+    uint32_t block;
+    unsigned index;
+    for (index = 0u; index < H9_MAIN_HEAP_BITMAP_WORDS; ++index)
+        words[index] = 0xFFFFFFFFu;
+    assert(!h9_main_heap_bitmap_initialize(NULL));
+    assert(h9_main_heap_bitmap_initialize(&bitmap));
+    assert(initialized == 1u);
+    for (block = 0u; block < 0x600u; ++block) {
+        bool expected = (block >= 0x3CAu && block < 0x57Eu) ||
+                        (block >= 0x5A4u && block < 0x5FFu);
+        bool actual = (words[block >> 5] & (1u << (block & 31u))) != 0u;
+        assert(actual == expected);
+    }
+    assert(words[48] == 0xC0000000u);
+    assert(words[49] == 0xEFFFu);
+    for (index = 50u; index < H9_MAIN_HEAP_BITMAP_WORDS; ++index)
+        assert(words[index] == 0u);
+    words[0] = 0x12345678u;
+    assert(h9_main_heap_bitmap_initialize(&bitmap));
+    assert(words[0] == 0x12345678u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -3753,6 +3781,7 @@ int main(void)
     test_main_tx_service();
     test_main_boot_record();
     test_main_boot_validator();
+    test_main_heap_bitmap();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

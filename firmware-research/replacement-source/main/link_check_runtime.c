@@ -3,12 +3,13 @@
 
 #include "h9_main_boot_record.h"
 #include "h9_main_boot_validator.h"
+#include "h9_main_heap_bitmap.h"
 
 #define H9_MAIN_RETAINED_BOOT_RECORD 0x0002FF88u
 #define H9_MAIN_BOOT_RESULT_WORD 0x00011C3Cu
 
-/* Diagnostic link shims. This entry initializes C memory but does not
- * initialize the TD-H9 board or implement its production runtime. */
+/* Diagnostic link shims. This entry initializes C memory and the first board
+ * bitmap stage, but not the complete TD-H9 board or production runtime. */
 extern unsigned char __data_load_start[];
 extern unsigned char __data_start[];
 extern unsigned char __data_end[];
@@ -39,6 +40,17 @@ void *memset(void *destination, int value, size_t length)
 
 __attribute__((noreturn)) void h9_main_board_entry(void)
 {
+#if defined(__PI32V2__)
+    H9MainHeapBitmap bitmap;
+    typedef void (*RomSetup)(uint32_t, uint32_t);
+    typedef void (*RomContinue)(void);
+    /* Stock board entry starts with these two ROM calls, then builds the
+     * allocation bitmap. Later allocator metadata and clock setup remain. */
+    ((RomSetup)(uintptr_t)0x020000A0u)(0x80u, 0u);
+    ((RomContinue)(uintptr_t)0x02003174u)();
+    h9_main_heap_bitmap_bind_target(&bitmap);
+    if (!h9_main_heap_bitmap_initialize(&bitmap)) for (;;) { }
+#endif
     for (;;) { }
 }
 
