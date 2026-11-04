@@ -28,6 +28,7 @@ STOCK_BOOT_ARGS = bytes.fromhex(
     "23 62 93 66 2a 4d 9a 40 0a 66 9a 6e 0a 67 9a 6f "
     "50 ec 00 21 50 ec 11 22 80 00"
 )
+STOCK_ICFG_AFTER_RAM_COPY = bytes.fromhex("64 e0 00 2b 72 e1 40 2f 64 e0 80 2b")
 
 
 def sibling_tool(compiler: str, name: str) -> str:
@@ -46,6 +47,8 @@ def verify_stock_image(path: Path) -> None:
     if data[4:16] != bytes.fromhex("ee ff 90 e2 00 00 ed ff 90 e2 00 00") or \
             data[0x2D82E:0x2D858] != STOCK_BOOT_ARGS:
         raise ValueError("Stock Pi32 entry or boot-argument copy differs")
+    if data[0x7E:0x8A] != STOCK_ICFG_AFTER_RAM_COPY:
+        raise ValueError("Stock post-RAM-copy interrupt configuration differs")
 
 
 def verify_linked_elf(path: Path) -> int:
@@ -108,6 +111,11 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
             raise ValueError(f"Linked main ELF lacks {name}")
         return int(symbol.group(1), 16)
 
+    icfg_offset = symbol_address("h9_main_interrupt_config") - IMAGE_BASE
+    if text_data[icfg_offset:icfg_offset + len(STOCK_ICFG_AFTER_RAM_COPY)] != \
+            STOCK_ICFG_AFTER_RAM_COPY:
+        raise ValueError("Linked interrupt configuration differs from stock bytes")
+
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
     bss_start = symbol_address("__bss_start")
@@ -166,6 +174,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "stock_stack_pointer": 58000,
         "entry_stack_bytes_verified": True,
         "boot_argument_copy_bytes_verified": True,
+        "post_ram_copy_icfg_bytes_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

@@ -33,6 +33,10 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "50 e8 fd 0b 10 61 00 17 80 00"
     ):
         raise ValueError("main relocated RAM serial-bus routine differs")
+    if main_app[0x7E:0x8A] != bytes.fromhex(
+        "64 e0 00 2b 72 e1 40 2f 64 e0 80 2b"
+    ):
+        raise ValueError("main post-RAM-copy interrupt configuration differs")
     for literal, address in ((0x080026C8, 0x20000110),
                              (0x080026D0, 0x20000114),
                              (0x080057F4, 0x2000011C),

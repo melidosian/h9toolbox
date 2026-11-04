@@ -30,3 +30,14 @@ h9_main_copy_boot_args:
     d[r1+32] = r3_r2
     rts
     .size h9_main_copy_boot_args, .-h9_main_copy_boot_args
+
+/* Stock app+0x7E..0x8A clears ICFG bits 8 and 9 after copying RAM code.
+ * This leaf is called by the diagnostic C runtime at the same stage. */
+    .globl h9_main_interrupt_config
+    .type h9_main_interrupt_config,@function
+h9_main_interrupt_config:
+    r2 = icfg
+    r2 = r2 & 0xFFFFFCFF
+    icfg = r2
+    rts
+    .size h9_main_interrupt_config, .-h9_main_interrupt_config

@@ -12,6 +12,7 @@ extern unsigned char __ram_code_start[];
 extern unsigned char __ram_code_end[];
 extern unsigned char __stock_clear_start[];
 extern unsigned char __stock_clear_end[];
+extern void h9_main_interrupt_config(void);
 void *memcpy(void *destination, const void *source, size_t length)
 {
     unsigned char *to = (unsigned char *)destination;
@@ -42,5 +43,6 @@ __attribute__((noreturn)) void h9_main_runtime_init(void)
     for (to = __data_start; to < __data_end; ++to) *to = *from++;
     from = __ram_code_load_start;
     for (to = __ram_code_start; to < __ram_code_end; ++to) *to = *from++;
+    h9_main_interrupt_config();
     h9_main_board_entry();
 }
