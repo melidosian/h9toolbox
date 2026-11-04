@@ -131,7 +131,7 @@ The following auxiliary clock helper writes three fields of `0x1E0008`, calling 
 
 ## Next source work
 
-1. Trace and implement command `0x51` side effects, the `PY` ready flag consumer, and the remaining UART board hooks; connect parsed GPS and packet processing to the UI and data model.
+1. Trace and implement the remaining command `0x51` side effects and UART board hooks; connect the one-shot `PY` ready event, parsed GPS, and packet processing to the UI and data model.
 2. Validate the ported ADC-to-packet receive chain with recorded APRS audio, then map the board's carrier-sense and receive-event signals and connect the send gate to packet encoding, PTT, and DAC hardware.
 3. Identify the main radio's APRS ADC tap and the two audible-output gates; connect the mute policy only after that signal path is established.
 4. Map Pi32 RF preparation and the precise PTT control point, connect the TX service to a board adapter, then verify the actual emitted frequency into a dummy load.

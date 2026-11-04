@@ -28,7 +28,17 @@ byte 4 equal to `0x55` sets a flag at
 RAM `0x11B32` (app+`0x078FD8`); command `0x0D` calls the stock reply helper
 at app+`0x07861E` with argument 1. That helper constructs a seven-byte
 `THD 00 01 13 14` reply and sends it through a serial writer. The flag's
-later use and the meaning of the reply remain untraced. Other valid `PY`
+later use was located by independently decoding the stock app: at
+app+`0x07A0C2` the startup display path reads `0x11B32` through base
+`0x11AD0` plus `98`, enters an additional display branch when nonzero, and
+clears the byte at app+`0x07A0F6`. The read bytes are `50 EE 42 06` and
+the clear-store bytes are `52 EE 42 56`; the base-load is at
+app+`0x07A09A`. Ghidra's existing project has no analyzed function over
+this consumer, so the result comes from the independent linear decoder;
+surrounding branch interpretation remains provisional. The intervening drawing calls have not
+been reconstructed. `h9_main_aprs_session_take_ready` exposes this
+single-consumer event to a future UI loop; no UI loop calls it yet. The
+meaning of the `THD` reply remains untraced. Other valid `PY`
 control messages bypass the APRS ring. For ordinary bytes, the routine
 computes ring free space before copying. If
 the batch fits, it copies each byte to RAM `0x16634 + producer_index`, wraps

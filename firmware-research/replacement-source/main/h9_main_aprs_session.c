@@ -113,3 +113,12 @@ size_t h9_main_aprs_session_poll(H9MainAprsSession *session)
     return h9_main_uart_ring_drain(&session->uart_ring, &session->receiver,
                                     dispatch_frame, session);
 }
+
+bool h9_main_aprs_session_take_ready(H9MainAprsSession *session)
+{
+    bool ready;
+    if (session == NULL) return false;
+    ready = session->py_ready;
+    session->py_ready = false;
+    return ready;
+}

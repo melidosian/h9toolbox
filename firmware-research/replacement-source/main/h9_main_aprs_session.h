@@ -49,4 +49,9 @@ void h9_main_aprs_session_init(H9MainAprsSession *session,
  * No hardware registers, audio gates, or RF transmit path are touched here. */
 size_t h9_main_aprs_session_poll(H9MainAprsSession *session);
 
+/* Stock startup display consumes the PY 02 01 55 ready flag once and
+ * clears it after handling the event. The UI loop can call this when it
+ * reaches that stage; polling UART alone must not discard the event. */
+bool h9_main_aprs_session_take_ready(H9MainAprsSession *session);
+
 #endif
