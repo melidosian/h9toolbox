@@ -40,6 +40,25 @@ class Image:
     reset_vector: int
 
 
+@dataclass(frozen=True)
+class SerialPortInfo:
+    device: str
+    description: str
+    vid: int | None
+    pid: int | None
+
+
+def list_serial_ports() -> list[SerialPortInfo]:
+    """Enumerate ports without opening a device or sending bytes."""
+    try:
+        from serial.tools import list_ports  # type: ignore[import-not-found]
+    except ImportError as error:
+        raise AprsFlashError("Install pyserial to list serial ports") from error
+    return sorted((SerialPortInfo(port.device, port.description or "",
+                                  port.vid, port.pid)
+                   for port in list_ports.comports()), key=lambda port: port.device)
+
+
 def default_journal_path(image_path: Path) -> Path:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     return image_path.with_name(
@@ -220,6 +239,7 @@ def transfer(port, image: Image, progress=print,
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("ports", help="List serial ports without opening them")
     for command in ("inspect", "plan", "flash"):
         option = sub.add_parser(command)
         option.add_argument("image", type=Path)
@@ -234,6 +254,15 @@ def main(argv: list[str] | None = None) -> int:
                                 help="New JSONL transfer journal (default: beside image)")
     args = parser.parse_args(argv)
     try:
+        if args.command == "ports":
+            ports = list_serial_ports()
+            if not ports:
+                print("No serial ports found.")
+            for port in ports:
+                usb_id = (f" [{port.vid:04X}:{port.pid:04X}]"
+                          if port.vid is not None and port.pid is not None else "")
+                print(f"{port.device}{usb_id} {port.description}".rstrip())
+            return 0
         image = inspect_image(args.image)
         print(f"APRS image: {len(image.data):,} bytes, SHA-256 {image.digest}")
         print(f"Stack 0x{image.stack_pointer:08X}, reset 0x{image.reset_vector:08X}")

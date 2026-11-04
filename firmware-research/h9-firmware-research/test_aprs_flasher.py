@@ -51,6 +51,18 @@ class FakePort:
 
 
 class AprsFlasherTests(unittest.TestCase):
+    def test_ports_command_is_read_only_and_needs_no_image(self):
+        ports = [
+            aprs.SerialPortInfo("COM7", "USB Serial", 0x1A86, 0x7523),
+            aprs.SerialPortInfo("/dev/ttyUSB0", "Adapter", None, None),
+        ]
+        output = io.StringIO()
+        with patch.object(aprs, "list_serial_ports", return_value=ports):
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(aprs.main(["ports"]), 0)
+        self.assertIn("COM7 [1A86:7523] USB Serial", output.getvalue())
+        self.assertIn("/dev/ttyUSB0 Adapter", output.getvalue())
+
     def test_vendor_write_frame_layout(self):
         packet = aprs.write_frame(0x12345678, b"\x01\x02\x03")
         self.assertEqual(packet, b"TID\x00\x08\x03\x12\x34\x56\x78\x01\x02\x03\x25")

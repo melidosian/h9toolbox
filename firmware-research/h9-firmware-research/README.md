@@ -71,6 +71,8 @@ py -3 firmware-research/h9-firmware-research/analyze_aprs_module.py firmware-res
 
 `aprs_flasher.py` reconstructs the **separate APRS controller** serial updater. Its `inspect` and `plan` commands are offline, need no extra package, and do not open a device:
 
+With pyserial installed, `py -3 firmware-research/h9-firmware-research/aprs_flasher.py ports` lists serial ports and USB IDs on Windows or Linux without opening them.
+
 ```powershell
 py -3 firmware-research/h9-firmware-research/aprs_flasher.py inspect firmware-research/h9-firmware-research/output/aprs-1.0.15.bin
 py -3 firmware-research/h9-firmware-research/aprs_flasher.py plan firmware-research/h9-firmware-research/output/aprs-1.0.15.bin

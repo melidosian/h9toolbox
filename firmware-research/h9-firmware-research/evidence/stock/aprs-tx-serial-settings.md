@@ -23,7 +23,11 @@ commands, `0xDB` is not treated as an escape prefix.
 
 The literal pointers at `0x08005DD4..0x08005DE4` identify those parser writes.
 `0x08002664` reads lead and tail for 1200-baud flag counts; `0x08005760`
-compares an 8-bit random draw against the persistence byte. The meaning and
-read site of the third 10-ms setting still need tracing. The replacement
+compares an 8-bit random draw against the persistence byte. A direct-reference
+scan of the analyzed image finds the write at `0x08005D8E` and its literal at
+`0x08005DDC` for `0x20000118`, but no direct read of that word. The neighboring
+lead, tail, and persistence words each have direct read sites. An indirect
+read through a base pointer remains possible, so the third setting's runtime
+effect is still unverified. The replacement
 controller stores all four settings and passes lead/tail updates to the
 diagnostic board's TX service. Its RF transmit authorization remains disabled.
