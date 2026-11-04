@@ -44,7 +44,30 @@ DMA, handles the IDLE length path, and binds both IRQ vector slots in the
 diagnostic link. On full DMA completion it publishes 512 bytes directly;
 this is a replacement-side recovery behavior, not established stock behavior.
 
-USART clock/baud configuration, GPIO pin mapping, NVIC enablement, and the
-physical main-radio connection remain to be implemented and tested. Fake
-register tests and a diagnostic link establish compilation and register
+Fake register tests and a diagnostic link establish compilation and register
 selection only; they do not establish working reception on the radio.
+
+`0x08004484` supplies the USART1 board setup: it enables RCC bits at
+`0x40021040` bit 14 and `0x40021034` bit 1, configures pins 6 and 7 at
+GPIO base `0x50000400` for alternate function 0, and enables IRQ 27.
+`0x08004A50` separately enables the DMA clock at `0x40021038` bit 0 and
+IRQ 9. The generic GPIO helper at `0x080036BC` sets mode 2, output type 0,
+speed 3, and pull 1 for each USART1 pin. `0x08004CE4` calculates BRR from
+the APB clock and 115,200 baud; `0x08003B50` derives APB clock by shifting
+the system clock according to RCC offset `+8` bits 12–14, with stock shift
+table `{0,0,0,0,1,2,3,4}` at `0x08006084`.
+
+`replacement-source/aprs/h9_aprs_uart1_board.*` now ports these register
+values behind injectable pointers and takes the established system clock as
+an argument. The current diagnostic board entry binds its pointers but does
+not run the setup; the wider system clock initializer has not been ported.
+Actual board pinout and traffic remain untested.
+
+The clock initializer called before APRS board setup at `0x080027B4` writes
+the factory trim to RCC offset `+4` with selector bits `0x8000`, then selects
+clock source 0 and zero prescalers. `0x08003B78` indexes its source table at
+`0x080060C4`; selector index 4 is `24,000,000`. This supports a 24 MHz
+nominal system/APB clock and USART1 BRR `208` (`0xD0`) in stock. The
+replacement board setup still receives the measured/initialized clock as
+an input rather than assuming that value before the global clock setup is
+ported and exercised.

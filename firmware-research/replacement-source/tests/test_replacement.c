@@ -10,6 +10,7 @@
 #include "h9_aprs_tx_service.h"
 #include "h9_aprs_uart_receive.h"
 #include "h9_aprs_uart1_dma.h"
+#include "h9_aprs_uart1_board.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
 #include "h9_main_aprs_control.h"
@@ -1117,6 +1118,38 @@ static void test_aprs_uart1_dma_interrupts(void)
            (dma_channel[0] & 1u) != 0);
 }
 
+static void test_aprs_uart1_board_setup(void)
+{
+    H9AprsUart1Board board;
+    uint32_t rcc[17] = { 0 };
+    uint32_t gpio[9] = { 0 };
+    uint32_t usart[6] = { 0 };
+    uint32_t nvic_iser = 0;
+    assert(h9_aprs_uart1_peripheral_clock(48000000u, 0) == 48000000u);
+    assert(h9_aprs_uart1_peripheral_clock(48000000u, 0x4000u) == 24000000u);
+    assert(h9_aprs_uart1_peripheral_clock(48000000u, 0x7000u) == 3000000u);
+    assert(h9_aprs_uart1_brr(48000000u) == 417u);
+    assert(h9_aprs_uart1_brr(24000000u) == 208u);
+    assert(h9_aprs_uart1_brr(1000000u) == 0u);
+    h9_aprs_uart1_board_bind(&board, rcc, gpio, usart, &nvic_iser);
+    assert(!h9_aprs_uart1_board_configure(&board, 0));
+    assert(rcc[14] == 0 && nvic_iser == 0);
+    gpio[0] = gpio[1] = gpio[2] = gpio[3] = gpio[8] = ~0u;
+    usart[3] = usart[4] = usart[5] = ~0u;
+    assert(h9_aprs_uart1_board_configure(&board, 48000000u));
+    assert((rcc[14] & 1u) != 0 && (rcc[13] & 2u) != 0 &&
+           (rcc[16] & 0x4000u) != 0);
+    assert(((gpio[0] >> 12) & 0xFu) == 0xAu &&
+           ((gpio[1] >> 6) & 3u) == 0u &&
+           ((gpio[2] >> 12) & 0xFu) == 0xFu &&
+           ((gpio[3] >> 12) & 0xFu) == 0x5u &&
+           ((gpio[8] >> 24) & 0xFFu) == 0u);
+    assert(usart[2] == 417u && (usart[3] & 0x200Cu) == 0x200Cu &&
+           (usart[4] & 0x2800u) == 0u &&
+           (usart[5] & 0xB08u) == 0u);
+    assert(nvic_iser == ((1u << 9) | (1u << 27)));
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -1144,5 +1177,6 @@ int main(void)
     test_aprs_controller();
     test_aprs_uart_receive_batches();
     test_aprs_uart1_dma_interrupts();
+    test_aprs_uart1_board_setup();
     return 0;
 }

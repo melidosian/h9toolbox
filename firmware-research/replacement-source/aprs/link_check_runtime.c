@@ -30,6 +30,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     h9_aprs_uart_receive_init(&runtime.uart_receive);
     h9_aprs_uart1_dma_bind_target(&runtime.uart1_dma,
                                   &runtime.uart_receive);
+    h9_aprs_uart1_board_bind_target(&runtime.uart1_board);
     for (;;) { }
 }
 

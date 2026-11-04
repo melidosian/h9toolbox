@@ -27,6 +27,7 @@ stack pointer is `0x20001A50`; reset vector is `0x080020D5`.
 `link_check_startup.S` now implement the reset-register writes, ordinary
 `.data` copy, `.bss` zeroing, 48-vector RAM relocation, and VTOR setup. The
 linker reserves the first `0xC0` RAM bytes for those vectors. The linked
-diagnostic image still has an inert board entry and default interrupt
-handlers. It does not implement ADC/UART/DAC initialization, interrupt
-bodies, or the main application.
+diagnostic image now maps DMA channel 1 and USART1 slots to replacement
+receive handlers, while other interrupt slots retain default handlers. Its
+board entry remains inert: it does not run UART board configuration, ADC/DAC
+initialization, the wider clock setup, or the main application.
