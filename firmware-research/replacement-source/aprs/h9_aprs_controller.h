@@ -4,6 +4,7 @@
 #include "h9_aprs_wire.h"
 #include "h9_aprs_demod.h"
 #include "h9_aprs_frame.h"
+#include "h9_aprs_tx.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -28,6 +29,7 @@ typedef struct {
     H9WireDecoder wire;
     H9AprsDemod demod;
     H9AprsFrame frame;
+    H9AprsTx tx;
     H9AprsHardware hardware;
     uint8_t tx_frame[H9_APRS_ENCODED_CAPACITY];
 } H9AprsController;
@@ -40,6 +42,10 @@ bool h9_aprs_controller_received_packet(H9AprsController *controller,
 bool h9_aprs_controller_pop_received_byte(H9AprsController *controller,
                                           uint8_t *byte);
 void h9_aprs_controller_process_received(H9AprsController *controller);
+bool h9_aprs_controller_configure_tx(H9AprsController *controller,
+                                     uint16_t lead_ms, uint16_t tail_ms);
+bool h9_aprs_controller_queue_tx_byte(H9AprsController *controller,
+                                      uint8_t byte);
 /* This preserves the stock order: demodulation before optional TX waveform. */
 void h9_aprs_controller_adc_tick(H9AprsController *controller);
 

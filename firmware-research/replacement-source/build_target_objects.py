@@ -27,6 +27,7 @@ SOURCES = {
         "aprs/h9_aprs_frame.c",
         "aprs/h9_aprs_oscillator.c",
         "aprs/h9_aprs_ring.c",
+        "aprs/h9_aprs_tx.c",
     ),
     "main": (
         "common/h9_aprs_wire.c",

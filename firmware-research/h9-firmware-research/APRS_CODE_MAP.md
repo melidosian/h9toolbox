@@ -12,6 +12,8 @@ The Cortex-M image was imported into Ghidra as `ARM:LE:32:Cortex` at `0x08002000
 | --- | --- |
 | `0x08002EF8` | ADC callback reads a sample through `0x08002F82`, calls receive demodulator `0x08002308`, then conditionally calls the TX waveform generator `0x08002468`. |
 | `0x08002308` | Receive demodulator; a five-sample delay, correlation/filter, and timing recovery feed the recovered-bit path at `0x080055C4`. The selected decompilation and state initialization at `0x08002604` are in `evidence/aprs-demod-init.txt`; the source port is in `../replacement-source/aprs/h9_aprs_demod.c`. End-to-end packet decoding is not yet verified. |
+| `0x08002468` | Transmit waveform scheduler reads a 64-byte queue, sends flag bytes, shifts data bits LSB first, changes the 0x40/0x75 oscillator step for NRZI zero bits, inserts a zero after five data one bits, and produces eight DAC samples per bit. |
+| `0x08002664` / `0x08005150` | First queued transmit byte starts waveform state; settings at RAM `0x20000110` and `0x20000114` become rounded lead and tail flag counts through `(setting * 1200 + 4000) / 8000`. Later queued bytes refresh the tail count. |
 | `0x0800555C` | Sends an assembled received frame to the main radio through `0x080048F4`. |
 | `0x080051FC` | Drains the recovered-byte queue, assembles a frame between `0x7E` flags, handles `0x1B` escaping, caps payload plus FCS at `0x318` bytes, and accepts frames longer than 17 bytes only when the running CRC equals `0xF0B8`. |
 | `0x08006028` | CRC table update. The 256-entry stock table at `0x08006158` matches reflected polynomial `0x8408`, initialized to `0xFFFF`. |
@@ -33,6 +35,8 @@ The parser at `0x08005B8C` uses these command IDs (direction is **main radio to 
 In the opposite direction, `0x080048F4` wraps `0x08004894` with command `0x10`; one of its callers is the received-frame sender at `0x0800555C`. The handler's source and destination may share command numbers; do not infer the same semantics in both directions.
 
 The ADC callback calls the demodulator before its TX/no-TX branch. The demodulator feeds the frame parser, which CRC-checks and forwards received packets to the main radio. This shows that the separate processor has an independent receive-processing path; it does **not** prove which analog signal the main radio feeds into its ADC, or where the speaker is gated. Disabling this ADC path would defeat packet decoding. A correct APRS mute would leave it active.
+
+The transmit scheduler and its queue producer are decompiled in `evidence/aprs-tx-wave-scheduler.txt` and `evidence/aprs-tx-queue-producer.txt`. The replacement source implements that waveform path, but the packet encoder feeding the queue, PTT control, and physical DAC routing have not been connected or measured. This is not a validated RF transmitter.
 
 ## Main Pi32v2 application v1.0.38
 

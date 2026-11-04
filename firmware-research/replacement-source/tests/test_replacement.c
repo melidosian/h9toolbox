@@ -3,6 +3,7 @@
 #include "h9_aprs_frame.h"
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_ring.h"
+#include "h9_aprs_tx.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
 #include "h9_main_beacon.h"
@@ -229,6 +230,35 @@ static void test_stock_demod_delay(void)
     assert(!h9_aprs_demod_sample(&demod_state, 128));
 }
 
+static void test_stock_tx_scheduler(void)
+{
+    H9AprsTx tx;
+    uint8_t sample = 0;
+    unsigned count;
+    h9_aprs_tx_init(&tx, 0, 0);
+    assert(h9_aprs_tx_enqueue(&tx, 0xFFu));
+    for (count = 0; count < 40; ++count) {
+        assert(h9_aprs_tx_next_sample(&tx, &sample));
+        if (count == 0) assert(sample == 218u);
+    }
+    assert(tx.oscillator.step == 0x40u && tx.bit_mask == 0x20u);
+    assert(h9_aprs_tx_next_sample(&tx, &sample));
+    assert(tx.oscillator.step == 0x75u && tx.bit_mask == 0x20u);
+    for (count = 41; count < 72; ++count)
+        assert(h9_aprs_tx_next_sample(&tx, &sample));
+    assert(!h9_aprs_tx_next_sample(&tx, &sample));
+
+    h9_aprs_tx_init(&tx, 7, 7); /* one leading and one trailing flag */
+    assert(h9_aprs_tx_enqueue(&tx, 0));
+    for (count = 0; count < 192; ++count)
+        assert(h9_aprs_tx_next_sample(&tx, &sample));
+    assert(!h9_aprs_tx_next_sample(&tx, &sample));
+
+    h9_aprs_tx_init(&tx, 0, 0);
+    assert(h9_aprs_tx_enqueue(&tx, 0x1Bu));
+    assert(!h9_aprs_tx_next_sample(&tx, &sample));
+}
+
 typedef struct {
     uint8_t bytes[H9_APRS_MAX_RECEIVE];
     size_t length;
@@ -324,6 +354,16 @@ static void test_aprs_controller(void)
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.demod_calls == 3 && fake.dac_calls == 0);
 
+    controller.hardware.read_dac_port = read_dac;
+    controller.hardware.write_dac_port = write_dac;
+    controller.hardware.tx_wave_active = NULL;
+    controller.hardware.next_tx_wave_sample = NULL;
+    assert(h9_aprs_controller_configure_tx(&controller, 0, 0));
+    assert(h9_aprs_controller_queue_tx_byte(&controller, 0xFFu));
+    h9_aprs_controller_adc_tick(&controller);
+    assert(fake.demod_calls == 4 && fake.dac_calls == 1 &&
+           fake.dac == 0xB5u);
+
     fake.uart_length = 0;
     assert(h9_aprs_ring_push(&controller.demod.receive, 0x7Eu));
     for (i = 0; i < 18; ++i)
@@ -347,6 +387,7 @@ int main(void)
     test_aprs_byte_queue();
     test_stock_waveform_vectors();
     test_stock_demod_delay();
+    test_stock_tx_scheduler();
     test_aprs_frame_fcs();
     test_aprs_controller();
     return 0;
