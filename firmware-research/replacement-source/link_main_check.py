@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry remains inert. This emits an unbootable diagnostic ELF only.
+The board entry remains inert. Optional raw output is for offline inspection only.
 """
 
 from __future__ import annotations
@@ -64,7 +64,8 @@ def verify_linked_elf(path: Path) -> int:
     return entry
 
 
-def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
+def link(compiler: str, output: Path, stock_image: Path | None = None,
+         emit_raw: bool = False) -> dict:
     if stock_image is not None:
         verify_stock_image(stock_image)
     output.mkdir(parents=True, exist_ok=True)
@@ -162,6 +163,44 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
             ram_code_load + ram_code_end - ram_code_start <=
             IMAGE_BASE + STOCK_IMAGE_SIZE):
         raise ValueError("Linked RAM-code load exceeds stock app address envelope")
+    data_bytes = b""
+    if data_end != data_start:
+        data_section = output / "main-data.bin"
+        run([sibling_tool(compiler, "llvm-objcopy"), "-O", "binary",
+             "-j=.data", str(elf), str(data_section)])
+        data_bytes = data_section.read_bytes()
+        if len(data_bytes) != data_end - data_start:
+            raise ValueError("Linked initialized data differs from RAM data span")
+    raw_file = None
+    raw_digest = None
+    if emit_raw:
+        # The vendor llvm-objcopy accepts only one -j section and has no
+        # --gap-fill/--pad-to support, so place verified sections by LMA.
+        raw = bytearray(b"\xFF" * STOCK_IMAGE_SIZE)
+        used: list[tuple[int, int]] = []
+
+        def place(name: str, load_address: int, payload: bytes) -> None:
+            if not payload:
+                return
+            start = load_address - IMAGE_BASE
+            end = start + len(payload)
+            if start < 0 or end > STOCK_IMAGE_SIZE or any(
+                    start < prior_end and prior_start < end
+                    for prior_start, prior_end in used):
+                raise ValueError(f"Raw {name} load span overlaps or exceeds stock app")
+            raw[start:end] = payload
+            used.append((start, end))
+
+        place("text", IMAGE_BASE, text_data)
+        place("RAM code", ram_code_load, ram_code_data)
+        place("initialized data", data_load, data_bytes)
+        raw_file = output / "h9_main_diagnostic_NOT_FOR_FLASH.raw"
+        raw_file.write_bytes(raw)
+        if len(raw) != STOCK_IMAGE_SIZE or raw[:len(text_data)] != text_data or \
+                raw[ram_code_load - IMAGE_BASE:
+                    ram_code_load - IMAGE_BASE + len(ram_code_data)] != ram_code_data:
+            raise ValueError("Raw main export differs from linked sections or stock size")
+        raw_digest = sha256(raw).hexdigest()
     undefined = run([sibling_tool(compiler, "llvm-nm"), "-u", str(elf)])
     if undefined:
         raise ValueError(f"Linked ELF has undefined symbols:\n{undefined}")
@@ -192,6 +231,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
+        "ram_code_load_address": ram_code_load,
+        "initialized_data_load_address": data_load,
         "ram_serial_bus_entry": serial_bus_entry,
         "ram_serial_read_entry": serial_read_entry,
         "ram_serial_write_entry": serial_write_entry,
@@ -204,6 +245,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "map": map_file.name,
         "map_sha256": sha256(map_file.read_bytes()).hexdigest(),
         "entry": entry,
+        "raw_export": raw_file.name if raw_file is not None else None,
+        "raw_export_sha256": raw_digest,
+        "raw_export_purpose": "offline_layout_inspection_only" if emit_raw else None,
         "firmware_image_created": False,
         "flashable": False,
     }
@@ -220,17 +264,22 @@ def main() -> int:
                         default=ROOT / "build" / "link-check-main")
     parser.add_argument("--stock-image", type=Path,
                         help="optionally recheck the private pinned app.bin")
+    parser.add_argument("--emit-raw", action="store_true",
+                        help="export a stock-size raw layout for offline inspection only")
     args = parser.parse_args()
     try:
         compiler = find_compiler("main", args.compiler)
-        manifest = link(compiler, args.output, args.stock_image)
+        manifest = link(compiler, args.output, args.stock_image, args.emit_raw)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Link check failed: {error}", file=sys.stderr)
         return 1
     print(f"Linked {manifest['source_objects']} main source objects: "
           f"{args.output / manifest['elf']}")
     print(f"Entry: 0x{manifest['entry']:08X}")
-    print("Diagnostic ELF only; no bootable or flashable update image was produced")
+    if manifest["raw_export"]:
+        print(f"Offline raw layout: {args.output / manifest['raw_export']}")
+        print(f"Raw SHA-256: {manifest['raw_export_sha256']}")
+    print("Diagnostic only; no bootable or flashable update image was produced")
     return 0
 
 
