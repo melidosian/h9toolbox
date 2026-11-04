@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; object-src 'none'; base-uri 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self'; connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'">
   <meta name="theme-color" content="#111f2c">
   <meta name="description" content="H9 Toolbox is a direct Bluetooth programmer for the TIDRADIO TD-H9.">
   <title>H9 Toolbox | TD-H9 Programmer</title>
   <link rel="icon" href="./favicon.ico" type="image/x-icon">
   <script src="./https-redirect.js"></script>
+  <script src="./analytics.js"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -22,7 +23,7 @@
       <section class="intro">
         <div class="eyebrow">DIRECT TO RADIO · NO ODMASTER ACCOUNT</div>
         <h1>H9 Toolbox.<br><em>Your radio, your way.</em></h1>
-        <p>Connect over Bluetooth, read your radio, and edit channels and settings. You can save a full backup at any time. Everything stays in this browser unless you download a file.</p>
+        <p>Connect over Bluetooth, read your radio, and edit channels and settings. You can save a full backup at any time. Radio data stays in your browser; visits and site interactions on h9toolbox.com are measured with Google Analytics.</p>
         <div class="intro-actions"><a class="button ghost" href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">View GitHub repository ↗</a></div>
       </section>
 
@@ -124,7 +125,7 @@
         </aside>
       </div>
     </main>
-    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; saving an untouched backup and verifying settings before writing are recommended.</p></footer>
+    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; saving an untouched backup and verifying settings before writing are recommended.<br><strong>Analytics:</strong> Google Analytics measures visits and site interactions on h9toolbox.com. H9 Toolbox does not send radio images, channels, or settings to Analytics.</p></footer>
   </div>
   <script type="module" src="./app.js"></script>
 </body>

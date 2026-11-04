@@ -2,13 +2,15 @@
 
 Firmware reverse-engineering notes, offline analysis, the Windows/Linux USB-C flasher, and the HID recovery tools are collected in [firmware-research](firmware-research/README.md). They are separate from the Bluetooth web programmer below.
 
-A small, buildless Web Bluetooth programmer for the TIDRADIO TD-H9. Open the HTTPS site in Chrome or Edge on a computer with Bluetooth. No account or cloud storage is used by the page itself; the radio image stays in browser memory until you download a backup.
+A small, buildless Web Bluetooth programmer for the TIDRADIO TD-H9. Open the HTTPS site in Chrome or Edge on a computer with Bluetooth. No account is required. The radio image stays in browser memory until you download a backup.
+
+The custom domain uses Google Analytics 4 for page views and automatic interaction events. Enhanced Measurement is enabled, and the tag runs only on `h9toolbox.com`, not on previews or localhost. H9 Toolbox does not send radio images, channel contents, or settings to Analytics.
 
 **AI disclosure:** H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; saving an untouched backup and verifying settings before writing are recommended.
 
 ## GitHub Pages
 
-**Open the programmer:** https://h9toolbox.com/ (HTTPS certificate provisioning)
+**Open the programmer:** https://h9toolbox.com/
 
 The checked-in workflow publishes `dist/` directly to GitHub Pages on each push to `main`, or when **Deploy GitHub Pages** is run manually. GitHub Pages serves the site over HTTPS. Web Bluetooth still requires a supported browser; hosting on Pages does not add iPhone Safari support.
 
