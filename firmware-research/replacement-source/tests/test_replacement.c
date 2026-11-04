@@ -15,6 +15,7 @@
 #include "h9_main_aprs_wire.h"
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
+#include "h9_main_uart_ring.h"
 #include <assert.h>
 #include <string.h>
 
@@ -427,6 +428,57 @@ static void test_main_control_frames(void)
     receiver.length = 5u;
     receiver.frame_ready = 0u;
     assert(!h9_main_control_from_frame(&receiver, &action));
+}
+
+typedef struct {
+    unsigned calls;
+    uint8_t command;
+    uint8_t payload[4];
+    size_t length;
+} MainUartCapture;
+
+static void capture_main_uart_frame(void *context,
+                                    const H9MainWireReceiver *receiver)
+{
+    MainUartCapture *capture = (MainUartCapture *)context;
+    assert(receiver->frame_ready && receiver->length <= sizeof capture->payload);
+    capture->calls++;
+    capture->command = receiver->command;
+    capture->length = receiver->length;
+    memcpy(capture->payload, receiver->payload, receiver->length);
+}
+
+static void test_main_uart_ring(void)
+{
+    H9MainUartRing ring;
+    H9MainWireReceiver receiver;
+    MainUartCapture capture = { 0 };
+    h9_main_uart_ring_init(&ring);
+    h9_main_wire_reset(&receiver);
+    ring.read_index = 2046u;
+    ring.write_index = 4u;
+    ring.storage[2046] = 0xC0u;
+    ring.storage[2047] = 0x21u;
+    ring.storage[0] = 1u;
+    ring.storage[1] = 'X';
+    ring.storage[2] = 0u;
+    ring.storage[3] = 0xC0u;
+    assert(h9_main_uart_ring_drain(&ring, &receiver,
+                                   capture_main_uart_frame, &capture) == 6u);
+    assert(ring.read_index == 4u && capture.calls == 1u);
+    assert(capture.command == 0x21u && capture.length == 3u);
+    assert(capture.payload[0] == 1u && capture.payload[1] == 'X' &&
+           capture.payload[2] == 0u);
+    assert(h9_main_uart_ring_drain(&ring, &receiver, NULL, NULL) == 0u);
+    ring.read_index = 0u;
+    ring.write_index = 1500u;
+    memset(ring.storage, 0, 1500u);
+    assert(h9_main_uart_ring_drain(&ring, &receiver, NULL, NULL) == 1024u);
+    assert(ring.read_index == 1024u);
+    assert(h9_main_uart_ring_drain(&ring, &receiver, NULL, NULL) == 476u);
+    assert(ring.read_index == 1500u);
+    ring.write_index = 2048u;
+    assert(h9_main_uart_ring_drain(&ring, &receiver, NULL, NULL) == 0u);
 }
 
 static void test_main_policy(void)
@@ -932,6 +984,7 @@ int main(void)
     test_main_gps_sentence_frames();
     test_main_gpio_query_reply();
     test_main_control_frames();
+    test_main_uart_ring();
     test_main_policy();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
