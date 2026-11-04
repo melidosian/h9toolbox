@@ -274,14 +274,16 @@ void h9_aprs_controller_adc_tick(H9AprsController *controller)
     sample = scaled < 128u ? (int16_t)scaled : (int16_t)scaled - 256;
     (void)h9_aprs_demod_sample(&controller->demod, sample);
     if (hw->demod_sample != NULL) hw->demod_sample(hw->context, sample);
-    if (hw->read_dac_port == NULL || hw->write_dac_port == NULL) return;
-    dac = (uint8_t)(hw->read_dac_port(hw->context) & 0x0Fu);
-    if (hw->tx_wave_active != NULL && hw->next_tx_wave_sample != NULL) {
-        if (hw->tx_wave_active(hw->context))
-            has_wave = hw->next_tx_wave_sample(hw->context, &wave);
-    } else {
-        has_wave = h9_aprs_tx_next_sample(&controller->tx, &wave);
+    if (hw->read_dac_port != NULL && hw->write_dac_port != NULL) {
+        dac = (uint8_t)(hw->read_dac_port(hw->context) & 0x0Fu);
+        if (hw->tx_wave_active != NULL && hw->next_tx_wave_sample != NULL) {
+            if (hw->tx_wave_active(hw->context))
+                has_wave = hw->next_tx_wave_sample(hw->context, &wave);
+        } else {
+            has_wave = h9_aprs_tx_next_sample(&controller->tx, &wave);
+        }
+        dac |= has_wave ? reverse_high_nibble(wave) : 0x80u;
+        hw->write_dac_port(hw->context, dac);
     }
-    dac |= has_wave ? reverse_high_nibble(wave) : 0x80u;
-    hw->write_dac_port(hw->context, dac);
+    ++controller->adc_sample_count;
 }

@@ -54,6 +54,8 @@ typedef struct {
     uint32_t valid_rx_frames;
     uint32_t forwarded_rx_frames;
     uint32_t receive_overflow_seen;
+    /* Counts completed ADC sample callbacks, as stock RAM 0x200000E4 does. */
+    volatile uint32_t adc_sample_count;
 } H9AprsController;
 
 void h9_aprs_controller_init(H9AprsController *controller,

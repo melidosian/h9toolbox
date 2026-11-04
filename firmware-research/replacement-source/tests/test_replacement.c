@@ -3199,11 +3199,13 @@ static void test_aprs_adc_sample_irq(void)
     gpio[5] = 0x1Au;
     adc[0] = 4u;
     assert(!h9_aprs_adc_board_sample_irq(&fake.adc, &controller));
-    assert(fake.demod_calls == 0u && gpio[5] == 0x1Au);
+    assert(fake.demod_calls == 0u && gpio[5] == 0x1Au &&
+           controller.adc_sample_count == 0u);
     adc[1] = 8u;
     assert(!h9_aprs_adc_board_sample_irq(&fake.adc, &controller));
     adc[1] = 4u;
     assert(h9_aprs_adc_board_sample_irq(&fake.adc, &controller));
+    assert(controller.adc_sample_count == 1u);
     assert(fake.demod_calls == 1u && gpio[5] == 0x8Au);
     assert(adc[0] == 0xCu);
 }
