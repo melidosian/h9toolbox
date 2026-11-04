@@ -64,6 +64,20 @@ class AprsFlasherTests(unittest.TestCase):
             with self.assertRaises(aprs.AprsFlashError):
                 aprs.inspect_image(path)
 
+    def test_inspect_rejects_bad_interrupt_vector(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bad-vector.bin"
+            data = bytearray(aprs.STOCK_IMAGE_SIZE)
+            struct.pack_into("<II", data, 0, 0x20001A50, 0x080020D5)
+            struct.pack_into("<I", data, 28 * 4, 0x08008001)
+            path.write_bytes(data)
+            with self.assertRaisesRegex(aprs.AprsFlashError, "Vector 28"):
+                aprs.inspect_image(path)
+            struct.pack_into("<I", data, 28 * 4, 0x08002234)
+            path.write_bytes(data)
+            with self.assertRaisesRegex(aprs.AprsFlashError, "Vector 28"):
+                aprs.inspect_image(path)
+
     def test_ports_command_is_read_only_and_needs_no_image(self):
         ports = [
             aprs.SerialPortInfo("COM7", "USB Serial", 0x1A86, 0x7523),

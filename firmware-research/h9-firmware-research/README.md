@@ -69,7 +69,7 @@ The user identified the community [teedubyeah/TDH9 repository](https://github.co
 py -3 firmware-research/h9-firmware-research/analyze_aprs_module.py firmware-research/h9-firmware-research/output/aprs-1.0.15.bin --output firmware-research/h9-firmware-research/output/aprs-module-map.json
 ```
 
-`aprs_flasher.py` reconstructs the **separate APRS controller** serial updater. Its `inspect` and `plan` commands are offline, need no extra package, and do not open a device:
+`aprs_flasher.py` reconstructs the **separate APRS controller** serial updater. Its `inspect` and `plan` commands are offline, need no extra package, and do not open a device. Inspection checks the stack, reset vector, and every nonzero vector in the 48-entry Cortex-M table against the selected image length; it accepts the captured stock image and rejects even or out-of-range handler addresses:
 
 With pyserial installed, `py -3 firmware-research/h9-firmware-research/aprs_flasher.py ports` lists serial ports and USB IDs on Windows or Linux without opening them.
 

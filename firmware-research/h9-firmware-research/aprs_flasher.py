@@ -147,6 +147,14 @@ def inspect_image(path: Path) -> Image:
         raise AprsFlashError(f"Implausible Cortex-M stack pointer 0x{stack:08X}")
     if not (reset & 1) or not IMAGE_BASE <= (reset & ~1) < IMAGE_BASE + len(data):
         raise AprsFlashError(f"Reset vector 0x{reset:08X} is outside the APRS image")
+    for slot in range(2, 48):
+        vector = struct.unpack_from("<I", data, slot * 4)[0]
+        if vector != 0 and (vector & 1 == 0 or not
+                            IMAGE_BASE <= (vector & ~1) < IMAGE_BASE + len(data)):
+            raise AprsFlashError(
+                f"Vector {slot} points outside executable Thumb image: "
+                f"0x{vector:08X}"
+            )
     return Image(data, sha256(data).hexdigest(), stack, reset)
 
 
