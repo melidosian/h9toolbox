@@ -5,6 +5,7 @@
 #include "h9_main_boot_validator.h"
 #include "h9_main_board_markers.h"
 #include "h9_main_clock_probe.h"
+#include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
 
@@ -52,6 +53,7 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainClockBand clock_band;
     H9MainClockCalculation clock_calculation;
     H9MainClockMatch clock_match;
+    H9MainClockTiming clock_timing;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -81,7 +83,12 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     *(volatile uint32_t *)(uintptr_t)0x0000D9E4u = calculated_clock;
     if (calculated_clock != UINT32_MAX) {
         h9_main_clock_match_bind_target(&clock_match);
-        (void)h9_main_clock_match(&clock_match, calculated_clock);
+        if (h9_main_clock_match(&clock_match, calculated_clock)) {
+            h9_main_clock_timing_bind_target(&clock_timing);
+            if (!h9_main_clock_timing_calculate(&clock_timing,
+                                                calculated_clock,
+                                                240000000u)) for (;;) { }
+        }
     }
 #endif
     for (;;) { }

@@ -89,7 +89,8 @@ index cap. `h9_main_clock_calculate` ports the bounded record calculation
 and `0xFFFFFFFF` result; host tests cover valid multiples, clamping, and
 invalid records. `h9_main_clock_match` ports the source/divider search,
 including match and exhaustion outputs. The diagnostic board entry invokes
-these stages and stops before applying the resulting clock. The Pi32 link
+these stages and the following timing calculation, then stops before applying
+the resulting clock. The Pi32 link
 check verifies key addresses, constants, table bytes, and call placement.
 No radio has run it, and the linked image remains unflashable.
 
@@ -104,8 +105,8 @@ RAM word `0xD9E4` is `0xFFFFFFFF`. Otherwise it reads and writes
 register pointers and a target-address binder, with host tests for the
 bitfields, failure sentinel, and latch bits. The Pi32 link check inspects
 their emitted instructions. These helpers are linked but are **not** called
-by the diagnostic board entry: the intervening stock ROM, timing, and gate
-sequence is still under study. No hardware behavior is inferred from the
+by the diagnostic board entry: the clock-apply ROM call and synchronization
+sequence are still under study. No hardware behavior is inferred from the
 host tests or link check.
 
 Stock app+`0x0C5330` then updates `0x1E0008` in three stages. It inserts

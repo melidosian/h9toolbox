@@ -43,6 +43,7 @@
 #include "h9_main_boot_validator.h"
 #include "h9_main_board_markers.h"
 #include "h9_main_clock_probe.h"
+#include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
 #include "h9_main_serial_profile.h"
@@ -4173,6 +4174,49 @@ static void test_main_clock_match(void)
     assert(result == UINT32_MAX);
 }
 
+static void test_main_clock_timing(void)
+{
+    uint32_t records[20] = { 0 };
+    uint8_t band = 2u;
+    uint32_t stage = 0xA5A5A5A5u;
+    uint32_t timebase = 0xA5A5A5A5u;
+    uint8_t first = 0xA5u;
+    uint8_t third = 0xA5u;
+    uint8_t rate = 0xA5u;
+    uint16_t fourth = 0xA5A5u;
+    uint8_t fifth = 0xA5u;
+    uint32_t intermediate = 0xA5A5A5A5u;
+    H9MainClockTiming timing = {
+        records, &band, &stage, &timebase, &first, &third, &rate,
+        &fourth, &fifth, &intermediate
+    };
+    records[10] = 200000000u;
+    records[11] = 100000000u;
+    records[12] = 80000000u;
+    records[13] = 50000000u;
+    assert(!h9_main_clock_timing_calculate(NULL, 480000000u, 240000000u));
+    assert(!h9_main_clock_timing_calculate(&timing, 480000000u, 0u));
+    assert(first == 0xA5u && intermediate == 0xA5A5A5A5u);
+    assert(h9_main_clock_timing_calculate(&timing, 480000000u,
+                                          240000000u));
+    assert(first == 2u && rate == 4u && intermediate == 160000000u);
+    assert(third == 3u && fourth == 1u && stage == 80000000u);
+    assert(fifth == 0u && timebase == 80000000u);
+
+    records[13] = 0u;
+    assert(!h9_main_clock_timing_calculate(&timing, 480000000u,
+                                           240000000u));
+    assert(first == 2u && third == 3u && stage == 80000000u);
+    records[10] = 500000000u;
+    records[11] = 500000000u;
+    records[12] = 500000000u;
+    records[13] = 500000000u;
+    assert(h9_main_clock_timing_calculate(&timing, 480000000u,
+                                          40000000u));
+    assert(first == 0u && fourth == 11u && stage == 40000000u);
+    assert(fifth == 0u && timebase == 40000000u);
+}
+
 static void test_main_clock_source_registers(void)
 {
     uint32_t storage[15];
@@ -4281,6 +4325,7 @@ int main(void)
     test_main_clock_band();
     test_main_clock_calculation();
     test_main_clock_match();
+    test_main_clock_timing();
     test_main_clock_source_registers();
     test_main_clock_aux_fields();
     test_main_serial_profile();

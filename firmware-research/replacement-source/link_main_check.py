@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after early clock measurements. Optional raw output is for
+The board entry stops after early clock timing calculation. Optional raw output is for
 offline inspection only.
 """
 
@@ -161,6 +161,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_calculate",
         "55780", "h9_main_clock_match_bind_target",
         "h9_main_clock_match",
+        "h9_main_clock_timing_bind_target",
+        "h9_main_clock_timing_calculate",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
