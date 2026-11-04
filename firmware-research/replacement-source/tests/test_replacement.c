@@ -35,6 +35,7 @@
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_dma.h"
 #include "h9_main_uart1_irq.h"
+#include "h9_main_uart1_board.h"
 #include "h9_main_uart1_tx.h"
 #include "h9_main_uart1_tx_queue.h"
 #include "h9_main_tx_service.h"
@@ -2443,6 +2444,98 @@ static void test_main_aprs_uart1_link(void)
     assert(!link.transmit_queue.active && link.transmit_queue.count == 0u);
 }
 
+typedef struct {
+    uint32_t *registers;
+    unsigned steps[5];
+    unsigned count;
+    void (*handler)(void *);
+    void *handler_context;
+} MainUartBoardCapture;
+
+static void main_uart_board_pins(void *context, uint8_t tx, uint8_t rx)
+{
+    MainUartBoardCapture *capture = (MainUartBoardCapture *)context;
+    assert(tx == 0x20u && rx == 0x21u);
+    capture->steps[capture->count++] = 1u;
+}
+
+static void main_uart_board_dma(void *context, uint32_t descriptor)
+{
+    MainUartBoardCapture *capture = (MainUartBoardCapture *)context;
+    assert(capture->registers[0] == 0x3400u);
+    assert(descriptor == (capture->count == 1u ?
+                          0x001E360u : 0x001E3B0u));
+    capture->steps[capture->count++] = 2u;
+}
+
+static void main_uart_board_irq(void *context, uint8_t number,
+                                 uint8_t priority, void (*handler)(void *),
+                                 void *handler_context)
+{
+    MainUartBoardCapture *capture = (MainUartBoardCapture *)context;
+    assert(number == 0x13u && priority == 3u && handler != NULL);
+    capture->handler = handler;
+    capture->handler_context = handler_context;
+    capture->steps[capture->count++] = 3u;
+}
+
+static void main_uart_board_baud(void *context, uint32_t half_baud)
+{
+    MainUartBoardCapture *capture = (MainUartBoardCapture *)context;
+    assert(half_baud == 9600u);
+    assert(capture->registers[0] == 0x3468u);
+    assert(capture->registers[7] == 0x14000u);
+    assert(capture->registers[8] == 0x14800u);
+    assert(capture->registers[9] == 1024u);
+    capture->steps[capture->count++] = 4u;
+}
+
+static void test_main_uart1_board_open(void)
+{
+    uint32_t registers[11] = { 0 };
+    uint8_t receive[2048] = { 0 };
+    uint8_t outgoing[32] = { 0 };
+    H9MainUart1TxSlot slot = { outgoing, 0x16000u,
+                               sizeof outgoing, 0u };
+    MainUartLinkCapture dma_capture = { registers, 0u, 0u, 0u, 0u };
+    MainUartBoardCapture board_capture = { registers, { 0 }, 0u,
+                                          NULL, NULL };
+    H9MainAprsUart1DmaHooks dma = {
+        main_uart_link_prepare, main_uart_link_enable,
+        main_uart_link_tx_ack, main_uart_link_rx_ack, &dma_capture
+    };
+    H9MainUart1BoardHooks board = {
+        main_uart_board_pins, main_uart_board_dma,
+        main_uart_board_irq, main_uart_board_baud, &board_capture
+    };
+    H9MainSerialOpenRecord record;
+    H9MainAprsUart1Link link;
+
+    assert(h9_main_aprs_uart1_link_init(&link, registers, receive,
+                                        sizeof receive, 1024u, &slot, 1u,
+                                        &dma, NULL, NULL));
+    h9_main_aprs_serial_profile(&record, 0x14000u, 0u);
+    record.storage_size = 1024u;
+    assert(!h9_main_uart1_board_open(&link, &record, &board));
+    assert(registers[0] == 0u && board_capture.count == 0u);
+    record.storage_size = 2048u;
+    registers[0] = 1u;
+    assert(!h9_main_uart1_board_open(&link, &record, &board));
+    assert(registers[0] == 1u && board_capture.count == 0u);
+    registers[0] = 0u;
+    assert(h9_main_uart1_board_open(&link, &record, &board));
+    assert(board_capture.count == 5u);
+    assert(board_capture.steps[0] == 1u &&
+           board_capture.steps[1] == 2u &&
+           board_capture.steps[2] == 2u &&
+           board_capture.steps[3] == 3u &&
+           board_capture.steps[4] == 4u);
+    assert(board_capture.handler_context == &link);
+    registers[0] = 0x4008u;
+    board_capture.handler(board_capture.handler_context);
+    assert(link.receive.produced == 1024u && dma_capture.rx_acks == 1u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -2467,6 +2560,7 @@ int main(void)
     test_main_uart1_tx();
     test_main_uart1_tx_queue();
     test_main_aprs_uart1_link();
+    test_main_uart1_board_open();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();
