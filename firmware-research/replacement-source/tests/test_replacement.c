@@ -9,6 +9,7 @@
 #include "h9_aprs_tx_service.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
+#include "h9_main_aprs_control.h"
 #include "h9_main_aprs_metadata.h"
 #include "h9_main_aprs_receive.h"
 #include "h9_main_aprs_wire.h"
@@ -367,6 +368,65 @@ static void test_main_gpio_query_reply(void)
     main_receiver.payload[0] = 2u;
     assert(h9_main_aprs_gpio_reply_from_frame(&main_receiver, reply,
                                                sizeof reply) == 0);
+}
+
+static void test_main_control_frames(void)
+{
+    static const uint8_t check[] = "123456789";
+    static const H9MainControlAction supported[] = {
+        H9_MAIN_CONTROL_06_01, H9_MAIN_CONTROL_06_02,
+        H9_MAIN_CONTROL_06_03, H9_MAIN_CONTROL_06_04,
+        H9_MAIN_CONTROL_06_05, H9_MAIN_CONTROL_06_06,
+        H9_MAIN_CONTROL_0A_01, H9_MAIN_CONTROL_0A_03
+    };
+    H9MainWireReceiver receiver;
+    H9MainControlAction action;
+    uint8_t frame[H9_MAIN_APRS_WIRE_CAPACITY];
+    uint8_t payload[5];
+    uint16_t crc;
+    size_t length;
+    size_t index;
+    size_t i;
+    assert(h9_main_control_crc(check, sizeof check - 1u) == 0x29B1u);
+    assert(h9_main_control_crc(NULL, 2u) == 0u);
+    for (index = 0; index < sizeof supported / sizeof supported[0]; ++index) {
+        payload[0] = (uint8_t)((unsigned)supported[index] >> 8);
+        payload[1] = (uint8_t)supported[index];
+        payload[2] = 0xC0u; /* Exercises the incoming wire escape path. */
+        crc = h9_main_control_crc(payload, 3u);
+        payload[3] = (uint8_t)(crc >> 8);
+        payload[4] = (uint8_t)crc;
+        length = h9_main_aprs_wire_encode(0x51u, payload, sizeof payload,
+                                          frame, sizeof frame);
+        assert(length > 0);
+        h9_main_wire_reset(&receiver);
+        for (i = 0; i < length; ++i) {
+            if (h9_main_wire_feed(&receiver, frame[i]) == H9_MAIN_WIRE_FRAME)
+                break;
+        }
+        assert(i < length);
+        assert(receiver.frame_ready && receiver.command == 0x51u);
+        assert(receiver.length == sizeof payload);
+        assert(h9_main_control_from_frame(&receiver, &action));
+        assert(action == supported[index]);
+        receiver.payload[4] ^= 1u;
+        assert(!h9_main_control_from_frame(&receiver, &action));
+        assert(action == H9_MAIN_CONTROL_NONE);
+    }
+    receiver.payload[0] = 0x07u;
+    receiver.payload[1] = 0x01u;
+    crc = h9_main_control_crc(receiver.payload, 3u);
+    receiver.payload[3] = (uint8_t)(crc >> 8);
+    receiver.payload[4] = (uint8_t)crc;
+    assert(!h9_main_control_from_frame(&receiver, &action));
+    receiver.command = 0x10u;
+    assert(!h9_main_control_from_frame(&receiver, &action));
+    receiver.command = 0x51u;
+    receiver.length = 3u;
+    assert(!h9_main_control_from_frame(&receiver, &action));
+    receiver.length = 5u;
+    receiver.frame_ready = 0u;
+    assert(!h9_main_control_from_frame(&receiver, &action));
 }
 
 static void test_main_policy(void)
@@ -871,6 +931,7 @@ int main(void)
     test_main_received_aprs_packet();
     test_main_gps_sentence_frames();
     test_main_gpio_query_reply();
+    test_main_control_frames();
     test_main_policy();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();

@@ -35,6 +35,7 @@ SOURCES = {
     "main": (
         "common/h9_aprs_wire.c",
         "main/h9_main_aprs.c",
+        "main/h9_main_aprs_control.c",
         "main/h9_main_aprs_metadata.c",
         "main/h9_main_aprs_receive.c",
         "main/h9_main_aprs_wire.c",
