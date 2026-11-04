@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'self'">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#111f2c">
+  <title>Firmware update | H9 Toolbox</title>
+  <link rel="icon" href="../favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="./update.css">
+  <script src="../https-redirect.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="mark">H9</span><span><strong>H9 Toolbox</strong><small>FIRMWARE UPDATE</small></span></div>
+      <a class="button ghost" href="/">← Programmer</a>
+    </header>
+    <main class="firmware-main">
+      <section class="intro">
+        <div class="eyebrow">USB-C · DESKTOP CHROME OR EDGE · EXPERIMENTAL</div>
+        <h1>Firmware update</h1>
+        <p>Update the TD-H9 main firmware through its vendor HID recovery mode. This page currently accepts only the verified official v1.0.38 package. Everything stays in this browser; firmware and backups are never uploaded.</p>
+      </section>
+      <section class="note warning"><strong>Before you begin</strong>
+        <p>This path has restored changed sectors on one TD-H9, but a complete browser firmware update has not yet been verified on hardware. A failed update can leave the radio unable to boot. Keep a reliable recovery method available.</p>
+        <p>HID cannot read a raw backup or access the first 0x5000 flash bytes. Obtain a raw 0xDA000-byte main-flash backup of this radio with the <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research/h9-flasher">USB-C command-line backup tool</a> before using this page. A Bluetooth channel .img is not that backup.</p>
+        <p>Updating older firmware to v1.0.38 can overwrite old settings stored in the former VM area. Keep your backup and be prepared to recheck or reprogram channels and settings afterward.</p>
+      </section>
+      <section class="card" aria-labelledby="files-title">
+        <div class="card-head"><div><span class="step">01</span><h2 id="files-title">Select local files</h2></div></div>
+        <div class="file-grid">
+          <label>Official TD-H9 v1.0.38 .fw package<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"><small id="firmwareState">No package selected</small></label>
+          <label>Raw main-flash backup from this radio (.bin)<input id="backupFile" type="file" accept=".bin,application/octet-stream"><small id="backupState">No backup selected</small></label>
+        </div>
+        <p class="fine">The package hash, embedded image, protected boot bytes, and all accessible radio sector CRCs are checked before writing.</p>
+      </section>
+      <section class="card" aria-labelledby="connect-title">
+        <div class="card-head"><div><span class="step">02</span><h2 id="connect-title">Connect USB HID</h2></div><span class="chip" id="deviceState">Disconnected</span></div>
+        <ol class="instructions"><li>Turn the radio off and connect a data-capable USB-C cable.</li><li>Hold <strong>PTT + 2</strong> while powering on. The screen stays blank and the top LED turns green.</li><li>Click Connect and select the JieLi HID device in the browser chooser.</li></ol>
+        <div class="controls"><button class="button primary-button" id="connect">Connect HID radio</button><button class="button ghost" id="disconnect" disabled>Disconnect</button></div>
+      </section>
+      <section class="card" aria-labelledby="inspect-title">
+        <div class="card-head"><div><span class="step">03</span><h2 id="inspect-title">Inspect and update</h2></div></div>
+        <p class="subtext">Inspect reads sector CRCs only. No erase or write is sent until you explicitly start the update.</p>
+        <div class="controls"><button class="button ghost" id="inspect" disabled>Inspect radio</button><span id="planState" class="hint">Select both files and connect the radio.</span></div>
+        <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may damage my radio. I have a raw flash backup and a recovery method.</span></label>
+        <button class="button write-button" id="flash" disabled>Write verified firmware</button>
+        <div class="progress-wrap"><div class="progress-track"><div id="progress"></div></div><span id="progressText">0%</span></div>
+      </section>
+      <section class="card status-card" aria-live="polite" aria-labelledby="activity-title">
+        <div class="card-head"><div><h2 id="activity-title">Activity</h2></div></div>
+        <div id="status" class="status">Ready. No radio write has been sent.</div>
+        <ol id="log" class="log"></ol>
+      </section>
+    </main>
+    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The HID sector recovery procedure has been tested on a physical TD-H9; this full browser update flow is awaiting hardware validation.</p></footer>
+  </div>
+  <script type="module" src="./update.js"></script>
+</body>
+</html>

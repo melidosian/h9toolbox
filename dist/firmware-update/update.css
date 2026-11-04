@@ -1,0 +1,19 @@
+.firmware-main{max-width:850px;margin:auto;display:grid;gap:17px}
+.firmware-main .intro{padding:55px 0 20px}
+.firmware-main .intro h1{font-size:clamp(39px,5vw,62px)}
+.firmware-main .intro p{max-width:790px}
+.warning{border-left-color:#d7a662;background:#302a27;color:#ded0bb}
+.warning strong{color:#ffe0ac}
+.warning a{color:#b4edcb}
+.file-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:20px}
+.file-grid label{display:grid;gap:8px;color:#c5dfd5;font-size:12px;font-weight:700;min-width:0}
+.file-grid input{width:100%;color:#cedfda;background:#0e1c26;border:1px solid #37535d;border-radius:8px;padding:10px;font-size:12px}
+.file-grid small{font-weight:400;color:#95b3ad;overflow-wrap:anywhere}
+.instructions{color:#bed1ce;font-size:13px;line-height:1.65;padding-left:22px}
+.instructions li{margin-bottom:5px}
+.firmware-main .confirm{align-items:flex-start;line-height:1.5;margin:21px 0 16px}
+.firmware-main .confirm input{margin-top:3px;accent-color:#8bdcb6}
+.firmware-main .status-card{min-height:150px}
+.firmware-main .hint{white-space:normal}
+.firmware-main .log{max-height:220px}
+@media(max-width:620px){.file-grid{grid-template-columns:1fr}.firmware-main .intro{padding:36px 0 12px}}
