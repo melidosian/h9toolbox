@@ -1,5 +1,6 @@
 import { CHANNEL_COUNT, CTCSS_TONES, DCS_CODES, readChannel, writeChannel, clearChannel } from './channel.mjs';
 import { SETTINGS, SETTING_GROUPS, readSetting, writeSetting, readFixedPosition } from './settings.mjs';
+import { SETTING_HELP } from './settings-help.mjs';
 import { exportPortable, importPortable } from './portable.mjs';
 import { parseMHz, standardOffset, planTransmit } from './channel-plan.mjs';
 import { exportChannels, inspectChannelImport, importChannels } from './channels-file.mjs';
@@ -519,8 +520,26 @@ function renderSettings() {
     grid.className = 'settings-grid';
     for (const setting of SETTINGS.filter(s => s.section === group)) {
       const value = readSetting(edited, setting);
+      const field = document.createElement('div');
+      field.className = 'setting-field';
+      const title = document.createElement('div');
+      title.className = 'option-help setting-title';
       const label = document.createElement('label');
       label.textContent = setting.label;
+      label.htmlFor = `setting-${setting.id}`;
+      const helpId = `setting-help-${setting.id}`;
+      const info = document.createElement('button');
+      info.className = 'info-button';
+      info.type = 'button';
+      info.setAttribute('aria-label', `About ${setting.label}`);
+      info.setAttribute('aria-describedby', helpId);
+      info.setAttribute('aria-expanded', 'false');
+      const tip = document.createElement('span');
+      tip.className = 'tooltip-text';
+      tip.id = helpId;
+      tip.setAttribute('role', 'tooltip');
+      tip.textContent = SETTING_HELP[setting.id];
+      title.append(label, info, tip);
       let control;
       if (setting.type === 'select') {
         control = document.createElement('select');
@@ -534,14 +553,16 @@ function renderSettings() {
         control.autocomplete = 'off';
         control.spellcheck = false;
       }
+      control.id = `setting-${setting.id}`;
+      control.setAttribute('aria-describedby', helpId);
       control.value = value;
       if (value === 'Uninitialized') {
         control.disabled = true;
       }
       control.dataset.setting = setting.id;
       control.dataset.original = value;
-      label.append(control);
-      grid.append(label);
+      field.append(title, control);
+      grid.append(field);
     }
     details.append(grid);
     if (group === 'GNSS') {
@@ -624,17 +645,21 @@ $('exportImg').addEventListener('click', exportImg);
 $('exportChannels').addEventListener('click', downloadChannels);
 $('openFile').addEventListener('change', openFile);
 $('openChannels').addEventListener('change', openChannels);
-const infoButtons = [...document.querySelectorAll('.info-button')];
-function closeInfoTips() { for (const button of infoButtons) button.setAttribute('aria-expanded', 'false'); }
-for (const button of infoButtons) button.addEventListener('click', event => {
+function closeInfoTips() {
+  for (const button of document.querySelectorAll('.info-button[aria-expanded="true"]')) button.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', event => {
+  const button = event.target.closest('.info-button');
+  if (!button) { closeInfoTips(); return; }
   const wasOpen = button.getAttribute('aria-expanded') === 'true';
   closeInfoTips();
   button.setAttribute('aria-expanded', String(!wasOpen));
-  event.stopPropagation();
 });
-document.addEventListener('click', event => { if (!event.target.closest('.option-help')) closeInfoTips(); });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') { closeInfoTips(); document.activeElement?.blur?.(); }
+  if (event.key === 'Escape') {
+    closeInfoTips();
+    if (document.activeElement?.matches?.('.info-button')) document.activeElement.blur();
+  }
 });
 $('search').addEventListener('input', renderChannels);
 $('showAll').addEventListener('change', renderChannels);
