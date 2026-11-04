@@ -8,7 +8,7 @@
 #elif defined(__GNUC__) || defined(__clang__)
 #define H9_COMPILER_BARRIER() __asm__ __volatile__("" ::: "memory")
 #else
-#error "A compiler memory barrier is required for the UART ISR handoff"
+#error "A compiler memory barrier is required for the UART ring handoff"
 #endif
 
 void h9_main_uart_ring_init(H9MainUartRing *ring)
@@ -33,6 +33,33 @@ bool h9_main_uart_ring_push(H9MainUartRing *ring, uint8_t byte)
     ring->storage[write_index] = byte;
     H9_COMPILER_BARRIER();
     ring->write_index = next;
+    return true;
+}
+
+bool h9_main_uart_ring_push_batch(H9MainUartRing *ring,
+                                  const uint8_t *bytes, size_t length)
+{
+    uint16_t write_index;
+    uint16_t read_index;
+    size_t free_space;
+    size_t index;
+    if (ring == NULL || (bytes == NULL && length != 0u)) return false;
+    write_index = ring->write_index;
+    read_index = ring->read_index;
+    if (write_index >= H9_MAIN_UART_RING_CAPACITY ||
+        read_index >= H9_MAIN_UART_RING_CAPACITY) return false;
+    free_space = (read_index - write_index - 1u) &
+                 (H9_MAIN_UART_RING_CAPACITY - 1u);
+    if (length > free_space) {
+        ring->dropped_bytes += (uint32_t)length;
+        return false;
+    }
+    for (index = 0u; index < length; ++index)
+        ring->storage[(write_index + index) &
+                      (H9_MAIN_UART_RING_CAPACITY - 1u)] = bytes[index];
+    H9_COMPILER_BARRIER();
+    ring->write_index = (uint16_t)((write_index + length) &
+                                   (H9_MAIN_UART_RING_CAPACITY - 1u));
     return true;
 }
 

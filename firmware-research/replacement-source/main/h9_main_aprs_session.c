@@ -66,7 +66,20 @@ static void dispatch_frame(void *context, const H9MainWireReceiver *receiver)
 
 size_t h9_main_aprs_session_poll(H9MainAprsSession *session)
 {
+    size_t received;
     if (session == NULL) return 0u;
+    if (session->callbacks.serial_read != NULL) {
+        received = session->callbacks.serial_read(session->callback_context,
+                                                  session->serial_read_buffer,
+                                                  sizeof session->serial_read_buffer);
+        if (received > sizeof session->serial_read_buffer) {
+            session->serial_read_faults++;
+        } else {
+            (void)h9_main_uart_ring_push_batch(&session->uart_ring,
+                                                session->serial_read_buffer,
+                                                received);
+        }
+    }
     return h9_main_uart_ring_drain(&session->uart_ring, &session->receiver,
                                     dispatch_frame, session);
 }

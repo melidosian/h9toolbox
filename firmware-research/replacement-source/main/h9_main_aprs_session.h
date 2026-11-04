@@ -17,10 +17,14 @@ typedef struct {
     void (*control)(void *context, H9MainControlAction action);
     void (*version)(void *context, const H9MainAprsVersions *versions);
     void (*serial_write)(void *context, const uint8_t *bytes, size_t length);
+    /* Returns bytes copied into destination, never more than capacity. */
+    size_t (*serial_read)(void *context, uint8_t *destination, size_t capacity);
 } H9MainAprsSessionCallbacks;
 
 typedef struct {
     H9MainUartRing uart_ring;
+    uint8_t serial_read_buffer[H9_MAIN_UART_DRAIN_LIMIT];
+    uint32_t serial_read_faults;
     H9MainWireReceiver receiver;
     H9MainAprsVersions versions;
     H9MainGpsCollector gps;
@@ -33,9 +37,10 @@ void h9_main_aprs_session_init(H9MainAprsSession *session,
                                const H9MainAprsSessionCallbacks *callbacks,
                                void *context);
 
-/* The board UART/DMA producer fills uart_ring and advances write_index.
- * A poll drains at most 1,024 bytes, dispatching each complete frame. No
- * hardware registers, audio gates, or RF transmit path are touched here. */
+/* If serial_read is supplied, one poll asks the board adapter for up to
+ * 1,024 bytes, pushes them into the ring, then drains at most 1,024 bytes.
+ * A callback that reports more than its capacity is rejected and counted.
+ * No hardware registers, audio gates, or RF transmit path are touched here. */
 size_t h9_main_aprs_session_poll(H9MainAprsSession *session);
 
 #endif

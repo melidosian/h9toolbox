@@ -532,6 +532,17 @@ static void test_main_uart_ring(void)
     assert(h9_main_uart_ring_drain(&ring, &receiver, NULL, NULL) == 1024u);
     assert(h9_main_uart_ring_push(&ring, 0x42u));
     assert(ring.write_index == 0u && ring.dropped_bytes == 1u);
+    h9_main_uart_ring_init(&ring);
+    ring.write_index = 2040u;
+    {
+        const uint8_t batch[] = { 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u };
+        assert(!h9_main_uart_ring_push_batch(&ring, batch, sizeof batch));
+        assert(ring.write_index == 2040u && ring.dropped_bytes == 8u);
+        ring.read_index = 100u;
+        assert(h9_main_uart_ring_push_batch(&ring, batch, sizeof batch));
+        assert(ring.write_index == 0u && ring.dropped_bytes == 8u);
+        assert(memcmp(ring.storage + 2040u, batch, sizeof batch) == 0);
+    }
 }
 
 typedef struct {
@@ -546,6 +557,12 @@ typedef struct {
     size_t sentence_length;
     uint8_t serial[16];
     size_t serial_length;
+    uint8_t incoming[64];
+    size_t incoming_length;
+    size_t incoming_offset;
+    size_t incoming_chunk;
+    unsigned serial_read_count;
+    bool invalid_read_length;
 } MainSessionCapture;
 
 static void session_packet(void *context, const H9MainAx25Decoded *packet)
@@ -585,6 +602,21 @@ static void session_serial(void *context, const uint8_t *bytes, size_t length)
     capture->serial_count++;
     capture->serial_length = length;
     memcpy(capture->serial, bytes, length);
+}
+
+static size_t session_serial_read(void *context, uint8_t *destination,
+                                  size_t capacity)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    size_t length = capture->incoming_length - capture->incoming_offset;
+    assert(capacity == H9_MAIN_UART_DRAIN_LIMIT);
+    capture->serial_read_count++;
+    if (capture->invalid_read_length) return capacity + 1u;
+    if (length > capture->incoming_chunk) length = capture->incoming_chunk;
+    if (length > capacity) length = capacity;
+    memcpy(destination, capture->incoming + capture->incoming_offset, length);
+    capture->incoming_offset += length;
+    return length;
 }
 
 static void queue_session_bytes(H9MainAprsSession *session,
@@ -680,6 +712,24 @@ static void test_main_aprs_session(void)
     assert(h9_main_aprs_session_poll(&session) == serial_length);
     assert(capture.serial_count == 1u && capture.serial_length == 11u);
     assert(h9_main_aprs_session_poll(&session) == 0u);
+
+    /* Exercise the stock-sized board read through the ring and frame parser,
+     * including a frame split across separate serial read calls. */
+    serial_length = h9_wire_encode(0x21u, version, sizeof version,
+                                   serial, sizeof serial);
+    assert(serial_length <= sizeof capture.incoming);
+    memcpy(capture.incoming, serial, serial_length);
+    capture.incoming_length = serial_length;
+    capture.incoming_chunk = serial_length / 2u;
+    session.callbacks.serial_read = session_serial_read;
+    assert(h9_main_aprs_session_poll(&session) == capture.incoming_chunk);
+    assert(capture.version_count == 1u);
+    capture.incoming_chunk = serial_length - capture.incoming_offset;
+    assert(h9_main_aprs_session_poll(&session) == capture.incoming_chunk);
+    assert(capture.version_count == 2u && capture.serial_read_count == 2u);
+    capture.invalid_read_length = true;
+    assert(h9_main_aprs_session_poll(&session) == 0u);
+    assert(session.serial_read_faults == 1u && capture.version_count == 2u);
 }
 
 static void test_main_policy(void)
