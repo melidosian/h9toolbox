@@ -5,6 +5,7 @@
 #include "h9_aprs_controller.h"
 #include "h9_aprs_gpio_board.h"
 #include "h9_aprs_sample_timer.h"
+#include "h9_aprs_systick.h"
 #include "h9_aprs_tx_service.h"
 #include "h9_aprs_tx_runtime.h"
 #include "h9_aprs_uart1_board.h"
@@ -29,6 +30,7 @@ typedef struct {
     H9AprsWaveOutput wave_output;
     H9AprsAdcBoard adc_board;
     H9AprsSampleTimer sample_timer;
+    H9AprsSysTick systick;
 } H9AprsRuntimeState;
 
 #endif

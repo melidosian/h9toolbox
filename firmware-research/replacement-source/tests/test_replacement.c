@@ -8,6 +8,7 @@
 #include "h9_aprs_ring.h"
 #include "h9_aprs_sample_timer.h"
 #include "h9_aprs_status.h"
+#include "h9_aprs_systick.h"
 #include "h9_aprs_tx.h"
 #include "h9_aprs_tx_gate.h"
 #include "h9_aprs_tx_packet.h"
@@ -146,6 +147,26 @@ static void test_wire_vectors(void)
     assert(h9_wire_feed(&decoder, 0x10u) == H9_WIRE_MORE);
     assert(h9_wire_feed(&decoder, 0xDBu) == H9_WIRE_MORE);
     assert(h9_wire_feed(&decoder, 0x01u) == H9_WIRE_REJECTED);
+}
+
+static void test_aprs_systick(void)
+{
+    uint32_t registers[3] = { 0xAAu, 0xBBu, 0xCCu };
+    H9AprsSysTick timer;
+    h9_aprs_systick_bind(&timer, registers);
+    assert(!h9_aprs_systick_start(&timer, 24000000u, 0u));
+    assert(!h9_aprs_systick_start(&timer, 24000000u, 3u));
+    assert(registers[0] == 0xAAu && registers[1] == 0xBBu);
+    assert(h9_aprs_systick_start(&timer, 24000000u, 1u));
+    assert(registers[0] == 7u && registers[1] == 23999u &&
+           registers[2] == 0u);
+    h9_aprs_systick_irq(&timer);
+    h9_aprs_systick_irq(&timer);
+    assert(h9_aprs_systick_now(&timer) == 2u);
+    assert(h9_aprs_systick_start(&timer, 24000000u, 10u));
+    assert(registers[1] == 239999u);
+    h9_aprs_systick_irq(&timer);
+    assert(h9_aprs_systick_now(&timer) == 10u);
 }
 
 static void test_wire_stream_maximum(void)
@@ -1983,6 +2004,7 @@ int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
     test_wire_vectors();
+    test_aprs_systick();
     test_wire_stream_maximum();
     test_main_aprs_wire_envelope();
     test_main_aprs_wire_receiver();

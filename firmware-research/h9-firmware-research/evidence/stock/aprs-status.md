@@ -9,7 +9,8 @@ this note refer to the controller image, whose inferred flash base is
 
 Bytes 0 through 39 copy ten 32-bit little-endian words from RAM
 `0x20001624..0x2000164B`. The routine first calls `0x08003890` for a tick
-count, then subtracts the word at `0x20001644` from it and narrows to 16
+count ([tick trace](aprs-systick.md)), then subtracts the word at
+`0x20001644` from it and narrows to 16
 bits. Byte 40 copies RAM `0x2000164C`. Bytes 41 and 42 both copy the low
 byte of the halfword at RAM `0x20000130`; byte 43 copies its high byte.
 Bytes 44 and 45 copy RAM `0x20000132` and `0x20000133`. Bytes 46 and 47 are

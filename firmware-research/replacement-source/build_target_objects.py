@@ -32,6 +32,7 @@ SOURCES = {
         "aprs/h9_aprs_ring.c",
         "aprs/h9_aprs_sample_timer.c",
         "aprs/h9_aprs_status.c",
+        "aprs/h9_aprs_systick.c",
         "aprs/h9_aprs_tx.c",
         "aprs/h9_aprs_tx_gate.c",
         "aprs/h9_aprs_tx_packet.c",

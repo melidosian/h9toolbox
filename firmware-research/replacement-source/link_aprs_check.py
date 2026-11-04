@@ -105,6 +105,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     symbol_values = {}
     required_symbols = {
         "__bss_end", "__stack_top", "Default_Handler",
+        "h9_aprs_systick_handler",
         "h9_aprs_dma1_channel1_handler", "h9_aprs_adc1_handler",
         "h9_aprs_usart1_handler",
     }
@@ -114,7 +115,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             symbol_values[parts[2]] = int(parts[0], 16)
     if set(symbol_values) != required_symbols:
         raise ValueError("Linked ELF lacks RAM-boundary or IRQ symbols")
-    for slot, handler in ((25, "h9_aprs_dma1_channel1_handler"),
+    for slot, handler in ((15, "h9_aprs_systick_handler"),
+                          (25, "h9_aprs_dma1_channel1_handler"),
                           (28, "h9_aprs_adc1_handler"),
                           (43, "h9_aprs_usart1_handler")):
         vector = struct.unpack_from("<I", table, slot * 4)[0]
@@ -148,6 +150,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "startup_source_object": startup_source.name,
         "vector_entries": 48,
         "irq_vectors": {
+            "systick": 15,
             "dma1_channel1": 25,
             "adc1": 28,
             "usart1": 43,

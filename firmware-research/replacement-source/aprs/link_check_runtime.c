@@ -120,8 +120,10 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     h9_aprs_wave_output_bind_target(&runtime.wave_output);
     h9_aprs_adc_board_bind_target(&runtime.adc_board);
     h9_aprs_sample_timer_bind_target(&runtime.sample_timer);
+    h9_aprs_systick_bind_target(&runtime.systick);
     system_clock_hz = h9_aprs_clock_select_internal_target(100000u);
     if (system_clock_hz == 0u ||
+        !h9_aprs_systick_start(&runtime.systick, system_clock_hz, 1u) ||
         !h9_aprs_gpio_board_configure(&runtime.gpio_board) ||
         !h9_aprs_uart2_board_configure(&runtime.uart2_board,
                                        system_clock_hz) ||
@@ -165,4 +167,9 @@ void h9_aprs_adc1_handler(void)
 {
     (void)h9_aprs_adc_board_sample_irq(&runtime.adc_board,
                                         &runtime.controller);
+}
+
+void h9_aprs_systick_handler(void)
+{
+    h9_aprs_systick_irq(&runtime.systick);
 }
