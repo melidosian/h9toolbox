@@ -143,6 +143,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
                             H9_APRS_STOCK_TX_LEAD_MS,
                             H9_APRS_STOCK_TX_TAIL_MS);
     h9_aprs_tx_runtime_bind(&runtime.tx_runtime, &runtime.tx_service);
+    h9_aprs_uart2_maintenance_init(&runtime.uart2_maintenance);
     h9_aprs_uart_receive_init(&runtime.uart_receive);
     h9_aprs_uart1_dma_bind_target(&runtime.uart1_dma,
                                   &runtime.uart_receive);
@@ -188,15 +189,10 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
                                     &runtime.controller))
             ++runtime.forwarded_uart2_batches;
         now = h9_aprs_systick_now(&runtime.systick);
-        if (!runtime.uart2_board.faulted) {
-            runtime.uart2_recovery_armed = false;
-        } else if (!runtime.uart2_recovery_armed) {
-            runtime.uart2_fault_tick = now;
-            runtime.uart2_recovery_armed = true;
-        } else if ((uint32_t)(now - runtime.uart2_fault_tick) >= 2000u &&
-                   !runtime.uart2_rx.ready &&
-                   !runtime.uart2_dma.spill_active) {
-            runtime.uart2_fault_tick = now;
+        if (h9_aprs_uart2_maintenance_due(&runtime.uart2_maintenance, now,
+                                            runtime.uart2_board.faulted,
+                                            !runtime.uart2_rx.ready &&
+                                            !runtime.uart2_dma.spill_active)) {
             (void)h9_aprs_uart2_board_recover(&runtime.uart2_board,
                                                 &runtime.uart2_dma,
                                                 system_clock_hz);

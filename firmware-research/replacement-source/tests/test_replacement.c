@@ -22,6 +22,7 @@
 #include "h9_aprs_uart1_board.h"
 #include "h9_aprs_uart1_tx.h"
 #include "h9_aprs_uart2_board.h"
+#include "h9_aprs_uart2_maintenance.h"
 #include "h9_aprs_uart2_dma.h"
 #include "h9_aprs_uart2_rx.h"
 #include "h9_aprs_oscillator.h"
@@ -4609,6 +4610,40 @@ static void test_aprs_boot_banner(void)
     assert(!h9_aprs_boot_banner_send(boot_banner_capture, &capture));
 }
 
+static void test_aprs_uart2_maintenance(void)
+{
+    H9AprsUart2Maintenance state;
+    unsigned i;
+    h9_aprs_uart2_maintenance_init(NULL);
+    assert(!h9_aprs_uart2_maintenance_due(NULL, 3000u, true, true));
+    h9_aprs_uart2_maintenance_init(&state);
+    for (i = 0u; i < 999u; ++i)
+        assert(!h9_aprs_uart2_maintenance_due(&state, 2000u, true, true));
+    assert(!h9_aprs_uart2_maintenance_due(&state, 2000u, true, true));
+    assert(state.loop_passes == 0u && state.last_attempt_tick == 0u);
+    for (i = 0u; i < 999u; ++i)
+        assert(!h9_aprs_uart2_maintenance_due(&state, 2001u, true, true));
+    assert(h9_aprs_uart2_maintenance_due(&state, 2001u, true, true));
+    assert(state.last_attempt_tick == 2001u);
+    for (i = 0u; i < 1000u; ++i)
+        assert(!h9_aprs_uart2_maintenance_due(&state, 4001u, true, true));
+    for (i = 0u; i < 999u; ++i)
+        assert(!h9_aprs_uart2_maintenance_due(&state, 4002u, true, true));
+    assert(h9_aprs_uart2_maintenance_due(&state, 4002u, true, true));
+    for (i = 0u; i < 1000u; ++i)
+        assert(!h9_aprs_uart2_maintenance_due(&state, 8000u, false, true));
+    for (i = 0u; i < 1000u; ++i)
+        assert(!h9_aprs_uart2_maintenance_due(&state, 9000u, true, false));
+    for (i = 0u; i < 999u; ++i)
+        assert(!h9_aprs_uart2_maintenance_due(&state, 10000u, true, true));
+    assert(h9_aprs_uart2_maintenance_due(&state, 10000u, true, true));
+
+    state.last_attempt_tick = UINT32_MAX - 1000u;
+    for (i = 0u; i < 999u; ++i)
+        assert(!h9_aprs_uart2_maintenance_due(&state, 1000u, true, true));
+    assert(h9_aprs_uart2_maintenance_due(&state, 1000u, true, true));
+}
+
 int main(void)
 {
 #ifdef _MSC_VER
@@ -4619,6 +4654,7 @@ int main(void)
     test_wire_vectors();
     test_aprs_systick();
     test_aprs_boot_banner();
+    test_aprs_uart2_maintenance();
     test_wire_stream_maximum();
     test_main_aprs_wire_envelope();
     test_main_aprs_wire_receiver();

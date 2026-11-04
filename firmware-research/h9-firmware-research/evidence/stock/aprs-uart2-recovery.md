@@ -6,7 +6,7 @@ Addresses use the inferred `0x08002000` image base. The read-only Ghidra
 report is generated locally from functions `0x080054C8` and `0x08002AAC`.
 
 The stock main loop calls `0x080054C8`. That function handles a pending
-USART1 batch, then increments a loop counter. Each 1,000 loop iterations it
+USART2 batch through `0x0800555C`, then increments a loop counter. Each 1,000 loop iterations it
 checks whether more than 2,000 SysTick units have passed since a saved time.
 When USART2's descriptor status byte at `0x20000DDA` is `0x20` and another
 state byte at `0x20000E01` is `1`, it invokes `0x08002AAC`. The latter retries
@@ -27,9 +27,11 @@ ignored `output/stock/aprs-dma-restart-precise.txt` and
 
 The replacement currently has different USART2 DMA buffering and a bounded
 raw transmit writer. Its writer latches `faulted` after a TXE/TC timeout.
-The diagnostic board loop now waits two seconds after observing that fault,
-then attempts a USART2/DMA restart when no receive batch or spill ring is
-pending. The DMA stop rechecks those flags with interrupts masked. A restart
+The diagnostic board loop now checks recovery every 1,000 passes and only
+when more than 2,000 SysTick units have elapsed since its last attempt. It
+uses the replacement's latched raw-TX fault and idle receive-batch/spill
+state in place of the two unmapped stock descriptor-status bytes. The DMA
+stop rechecks those flags with interrupts masked. A restart
 clears the TX fault only after USART2 register configuration succeeds and
 rearms reception; timeout counts remain for diagnostics. This is a
 replacement recovery policy, not a byte-for-byte port of `0x08002AAC`.

@@ -13,6 +13,7 @@
 #include "h9_aprs_uart1_tx.h"
 #include "h9_aprs_uart2_board.h"
 #include "h9_aprs_uart2_dma.h"
+#include "h9_aprs_uart2_maintenance.h"
 #include "h9_aprs_uart2_rx.h"
 #include "h9_aprs_uart_receive.h"
 #include "h9_aprs_wave_output.h"
@@ -38,8 +39,7 @@ typedef struct {
     volatile uint32_t last_uart1_batch_tick;
     uint32_t forwarded_uart2_batches;
     uint32_t gate_overflow_seen;
-    uint32_t uart2_fault_tick;
-    bool uart2_recovery_armed;
+    H9AprsUart2Maintenance uart2_maintenance;
 } H9AprsRuntimeState;
 
 #endif
