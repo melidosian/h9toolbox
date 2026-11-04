@@ -17,9 +17,12 @@ code. The first entries are:
 | `audio_adc_demo` | `0x0A2338` | `0x01E8BB0E` | `0x08BA0E` |
 
 Independent Pi32v2 decoding shows the `audio_mc_device` function returning
-`1`, `audio_dec_init` returning a byte from RAM `0x11AD0 + 720`, and `bt_dec`
-calling another function before returning a Boolean. The names and pointer
-table identify a path for tracing Bluetooth audio setup. They do **not**
+`1` and `audio_dec_init` returning a byte from RAM `0x11AD0 + 720`.
+`bt_dec` at `0x01E8AAAE` calls `0x01E8A27C`, which tests whether either of
+two words at RAM `0x328D4` is nonzero, then returns the inverse Boolean.
+It is a state/readiness check at this table boundary, not a confirmed mute
+operation. The names and pointer table identify a path for tracing Bluetooth
+audio setup. They do **not**
 establish where received RF audio is routed into Bluetooth or where it can be
 muted independently of the APRS decoder. No Bluetooth mute MMIO register or
 call boundary has been validated from these entries. The controlled speaker

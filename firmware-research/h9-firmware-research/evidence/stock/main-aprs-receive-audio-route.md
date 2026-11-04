@@ -29,6 +29,16 @@ allocated in a path that checks the `fm_inside` module name. This trace
 does not identify the RF-to-Bluetooth analog tap or a Bluetooth mute control.
 The separate speaker GPIO probe left Bluetooth audio audible.
 
+The first call, `0x01E65FA6`, changes bit 7 at offset 4 of its state object
+and invokes `0x01E65F8C` when that state changes. `0x01E65F8C` dispatches
+through the callback at offset `0x0C` of the module descriptor held at RAM
+`0x11BCC`. Startup at `0x01E6626A` selects that descriptor from the table at
+`0x01E00B14`, whose name is `fm_inside`; its offset-`0x0C` callback is
+`0x01E4BC7E`. The callback writes the supplied state byte to RAM `0xC06D`.
+Thus this branch of the audio callback reaches the internal FM module state,
+not an identified Bluetooth output gate. `0x01E8B7F2` remains an audio-object
+state notification with no confirmed physical output route.
+
 These are recognized direct references in the current analyzed project;
 indirect RAM writes may exist. The replacement mute plan therefore requires
 an independently verified live receive-audio route before it suppresses
