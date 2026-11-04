@@ -22,6 +22,7 @@ bool h9_aprs_tx_runtime_submit(H9AprsTxRuntime *runtime,
                                const uint8_t *packet, size_t length)
 {
     return runtime != NULL && runtime->service != NULL &&
+           runtime->rf_ready &&
            h9_aprs_tx_service_submit(runtime->service, packet, length);
 }
 
@@ -36,8 +37,7 @@ H9AprsTxPhase h9_aprs_tx_runtime_step(H9AprsTxRuntime *runtime,
     service = runtime->service;
     runtime->rf_ready = rf_ready;
     if (!rf_ready) {
-        if (service->phase == H9_APRS_TX_ENCODING ||
-            service->phase == H9_APRS_TX_DRAINING)
+        if (service->phase != H9_APRS_TX_IDLE)
             abort_wave(service);
         return service->phase;
     }

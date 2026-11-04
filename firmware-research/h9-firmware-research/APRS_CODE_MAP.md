@@ -35,11 +35,11 @@ The parser at `0x08005B8C` uses these command IDs (direction is **main radio to 
 | --- | --- |
 | `0x00` | The dispatch jump table reaches `0x08005BCC`, which calls send gate `0x08005760` with the serial payload and length. The gate eventually invokes packet encoder `0x0800534C`. |
 | `0x10` | Sends the frame payload back through `0x080048F4` when nonempty. The caller's intended semantics need more study. |
-| `0x11` | Subcommand `1` calls `0x080029E4` (set GPIO mask `0x20`); `2` calls `0x080029D0` (clear); `3` calls `0x08002964` (read pin) and reports a byte; `4` passes the remainder to `0x08002A4C` (packet TX path). |
+| `0x11` | Subcommand `1` calls `0x080029E4` (set GPIO mask `0x20`); `2` calls `0x080029D0` (clear); `3` calls `0x08002964` (read pin) and reports a byte; `4` passes the remainder to `0x08002A4C` (a separate GPIO-gated queue path, not the command-`0x00` AFSK send gate). |
 | `0x13` | Calls `0x0800586C`, which returns a 48-byte status/configuration payload. |
 | `0x20` | Calls `0x08005AAC`, which returns version information (`V1.0.15` and `V1.0.0` strings). |
 
-In the opposite direction, `0x080048F4` wraps `0x08004894` with command `0x10`; one of its callers is the received-frame sender at `0x0800555C`. The handler's source and destination may share command numbers; do not infer the same semantics in both directions.
+In the opposite direction, `0x080048F4` wraps `0x08004894` with command `0x10`; one of its callers is the received-frame sender at `0x0800555C`. The handler's source and destination may share command numbers; do not infer the same semantics in both directions. The two incoming packet-bearing commands follow distinct paths; see `evidence/stock/aprs-serial-tx-paths.md` before connecting a board transmit callback.
 
 The ADC callback calls the demodulator before its TX/no-TX branch. The demodulator feeds the frame parser, which CRC-checks and forwards received packets to the main radio. This shows that the separate processor has an independent receive-processing path; it does **not** prove which analog signal the main radio feeds into its ADC, or where the speaker is gated. Disabling this ADC path would defeat packet decoding. A correct APRS mute would leave it active.
 

@@ -4,7 +4,8 @@
 #include "h9_aprs_tx_service.h"
 
 /* Connects serial packet requests to the waveform service. The caller must
- * establish RF readiness from a board signal before each cooperative step.
+ * establish RF readiness from a board signal before submission and each step.
+ * Pending packets are discarded when readiness falls, preventing delayed TX.
  * No stock GPIO has yet been proven to be that signal. */
 typedef struct {
     H9AprsTxService *service;

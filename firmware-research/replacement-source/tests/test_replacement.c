@@ -1272,11 +1272,16 @@ static void test_aprs_tx_runtime(void)
     hardware.read_dac_port = runtime_read_dac;
     hardware.write_dac_port = runtime_write_dac;
     h9_aprs_controller_init(&controller, &hardware);
+    assert(!h9_aprs_tx_runtime_submit(&fake.runtime, packet, sizeof packet));
+    assert(h9_aprs_tx_runtime_step(&fake.runtime, false, true,
+                                   false, false, 255u) == H9_APRS_TX_IDLE);
+    assert(h9_aprs_tx_runtime_step(&fake.runtime, true, true,
+                                   false, false, 255u) == H9_APRS_TX_IDLE);
     feed_frame(&controller, 0u, packet, sizeof packet);
     assert(fake.service.phase == H9_APRS_TX_WAITING);
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.dac == 0x80u && fake.sample_calls == 0u);
-    assert(h9_aprs_tx_runtime_step(&fake.runtime, false, true,
+    assert(h9_aprs_tx_runtime_step(&fake.runtime, true, true,
                                    false, false, 255u) == H9_APRS_TX_WAITING);
     assert(!h9_aprs_tx_runtime_wave_active(&fake.runtime));
     assert(h9_aprs_tx_runtime_step(&fake.runtime, true, true,
@@ -1291,7 +1296,13 @@ static void test_aprs_tx_runtime(void)
     assert(fake.service.wave.active == 0u);
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.dac == 0x80u && fake.sample_calls == 1u);
-    assert(h9_aprs_tx_runtime_submit(&fake.runtime, packet, sizeof packet));
+    assert(!h9_aprs_tx_runtime_submit(&fake.runtime, packet, sizeof packet));
+    assert(h9_aprs_tx_runtime_step(&fake.runtime, true, true,
+                                   false, false, 255u) == H9_APRS_TX_IDLE);
+    feed_frame(&controller, 0u, packet, sizeof packet);
+    assert(fake.service.phase == H9_APRS_TX_WAITING);
+    assert(h9_aprs_tx_runtime_step(&fake.runtime, false, true,
+                                   false, false, 255u) == H9_APRS_TX_IDLE);
 }
 
 static void test_aprs_controller(void)
