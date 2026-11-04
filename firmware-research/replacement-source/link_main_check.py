@@ -127,6 +127,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     serial_bus_entry = symbol_address("h9_main_serial_bus_transfer")
     serial_read_entry = symbol_address("h9_main_serial_command_read")
     serial_write_entry = symbol_address("h9_main_serial_command_write")
+    serial_gate_acquire = symbol_address("h9_main_serial_gate_acquire")
+    serial_gate_release = symbol_address("h9_main_serial_gate_release")
     if symbol_address("__stock_clear_start") != RAM_START or \
             symbol_address("__stock_clear_end") != RAM_END:
         raise ValueError("Linked RAM-clear interval differs from stock startup")
@@ -137,7 +139,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     if ram_code_start != 0 or serial_bus_entry != 0x40 or ram_code_end <= 0x40:
         raise ValueError("Linked RAM serial-bus routine is not at stock RAM address 0x40")
     if not (serial_bus_entry < serial_read_entry < ram_code_end and
-            serial_bus_entry < serial_write_entry < ram_code_end):
+            serial_bus_entry < serial_write_entry < ram_code_end and
+            serial_bus_entry < serial_gate_acquire < serial_gate_release <
+            ram_code_end):
         raise ValueError("Linked serial command handlers are not relocated RAM code")
     ram_code_section = output / "main-ram-code.bin"
     run([sibling_tool(compiler, "llvm-objcopy"), "-O", "binary",
@@ -146,6 +150,11 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     if len(ram_code_data) != ram_code_end - ram_code_start or \
             ram_code_data[:0x40] != bytes(0x40):
         raise ValueError("Linked RAM code has unexpected length or nonzero prefix")
+    gate_bytes = ram_code_data[serial_gate_acquire:serial_gate_release]
+    if not all(opcode in gate_bytes for opcode in
+               (bytes.fromhex("60 00"), bytes.fromhex("20 00"),
+                bytes.fromhex("61 00"))):
+        raise ValueError("Serial gate lost Pi32 interrupt/synchronization operations")
     if not (IMAGE_BASE <= data_load and data_load + data_end - data_start <=
             IMAGE_BASE + STOCK_IMAGE_SIZE):
         raise ValueError("Linked C data load exceeds stock app address envelope")
@@ -186,6 +195,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "ram_serial_bus_entry": serial_bus_entry,
         "ram_serial_read_entry": serial_read_entry,
         "ram_serial_write_entry": serial_write_entry,
+        "ram_serial_gate_acquire_entry": serial_gate_acquire,
+        "ram_serial_gate_release_entry": serial_gate_release,
         "ram_code_zero_prefix_verified": True,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
         "elf": elf.name,

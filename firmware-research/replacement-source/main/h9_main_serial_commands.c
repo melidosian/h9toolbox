@@ -44,8 +44,7 @@ bool h9_main_serial_command_read(const H9MainSerialCommands *commands,
          exchange(commands, command & 0xFFFF00FFu, NULL) &&
          exchange(commands, 0x5Eu, received);
     *commands->control &= ~0x101u;
-    commands->end(commands->context);
-    return ok;
+    return commands->end(commands->context) && ok;
 }
 
 H9_MAIN_RAM_CODE
@@ -60,6 +59,5 @@ bool h9_main_serial_command_write(const H9MainSerialCommands *commands,
          exchange(commands, command & 0xFFFF00FFu, NULL) &&
          exchange(commands, payload, NULL);
     *commands->control &= ~0x101u;
-    commands->end(commands->context);
-    return ok;
+    return commands->end(commands->context) && ok;
 }

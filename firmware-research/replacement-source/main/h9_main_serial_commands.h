@@ -10,7 +10,7 @@
 typedef struct {
     volatile uint32_t *control;
     bool (*begin)(void *context);
-    void (*end)(void *context);
+    bool (*end)(void *context);
     bool (*exchange)(void *context, uint32_t word, uint8_t *received);
     void *context;
 } H9MainSerialCommands;

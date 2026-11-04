@@ -102,16 +102,18 @@ The read-only [`analyze_main_ram.py`](../h9-firmware-research/analyze_main_ram.p
 
 `main/h9_main_serial_commands.*` now ports the next two stock RAM transactions at
 `0x58` and `0xA0`: read and write commands through the byte-exchange routine.
-Both source functions and the exchange adapter link into relocated RAM. Host
-tests cover word order, returned data, and cleanup after a failed exchange.
-The stock gate/refcount begin and end routines remain callback boundaries;
-neither command is connected to the board entry. See [the RAM serial trace](../h9-firmware-research/evidence/stock/main-ram-serial-bus.md).
+`h9_main_serial_gate.*` ports their interrupt-protected gate/refcount pair,
+and `h9_main_serial_port.*` binds the commands to that gate and exchange.
+The target linker places these routines in relocated RAM and checks the
+critical-section opcodes. Host tests cover word order, returned data,
+reference counts, and cleanup after a failed exchange. No production board
+entry invokes this port. See [the RAM serial trace](../h9-firmware-research/evidence/stock/main-ram-serial-bus.md).
 
 ```powershell
 py -3 firmware-research/replacement-source/link_main_check.py --compiler 'C:\JL\pi32\bin\clang.exe' --stock-image 'C:\path\to\app.bin'
 ```
 
-The Windows JieLi toolchain check linked all 27 current main objects with no unresolved symbols. The diagnostic ELF cannot boot the radio: most RAM code is missing, and stock calls further startup routines before its application loop. The stock first post-copy call is a one-instruction return, and the second processes a retained startup record, whose validator still needs mapping. Board drivers and a complete Pi32 memory map remain unported. See [the stock startup trace](../h9-firmware-research/evidence/stock/main-startup.md).
+The Windows JieLi toolchain check linked all 29 current main objects with no unresolved symbols. The diagnostic ELF cannot boot the radio: most RAM code is missing, and stock calls further startup routines before its application loop. The stock first post-copy call is a one-instruction return, and the second processes a retained startup record, whose validator still needs mapping. Board drivers and a complete Pi32 memory map remain unported. See [the stock startup trace](../h9-firmware-research/evidence/stock/main-startup.md).
 
 ## Next source work
 

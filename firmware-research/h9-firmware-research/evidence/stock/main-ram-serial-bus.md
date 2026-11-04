@@ -28,8 +28,15 @@ decode of RAM `0x58..0xE2`; the connected peripheral remains unidentified.
 
 `main/h9_main_serial_commands.*` now provides both transactions with explicit
 begin/end and exchange callbacks. It clears control bits and calls `end` on a
-failed exchange. The byte-transfer adapter and both commands link into the
-relocated RAM section; the diagnostic link verifies their addresses. Their
-new C ABI and linked offsets differ from the stock routines. The gate/refcount
-callbacks, other RAM callers, and the external device are not wired to a
-production board entry.
+failed exchange. `main/h9_main_serial_gate.*` ports the RAM `0x1634/0x1650`
+gate writes: under `cli`, it writes `6` to MMIO `0x0010F1A8`, increments RAM
+counter `0x1176C`, issues `csync`, and runs `sti`; on release it decrements
+the counter and writes zero to the gate when the count reaches zero. The new
+source rejects counter overflow/underflow rather than reproducing stock wrap.
+`main/h9_main_serial_port.*` wires these callbacks to the bounded exchange.
+Host fake-register tests cover a full read/write and cleanup after a transfer
+timeout. The byte-transfer adapter, gate, and both commands link into
+relocated RAM, and the diagnostic link checks their addresses and the emitted
+`cli`/`csync`/`sti` instructions. Their new C ABI and linked offsets differ
+from the stock routines. Other RAM callers and the external device are not
+wired to a production board entry.

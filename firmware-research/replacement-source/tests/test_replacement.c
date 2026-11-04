@@ -42,6 +42,8 @@
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_bus.h"
 #include "h9_main_serial_commands.h"
+#include "h9_main_serial_gate.h"
+#include "h9_main_serial_port.h"
 #include "h9_main_serial_dma.h"
 #include "h9_main_uart1_irq.h"
 #include "h9_main_uart1_board.h"
@@ -3122,6 +3124,7 @@ typedef struct {
     unsigned ends;
     unsigned fail_call;
     bool refuse_begin;
+    bool fail_end;
 } FakeMainSerialCommands;
 
 static bool main_serial_begin(void *context)
@@ -3131,11 +3134,12 @@ static bool main_serial_begin(void *context)
     return !fake->refuse_begin;
 }
 
-static void main_serial_end(void *context)
+static bool main_serial_end(void *context)
 {
     FakeMainSerialCommands *fake = (FakeMainSerialCommands *)context;
     assert((fake->control & 0x101u) == 0u);
     ++fake->ends;
+    return !fake->fail_end;
 }
 
 static bool main_serial_exchange(void *context, uint32_t word,
@@ -3178,8 +3182,56 @@ static void test_main_serial_commands(void)
     fake.refuse_begin = true;
     assert(!h9_main_serial_command_write(&commands, 0x1234u, 0u));
     assert(fake.ends == 3u && fake.calls == 2u);
+    fake.refuse_begin = false;
+    fake.fail_call = 0u;
+    fake.fail_end = true;
+    fake.calls = 0u;
+    assert(!h9_main_serial_command_write(&commands, 0x1234u, 0u));
+    assert(fake.ends == 4u && fake.calls == 3u);
     assert(!h9_main_serial_command_read(&commands, 0u, NULL));
     assert(!h9_main_serial_command_read(NULL, 0u, &received));
+}
+
+static void test_main_serial_port(void)
+{
+    volatile uint32_t bus_registers[2] = { 0u, 0u };
+    volatile uint32_t gate_control = 0u;
+    volatile uint32_t gate_users = 0u;
+    H9MainSerialPort port = { 0 };
+    uint8_t received = 0u;
+    h9_main_serial_port_bind(&port, bus_registers, &gate_control,
+                              &gate_users, 3u);
+    assert(h9_main_serial_gate_acquire(&port.gate));
+    assert(h9_main_serial_gate_acquire(&port.gate));
+    assert(gate_control == 6u && gate_users == 2u);
+    assert(h9_main_serial_gate_release(&port.gate));
+    assert(gate_control == 6u && gate_users == 1u);
+    assert(h9_main_serial_gate_release(&port.gate));
+    assert(gate_control == 0u && gate_users == 0u);
+    assert(!h9_main_serial_gate_release(&port.gate));
+    gate_users = UINT32_MAX;
+    assert(!h9_main_serial_gate_acquire(&port.gate));
+    assert(gate_control == 0u && gate_users == UINT32_MAX);
+    gate_users = 0u;
+
+    assert(h9_main_serial_command_read(&port.commands, 0x1234u,
+                                        &received));
+    assert(received == 0x5Eu && bus_registers[1] == 0x5Eu);
+    assert(gate_control == 0u && gate_users == 0u);
+    assert((bus_registers[0] & 0x101u) == 0u);
+    assert(h9_main_serial_command_write(&port.commands, 0x8234u, 0xA5u));
+    assert(bus_registers[1] == 0xA5u &&
+           gate_control == 0u && gate_users == 0u);
+
+    bus_registers[0] = 2u;
+    assert(!h9_main_serial_command_read(&port.commands, 0x1234u,
+                                         &received));
+    assert(gate_control == 0u && gate_users == 0u);
+    assert((bus_registers[0] & 0x101u) == 0u);
+    h9_main_serial_port_bind_target(&port, 5u);
+    assert((uintptr_t)port.bus.registers == 0x001E3E08u &&
+           (uintptr_t)port.gate.control == 0x0010F1A8u &&
+           (uintptr_t)port.gate.users == 0x0001176Cu);
 }
 
 static void test_main_serial_dma_read(void)
@@ -3636,6 +3688,7 @@ int main(void)
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();
+    test_main_serial_port();
     test_main_serial_dma_read();
     test_main_uart1_irq();
     test_main_uart1_tx();
