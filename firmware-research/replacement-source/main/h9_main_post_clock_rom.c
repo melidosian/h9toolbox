@@ -123,3 +123,44 @@ H9MainPostClockBitmapBranch h9_main_post_clock_bitmap_step(
     else words->second_word &= ~(1u << (index - 32u));
     return H9_MAIN_POST_CLOCK_BITMAP_CONTINUE;
 }
+
+static uint32_t target_transform_mask(void *context, uint32_t mask)
+{
+    typedef uint32_t (*RomTransform)(uint32_t);
+    (void)context;
+    return ((RomTransform)(uintptr_t)0x02000A78u)(mask);
+}
+
+static uint64_t target_query_pair(void *context, uint32_t r0, uint32_t r1)
+{
+    typedef uint64_t (*RomQuery)(uint32_t, uint32_t);
+    (void)context;
+    return ((RomQuery)(uintptr_t)0x02000D18u)(r0, r1);
+}
+
+void h9_main_post_clock_handoff_bind_target(H9MainPostClockHandoff *handoff)
+{
+    if (handoff == NULL) return;
+    handoff->context = NULL;
+    handoff->transform_mask = target_transform_mask;
+    handoff->query_pair = target_query_pair;
+}
+
+bool h9_main_post_clock_handoff_run(
+    H9MainPostClockHandoff *handoff, uint32_t secondary_status,
+    H9MainPostClockHandoffResult *result)
+{
+    uint64_t pair;
+    uint32_t mask, transformed;
+    if (handoff == NULL || result == NULL ||
+        handoff->transform_mask == NULL || handoff->query_pair == NULL)
+        return false;
+    mask = (secondary_status & 1u) != 0u ? 0xFFFFFE3Bu : UINT32_MAX;
+    transformed = handoff->transform_mask(handoff->context, mask);
+    pair = handoff->query_pair(handoff->context, transformed, transformed);
+    result->input_mask = mask;
+    result->transformed_mask = transformed;
+    result->result_r0 = (uint32_t)pair;
+    result->result_r1 = (uint32_t)(pair >> 32u);
+    return true;
+}

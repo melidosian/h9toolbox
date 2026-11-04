@@ -68,6 +68,8 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainPostClockClassification post_clock_classification;
     H9MainPostClockBitmapBranch post_clock_bitmap_branch;
     H9MainPostClockRouteFlags post_clock_route_flags;
+    H9MainPostClockHandoff post_clock_handoff;
+    H9MainPostClockHandoffResult post_clock_handoff_result;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -126,6 +128,10 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
         &post_clock_route_flags);
     if (post_clock_bitmap_branch == H9_MAIN_POST_CLOCK_BITMAP_ERROR)
         for (;;) { }
+    h9_main_post_clock_handoff_bind_target(&post_clock_handoff);
+    if (!h9_main_post_clock_handoff_run(
+            &post_clock_handoff, post_clock_classification.secondary_status,
+            &post_clock_handoff_result)) for (;;) { }
 #endif
     for (;;) { }
 }

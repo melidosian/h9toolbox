@@ -64,4 +64,25 @@ H9MainPostClockBitmapBranch h9_main_post_clock_bitmap_step(
     const H9MainPostClockClassification *classification,
     H9MainPostClockRouteFlags *flags);
 
+/* Stock app+0x05FCD4..0x05FCEA passes a mask through ROM 0x02000A78,
+ * duplicates its result in r0/r1, and calls ROM 0x02000D18. The second
+ * call returns two words in r0/r1; their board meaning is still unknown. */
+typedef struct {
+    void *context;
+    uint32_t (*transform_mask)(void *context, uint32_t mask);
+    uint64_t (*query_pair)(void *context, uint32_t r0, uint32_t r1);
+} H9MainPostClockHandoff;
+
+typedef struct {
+    uint32_t input_mask;
+    uint32_t transformed_mask;
+    uint32_t result_r0;
+    uint32_t result_r1;
+} H9MainPostClockHandoffResult;
+
+void h9_main_post_clock_handoff_bind_target(H9MainPostClockHandoff *handoff);
+bool h9_main_post_clock_handoff_run(
+    H9MainPostClockHandoff *handoff, uint32_t secondary_status,
+    H9MainPostClockHandoffResult *result);
+
 #endif

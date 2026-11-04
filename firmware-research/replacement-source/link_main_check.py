@@ -37,6 +37,9 @@ STOCK_POST_CLOCK_FALLBACK_MODE = bytes.fromhex("42212797")
 STOCK_POST_CLOCK_SPECIAL_SELECTOR = bytes.fromhex(
     "01f8067001ff39106ffe49e00100378d69164621378a"
 )
+STOCK_POST_CLOCK_ROM_HANDOFF = bytes.fromhex(
+    "6916133f34ea010043e03bfe8dea4a0601168dea9707"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -70,6 +73,7 @@ def verify_stock_image(path: Path) -> None:
     if data[0x5FCB2:0x5FCD4] != STOCK_POST_CLOCK_BITMAP_BRANCH or \
             data[0x5FFE8:0x5FFEC] != STOCK_POST_CLOCK_FALLBACK_MODE or \
             data[0x5FFEC:0x60002] != STOCK_POST_CLOCK_SPECIAL_SELECTOR or \
+            data[0x5FCD4:0x5FCEA] != STOCK_POST_CLOCK_ROM_HANDOFF or \
             data[0x5FA44:0x5FA5E] != STOCK_BITMAP_CLEAR_HELPER:
         raise ValueError("Stock post-clock branch, selector, or clear helper differs")
     if data[0x5224C:0x522A6] != STOCK_AUDIO_GATE_GUARD:
@@ -200,6 +204,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_post_clock_classifier_bind_target",
         "h9_main_post_clock_classify",
         "h9_main_post_clock_bitmap_step",
+        "h9_main_post_clock_handoff_bind_target",
+        "h9_main_post_clock_handoff_run",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -216,6 +222,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         ("target_rom_finish", "2001650"),
         ("target_read_selector", "2000058"),
         ("target_set_control", "20008fe"),
+        ("target_transform_mask", "2000a78"),
+        ("target_query_pair", "2000d18"),
     ):
         helper = re.search(
             rf"(?ms)^{name}:\n(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
@@ -250,6 +258,14 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             "== 56" not in bitmap_body or "!= 57" not in bitmap_body or \
             f"&= ~(1 << r{index_limit.group(1)})" not in bitmap_body:
         raise ValueError("Linked post-clock bitmap step lost selector or bit clear")
+    handoff = re.search(
+        r"(?ms)^h9_main_post_clock_handoff_run:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    handoff_body = handoff.group(1) if handoff is not None else ""
+    if "= -453" not in handoff_body or "= -1" not in handoff_body or \
+            re.search(r"d\[r\d+\+8\] = r1_r0", handoff_body) is None:
+        raise ValueError("Linked post-clock ROM handoff lost mask or result pair")
     bitmap_match = re.search(
         r"(?ms)^mark_blocks:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
         disassembly,
@@ -588,6 +604,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_post_clock_rom_path_verified": True,
         "early_board_post_clock_classifier_path_verified": True,
         "early_board_post_clock_bitmap_path_verified": True,
+        "early_board_post_clock_handoff_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

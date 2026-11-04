@@ -44,3 +44,14 @@ replacement applies the equivalent word-level bit clear and preserves the
 two later-board condition flags. The source verifier pins the branch,
 special-value handler, and helper bytes to the stock image. The hardware
 meaning of these flags and the subsequent board actions are still unknown.
+
+At app+`0x05FCD4..0x05FCEA`, stock starts the next ROM handoff. It selects
+mask `0xFFFFFE3B` if bit 0 of the captured `0x1F0500` word is set, otherwise
+`0xFFFFFFFF`, and passes it to ROM `0x02000A78`. It duplicates the returned
+`r0` into `r1`, calls ROM `0x02000D18`, and branches on that call's `r0` and
+`r1` results. `replacement-source/main/h9_main_post_clock_rom.*` now ports
+this handoff through injectable callbacks and a Pi32v2 target binding. The
+linked target wrapper passes the transformed word in both argument registers
+and captures the two result registers as a 64-bit return. The diagnostic
+board entry calls the handoff and stops before acting on the results. Their
+hardware meaning and the subsequent register changes remain unported.

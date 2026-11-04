@@ -4815,6 +4815,52 @@ static void test_main_post_clock_bitmap(void)
 }
 
 typedef struct {
+    uint32_t mask;
+    uint32_t transformed;
+    unsigned calls;
+} PostClockHandoffCapture;
+
+static uint32_t post_clock_transform_mask(void *context, uint32_t mask)
+{
+    PostClockHandoffCapture *capture = (PostClockHandoffCapture *)context;
+    assert(capture->calls % 2u == 0u);
+    capture->mask = mask;
+    capture->transformed = mask ^ 0xA5A5A5A5u;
+    ++capture->calls;
+    return capture->transformed;
+}
+
+static uint64_t post_clock_query_pair(void *context, uint32_t r0,
+                                      uint32_t r1)
+{
+    PostClockHandoffCapture *capture = (PostClockHandoffCapture *)context;
+    assert(capture->calls % 2u == 1u);
+    assert(r0 == capture->transformed && r1 == r0);
+    ++capture->calls;
+    return UINT64_C(0x89ABCDEF12345678);
+}
+
+static void test_main_post_clock_handoff(void)
+{
+    PostClockHandoffCapture capture = { 0u, 0u, 0u };
+    H9MainPostClockHandoff handoff = {
+        &capture, post_clock_transform_mask, post_clock_query_pair
+    };
+    H9MainPostClockHandoffResult result;
+    assert(!h9_main_post_clock_handoff_run(NULL, 0u, &result));
+    assert(!h9_main_post_clock_handoff_run(&handoff, 0u, NULL));
+    assert(h9_main_post_clock_handoff_run(&handoff, 0u, &result));
+    assert(capture.calls == 2u && capture.mask == UINT32_MAX);
+    assert(result.input_mask == UINT32_MAX &&
+           result.transformed_mask == capture.transformed &&
+           result.result_r0 == 0x12345678u &&
+           result.result_r1 == 0x89ABCDEFu);
+    assert(h9_main_post_clock_handoff_run(&handoff, 1u, &result));
+    assert(capture.calls == 4u && capture.mask == 0xFFFFFE3Bu);
+    assert(result.input_mask == 0xFFFFFE3Bu);
+}
+
+typedef struct {
     uint8_t bytes[192];
     size_t length;
     unsigned calls;
@@ -4936,6 +4982,7 @@ int main(void)
     test_main_post_clock_rom();
     test_main_post_clock_classification();
     test_main_post_clock_bitmap();
+    test_main_post_clock_handoff();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();
