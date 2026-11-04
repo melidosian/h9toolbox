@@ -6,7 +6,9 @@ A small, buildless Web Bluetooth programmer for the TIDRADIO TD-H9. Open the HTT
 
 The custom domain uses Google Analytics 4 for page views and automatic interaction events. Enhanced Measurement is enabled, and the tag runs only on `h9toolbox.com`, not on previews or localhost. H9 Toolbox does not send radio images, channel contents, or settings to Analytics.
 
-**AI disclosure:** H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; saving an untouched backup and verifying settings before writing are recommended.
+TD-H9 owners report successful use of the Bluetooth programmer on several radios. Save an untouched backup and review your channels and settings before writing, particularly when using a radio or firmware version for the first time.
+
+**AI disclosure:** H9 Toolbox was entirely and responsibly AI generated under human direction.
 
 ## GitHub Pages
 
@@ -20,7 +22,7 @@ The checked-in workflow publishes `dist/` directly to GitHub Pages on each push 
 2. Connect and read the radio.
 3. Optionally save the untouched `.img` backup so you can recover the original configuration. You can also download readable JSON for transfer or editing.
 4. Confirm the displayed channels and radio settings against the radio.
-5. Edit channels or mapped radio settings, acknowledge the experimental software risk, and write the changed blocks. The app checks the radio's identity and original bytes before writing, waits for ACK, and reads each changed block back.
+5. Edit channels or mapped radio settings, confirm you have reviewed your changes, and write the changed blocks. The app checks the radio's identity and original bytes before writing, waits for ACK, and reads each changed block back.
 
 The channel editor covers RX/TX frequency, name, offset direction, FM/AM and wide/narrow mode, separate TX/RX CTCSS or DCS tones with polarity, transmit power, scan inclusion, channel enablement, PTT ID, busy lockout, hopping RX, and scramble code. It has direct Create and Remove buttons for channels 1–199. Changing RX also updates TX for simplex and common US repeater pairs. It suggests −600 kHz for 145.20–145.50 and 146.61–146.97 MHz outputs, +600 kHz for 147.00–147.39 MHz outputs, and −1.6 MHz for 223.85–224.98 MHz outputs. For 70 cm, the user chooses + or −5 MHz because direction varies locally. Existing custom splits follow RX changes, while a manually entered TX remains untouched until Use suggested TX is selected. ARRL's [band plan](https://www.arrl.org/band-plan) and [offset guidance](https://www.arrl.org/phone-patch-guidelines) are the source for these US defaults; individual repeater listings take precedence.
 
@@ -40,6 +42,8 @@ Channel names starting with spreadsheet formula characters get a leading apostro
 The radio's newer image after Morse was enabled has `0x302A = 0x25`, which maps to Morse on, 12 WPM and 700 Hz. An earlier `0xFF` control byte is treated as Off; switching it On initializes it to the observed `0x25`. `0x302B` remains `0xFF`, so key type, power, and RX threshold stay uninitialized and cannot be edited by this tool.
 
 On 2026-11-03, a TD-H9 connected through Web Bluetooth and two complete Normal-mode reads produced byte-identical 12,616-byte backups. Channel 1 decoded as `2M-CALL`, 146.520 MHz RX/TX and matched the radio's display. The user reported that a live channel write looked successful. Extended setting writes have not yet been checked on the radio.
+
+Since that initial check, users have reported successful Bluetooth programming on several radios. These reports support the everyday programming workflow; they do not establish validation of every mapped setting or the separate browser firmware updater.
 
 ## Protocol notes
 

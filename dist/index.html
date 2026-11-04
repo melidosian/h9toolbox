@@ -5,8 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self'; connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'">
   <meta name="theme-color" content="#111f2c">
-  <meta name="description" content="H9 Toolbox is a direct Bluetooth programmer for the TIDRADIO TD-H9.">
-  <title>H9 Toolbox | TD-H9 Programmer</title>
+  <meta name="description" content="Program your TIDRADIO TD-H9 over Bluetooth in Chrome or Edge. Edit channels and radio settings, import CSV, and save backups with H9 Toolbox. No account required.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://h9toolbox.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="H9 Toolbox">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://h9toolbox.com/">
+  <meta property="og:title" content="TIDRADIO TD-H9 Bluetooth Programmer | H9 Toolbox">
+  <meta property="og:description" content="Edit TD-H9 channels and radio settings, import channel CSV files, and save backups directly in your browser. No account required.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="TIDRADIO TD-H9 Bluetooth Programmer | H9 Toolbox">
+  <meta name="twitter:description" content="Edit TD-H9 channels and radio settings, import channel CSV files, and save backups directly in your browser. No account required.">
+  <title>TIDRADIO TD-H9 Bluetooth Programmer | H9 Toolbox</title>
   <link rel="icon" href="./favicon.ico" type="image/x-icon">
   <script src="./https-redirect.js"></script>
   <script src="./analytics.js"></script>
@@ -22,8 +33,9 @@
     <main>
       <section class="intro">
         <div class="eyebrow">DIRECT TO RADIO · NO ODMASTER ACCOUNT</div>
-        <h1>H9 Toolbox.<br><em>Your radio, your way.</em></h1>
-        <p>Connect over Bluetooth, read your radio, and edit channels and settings. You can save a full backup at any time. Radio data stays in your browser; visits and site interactions on h9toolbox.com are measured with Google Analytics.</p>
+        <h1>TIDRADIO TD-H9.<br><em>Bluetooth programmer.</em></h1>
+        <p>H9 Toolbox connects to your TIDRADIO TD-H9 over Bluetooth so you can edit channels and radio settings in Chrome or Edge. Import and export channel CSV files, transfer readable JSON configurations, and save a full .img backup. No account is required. Radio data stays in your browser; visits and site interactions on h9toolbox.com are measured with Google Analytics.</p>
+        <p class="subtext">TD-H9 owners have successfully used H9 Toolbox on several radios.</p>
         <div class="intro-actions"><a class="button ghost" href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">View GitHub repository ↗</a></div>
       </section>
 
@@ -114,18 +126,26 @@
           <section class="card" aria-labelledby="write-title">
             <div class="card-head"><div><span class="step">05</span><h2 id="write-title">Write changes</h2></div><span class="chip warn" id="changeCount">No changes</span></div>
             <p class="subtext">Only changed 32-byte blocks are sent. Before each write, the app checks that the radio still matches the original image, then reads the block back.</p>
-            <label class="confirm"><input id="riskAcknowledged" type="checkbox" disabled><span>I understand this is experimental software. Even with safety checks, writing may change or damage my radio. I have reviewed my changes and accept that risk.</span></label>
+            <label class="confirm"><input id="riskAcknowledged" type="checkbox" disabled><span>I have reviewed my channels and settings and am ready to write these changes to my radio.</span></label>
             <div class="controls"><button id="write" class="button write-button" disabled>Write changed blocks</button></div>
           </section>
         </div>
 
         <aside class="sidebar">
           <section class="card status-card" aria-labelledby="activity-title"><div class="card-head"><div><span class="step">●</span><h2 id="activity-title">Activity</h2></div></div><div id="status" class="status">Ready to connect.</div><ol id="log" class="log" aria-live="polite"></ol></section>
-          <section class="note"><strong>Before writing</strong><p>This is an early TD-H9 tool. Confirm the channel list against your radio after the first read. A different firmware layout could make an image look plausible while containing different settings.</p><p>Bluetooth and programming stay local to your browser.</p></section>
+          <section class="note"><strong>Ready to program</strong><p>Read your radio, save an untouched backup, and review your channels and settings before writing. Firmware versions can vary, so check the displayed settings against your radio on the first read.</p><p>Bluetooth and programming stay local to your browser.</p></section>
         </aside>
       </div>
+      <section class="card" aria-labelledby="programmer-help-title">
+        <div class="card-head"><h2 id="programmer-help-title">About programming the TIDRADIO TD-H9</h2></div>
+        <details class="advanced"><summary>Which browsers support Bluetooth programming?</summary><p>Use Chrome or Edge on a computer with Bluetooth and open this site over HTTPS. Enable Bluetooth programming mode on the TD-H9 before connecting. Web Bluetooth is not supported in iPhone Safari.</p></details>
+        <details class="advanced"><summary>Can I edit channels without connecting a radio?</summary><p>Yes. Open a previously saved TD-H9 .img backup or a lossless JSON archive to work offline. You can edit channels and mapped settings, import or export channel CSV files, and download the working .img. Writing changes to a radio requires a Bluetooth connection.</p></details>
+        <details class="advanced"><summary>Which channel settings can I change?</summary><p>Edit receive and transmit frequencies, channel names, FM or AM modulation, bandwidth, CTCSS and DCS tones, transmit power, scan inclusion, and other mapped channel options for channels 1–199. The radio settings editor also covers mapped display, button, Bluetooth, GNSS, and APRS options. Undocumented bytes are preserved.</p></details>
+        <details class="advanced"><summary>Do I need an account, and where is my radio data stored?</summary><p>No account or ODmaster login is needed. Radio images, channels, and settings stay in browser memory unless you download them. Google Analytics measures visits and site interactions on h9toolbox.com, but does not receive radio images, channels, or settings.</p></details>
+        <details class="advanced"><summary>Should I save a backup before writing changes?</summary><p>Yes. Keep an untouched .img backup so you can return to your original configuration. Review your channels and settings before writing. H9 Toolbox checks the radio against the original image, writes only changed blocks, and reads each changed block back to verify it.</p></details>
+      </section>
     </main>
-    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; saving an untouched backup and verifying settings before writing are recommended.<br><strong>Analytics:</strong> Google Analytics measures visits and site interactions on h9toolbox.com. H9 Toolbox does not send radio images, channels, or settings to Analytics.</p></footer>
+    <footer><div class="footer-links">H9 Toolbox <span>Independent TD-H9 programming tool · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. Save an untouched backup and review your settings before writing.<br><strong>Analytics:</strong> Google Analytics measures visits and site interactions on h9toolbox.com. H9 Toolbox does not send radio images, channels, or settings to Analytics.</p></footer>
   </div>
   <script type="module" src="./app.js"></script>
 </body>

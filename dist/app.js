@@ -611,7 +611,7 @@ function changedBlocks() {
 }
 async function writeChanges() {
   await work(async () => {
-    if (!$('riskAcknowledged').checked || !baseline || !edited) throw new Error('Review the changes and acknowledge the experimental software risk first.');
+    if (!$('riskAcknowledged').checked || !baseline || !edited) throw new Error('Review your channels and settings and confirm you are ready to write first.');
     const addresses = changedBlocks();
     if (!addresses.length) return;
     if (addresses.some(a => !(a < 0x1f80 || (a >= 0x3000 && a < 0x3140)))) throw new Error('An edit touches an unsupported radio memory region.');
