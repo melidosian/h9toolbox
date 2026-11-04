@@ -37,6 +37,7 @@
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
 #include "h9_main_gps_fix.h"
+#include "h9_main_audio_arbiter.h"
 #include "h9_main_rf_output.h"
 #include "h9_main_rf_state.h"
 #include "h9_main_speaker_gate.h"
@@ -590,6 +591,55 @@ static void test_main_speaker_gate(void)
     gate.audio_state = NULL;
     assert(!h9_main_speaker_gate_set(&gate, false));
     assert(gpio == 0xA5A50108u);
+}
+
+typedef struct {
+    bool effective_on;
+    unsigned calls;
+} FakeAudioPolicy;
+
+static bool fake_audio_policy(void *context, bool requested_on,
+                              bool *effective_on)
+{
+    FakeAudioPolicy *policy = (FakeAudioPolicy *)context;
+    (void)requested_on;
+    policy->calls++;
+    *effective_on = policy->effective_on;
+    return true;
+}
+
+static void test_main_audio_gate_arbiter(void)
+{
+    FakeAudioPolicy policy = { false, 0u };
+    H9MainAudioGatePlan plan;
+    assert(!h9_main_audio_gate_plan(0u, 13u, true, NULL, NULL, NULL));
+    assert(h9_main_audio_gate_plan(0u, 13u, true, NULL, NULL, &plan));
+    assert(plan.next_state == 4u && plan.apply_speaker && plan.speaker_on);
+    assert(h9_main_audio_gate_plan(5u, 4u, false, NULL, NULL, &plan));
+    assert(plan.next_state == 5u && !plan.apply_speaker);
+    assert(h9_main_audio_gate_plan(5u, 13u, false, NULL, NULL, &plan));
+    assert(plan.next_state == 1u && plan.apply_speaker && !plan.speaker_on);
+    assert(h9_main_audio_gate_plan(1u, 13u, true, NULL, NULL, &plan));
+    assert(plan.next_state == 1u && !plan.apply_speaker);
+
+    /* Fixed stock sources bypass the broader radio-state evaluator. */
+    assert(h9_main_audio_gate_plan(0u, 11u, true, NULL, NULL, &plan));
+    assert(plan.next_state == 0u && plan.apply_speaker && plan.speaker_on);
+    assert(!h9_main_audio_gate_plan(0u, 4u, true, NULL, NULL, &plan));
+    assert(h9_main_audio_gate_plan(0u, 4u, true, fake_audio_policy,
+                                   &policy, &plan));
+    assert(policy.calls == 1u && !plan.apply_speaker);
+    policy.effective_on = true;
+    assert(h9_main_audio_gate_plan(0u, 4u, true, fake_audio_policy,
+                                   &policy, &plan));
+    assert(policy.calls == 2u && plan.apply_speaker && plan.speaker_on);
+    assert(h9_main_audio_gate_plan(1u, 4u, false, fake_audio_policy,
+                                   &policy, &plan));
+    assert(policy.calls == 3u && !plan.apply_speaker);
+    policy.effective_on = false;
+    assert(h9_main_audio_gate_plan(1u, 4u, false, fake_audio_policy,
+                                   &policy, &plan));
+    assert(policy.calls == 4u && plan.apply_speaker && !plan.speaker_on);
 }
 
 typedef struct {
@@ -4721,6 +4771,7 @@ int main(void)
     test_main_gps_fix_parser();
     test_main_rf_output_registers();
     test_main_speaker_gate();
+    test_main_audio_gate_arbiter();
     test_main_rf_register_values();
     test_main_gpio_query_reply();
     test_main_control_frames();

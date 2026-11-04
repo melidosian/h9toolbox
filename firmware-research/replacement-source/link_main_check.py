@@ -36,6 +36,11 @@ STOCK_POST_CLOCK_BITMAP_BRANCH = bytes.fromhex(
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
+STOCK_AUDIO_GATE_GUARD = bytes.fromhex(
+    "7504c5ffd01a010050ee5d2773e1fe20141604e85b3041210441412000f8041a"
+    "b3e10421b119a15231e1f50f81f9120400f8100200f8061a00f80c104016"
+    "bfea3aff048b70e1042041a261e10410101952ee5d07402184414016"
+)
 
 
 def sibling_tool(compiler: str, name: str) -> str:
@@ -61,6 +66,8 @@ def verify_stock_image(path: Path) -> None:
     if data[0x5FCB2:0x5FCD4] != STOCK_POST_CLOCK_BITMAP_BRANCH or \
             data[0x5FA44:0x5FA5E] != STOCK_BITMAP_CLEAR_HELPER:
         raise ValueError("Stock post-clock bitmap branch or clear helper differs")
+    if data[0x5224C:0x522A6] != STOCK_AUDIO_GATE_GUARD:
+        raise ValueError("Stock audio gate guard differs")
 
 
 def verify_linked_elf(path: Path) -> int:
