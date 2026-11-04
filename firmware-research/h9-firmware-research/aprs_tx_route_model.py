@@ -5,8 +5,9 @@ Reconstructed from app.bin at app+0x05C2D4 and the channel setup at
 app+0x058D3E. This predicts which channel setup the code requests; it does
 not measure the transmitted RF frequency or the display's red-line behavior.
 It starts after the function's other eligibility checks (including APRS state)
-and its caller's PTT Linkage guard. It does not model timed-beacon routing,
-other transmit entry paths, or RF hardware.
+and models only its five-case selector. Both the PTT Linkage wrapper and the
+timed-beacon scheduler can call this selector; see aprs_timed_beacon_model.py.
+It does not model those callers' other guards or RF hardware.
 No hardware or firmware image is accessed.
 """
 
