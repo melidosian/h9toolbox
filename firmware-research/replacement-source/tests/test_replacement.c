@@ -1345,6 +1345,66 @@ static void test_aprs_adc_board(void)
     assert(h9_aprs_adc_board_read(&board) == 0x1234u);
 }
 
+typedef struct {
+    H9AprsAdcBoard adc;
+    H9AprsWaveOutput wave;
+    unsigned demod_calls;
+} FakeAprsSampleIrq;
+
+static uint16_t sample_irq_read_adc(void *context)
+{
+    FakeAprsSampleIrq *fake = (FakeAprsSampleIrq *)context;
+    return h9_aprs_adc_board_read(&fake->adc);
+}
+
+static uint8_t sample_irq_read_wave(void *context)
+{
+    FakeAprsSampleIrq *fake = (FakeAprsSampleIrq *)context;
+    return h9_aprs_wave_output_read(&fake->wave);
+}
+
+static void sample_irq_write_wave(void *context, uint8_t value)
+{
+    FakeAprsSampleIrq *fake = (FakeAprsSampleIrq *)context;
+    assert(fake->demod_calls == 1u);
+    h9_aprs_wave_output_write(&fake->wave, value);
+}
+
+static void sample_irq_demod(void *context, int16_t normalized_sample)
+{
+    FakeAprsSampleIrq *fake = (FakeAprsSampleIrq *)context;
+    assert(normalized_sample == 0);
+    fake->demod_calls++;
+}
+
+static void test_aprs_adc_sample_irq(void)
+{
+    H9AprsController controller;
+    H9AprsHardware hardware = { 0 };
+    FakeAprsSampleIrq fake = { 0 };
+    uint32_t adc[17] = { 0 };
+    uint32_t gpio[6] = { 0 };
+    h9_aprs_adc_board_bind(&fake.adc, adc);
+    h9_aprs_wave_output_bind(&fake.wave, gpio);
+    hardware.context = &fake;
+    hardware.read_adc = sample_irq_read_adc;
+    hardware.read_dac_port = sample_irq_read_wave;
+    hardware.write_dac_port = sample_irq_write_wave;
+    hardware.demod_sample = sample_irq_demod;
+    h9_aprs_controller_init(&controller, &hardware);
+    adc[16] = 0x200u;
+    gpio[5] = 0x1Au;
+    adc[0] = 4u;
+    assert(!h9_aprs_adc_board_sample_irq(&fake.adc, &controller));
+    assert(fake.demod_calls == 0u && gpio[5] == 0x1Au);
+    adc[1] = 8u;
+    assert(!h9_aprs_adc_board_sample_irq(&fake.adc, &controller));
+    adc[1] = 4u;
+    assert(h9_aprs_adc_board_sample_irq(&fake.adc, &controller));
+    assert(fake.demod_calls == 1u && gpio[5] == 0x8Au);
+    assert(adc[0] == 0xCu);
+}
+
 static void test_aprs_internal_clock_selection(void)
 {
     uint32_t rcc[3] = { 0 };
@@ -1436,6 +1496,7 @@ int main(void)
     test_aprs_gpio_board();
     test_aprs_wave_output();
     test_aprs_adc_board();
+    test_aprs_adc_sample_irq();
     test_aprs_internal_clock_selection();
     test_aprs_uart1_reply_transmit();
     return 0;

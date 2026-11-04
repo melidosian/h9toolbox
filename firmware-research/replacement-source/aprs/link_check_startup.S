@@ -1,5 +1,5 @@
 /* First-pass APRS reset and 48-entry vector table, matching the stock count.
- * Stock slots 25 and 43 dispatch DMA channel 1 and USART1 respectively. */
+ * Stock slots 25, 28, and 43 dispatch DMA channel 1, ADC1, and USART1. */
 .syntax unified
 .cpu cortex-m0
 .thumb
@@ -13,7 +13,11 @@ h9_aprs_vectors:
     .word Default_Handler + 1
     .endr
     .word h9_aprs_dma1_channel1_handler + 1
-    .rept 17
+    .rept 2
+    .word Default_Handler + 1
+    .endr
+    .word h9_aprs_adc1_handler + 1
+    .rept 14
     .word Default_Handler + 1
     .endr
     .word h9_aprs_usart1_handler + 1

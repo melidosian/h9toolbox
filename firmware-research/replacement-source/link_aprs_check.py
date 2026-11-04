@@ -40,6 +40,8 @@ def verify_stock_envelope(path: Path) -> None:
     stack_pointer, reset_vector = struct.unpack_from("<II", data)
     if stack_pointer != STOCK_STACK_TOP or reset_vector != 0x080020D5:
         raise ValueError("Stock APRS vectors differ from pinned evidence")
+    if struct.unpack_from("<I", data, 28 * 4)[0] != 0x08002235:
+        raise ValueError("Stock APRS ADC IRQ vector differs from pinned evidence")
 
 
 def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
@@ -102,7 +104,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     symbol_values = {}
     required_symbols = {
         "__bss_end", "__stack_top", "Default_Handler",
-        "h9_aprs_dma1_channel1_handler", "h9_aprs_usart1_handler",
+        "h9_aprs_dma1_channel1_handler", "h9_aprs_adc1_handler",
+        "h9_aprs_usart1_handler",
     }
     for line in symbols.splitlines():
         parts = line.split()
@@ -111,6 +114,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     if set(symbol_values) != required_symbols:
         raise ValueError("Linked ELF lacks RAM-boundary or IRQ symbols")
     for slot, handler in ((25, "h9_aprs_dma1_channel1_handler"),
+                          (28, "h9_aprs_adc1_handler"),
                           (43, "h9_aprs_usart1_handler")):
         vector = struct.unpack_from("<I", table, slot * 4)[0]
         if vector != (symbol_values[handler] | 1):
@@ -133,6 +137,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "vector_entries": 48,
         "irq_vectors": {
             "dma1_channel1": 25,
+            "adc1": 28,
             "usart1": 43,
         },
         "board_initialization_implemented": False,

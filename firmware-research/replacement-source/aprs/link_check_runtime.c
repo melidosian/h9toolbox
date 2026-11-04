@@ -111,3 +111,9 @@ void h9_aprs_usart1_handler(void)
 {
     h9_aprs_uart1_irq(&runtime.uart1_dma);
 }
+
+void h9_aprs_adc1_handler(void)
+{
+    (void)h9_aprs_adc_board_sample_irq(&runtime.adc_board,
+                                        &runtime.controller);
+}
