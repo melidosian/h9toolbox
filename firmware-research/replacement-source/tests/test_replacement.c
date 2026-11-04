@@ -5092,6 +5092,81 @@ static void test_main_post_clock_gate(void)
 }
 
 typedef struct {
+    unsigned events;
+    uint32_t first;
+    uint32_t second;
+} PostClockTimerCapture;
+
+static void post_clock_timer_handler(void) { }
+
+static void post_clock_timer_setup(void *context, uint32_t mode,
+                                   uint32_t value)
+{
+    PostClockTimerCapture *capture = (PostClockTimerCapture *)context;
+    assert(capture->events == 0u && mode == 0x809Bu && value == 0u);
+    capture->events = 1u;
+}
+
+static void post_clock_timer_install(void *context, uint32_t irq,
+                                     uint32_t priority, void (*handler)(void))
+{
+    PostClockTimerCapture *capture = (PostClockTimerCapture *)context;
+    assert(capture->events == 1u && irq == 3u && priority == 1u &&
+           handler == post_clock_timer_handler);
+    capture->events = 2u;
+}
+
+static uint32_t post_clock_timer_read(void *context, uint32_t selector)
+{
+    PostClockTimerCapture *capture = (PostClockTimerCapture *)context;
+    assert(capture->events >= 2u);
+    if (selector == 49u) {
+        capture->events = 3u;
+        return capture->first;
+    }
+    assert(selector == 18u && capture->events == 4u);
+    capture->events = 5u;
+    return capture->second;
+}
+
+static void post_clock_timer_control(void *context, uint32_t selector,
+                                     uint32_t value)
+{
+    PostClockTimerCapture *capture = (PostClockTimerCapture *)context;
+    assert(capture->events == 3u && selector == 49u && value == 64u);
+    capture->events = 4u;
+}
+
+static void test_main_post_clock_timer_stage(void)
+{
+    PostClockTimerCapture capture = { 0u, 0x23u, 0xC2u };
+    H9MainPostClockRom rom = {
+        &capture, post_clock_timer_read, post_clock_timer_control
+    };
+    uint32_t source = 240000000u;
+    uint32_t timer[3] = { 0u, 1u, 2u };
+    uint32_t dummy = 0x12345678u;
+    uint8_t output = 0u;
+    H9MainPostClockTimerStage stage = {
+        &capture, post_clock_timer_setup, post_clock_timer_install,
+        post_clock_timer_handler, &source, timer, &dummy, &output, &rom
+    };
+    assert(!h9_main_post_clock_timer_stage_run(NULL));
+    stage.timer_irq_handler = NULL;
+    assert(!h9_main_post_clock_timer_stage_run(&stage));
+    assert(capture.events == 0u && timer[0] == 0u);
+    stage.timer_irq_handler = post_clock_timer_handler;
+    assert(h9_main_post_clock_timer_stage_run(&stage));
+    assert(capture.events == 3u && output == 0x23u);
+    assert(timer[0] == 0x41u && timer[1] == 0u &&
+           timer[2] == 2399999u);
+    capture.events = 0u;
+    capture.first = 0x180u;
+    assert(h9_main_post_clock_timer_stage_run(&stage));
+    assert(capture.events == 5u && output == 0xC2u);
+}
+
+typedef struct {
     uint8_t bytes[192];
     size_t length;
     unsigned calls;
@@ -5216,6 +5291,7 @@ int main(void)
     test_main_post_clock_handoff();
     test_main_post_clock_descriptor_route();
     test_main_post_clock_gate();
+    test_main_post_clock_timer_stage();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

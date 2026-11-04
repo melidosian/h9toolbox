@@ -368,3 +368,35 @@ bool h9_main_post_clock_gate_run(
     }
     return true;
 }
+
+bool h9_main_post_clock_timer_stage_run(H9MainPostClockTimerStage *stage)
+{
+    uint32_t selector;
+    volatile uint32_t discarded;
+    if (stage == NULL || stage->rom_setup == NULL ||
+        stage->install_timer_irq == NULL || stage->timer_irq_handler == NULL ||
+        stage->clock_count_d9d8 == NULL ||
+        stage->timer_registers_10f0ec == NULL ||
+        stage->dummy_read_1e00c0 == NULL ||
+        stage->selector_byte_11b40 == NULL || stage->rom == NULL ||
+        stage->rom->read_selector == NULL ||
+        stage->rom->set_control == NULL) return false;
+
+    stage->rom_setup(stage->context, 0x809Bu, 0u);
+    stage->install_timer_irq(stage->context, 3u, 1u,
+                             stage->timer_irq_handler);
+    stage->timer_registers_10f0ec[1] = 0u;
+    stage->timer_registers_10f0ec[2] =
+        (uint32_t)((int32_t)*stage->clock_count_d9d8 / 100 - 1);
+    stage->timer_registers_10f0ec[0] = 0x41u;
+
+    discarded = *stage->dummy_read_1e00c0;
+    (void)discarded;
+    selector = stage->rom->read_selector(stage->rom->context, 49u);
+    if ((selector & 0x80u) != 0u) {
+        stage->rom->set_control(stage->rom->context, 49u, 64u);
+        selector = stage->rom->read_selector(stage->rom->context, 18u);
+    }
+    *stage->selector_byte_11b40 = (uint8_t)selector;
+    return true;
+}

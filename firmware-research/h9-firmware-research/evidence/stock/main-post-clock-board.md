@@ -115,4 +115,20 @@ The replacement preserves the volatile write order and takes the flags
 from the selector-192 step. Host tests cover all four flag combinations;
 the link check pins the stock instructions and verifies the repeated
 compiled writes. The purpose of these registers is still unverified. The
-next call begins at app+`0x05FE5C` and is not yet ported.
+next call begins at app+`0x05FE5C`.
+
+At app+`0x05FE5C..0x05FE94`, stock calls ROM `0x020000A0` with
+`(0x809B, 0)`, then calls the trampoline at app+`0x031194`. Its backward
+jump enters app+`0x031162`, a normal returning setup routine: it registers
+interrupt 3 with priority 1 and handler app+`0x03126C`, clears timer word
+`0x10F0F0`, loads `0x10F0F4` with signed `RAM[0xD9D8] / 100 - 1`, and writes
+`0x41` to `0x10F0EC`. The handler itself saves processor state, updates
+timer and scheduler words, and returns with `rti`; it has not been ported.
+The board routine then reads `0x1E00C0` without retaining the value, reads
+ROM selector 49, and writes its low byte to RAM `0x11B40` if bit 7 is
+clear. If bit 7 is set, it calls ROM control `(49, 64)`, reads selector 18,
+and writes that low byte instead. `replacement-source` now models this
+stage with an injected interrupt-registration callback and explicit handler
+pointer. Host tests cover both selector branches and timer arithmetic; the
+diagnostic target entry still stops before it because a complete interrupt
+handler and target registration path are required.

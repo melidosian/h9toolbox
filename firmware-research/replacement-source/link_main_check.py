@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after the first post-clock ROM-selector bitmap step.
+The board entry stops after the post-clock descriptor and MMIO gate stage.
 Optional raw output is for offline inspection only.
 """
 
@@ -87,6 +87,16 @@ STOCK_POST_CLOCK_GATE = bytes.fromhex(
     "13004120816000ef10ae81608161816000ef10ae00ef08a0"
     "c0ef20a0c0ef80a0c0ef80aec0ef80ac"
 )
+STOCK_POST_CLOCK_TIMER_LOCAL = bytes.fromhex(
+    "1004c2ff6c13e30140234121bfea749ac0ffd8d900000060"
+    "c1ffecf0100041ea00105a24f4e10102f83f906240ea4110"
+    "0004f786"
+)
+STOCK_POST_CLOCK_TIMER_BOARD = bytes.fromhex(
+    "c0ff9b80000041208dea9c00beea9489c0ffc0001e000060"
+    "48318dea6f0050e8023a08170487483151208deaba044032"
+    "8dea640052ee8007"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -127,6 +137,8 @@ def verify_stock_image(path: Path) -> None:
             data[0x44C84:0x44CEC] != STOCK_ZERO_STATE or \
             data[0x42AAC:0x42ABB] != STOCK_ZERO_STATE_GUARD or \
             data[0x5FE04:0x5FE5C] != STOCK_POST_CLOCK_GATE or \
+            data[0x31162:0x31196] != STOCK_POST_CLOCK_TIMER_LOCAL or \
+            data[0x5FE5C:0x5FE94] != STOCK_POST_CLOCK_TIMER_BOARD or \
             data[0xBA:0xD2] != STOCK_DESCRIPTOR_LOOKUP or \
             data[0x554:0x564] != STOCK_DESCRIPTOR_TABLE or \
             data[0x482:0x48E] != STOCK_DESCRIPTOR_WORD5_HELPER or \

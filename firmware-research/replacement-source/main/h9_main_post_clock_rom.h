@@ -146,4 +146,22 @@ bool h9_main_post_clock_gate_run(
     const H9MainPostClockGateRegisters *registers,
     const H9MainPostClockRouteFlags *flags);
 
+/* Stock app+0x05FE5C..0x05FE94 and local trampoline app+0x031194.
+ * The timer interrupt handler is an explicit dependency: no target binding
+ * may call this until the handler and its IRQ registration are ported. */
+typedef struct {
+    void *context;
+    void (*rom_setup)(void *context, uint32_t mode, uint32_t value);
+    void (*install_timer_irq)(void *context, uint32_t irq, uint32_t priority,
+                              void (*handler)(void));
+    void (*timer_irq_handler)(void);
+    volatile uint32_t *clock_count_d9d8;
+    volatile uint32_t *timer_registers_10f0ec;
+    volatile uint32_t *dummy_read_1e00c0;
+    volatile uint8_t *selector_byte_11b40;
+    H9MainPostClockRom *rom;
+} H9MainPostClockTimerStage;
+
+bool h9_main_post_clock_timer_stage_run(H9MainPostClockTimerStage *stage);
+
 #endif
