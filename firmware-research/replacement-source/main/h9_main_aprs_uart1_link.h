@@ -37,11 +37,14 @@ typedef struct {
     uint16_t tx_next_token;
     uint16_t tx_active_token;
     bool tx_packet_queued;
+    bool tx_permit_acknowledged;
     bool tx_drained;
 } H9MainAprsUart1Link;
 
 typedef enum {
     H9_MAIN_APRS_TX_IDLE,
+    H9_MAIN_APRS_TX_PERMIT_PENDING,
+    H9_MAIN_APRS_TX_READY_TO_KEY,
     H9_MAIN_APRS_TX_WAITING,
     H9_MAIN_APRS_TX_DRAINED,
     H9_MAIN_APRS_TX_TIMED_OUT
@@ -63,8 +66,10 @@ size_t h9_main_aprs_uart1_link_poll(H9MainAprsUart1Link *link);
 void h9_main_aprs_uart1_link_irq(H9MainAprsUart1Link *link);
 
 /* Main-loop TX operations for the replacement pair. Arm queues a version-
- * gated permit before the board keys RF. Send queues command 0x00 after the
- * permit, and status succeeds only for the matching final-sample event.
+ * gated permit before the board keys RF. The board must wait until status is
+ * READY_TO_KEY (the MCU acknowledged the permit), then key RF and call send.
+ * Send queues command 0x00, and status succeeds only for the matching
+ * final-sample event.
  * The board must stop PTT on timeout, then clear the permit and restore RX. */
 uint16_t h9_main_aprs_uart1_link_tx_arm(H9MainAprsUart1Link *link,
                                          uint32_t now_ms,

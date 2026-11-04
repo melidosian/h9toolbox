@@ -84,6 +84,17 @@ static void dispatch_frame(void *context, const H9MainWireReceiver *receiver)
                 (uint16_t)receiver->payload[1] |
                 ((uint16_t)receiver->payload[2] << 8));
         break;
+    case H9_APRS_TX_PERMIT_ACK_COMMAND:
+        if (receiver->length == 4u &&
+            receiver->payload[0] == H9_APRS_TX_PERMIT_ACK_VERSION &&
+            receiver->payload[1] <= H9_APRS_TX_PERMIT_ENABLE &&
+            (receiver->payload[2] != 0u || receiver->payload[3] != 0u) &&
+            session->callbacks.tx_permit_ack != NULL)
+            session->callbacks.tx_permit_ack(session->callback_context,
+                receiver->payload[1] != 0u,
+                (uint16_t)receiver->payload[2] |
+                ((uint16_t)receiver->payload[3] << 8));
+        break;
     default:
         break;
     }

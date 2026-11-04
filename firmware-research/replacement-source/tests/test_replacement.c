@@ -1054,6 +1054,9 @@ typedef struct {
     unsigned burst_count;
     unsigned tx_drained_count;
     uint16_t drained_token;
+    unsigned tx_permit_ack_count;
+    uint16_t ack_token;
+    bool ack_enabled;
 } MainSessionCapture;
 
 static void session_packet(void *context, const H9MainAx25Decoded *packet)
@@ -1100,6 +1103,15 @@ static void session_tx_drained(void *context, uint16_t token)
     MainSessionCapture *capture = (MainSessionCapture *)context;
     capture->tx_drained_count++;
     capture->drained_token = token;
+}
+
+static void session_tx_permit_ack(void *context, bool enabled,
+                                   uint16_t token)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    capture->tx_permit_ack_count++;
+    capture->ack_token = token;
+    capture->ack_enabled = enabled;
 }
 
 static void session_version(void *context, const H9MainAprsVersions *versions)
@@ -2504,6 +2516,7 @@ static void test_replacement_tx_permit_link(void)
                                            frame, sizeof frame) == 0u);
     memcpy(versions.module, "H9R0.01", sizeof "H9R0.01");
     hardware.context = &fake;
+    hardware.uart_write = uart_write;
     hardware.tx_permit_changed = set_tx_permit;
     h9_aprs_controller_init(&controller, &hardware);
     h9_aprs_tx_service_init(&service, 0u, 500u, 100u);
@@ -2518,6 +2531,11 @@ static void test_replacement_tx_permit_link(void)
     assert(main_aux_wire_to_controller(&controller, frame, length));
     assert(h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
     assert(fake.permit.token == 0x1234u);
+    assert(fake.uart_length == 7u && fake.uart[0] == 0xC0u &&
+           fake.uart[1] == H9_APRS_TX_PERMIT_ACK_COMMAND &&
+           fake.uart[2] == H9_APRS_TX_PERMIT_ACK_VERSION &&
+           fake.uart[3] == H9_APRS_TX_PERMIT_ENABLE &&
+           fake.uart[4] == 0x34u && fake.uart[5] == 0x12u);
     assert(h9_aprs_tx_runtime_submit(&runtime, packet, sizeof packet));
     feed_frame(&controller, H9_APRS_TX_PERMIT_COMMAND,
                invalid, sizeof invalid);
@@ -4434,12 +4452,14 @@ static void test_main_aprs_uart1_tx_transaction(void)
     uint8_t frame[32];
     const uint8_t packet[] = { 0x82u, 0xA0u, 0x7Eu };
     uint8_t event[3] = { H9_APRS_TX_DRAINED_VERSION, 0u, 0u };
+    uint8_t ack[4] = { H9_APRS_TX_PERMIT_ACK_VERSION, 1u, 0u, 0u };
     const uint8_t burst[2] = { H9_APRS_BURST_VERSION, 1u };
     size_t length;
     uint16_t token;
     const uint32_t started = UINT32_MAX - 10u;
 
     application.tx_drained = session_tx_drained;
+    application.tx_permit_ack = session_tx_permit_ack;
     application.burst_activity = session_burst_activity;
     assert(h9_main_aprs_uart1_link_init(&link, registers, receive,
                                         sizeof receive, 16u, slots, 3u,
@@ -4460,7 +4480,29 @@ static void test_main_aprs_uart1_tx_transaction(void)
            outgoing[0][7] == H9_APRS_TX_PERMIT_ENABLE);
     assert(h9_main_aprs_uart1_link_tx_arm(&link, started, 100u) == 0u);
     assert(h9_main_aprs_uart1_link_tx_status(&link, started + 1u) ==
-           H9_MAIN_APRS_TX_WAITING);
+           H9_MAIN_APRS_TX_PERMIT_PENDING);
+    assert(!h9_main_aprs_uart1_link_tx_send(&link, packet,
+                                             sizeof packet, started + 1u));
+    ack[2] = (uint8_t)(token + 1u);
+    ack[3] = (uint8_t)((token + 1u) >> 8);
+    length = h9_wire_encode(H9_APRS_TX_PERMIT_ACK_COMMAND, ack,
+                             sizeof ack, frame, sizeof frame);
+    assert(length != 0u);
+    queue_session_bytes(&link.session, frame, length);
+    assert(h9_main_aprs_uart1_link_poll(&link) == length);
+    assert(h9_main_aprs_uart1_link_tx_status(&link, started + 1u) ==
+           H9_MAIN_APRS_TX_PERMIT_PENDING);
+    ack[2] = (uint8_t)token;
+    ack[3] = (uint8_t)(token >> 8);
+    length = h9_wire_encode(H9_APRS_TX_PERMIT_ACK_COMMAND, ack,
+                             sizeof ack, frame, sizeof frame);
+    queue_session_bytes(&link.session, frame, length);
+    assert(h9_main_aprs_uart1_link_poll(&link) == length);
+    assert(application_capture.tx_permit_ack_count == 2u &&
+           application_capture.ack_token == token &&
+           application_capture.ack_enabled);
+    assert(h9_main_aprs_uart1_link_tx_status(&link, started + 1u) ==
+           H9_MAIN_APRS_TX_READY_TO_KEY);
     event[1] = (uint8_t)(token + 1u);
     event[2] = (uint8_t)((token + 1u) >> 8);
     length = h9_wire_encode(H9_APRS_TX_DRAINED_COMMAND, event,
@@ -4469,10 +4511,12 @@ static void test_main_aprs_uart1_tx_transaction(void)
     queue_session_bytes(&link.session, frame, length);
     assert(h9_main_aprs_uart1_link_poll(&link) == length);
     assert(h9_main_aprs_uart1_link_tx_status(&link, started + 1u) ==
-           H9_MAIN_APRS_TX_WAITING);
+           H9_MAIN_APRS_TX_READY_TO_KEY);
     assert(application_capture.tx_drained_count == 1u);
     assert(h9_main_aprs_uart1_link_tx_send(&link, packet,
                                             sizeof packet, started + 2u));
+    assert(h9_main_aprs_uart1_link_tx_status(&link, started + 2u) ==
+           H9_MAIN_APRS_TX_WAITING);
     assert(outgoing[1][5] == 0x00u && outgoing[1][6] == packet[0] &&
            outgoing[1][7] == packet[1] && outgoing[1][8] == packet[2]);
     assert(!h9_main_aprs_uart1_link_tx_send(&link, packet,

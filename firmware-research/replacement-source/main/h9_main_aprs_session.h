@@ -23,6 +23,7 @@ typedef struct {
     void (*burst_activity)(void *context, bool active);
     /* Replacement-only completion of the final APRS DAC sample. */
     void (*tx_drained)(void *context, uint16_t token);
+    void (*tx_permit_ack)(void *context, bool enabled, uint16_t token);
     void (*version)(void *context, const H9MainAprsVersions *versions);
     void (*serial_write)(void *context, const uint8_t *bytes, size_t length);
     /* Returns bytes copied into destination, never more than capacity. */

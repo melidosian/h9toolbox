@@ -15,4 +15,9 @@
 #define H9_APRS_TX_DRAINED_COMMAND 0x54u
 #define H9_APRS_TX_DRAINED_VERSION 1u
 
+/* Replacement APRS-to-main acknowledgment after command 0x53 is applied.
+ * Payload echoes {version, enable, token_lo, token_hi}. */
+#define H9_APRS_TX_PERMIT_ACK_COMMAND 0x55u
+#define H9_APRS_TX_PERMIT_ACK_VERSION 1u
+
 #endif

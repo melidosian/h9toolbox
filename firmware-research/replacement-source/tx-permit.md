@@ -14,6 +14,12 @@ controller accepts only the exact four-byte versioned
 payload. Its board loop allows packet submission and waveform service only
 while the lease is active, and cancels pending or active TX after expiration.
 The ADC ISR acknowledges cancellation before the packet buffer is reused.
+After applying a well-formed permit command, the APRS MCU replies with
+`0x55 {version=1, enabled, token_lo, token_hi}`. The main UART link will not
+queue a packet or report `READY_TO_KEY` until it receives the matching enable
+acknowledgment. A missing acknowledgment times out without authorizing RF
+keying. A disable acknowledgment reports command processing; a stale-token
+disable cannot revoke a newer permit.
 
 The main encoder refuses to build this command unless it has received both
 module version `H9R0.01` and protocol version `V1.0.0`. This matters because
@@ -27,9 +33,10 @@ the closing flag entered the waveform queue; it does not mean RF has finished.
 The main serial session rejects malformed/zero-token completion frames and
 delivers a valid token to the UART1 link. That link matches the token against
 its current transaction, forwards the event to the application, and reports
-timeout before success if the deadline passes. It also queues the version-
-gated permit, packet, and clear frames in order. The board adapter must poll
-that status and release PTT only for the current completed transaction. A
+timeout before success if the deadline passes. It queues the version-gated
+permit, packet, and clear frames in order. The board adapter must poll for
+`READY_TO_KEY` before asserting PTT, then release PTT only for the current
+completed transaction. A
 canceled packet does not emit a completion frame. Loss of the completion frame
 must time out and
 stop PTT; the 10-second permit lease independently cancels the waveform.

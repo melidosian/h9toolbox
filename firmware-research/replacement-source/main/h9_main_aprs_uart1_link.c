@@ -105,6 +105,17 @@ static void tx_drained(void *context, uint16_t token)
         link->application.tx_drained(link->application_context, token);
 }
 
+static void tx_permit_ack(void *context, bool enabled, uint16_t token)
+{
+    H9MainAprsUart1Link *link = as_link(context);
+    if (enabled && link->tx_active_token == token &&
+        !link->tx_packet_queued)
+        link->tx_permit_acknowledged = true;
+    if (link->application.tx_permit_ack != NULL)
+        link->application.tx_permit_ack(link->application_context,
+                                         enabled, token);
+}
+
 int h9_main_aprs_uart1_link_init(
     H9MainAprsUart1Link *link, volatile uint32_t *uart_registers,
     const uint8_t *receive_storage, uint32_t receive_capacity,
@@ -150,6 +161,7 @@ int h9_main_aprs_uart1_link_init(
     callbacks.version = version;
     callbacks.burst_activity = burst_activity;
     callbacks.tx_drained = tx_drained;
+    callbacks.tx_permit_ack = tx_permit_ack;
     callbacks.serial_read = serial_read;
     callbacks.serial_write = serial_write;
     h9_main_aprs_session_init(&link->session, &callbacks, link);
@@ -193,6 +205,7 @@ uint16_t h9_main_aprs_uart1_link_tx_arm(H9MainAprsUart1Link *link,
     link->tx_started_ms = now_ms;
     link->tx_timeout_ms = timeout_ms;
     link->tx_packet_queued = false;
+    link->tx_permit_acknowledged = false;
     link->tx_drained = false;
     return token;
 }
@@ -203,7 +216,7 @@ bool h9_main_aprs_uart1_link_tx_send(H9MainAprsUart1Link *link,
 {
     size_t frame_length;
     if (link == NULL || link->tx_active_token == 0u ||
-        link->tx_packet_queued ||
+        link->tx_packet_queued || !link->tx_permit_acknowledged ||
         (uint32_t)(now_ms - link->tx_started_ms) >= link->tx_timeout_ms ||
         packet == NULL || length == 0u ||
         length > H9_MAIN_AX25_MAX_PACKET) return false;
@@ -225,8 +238,12 @@ H9MainAprsTxStatus h9_main_aprs_uart1_link_tx_status(
         return H9_MAIN_APRS_TX_IDLE;
     if ((uint32_t)(now_ms - link->tx_started_ms) >= link->tx_timeout_ms)
         return H9_MAIN_APRS_TX_TIMED_OUT;
-    return link->tx_packet_queued && link->tx_drained ?
-           H9_MAIN_APRS_TX_DRAINED : H9_MAIN_APRS_TX_WAITING;
+    if (!link->tx_permit_acknowledged)
+        return H9_MAIN_APRS_TX_PERMIT_PENDING;
+    if (!link->tx_packet_queued)
+        return H9_MAIN_APRS_TX_READY_TO_KEY;
+    return link->tx_drained ? H9_MAIN_APRS_TX_DRAINED :
+           H9_MAIN_APRS_TX_WAITING;
 }
 
 bool h9_main_aprs_uart1_link_tx_clear(H9MainAprsUart1Link *link)
@@ -242,6 +259,7 @@ bool h9_main_aprs_uart1_link_tx_clear(H9MainAprsUart1Link *link)
                                          frame, length)) return false;
     link->tx_active_token = 0u;
     link->tx_packet_queued = false;
+    link->tx_permit_acknowledged = false;
     link->tx_drained = false;
     return true;
 }

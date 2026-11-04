@@ -103,9 +103,15 @@ static void dispatch(H9AprsController *controller)
         if (length == 4u && data[0] == H9_APRS_TX_PERMIT_VERSION &&
             data[1] <= H9_APRS_TX_PERMIT_ENABLE &&
             (data[2] != 0u || data[3] != 0u) &&
-            controller->hardware.tx_permit_changed != NULL)
+            controller->hardware.tx_permit_changed != NULL) {
+            const uint8_t ack[4] = {
+                H9_APRS_TX_PERMIT_ACK_VERSION, data[1], data[2], data[3]
+            };
             controller->hardware.tx_permit_changed(context, data[1] != 0u,
                 (uint16_t)data[2] | ((uint16_t)data[3] << 8));
+            (void)send_frame(controller, H9_APRS_TX_PERMIT_ACK_COMMAND,
+                             ack, sizeof ack);
+        }
         break;
     default:
         break;

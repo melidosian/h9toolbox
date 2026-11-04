@@ -40,7 +40,9 @@ typedef enum {
  * working frequency pair after preparation. set_aprs_permit(true) is called
  * only after both readbacks match; the adapter must verify that the APRS
  * module supports replacement command 0x53 and assign a fresh nonzero token.
- * send_packet is the only callback allowed to key RF and must wait for the
+ * That callback must wait for the matching 0x55 permit acknowledgment before
+ * reporting success. send_packet is the only callback allowed to key RF and
+ * must wait for the
  * matching replacement 0x54 drained event before returning success. A stale
  * token, missing event, or timeout is failure; the route stays reserved
  * through stop, permit clear, and restore.
