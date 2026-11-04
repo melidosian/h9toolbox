@@ -39,6 +39,20 @@ hardware cause.
 
 The path also calls `FUN_01E596E4`, which invokes `FUN_01E50804(1)` and `FUN_01E50820(1)`. `FUN_01E50820` toggles bit 0 of a register returned by `FUN_01E001BA(0)`; it is also called from other audio/control paths. The bit's physical role is therefore unproven. This trace does not establish which instruction first asserts PTT or whether RF setup is safe to run unkeyed.
 
+A closer read of the corrected Pi32v2 project and an independent decode of
+app+`0x050678..0x05071F` show what the first call does. `FUN_01E50804(1)`
+calls `FUN_01E50778(0, 1)`, then mirrors 1 to RAM `0xC1BB`.
+`FUN_01E50778` reads RF register `0x33`, clears bits from mask `0x4040`,
+sets bit `0x40`, writes register `0x33`, then clears bits `0x0F00` in RF
+register `0x35`. The same function supports selectors 0..6 with shifted
+masks and clears one nibble in register `0x34` or `0x35`. The replacement
+`h9_main_rf_control_words` ports only this calculation and does not write
+hardware. The stock TX path makes this change, then enables MMIO GPIO bit 0,
+then programs frequency registers `0x38/0x39` through `FUN_01E59094`, and
+later enables MMIO GPIO bit 8 and PWM bit 8. None of the RF-register or GPIO
+outputs is yet identified electrically. In particular, the stock setup must
+not be used wholesale as the replacement's unkeyed `prepare_tx` callback.
+
 The independent Pi32 decoder later confirmed that `FUN_01E58F58` sets or
 clears bit 8 of MMIO `0x001E5000`; Ghidra mistranslated its clear branch.
 `FUN_01E58F80` also sets or clears bit 8 of `0x001E0600` after writing

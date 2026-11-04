@@ -3,6 +3,27 @@
 #include <stddef.h>
 #include <stdint.h>
 
+bool h9_main_rf_control_words(uint8_t selector, bool enabled,
+                              uint16_t current_control,
+                              uint16_t current_mode,
+                              H9MainRfControlWords *words)
+{
+    uint16_t mode_mask;
+    if (words == NULL || selector > 6u) return false;
+    words->control_word = (uint16_t)((current_control &
+        (uint16_t)~(0x4040u >> selector)) |
+        (((uint32_t)enabled << 6) >> selector));
+    if (selector < 3u) {
+        words->mode_register = 0x35u;
+        mode_mask = (uint16_t)(0x0F00u >> (4u * selector));
+    } else {
+        words->mode_register = 0x34u;
+        mode_mask = (uint16_t)(0xF000u >> (4u * (selector - 3u)));
+    }
+    words->mode_word = (uint16_t)(current_mode & (uint16_t)~mode_mask);
+    return true;
+}
+
 bool h9_main_rf_frequency_words(uint32_t frequency_10hz,
                                 uint8_t band_selector,
                                 int16_t lower_trim,

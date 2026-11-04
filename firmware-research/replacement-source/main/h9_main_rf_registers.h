@@ -27,6 +27,22 @@ bool h9_main_rf_af_word(uint8_t mode, uint16_t *word);
 typedef bool (*H9MainRfWrite)(void *opaque, uint8_t register_number,
                                uint16_t word);
 
+/* Stock app+0x050678 updates RF register 0x33 and clears one mode nibble
+ * in register 0x34 or 0x35 for selector 0..6. This calculation does not
+ * touch hardware. Selector 0 is asserted by app+0x050704 during the stock
+ * TX path, before the frequency registers are programmed; its RF effect is
+ * not established. */
+typedef struct {
+    uint16_t control_word;
+    uint8_t mode_register;
+    uint16_t mode_word;
+} H9MainRfControlWords;
+
+bool h9_main_rf_control_words(uint8_t selector, bool enabled,
+                              uint16_t current_control,
+                              uint16_t current_mode,
+                              H9MainRfControlWords *words);
+
 /* Port of the first two RF-register writes at app+0x058FCE/0x058FD6.
  * Later stock setup has unported side effects and must not be assumed
  * safe for use as an unkeyed TX preparation adapter. */

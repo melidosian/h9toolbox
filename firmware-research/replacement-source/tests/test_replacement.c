@@ -665,7 +665,25 @@ static void test_main_rf_register_values(void)
     uint16_t high;
     uint16_t word;
     uint8_t reg;
+    H9MainRfControlWords control;
     FakeRfRegisterBus bus = { { 0 }, { 0 }, 0u, 3u };
+    assert(h9_main_rf_control_words(0u, true, 0xFFFFu, 0xFFFFu,
+                                    &control));
+    assert(control.control_word == 0xBFFFu &&
+           control.mode_register == 0x35u &&
+           control.mode_word == 0xF0FFu);
+    assert(h9_main_rf_control_words(3u, false, 0xFFFFu, 0xFFFFu,
+                                    &control));
+    assert(control.control_word == 0xF7F7u &&
+           control.mode_register == 0x34u &&
+           control.mode_word == 0x0FFFu);
+    assert(h9_main_rf_control_words(6u, true, 0xFFFFu, 0xFFFFu,
+                                    &control));
+    assert(control.control_word == 0xFEFFu &&
+           control.mode_register == 0x34u &&
+           control.mode_word == 0xFFF0u);
+    assert(!h9_main_rf_control_words(7u, true, 0u, 0u, &control));
+    assert(!h9_main_rf_control_words(0u, true, 0u, 0u, NULL));
     assert(h9_main_rf_frequency_words(14439000u, 0u, 120, -50,
                                       &low, &high));
     assert(((uint32_t)high << 16 | low) == 14439012u);

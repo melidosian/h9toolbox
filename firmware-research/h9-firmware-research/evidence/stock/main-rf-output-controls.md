@@ -40,3 +40,9 @@ compiled but not called by a board entry. The existing unkeyed
 separately verified adapter; calling the stock TX setup inside its
 `prepare_tx` callback would violate that contract if any of these
 outputs keys RF.
+
+The earlier `FUN_01e50804(1)` also calls `FUN_01e50778(0,1)`, modifying RF
+registers `0x33` and `0x35` before the TX frequency registers `0x38/0x39`
+are written. See [the TX setup trace](main-aprs-tx-setup.md). This establishes
+an earlier candidate output boundary in the call sequence; it does not
+establish that RF is emitted at that point.
