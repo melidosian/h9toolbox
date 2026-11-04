@@ -30,6 +30,7 @@
 #include "h9_main_aprs_wire.h"
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
+#include "h9_main_boot_record.h"
 #include "h9_main_tx_service.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
@@ -2056,6 +2057,66 @@ static void test_aprs_uart1_reply_transmit(void)
     assert(tx.timeouts == 1u && tx.faulted && usart[1] == 0x31u);
 }
 
+static uint32_t boot_record_check(const volatile uint8_t *data,
+                                  size_t length, void *context)
+{
+    uint32_t *checked = (uint32_t *)context;
+    assert(length == H9_MAIN_BOOT_RECORD_CHECK_BYTES);
+    assert(data[0] == 0x34u && data[1] == 0x12u);
+    ++*checked;
+    return 0x12345678u;
+}
+
+static uint32_t boot_record_check_updates_header(const volatile uint8_t *data,
+                                                  size_t length, void *context)
+{
+    volatile uint8_t *header = (volatile uint8_t *)data - 2;
+    (void)context;
+    assert(length == H9_MAIN_BOOT_RECORD_CHECK_BYTES);
+    header[0] = 0x78u;
+    header[1] = 0x56u;
+    return 0x12345678u;
+}
+
+static void test_main_boot_record(void)
+{
+    uint8_t record[H9_MAIN_BOOT_RECORD_BYTES];
+    uint32_t checked = 0;
+    size_t index;
+
+    memset(record, 0xA5, sizeof record);
+    record[0] = 0x78u; record[1] = 0x56u;
+    record[2] = 0x34u; record[3] = 0x12u;
+    record[4] = 0xCDu; record[5] = 0xABu;
+    record[6] = 0xEFu; record[7] = 0xBEu;
+    assert(h9_main_consume_boot_record(record, boot_record_check, &checked) ==
+           0xBEEFABCDu);
+    assert(checked == 1u);
+    for (index = 0; index < sizeof record; ++index) assert(record[index] == 0u);
+
+    memset(record, 0xA5, sizeof record);
+    record[6] = 0xEFu; record[7] = 0xBEu;
+    assert(h9_main_consume_boot_record(record, NULL, NULL) == 0xBEEF5A00u);
+    for (index = 0; index < sizeof record; ++index) assert(record[index] == 0u);
+
+    memset(record, 0xA5, sizeof record);
+    record[2] = 0x34u; record[3] = 0x12u;
+    record[6] = 0xEFu; record[7] = 0xBEu;
+    assert(h9_main_consume_boot_record(record, boot_record_check, &checked) ==
+           0xBEEF5A00u);
+    assert(checked == 2u);
+    for (index = 0; index < sizeof record; ++index) assert(record[index] == 0u);
+
+    memset(record, 0xA5, sizeof record);
+    record[2] = 0x34u; record[3] = 0x12u;
+    record[4] = 0xCDu; record[5] = 0xABu;
+    record[6] = 0xEFu; record[7] = 0xBEu;
+    assert(h9_main_consume_boot_record(record,
+                                      boot_record_check_updates_header, NULL) ==
+           0xBEEFABCDu);
+    for (index = 0; index < sizeof record; ++index) assert(record[index] == 0u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -2073,6 +2134,7 @@ int main(void)
     test_main_aprs_session();
     test_main_policy();
     test_main_tx_service();
+    test_main_boot_record();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();
