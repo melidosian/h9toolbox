@@ -1,7 +1,7 @@
 /* Independent 1200-baud Bell 202/AX.25 stimulus. This test deliberately
  * bypasses the replacement TX encoder, oscillator, and packet builder. */
-#include "h9_aprs_demod.h"
-#include "h9_aprs_frame.h"
+#include "h9_aprs_controller.h"
+#include "h9_main_aprs_receive.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -12,11 +12,14 @@
 #define CHECK(condition) do { if (!(condition)) abort(); } while (0)
 
 typedef struct {
-    H9AprsDemod demod;
-    H9AprsFrame frame;
+    H9AprsController controller;
+    H9MainWireReceiver main_receiver;
+    H9MainAx25Decoded decoded;
     uint8_t packet[64];
     size_t packet_length;
     unsigned packets;
+    uint16_t adc_value;
+    unsigned samples_since_poll;
     double phase;
     double tone_hz;
     double sample_rate;
@@ -25,18 +28,34 @@ typedef struct {
     unsigned ones;
 } AfskFixture;
 
-static void capture_packet(void *context, const uint8_t *data, size_t length)
+static uint16_t read_adc(void *context)
 {
     AfskFixture *fixture = (AfskFixture *)context;
-    CHECK(length <= sizeof fixture->packet);
-    memcpy(fixture->packet, data, length);
-    fixture->packet_length = length;
-    fixture->packets++;
+    return fixture->adc_value;
+}
+
+static void receive_serial(void *context, const uint8_t *data, size_t length)
+{
+    AfskFixture *fixture = (AfskFixture *)context;
+    size_t index;
+    for (index = 0; index < length; ++index) {
+        if (h9_main_wire_feed(&fixture->main_receiver, data[index]) ==
+            H9_MAIN_WIRE_FRAME) {
+            CHECK(fixture->main_receiver.command == 0u);
+            CHECK(fixture->main_receiver.length <= sizeof fixture->packet);
+            fixture->packet_length = fixture->main_receiver.length;
+            memcpy(fixture->packet, fixture->main_receiver.payload,
+                   fixture->packet_length);
+            CHECK(h9_main_aprs_packet_from_frame(&fixture->main_receiver,
+                                                   &fixture->decoded));
+            fixture->packets++;
+            h9_main_wire_reset(&fixture->main_receiver);
+        }
+    }
 }
 
 static void send_bit(AfskFixture *fixture, unsigned bit)
 {
-    uint8_t byte;
     if (bit == 0u)
         fixture->tone_hz = fixture->tone_hz == 1200.0 ? 2200.0 : 1200.0;
     fixture->bit_end += 1.0 / 1200.0;
@@ -45,10 +64,12 @@ static void send_bit(AfskFixture *fixture, unsigned bit)
         fixture->phase += 6.2831853071795864769 * fixture->tone_hz /
                           fixture->sample_rate;
         fixture->sample_time += 1.0 / fixture->sample_rate;
-        CHECK(h9_aprs_demod_sample(&fixture->demod, sample));
-        while (h9_aprs_demod_pop_byte(&fixture->demod, &byte))
-            (void)h9_aprs_frame_feed(&fixture->frame, byte,
-                                      capture_packet, fixture);
+        fixture->adc_value = (uint16_t)((sample + 128) << 2);
+        h9_aprs_controller_adc_tick(&fixture->controller);
+        if (++fixture->samples_since_poll == 32u) {
+            h9_aprs_controller_process_received(&fixture->controller);
+            fixture->samples_since_poll = 0u;
+        }
     }
 }
 
@@ -84,9 +105,13 @@ static void test_at_sample_rate(double sample_rate)
     };
     static const uint8_t fcs[] = { 0xFAu, 0x9Bu };
     AfskFixture fixture = { 0 };
+    H9AprsHardware hardware = { 0 };
     size_t index;
-    h9_aprs_demod_init(&fixture.demod);
-    h9_aprs_frame_init(&fixture.frame);
+    hardware.context = &fixture;
+    hardware.read_adc = read_adc;
+    hardware.uart_write = receive_serial;
+    h9_aprs_controller_init(&fixture.controller, &hardware);
+    h9_main_wire_reset(&fixture.main_receiver);
     fixture.tone_hz = 1200.0;
     fixture.sample_rate = sample_rate;
     for (index = 0; index < 50u; ++index) send_flag(&fixture);
@@ -95,9 +120,17 @@ static void test_at_sample_rate(double sample_rate)
     for (index = 0; index < sizeof fcs; ++index)
         send_data_byte(&fixture, fcs[index]);
     for (index = 0; index < 10u; ++index) send_flag(&fixture);
+    h9_aprs_controller_process_received(&fixture.controller);
+    CHECK(fixture.controller.valid_rx_frames == 1u);
+    CHECK(fixture.controller.forwarded_rx_frames == 1u);
     CHECK(fixture.packets == 1u);
     CHECK(fixture.packet_length == sizeof packet);
     CHECK(memcmp(fixture.packet, packet, sizeof packet) == 0);
+    CHECK(memcmp(fixture.decoded.destination, "APRS", 4u) == 0);
+    CHECK(memcmp(fixture.decoded.source, "KD9CRQ", 6u) == 0);
+    CHECK(fixture.decoded.control == 3u && fixture.decoded.pid == 0xF0u);
+    CHECK(fixture.decoded.information_length == 5u);
+    CHECK(memcmp(fixture.decoded.information, ">TEST", 5u) == 0);
 }
 
 int main(void)
