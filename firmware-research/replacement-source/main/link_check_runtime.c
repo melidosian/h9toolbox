@@ -1,4 +1,11 @@
 #include <stddef.h>
+#include <stdint.h>
+
+#include "h9_main_boot_record.h"
+#include "h9_main_boot_validator.h"
+
+#define H9_MAIN_RETAINED_BOOT_RECORD 0x0002FF88u
+#define H9_MAIN_BOOT_RESULT_WORD 0x00011C3Cu
 
 /* Diagnostic link shims. This entry initializes C memory but does not
  * initialize the TD-H9 board or implement its production runtime. */
@@ -39,10 +46,20 @@ __attribute__((noreturn)) void h9_main_runtime_init(void)
 {
     unsigned char *to;
     unsigned char *from = __data_load_start;
+    H9MainBootValidator validator;
     for (to = __stock_clear_start; to < __stock_clear_end; ++to) *to = 0;
     for (to = __data_start; to < __data_end; ++to) *to = *from++;
     from = __ram_code_load_start;
     for (to = __ram_code_start; to < __ram_code_end; ++to) *to = *from++;
     h9_main_interrupt_config();
+    /* Stock's first post-copy call is a one-instruction return. The second
+     * consumes the retained 80-byte record before board initialization. */
+    if (!h9_main_boot_validator_bind_target(&validator)) {
+        for (;;) { }
+    }
+    *(volatile uint32_t *)(uintptr_t)H9_MAIN_BOOT_RESULT_WORD =
+        h9_main_consume_boot_record(
+            (volatile uint8_t *)(uintptr_t)H9_MAIN_RETAINED_BOOT_RECORD,
+            h9_main_boot_validate, &validator);
     h9_main_board_entry();
 }

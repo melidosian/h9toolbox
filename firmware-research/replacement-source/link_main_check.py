@@ -117,6 +117,25 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             STOCK_ICFG_AFTER_RAM_COPY:
         raise ValueError("Linked interrupt configuration differs from stock bytes")
 
+    disassembly = run([sibling_tool(compiler, "llvm-objdump"), "-d",
+                       str(elf)])
+    runtime_match = re.search(
+        r"(?ms)^h9_main_runtime_init:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if runtime_match is None:
+        raise ValueError("Linked main ELF lacks a disassembled reset runtime")
+    runtime_body = runtime_match.group(1)
+    startup_order = (
+        "__ram_code_load_start", "h9_main_interrupt_config",
+        "h9_main_boot_validator_bind_target", "2ff88",
+        "h9_main_boot_validate", "h9_main_consume_boot_record",
+        "11c3c", "[r1+0] = r0",
+    )
+    startup_positions = [runtime_body.find(item) for item in startup_order]
+    if -1 in startup_positions or startup_positions != sorted(startup_positions):
+        raise ValueError("Linked reset path lost retained-record call order")
+
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
     bss_start = symbol_address("__bss_start")
@@ -228,6 +247,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "entry_stack_bytes_verified": True,
         "boot_argument_copy_bytes_verified": True,
         "post_ram_copy_icfg_bytes_verified": True,
+        "post_copy_boot_record_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
