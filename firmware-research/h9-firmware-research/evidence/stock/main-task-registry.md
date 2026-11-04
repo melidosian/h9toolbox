@@ -77,12 +77,24 @@ bytes for two `0x1C`-byte linked entries. The first allocation failure returns
 pointer at `0xC080` and initializes 256 bytes starting 36 bytes into it.
 Failure of this second allocation is ignored. The initializer then requests
 the `sys_event` task through the same task-launch helper, using stock entry
-app+`0x02D642`; its task-launch return is ignored. `main/h9_main_sys_event.*`
+address `0x01E2D642` (app+`0x02D542`); its task-launch return is ignored. `main/h9_main_sys_event.*`
 ports these writes and branches using injected allocation, buffer-init, and
 task hooks. The event task body, target allocator, and `app_core` caller are
-still unported. The pinned stock initializer slice app+`0x02D4D8..0x02D642`
+still unported. The pinned stock initializer slice app+`0x02D4D8..0x02D542`
 has SHA-256
-`10382fc8562ad0139706b7d38ca25dc5013bf69c3e666d61e4928a015142647e`.
+`46ce3f88d3e6a114a8127c20334a94845d439be5143da7b2ee91e523f9041cde`.
+
+The task entry at app+`0x02D542` allocates `0x50` bytes, calls a stock
+failure helper if that allocation returns zero, then passes the allocation
+to ROM `0x02002948` and saves its address in RAM word `0xC084`. It sets up
+a 28-byte local workspace and register values `r4=0x11770`,
+`r10=0x01E2DC44`, `r15=0x01E2DC5C`, and `r9=0` before handing control to
+ROM `0x02001634`. The role of this ROM call and the two table pointers is
+not yet established. `h9_main_sys_event_task_prelude` ports the visible
+prelude through injectable hooks; it stops on allocation failure if the
+stock failure helper returns, rather than handing a null pointer to ROM.
+The app+`0x02D542..0x02D57C` task slice has SHA-256
+`e1015be090c561d330c99d7bcfa526a164fc0d32278060810b108c3754292301`.
 The initializer at app+`0x02C514` walks three 28-byte records at
 `0x01E2DC5C..0x01E2DCB0` and calls each nonzero first-word callback.
 Their first-word targets are app+`0x02C862`, `0x08C9D4`, and `0x02C54C`.

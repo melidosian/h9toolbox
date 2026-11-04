@@ -222,8 +222,10 @@ def verify_stock_image(path: Path) -> None:
             "c13b0a8803bd74a2ca27375475e4fe76e96531a46231a5e2c70d0f01c4fac2bf" or \
             sha256(data[0x462F8:0x46306]).hexdigest() != \
             "495683945a63e4d89abee6ab3f394d7e7267fc2bd7f9f76059e013b47aef6583" or \
-            sha256(data[0x2D4D8:0x2D642]).hexdigest() != \
-            "10382fc8562ad0139706b7d38ca25dc5013bf69c3e666d61e4928a015142647e":
+            sha256(data[0x2D4D8:0x2D542]).hexdigest() != \
+            "46ce3f88d3e6a114a8127c20334a94845d439be5143da7b2ee91e523f9041cde" or \
+            sha256(data[0x2D542:0x2D57C]).hexdigest() != \
+            "e1015be090c561d330c99d7bcfa526a164fc0d32278060810b108c3754292301":
         raise ValueError("Stock task table, lookup, or startup calls differ")
 
 

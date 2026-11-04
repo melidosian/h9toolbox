@@ -73,3 +73,25 @@ int h9_main_sys_event_init(const H9MainSysEvent *event)
                               0u, "sys_event");
     return 0;
 }
+
+int h9_main_sys_event_task_prelude(const H9MainSysEventTaskPrelude *task)
+{
+    H9MainSysEventBlock buffer = { NULL, 0u };
+    uint8_t workspace[28] = { 0u };
+    if (task == NULL || task->state_0xc070 == NULL ||
+        task->allocate == NULL || task->prepare_region == NULL ||
+        task->enter_event_loop == NULL) return H9_MAIN_TASK_LAUNCH_ERROR;
+    if (!task->allocate(task->context, 0x50u, &buffer) ||
+        buffer.bytes == NULL || buffer.address == 0u) {
+        if (task->allocation_failure != NULL)
+            task->allocation_failure(task->context);
+        /* The stock failure helper may not return. Until its behavior is
+         * known, the replacement cannot hand a null buffer to the ROM. */
+        return H9_MAIN_SYS_EVENT_ALLOC_ERROR;
+    }
+    task->prepare_region(task->context, buffer.address);
+    store32(task->state_0xc070, 0x14u, buffer.address);
+    task->enter_event_loop(task->context, workspace, buffer.address,
+                           0x00011770u, 0x01E2DC44u, 0x01E2DC5Cu, 0u);
+    return 0;
+}

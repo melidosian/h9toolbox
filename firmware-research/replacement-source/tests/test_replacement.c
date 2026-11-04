@@ -5897,6 +5897,89 @@ static void test_main_sys_event_init(void)
            capture.task.calls == 1u);
 }
 
+typedef struct {
+    uint8_t state[0x24];
+    uint8_t buffer[0x50];
+    unsigned calls;
+    bool fail_allocate;
+    unsigned failure_calls;
+    unsigned handoffs;
+    uint32_t prepared_address;
+    uint32_t handed_buffer;
+    uint32_t handed_state;
+    uint32_t handed_table_a;
+    uint32_t handed_table_b;
+    uint32_t handed_zero;
+} SysEventTaskCapture;
+
+static bool sys_event_task_allocate(void *context, uint32_t size,
+                                    H9MainSysEventBlock *block)
+{
+    SysEventTaskCapture *capture = (SysEventTaskCapture *)context;
+    assert(size == 0x50u);
+    ++capture->calls;
+    if (capture->fail_allocate) return false;
+    block->bytes = capture->buffer;
+    block->address = 0x40000u;
+    return true;
+}
+
+static void sys_event_task_failure(void *context)
+{
+    SysEventTaskCapture *capture = (SysEventTaskCapture *)context;
+    ++capture->failure_calls;
+}
+
+static void sys_event_task_prepare(void *context, uint32_t address)
+{
+    SysEventTaskCapture *capture = (SysEventTaskCapture *)context;
+    capture->prepared_address = address;
+}
+
+static void sys_event_task_handoff(void *context, uint8_t workspace[28],
+                                   uint32_t buffer_address,
+                                   uint32_t event_state, uint32_t table_a,
+                                   uint32_t table_b, uint32_t zero_register)
+{
+    SysEventTaskCapture *capture = (SysEventTaskCapture *)context;
+    assert(workspace != NULL && workspace[0] == 0u &&
+           workspace[27] == 0u);
+    ++capture->handoffs;
+    capture->handed_buffer = buffer_address;
+    capture->handed_state = event_state;
+    capture->handed_table_a = table_a;
+    capture->handed_table_b = table_b;
+    capture->handed_zero = zero_register;
+}
+
+static void test_main_sys_event_task_prelude(void)
+{
+    SysEventTaskCapture capture = { 0 };
+    H9MainSysEventTaskPrelude task = {
+        capture.state, &capture, sys_event_task_allocate,
+        sys_event_task_failure, sys_event_task_prepare,
+        sys_event_task_handoff
+    };
+    assert(h9_main_sys_event_task_prelude(NULL) ==
+           H9_MAIN_TASK_LAUNCH_ERROR);
+    assert(h9_main_sys_event_task_prelude(&task) == 0);
+    assert(capture.calls == 1u && capture.handoffs == 1u &&
+           capture.prepared_address == 0x40000u &&
+           sys_event_word(capture.state, 0x14u) == 0x40000u &&
+           capture.handed_buffer == 0x40000u &&
+           capture.handed_state == 0x11770u &&
+           capture.handed_table_a == 0x01E2DC44u &&
+           capture.handed_table_b == 0x01E2DC5Cu &&
+           capture.handed_zero == 0u);
+    memset(&capture, 0, sizeof capture);
+    capture.fail_allocate = true;
+    assert(h9_main_sys_event_task_prelude(&task) ==
+           H9_MAIN_SYS_EVENT_ALLOC_ERROR);
+    assert(capture.calls == 1u && capture.failure_calls == 1u &&
+           capture.prepared_address == 0u && capture.handoffs == 0u &&
+           sys_event_word(capture.state, 0x14u) == 0u);
+}
+
 int main(void)
 {
 #ifdef _MSC_VER
@@ -5960,6 +6043,7 @@ int main(void)
     test_main_task_registry();
     test_main_core_list();
     test_main_sys_event_init();
+    test_main_sys_event_task_prelude();
     test_main_timer3_irq();
     test_main_exception_capture();
     test_main_serial_profile();
