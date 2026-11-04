@@ -75,7 +75,7 @@ static bool consume_py_control(H9MainAprsSession *session,
     uint8_t checksum;
     if (length < 6u || bytes[0] != 'P' || bytes[1] != 'Y' ||
         bytes[2] != 2u || bytes[3] != 1u) return false;
-    checksum = (uint8_t)(bytes[1] + bytes[2] + bytes[3] + bytes[4]);
+    checksum = (uint8_t)(bytes[0] + bytes[1] + bytes[2] + bytes[3] + bytes[4]);
     if (bytes[5] != checksum) return false;
     if (bytes[4] == 0x55u) {
         session->py_ready = true;

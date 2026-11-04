@@ -56,7 +56,7 @@ public class H9Inventory extends GhidraScript {
                     DecompileResults result = decompiler.decompileFunction(function, 20, monitor);
                     if (result.decompileCompleted() && result.getDecompiledFunction() != null) {
                         String code = result.getDecompiledFunction().getC();
-                        out.println(code.substring(0, Math.min(code.length(), 12000)));
+                        out.println(code.substring(0, Math.min(code.length(), 50000)));
                     } else {
                         out.println("decompile_error=" + result.getErrorMessage());
                     }

@@ -21,7 +21,10 @@ capacity of `1024`, and zero flags. The callback's low 16-bit return value is
 the received byte count. The routine checks for a `PY`-prefixed control
 message before placing ordinary bytes in the ring. A read of at least six
 bytes with prefix `PY 02 01` is accepted as control when byte 5 equals the
-8-bit sum of bytes 1 through 4. Command byte 4 equal to `0x55` sets a flag at
+8-bit sum of bytes 0 through 4. The independent Pi32v2 decode at
+app+`0x078F44..0x078F5C` starts the sum with `0x50` (the `P` byte), then adds
+bytes 1 through 4; a prior reading that omitted `P` was incorrect. Command
+byte 4 equal to `0x55` sets a flag at
 RAM `0x11B32` (app+`0x078FD8`); command `0x0D` calls the stock reply helper
 at app+`0x07861E` with argument 1. That helper constructs a seven-byte
 `THD 00 01 13 14` reply and sends it through a serial writer. The flag's
@@ -43,5 +46,19 @@ through the read callback. Counting dropped bytes is a replacement policy;
 the stock overflow flag's behavior is still unknown. The two observed `PY`
 control effects are ported to `h9_main_aprs_session.*`; serial object
 construction, peripheral setup, and board callback remain unmapped. The
-stock producer's `r1 == 3` caller has not been traced to
-a specific UART instance.
+registration routine starts at app+`0x088180`. It constructs a 32-byte serial
+open record at stack+`0x24`, with pin identifiers `0x20,0x21` at offsets `0,1`,
+RAM pointer `0x10CFC` at `+4`, sizes `2048` and `1024` at `+8,+12`, value `10`
+at `+16`, producer callback `0x01E78FFE` at `+20`, zero at `+24`, and baud
+`19200` at `+28`. It passes that record to app+`0x0C57BC` and stores the
+returned serial object at RAM `0x11CFC`. The later producer reads from that
+object's callback slot `+16`. Ghidra's seeded decompilation and the separate
+Pi32v2 decode agree on the stack record; the semantic roles of the RAM
+pointer, two sizes, and value `10` still need board verification.
+
+The open routine at app+`0x0C57BC` compares the pin identifiers with a device
+table, selects one of three UART register blocks (`0x001E2000`, `0x001E2100`,
+`0x001E2200`), registers interrupt numbers `0x12`, `0x13`, or `0x14`, and
+returns a serial object rooted at `0x1E258`, `0x1E32C`, or `0x1E400`. Its
+hardware selection for pins `0x20,0x21`, interrupt callback behavior, and
+read/write timing remain untested. No board adapter is connected yet.

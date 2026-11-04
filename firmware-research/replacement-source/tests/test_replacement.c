@@ -771,14 +771,21 @@ static void test_main_aprs_session(void)
     capture.incoming_chunk = 6u;
     {
         static const uint8_t py_ready[] = {
-            'P', 'Y', 2u, 1u, 0x55u, 0xB1u
+            'P', 'Y', 2u, 1u, 0x55u, 0x01u
         };
         static const uint8_t py_query[] = {
-            'P', 'Y', 2u, 1u, 0x0Du, 0x69u
+            'P', 'Y', 2u, 1u, 0x0Du, 0xB9u
+        };
+        static const uint8_t old_bad_checksum[] = {
+            'P', 'Y', 2u, 1u, 0x55u, 0xB1u
         };
         static const uint8_t thd_reply[] = {
             'T', 'H', 'D', 0u, 1u, 19u, 20u
         };
+        memcpy(capture.incoming, old_bad_checksum, sizeof old_bad_checksum);
+        assert(h9_main_aprs_session_poll(&session) == sizeof old_bad_checksum);
+        assert(!session.py_ready && capture.serial_count == 1u);
+        capture.incoming_offset = 0u;
         memcpy(capture.incoming, py_ready, sizeof py_ready);
         assert(h9_main_aprs_session_poll(&session) == 0u);
         assert(session.py_ready && capture.serial_count == 1u);
