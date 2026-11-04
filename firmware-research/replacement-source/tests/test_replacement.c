@@ -19,6 +19,7 @@
 #include "h9_aprs_uart1_board.h"
 #include "h9_aprs_uart1_tx.h"
 #include "h9_aprs_uart2_board.h"
+#include "h9_aprs_uart2_rx.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_aprs_wave_output.h"
 #include "h9_main_aprs.h"
@@ -1744,6 +1745,61 @@ static void test_aprs_uart2_board_setup_and_raw_write(void)
     assert(board.timeouts == 1u);
 }
 
+static void test_aprs_uart2_irq_forward(void)
+{
+    H9AprsUart2Rx rx = { 0 };
+    H9AprsController controller;
+    H9AprsHardware hardware = { 0 };
+    H9WireDecoder decoded;
+    FakeHardware fake = { 0 };
+    uint32_t usart[6] = { 0 };
+    uint32_t nvic_iser = 0u;
+    size_t index;
+    hardware.context = &fake;
+    hardware.uart_write = uart_write;
+    h9_aprs_controller_init(&controller, &hardware);
+    h9_aprs_uart2_rx_bind(&rx, usart, &nvic_iser);
+    assert(h9_aprs_uart2_rx_start(&rx));
+    assert(nvic_iser == (1u << 28) &&
+           (usart[3] & 0x30u) == 0x30u);
+
+    usart[0] = 0x20u;
+    usart[1] = 'G';
+    h9_aprs_uart2_rx_irq(&rx);
+    usart[0] = 0x30u;
+    usart[1] = 'P';
+    h9_aprs_uart2_rx_irq(&rx);
+    assert(rx.ready && rx.length == 2u &&
+           (usart[3] & 0x30u) == 0u);
+    assert(h9_aprs_uart2_rx_poll(&rx, &controller));
+    assert(!rx.ready && rx.length == 0u &&
+           (usart[3] & 0x30u) == 0x30u);
+    h9_wire_reset(&decoded);
+    for (index = 0; index < fake.uart_length; ++index)
+        (void)h9_wire_feed(&decoded, fake.uart[index]);
+    assert(decoded.command == 0x10u && decoded.length == 2u &&
+           decoded.payload[0] == 'G' && decoded.payload[1] == 'P');
+
+    usart[0] = 0x20u;
+    usart[1] = 'X';
+    h9_aprs_uart2_rx_irq(&rx);
+    usart[0] = 0x08u;
+    h9_aprs_uart2_rx_irq(&rx);
+    assert(rx.overrun_count == 1u && rx.length == 0u && !rx.ready);
+    assert(!h9_aprs_uart2_rx_poll(&rx, &controller));
+
+    fake.uart_length = 0u;
+    for (index = 0; index < H9_APRS_MAX_SEND; ++index) {
+        usart[0] = 0x20u;
+        usart[1] = 'A';
+        h9_aprs_uart2_rx_irq(&rx);
+    }
+    assert(rx.ready && rx.length == H9_APRS_MAX_SEND);
+    assert(h9_aprs_uart2_rx_poll(&rx, &controller));
+    assert(fake.uart_length == H9_APRS_MAX_SEND + 3u);
+    assert(rx.length == 0u && !rx.ready);
+}
+
 static void test_aprs_gpio_board(void)
 {
     H9AprsGpioBoard board = { 0 };
@@ -1989,7 +2045,7 @@ static void test_aprs_uart1_reply_transmit(void)
     assert(tx.bytes_completed == 14u && usart[1] == 0xC0u);
 
     usart[0] = 0;
-    assert(!h9_aprs_controller_received_packet(&controller, bytes, 1u));
+    assert(!h9_aprs_controller_forward_aux(&controller, bytes, 1u));
     assert(tx.timeouts == 1u && tx.faulted);
     usart[0] = 0xC0u;
     assert(h9_aprs_uart1_tx_write(&tx, bytes, 1u) == 0u);
@@ -2033,6 +2089,7 @@ int main(void)
     test_aprs_uart1_dma_interrupts();
     test_aprs_uart1_board_setup();
     test_aprs_uart2_board_setup_and_raw_write();
+    test_aprs_uart2_irq_forward();
     test_aprs_gpio_board();
     test_aprs_wave_output();
     test_aprs_adc_board();

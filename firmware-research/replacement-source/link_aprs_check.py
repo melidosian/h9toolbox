@@ -107,7 +107,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "__bss_end", "__stack_top", "Default_Handler",
         "h9_aprs_systick_handler",
         "h9_aprs_dma1_channel1_handler", "h9_aprs_adc1_handler",
-        "h9_aprs_usart1_handler",
+        "h9_aprs_usart1_handler", "h9_aprs_usart2_handler",
     }
     for line in symbols.splitlines():
         parts = line.split()
@@ -118,7 +118,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     for slot, handler in ((15, "h9_aprs_systick_handler"),
                           (25, "h9_aprs_dma1_channel1_handler"),
                           (28, "h9_aprs_adc1_handler"),
-                          (43, "h9_aprs_usart1_handler")):
+                          (43, "h9_aprs_usart1_handler"),
+                          (44, "h9_aprs_usart2_handler")):
         vector = struct.unpack_from("<I", table, slot * 4)[0]
         if vector != (symbol_values[handler] | 1):
             raise ValueError(f"Vector {slot} does not point to {handler}")

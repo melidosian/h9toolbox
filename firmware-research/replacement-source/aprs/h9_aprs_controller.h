@@ -42,8 +42,9 @@ typedef struct {
 void h9_aprs_controller_init(H9AprsController *controller,
                              const H9AprsHardware *hardware);
 void h9_aprs_controller_uart_byte(H9AprsController *controller, uint8_t byte);
-bool h9_aprs_controller_received_packet(H9AprsController *controller,
-                                        const uint8_t *packet, size_t length);
+/* Forward raw USART2 bytes to the main radio as serial command 0x10. */
+bool h9_aprs_controller_forward_aux(H9AprsController *controller,
+                                     const uint8_t *bytes, size_t length);
 bool h9_aprs_controller_pop_received_byte(H9AprsController *controller,
                                           uint8_t *byte);
 void h9_aprs_controller_process_received(H9AprsController *controller);

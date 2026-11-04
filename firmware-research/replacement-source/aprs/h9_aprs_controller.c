@@ -122,12 +122,12 @@ void h9_aprs_controller_uart_byte(H9AprsController *controller, uint8_t byte)
     }
 }
 
-bool h9_aprs_controller_received_packet(H9AprsController *controller,
-                                        const uint8_t *packet, size_t length)
+bool h9_aprs_controller_forward_aux(H9AprsController *controller,
+                                     const uint8_t *bytes, size_t length)
 {
-    if (controller == NULL || packet == NULL || length == 0 ||
+    if (controller == NULL || bytes == NULL || length == 0 ||
         length > H9_APRS_MAX_SEND) return false;
-    return send_frame(controller, 0x10u, packet, length);
+    return send_frame(controller, 0x10u, bytes, length);
 }
 
 bool h9_aprs_controller_pop_received_byte(H9AprsController *controller,

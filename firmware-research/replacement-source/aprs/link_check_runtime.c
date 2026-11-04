@@ -97,6 +97,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     H9AprsHardware hardware = { 0 };
     h9_aprs_uart1_tx_bind_target(&runtime.uart1_tx, 240000u);
     h9_aprs_uart2_board_bind_target(&runtime.uart2_board, 240000u);
+    h9_aprs_uart2_rx_bind_target(&runtime.uart2_rx);
     hardware.context = &runtime;
     hardware.uart_write = board_uart_write;
     hardware.uart_ok = board_uart_ok;
@@ -128,6 +129,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
         !h9_aprs_gpio_board_configure(&runtime.gpio_board) ||
         !h9_aprs_uart2_board_configure(&runtime.uart2_board,
                                        system_clock_hz) ||
+        !h9_aprs_uart2_rx_start(&runtime.uart2_rx) ||
         !h9_aprs_uart1_board_configure(&runtime.uart1_board,
                                         system_clock_hz) ||
         !h9_aprs_uart1_dma_start(&runtime.uart1_dma))
@@ -147,6 +149,8 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
             &runtime.controller, h9_aprs_uart1_dma_rearm,
             &runtime.uart1_dma);
         h9_aprs_controller_process_received(&runtime.controller);
+        (void)h9_aprs_uart2_rx_poll(&runtime.uart2_rx,
+                                     &runtime.controller);
         /* RF readiness and carrier sense remain unmapped. This diagnostic
          * entry accepts packets but never authorizes waveform output. */
         (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime, false,
@@ -173,4 +177,9 @@ void h9_aprs_adc1_handler(void)
 void h9_aprs_systick_handler(void)
 {
     h9_aprs_systick_irq(&runtime.systick);
+}
+
+void h9_aprs_usart2_handler(void)
+{
+    h9_aprs_uart2_rx_irq(&runtime.uart2_rx);
 }

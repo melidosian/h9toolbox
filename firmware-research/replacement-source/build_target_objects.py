@@ -42,6 +42,7 @@ SOURCES = {
         "aprs/h9_aprs_uart1_dma.c",
         "aprs/h9_aprs_uart1_tx.c",
         "aprs/h9_aprs_uart2_board.c",
+        "aprs/h9_aprs_uart2_rx.c",
         "aprs/h9_aprs_uart_receive.c",
         "aprs/h9_aprs_wave_output.c",
     ),
