@@ -83,8 +83,19 @@ helper and caps a request to capacity to avoid an out-of-bounds copy if a
 caller supplies an oversized request. A host test connects it to the APRS
 session and decodes a framed version reply across a physical buffer wrap.
 
-The UART1 bulk writer at `0x01EC5F94` places DMA address and length in
-registers `0x001E2114` and `0x001E2118`; the interrupt routine at
+The UART1 bulk writer at `0x01EC5F94` first calls ROM operation `0x02002C80`
+with the TX DMA descriptor at `0x1E3B0`, sets UART control bits `0x2000` and
+`0x0004`, places source address and length in registers `0x001E2114` and
+`0x001E2118`, calls ROM operation `0x02002B66` with that descriptor and zero,
+then clears control bit `0x0004`. The independent decode at
+app+`0x0C5E94..0x0C5EC6` confirms this order. The replacement
+`h9_main_uart1_tx.*` ports the register sequence with mandatory callbacks
+for the two ROM operations; it has no board implementation for them yet.
+The DMA source must remain valid through TX event 1. It cannot directly use
+a temporary reply buffer from `h9_main_aprs_session_poll`; a persistent
+staging/queue layer is still needed.
+
+The interrupt routine at
 `0x01EC5FC8` dispatches event numbers 1, 2, and 3 through the object callback.
 The independent decode at app+`0x0C5EC8..0x0C5F7A` resolves the conditions:
 control bits `0x0004` and `0x8000` signal TX event 1; bits `0x0008` and
@@ -98,5 +109,5 @@ then calls the application event callback. TX event 1 sets control bit
 `h9_main_uart1_irq.*` ports that ordering with injected acknowledgement and
 event callbacks; fake-register tests cover all three events and zero-length
 partial RX. The ROM acknowledgement behavior, DMA setup,
-cache/synchronization rule, actual interrupt-vector binding, and TX path are
+cache/synchronization rule, actual interrupt-vector binding, and completed TX path are
 not yet connected to the replacement board entry.

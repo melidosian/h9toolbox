@@ -34,6 +34,7 @@
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_dma.h"
 #include "h9_main_uart1_irq.h"
+#include "h9_main_uart1_tx.h"
 #include "h9_main_tx_service.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
@@ -2240,6 +2241,50 @@ static void test_main_uart1_irq(void)
            ring.produced == 1129u);
 }
 
+typedef struct {
+    uint32_t *registers;
+    unsigned steps[2];
+    unsigned count;
+} MainTxDmaCapture;
+
+static void main_uart_dma_prepare(void *context, uint32_t descriptor)
+{
+    MainTxDmaCapture *capture = (MainTxDmaCapture *)context;
+    assert(descriptor == 0x001E3B0u);
+    assert(capture->registers[0] == 0u);
+    capture->steps[capture->count++] = 1u;
+}
+
+static void main_uart_dma_enable(void *context, uint32_t descriptor,
+                                  uint32_t option)
+{
+    MainTxDmaCapture *capture = (MainTxDmaCapture *)context;
+    assert(descriptor == 0x001E3B0u && option == 0u);
+    assert(capture->registers[0] == 0x2004u);
+    assert(capture->registers[5] == 0x12345678u);
+    assert(capture->registers[6] == 24u);
+    capture->steps[capture->count++] = 2u;
+}
+
+static void test_main_uart1_tx(void)
+{
+    uint32_t registers[7] = { 0 };
+    MainTxDmaCapture capture = { registers, { 0 }, 0u };
+    H9MainUart1Tx tx = { registers, main_uart_dma_prepare,
+                         main_uart_dma_enable, &capture };
+
+    assert(h9_main_uart1_dma_start(&tx, 0x12345678u, 0u));
+    assert(capture.count == 0u && registers[0] == 0u);
+    assert(h9_main_uart1_dma_start(&tx, 0x12345678u, 24u));
+    assert(capture.count == 2u && capture.steps[0] == 1u &&
+           capture.steps[1] == 2u);
+    assert(registers[0] == 0x2000u);
+    tx.enable_dma = NULL;
+    assert(h9_main_uart1_dma_start(&tx, 0x12345678u, 0u));
+    assert(!h9_main_uart1_dma_start(&tx, 0x12345678u, 24u));
+    assert(capture.count == 2u && registers[0] == 0x2000u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -2261,6 +2306,7 @@ int main(void)
     test_main_serial_profile();
     test_main_serial_dma_read();
     test_main_uart1_irq();
+    test_main_uart1_tx();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();
