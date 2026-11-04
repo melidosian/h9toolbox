@@ -51,6 +51,7 @@
 #include "h9_main_clock_apply.h"
 #include "h9_main_clock_rom_mode.h"
 #include "h9_main_clock_timing.h"
+#include "h9_main_core_list.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_exception.h"
 #include "h9_main_irq_registration.h"
@@ -5778,6 +5779,23 @@ static void test_main_task_registry(void)
            target.report_failure == NULL);
 }
 
+static void test_main_core_list(void)
+{
+    uint32_t words[3] = { 0u, 0u, 0xA5A5A5A5u };
+    H9MainCoreList list = { words, 0x119ECu };
+    H9MainCoreList target;
+    h9_main_core_list_bind_target(&target);
+    assert((uintptr_t)target.words == 0x119ECu &&
+           target.self_address == 0x119ECu);
+    assert(h9_main_core_list_init(NULL) != 0);
+    list.words = NULL;
+    assert(h9_main_core_list_init(&list) != 0);
+    list.words = words;
+    assert(h9_main_core_list_init(&list) == 0);
+    assert(words[0] == 0x119ECu && words[1] == 0x119ECu &&
+           words[2] == 0xA5A5A5A5u);
+}
+
 int main(void)
 {
 #ifdef _MSC_VER
@@ -5839,6 +5857,7 @@ int main(void)
     test_main_post_map_gate();
     test_main_post_map_window();
     test_main_task_registry();
+    test_main_core_list();
     test_main_timer3_irq();
     test_main_exception_capture();
     test_main_serial_profile();

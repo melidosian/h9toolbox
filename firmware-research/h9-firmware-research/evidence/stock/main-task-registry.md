@@ -60,6 +60,26 @@ After further setup, `app_core` sets RAM `0x11B35` to state 10 and loops over
 state handlers, including app+`0x0665B2` for state 10. The initializer
 functions, state handlers, and event scheduler are not yet ported.
 
+The third pointer in the first initializer group targets app+`0x0462F8`.
+Its 14 bytes load RAM address `0x119EC`, store that address to
+words `0x119EC` and `0x119F0`, and return zero. Ghidra and the independent
+Pi32 decode agree. `main/h9_main_core_list.*` ports this self-linked list
+head using injectable RAM storage and a target address binding. Its stock
+slice SHA-256 is
+`495683945a63e4d89abee6ab3f394d7e7267fc2bd7f9f76059e013b47aef6583`.
+The list's consumers and app-core integration are still unknown.
+
+The neighboring first-group initializer at app+`0x02D4D8` sets a guard byte
+at RAM `0xC070`, initializes a list head at `0xC08C`, allocates `0x38` bytes
+for two `0x1C`-byte entries, then requests the `sys_event` task through the
+same task-launch helper. Its allocation-failure branch returns `-12`; the
+task-launch return is ignored in this stock wrapper. Porting it will require
+an allocator contract and the event task entry at app+`0x02D642`.
+The initializer at app+`0x02C514` walks three 28-byte records at
+`0x01E2DC5C..0x01E2DCB0` and calls each nonzero first-word callback.
+Their first-word targets are app+`0x02C862`, `0x08C9D4`, and `0x02C54C`.
+Those callback bodies remain unported.
+
 Stock `my_app` at app+`0x088180` begins with delays, port/configuration
 calls, and radio-device writes. Later in its analyzed body it constructs the
 32-byte APRS serial-open record with pins `0x20/0x21`, 2,048-byte RX storage,
