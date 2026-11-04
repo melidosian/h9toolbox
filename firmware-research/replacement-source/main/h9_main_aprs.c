@@ -1,5 +1,7 @@
 #include "h9_main_aprs.h"
 
+#include <stddef.h>
+
 static bool valid_side(H9Side side)
 {
     return side == H9_SIDE_A || side == H9_SIDE_B;

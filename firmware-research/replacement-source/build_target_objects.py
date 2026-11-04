@@ -89,11 +89,24 @@ def verify_arm_object(data: bytes, source: str) -> None:
         raise ValueError(f"{source}: object is not for ARM")
 
 
-def build(target: str, compiler: str, output: Path) -> dict:
+def verify_main_object(data: bytes, source: str, lto: bool) -> None:
+    if lto:
+        if not data.startswith(b"BC\xc0\xde"):
+            raise ValueError(f"{source}: expected LLVM bitcode for Pi32 LTO")
+        return
+    if len(data) < 20 or data[:6] != b"\x7fELF\x01\x01":
+        raise ValueError(f"{source}: expected little-endian ELF32 object")
+    if int.from_bytes(data[18:20], "little") != 0xF1:
+        raise ValueError(f"{source}: object is not for Pi32v2")
+
+
+def build(target: str, compiler: str, output: Path, no_lto: bool = False) -> dict:
     output.mkdir(parents=True, exist_ok=True)
+    target_flags = [flag for flag in FLAGS[target]
+                    if not (no_lto and flag == "-flto")]
     common_flags = [
         "-std=c11", "-ffreestanding", "-fno-builtin", "-Wall", "-Wextra",
-        "-Werror", *FLAGS[target],
+        "-Werror", *target_flags,
         *(f"-I{ROOT / directory}" for directory in ("common", "aprs", "main")),
     ]
     if target == "main":
@@ -113,6 +126,8 @@ def build(target: str, compiler: str, output: Path) -> dict:
         data = object_path.read_bytes()
         if target == "aprs":
             verify_arm_object(data, source_name)
+        else:
+            verify_main_object(data, source_name, not no_lto)
         objects.append({
             "source": source_name,
             "source_sha256": sha256(source.read_bytes()).hexdigest(),
@@ -130,6 +145,8 @@ def build(target: str, compiler: str, output: Path) -> dict:
         raise ValueError("Archiver did not produce a Unix archive")
     manifest = {
         "target": target,
+        "object_format": "ELF32-pi32v2" if no_lto else
+                         ("LLVM bitcode" if target == "main" else "ELF32-ARM"),
         "compiler": compiler,
         "compiler_version": version,
         "flags": common_flags,
@@ -150,11 +167,16 @@ def main() -> int:
     parser.add_argument("target", choices=SOURCES)
     parser.add_argument("--compiler", help="target compiler executable path")
     parser.add_argument("--output", type=Path, help="object output directory")
+    parser.add_argument("--no-lto", action="store_true",
+                        help="main only: emit native Pi32v2 ELF objects")
     args = parser.parse_args()
     try:
+        if args.no_lto and args.target != "main":
+            raise ValueError("--no-lto is only supported for the main target")
         compiler = find_compiler(args.target, args.compiler)
-        output = args.output or ROOT / "build" / f"target-{args.target}"
-        manifest = build(args.target, compiler, output)
+        directory = "target-main-native" if args.no_lto else f"target-{args.target}"
+        output = args.output or ROOT / "build" / directory
+        manifest = build(args.target, compiler, output, args.no_lto)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Build failed: {error}", file=sys.stderr)
         return 1
