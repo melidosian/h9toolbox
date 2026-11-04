@@ -56,6 +56,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     startup_source = output / "h9_aprs_startup.o"
     vectors = output / "link_check_startup.o"
     run([compiler, *compiler_flags, "-std=c11", "-c",
+         f"-I{ROOT / 'common'}", f"-I{ROOT / 'aprs'}",
          str(source_dir / "link_check_runtime.c"), "-o", str(runtime)])
     run([compiler, *compiler_flags, "-std=c11", "-c",
          str(source_dir / "h9_aprs_startup.c"), "-o", str(startup_source)])
@@ -97,6 +98,17 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
 
     size_tool = sibling_tool(compiler, "arm-none-eabi-size")
     size_output = run([size_tool, str(elf)])
+    symbols = run([sibling_tool(compiler, "arm-none-eabi-nm"), str(elf)])
+    symbol_values = {}
+    for line in symbols.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and parts[2] in {"__bss_end", "__stack_top"}:
+            symbol_values[parts[2]] = int(parts[0], 16)
+    if set(symbol_values) != {"__bss_end", "__stack_top"}:
+        raise ValueError("Linked ELF lacks RAM-boundary symbols")
+    stack_headroom = symbol_values["__stack_top"] - symbol_values["__bss_end"]
+    if stack_headroom < 1024:
+        raise ValueError(f"APRS diagnostic stack headroom is only {stack_headroom} bytes")
     manifest = {
         "kind": "aprs_whole_archive_link_check",
         "stock_envelope": {
@@ -119,6 +131,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "stack_pointer": stack_pointer,
         "reset_vector": reset_vector,
         "size_output": size_output,
+        "bss_end": symbol_values["__bss_end"],
+        "stack_headroom_bytes": stack_headroom,
         "firmware_image_created": False,
         "flashable": False,
     }
@@ -147,6 +161,7 @@ def main() -> int:
     print(f"Vector: stack 0x{manifest['stack_pointer']:08X}, "
           f"reset 0x{manifest['reset_vector']:08X}")
     print(manifest["size_output"])
+    print(f"RAM headroom above BSS: {manifest['stack_headroom_bytes']:,} bytes")
     print("Diagnostic ELF only; no bootable or flashable update image was produced")
     return 0
 

@@ -24,6 +24,7 @@ add_library(h9_replacement_core STATIC
     aprs/h9_aprs_tx_gate.c
     aprs/h9_aprs_tx_packet.c
     aprs/h9_aprs_tx_service.c
+    aprs/h9_aprs_uart_receive.c
     aprs/h9_aprs_controller.c)
 target_include_directories(h9_replacement_core PUBLIC common main aprs)
 if(MSVC)

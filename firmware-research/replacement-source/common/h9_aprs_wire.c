@@ -80,3 +80,48 @@ size_t h9_wire_encode(uint8_t command, const uint8_t *payload, size_t length,
     output[used++] = H9_APRS_FRAME_END;
     return used;
 }
+
+typedef struct {
+    uint8_t bytes[64];
+    size_t used;
+    size_t total;
+    H9WireWrite write;
+    void *context;
+} H9WireStream;
+
+static void stream_flush(H9WireStream *stream)
+{
+    if (stream->used == 0) return;
+    stream->write(stream->context, stream->bytes, stream->used);
+    stream->used = 0;
+}
+
+static void stream_byte(H9WireStream *stream, uint8_t byte)
+{
+    stream->bytes[stream->used++] = byte;
+    stream->total++;
+    if (stream->used == sizeof stream->bytes) stream_flush(stream);
+}
+
+size_t h9_wire_encode_stream(uint8_t command, const uint8_t *payload,
+                             size_t length, H9WireWrite write, void *context)
+{
+    H9WireStream stream = { { 0 }, 0, 0, write, context };
+    size_t index;
+    if (write == NULL || (payload == NULL && length != 0) ||
+        length > H9_APRS_MAX_SEND) return 0;
+    stream_byte(&stream, H9_APRS_FRAME_END);
+    stream_byte(&stream, command);
+    for (index = 0; index < length; ++index) {
+        uint8_t byte = payload[index];
+        if (byte == H9_APRS_FRAME_END || byte == H9_APRS_FRAME_ESCAPE) {
+            stream_byte(&stream, H9_APRS_FRAME_ESCAPE);
+            stream_byte(&stream, byte == H9_APRS_FRAME_END ? 0xDCu : 0xDDu);
+        } else {
+            stream_byte(&stream, byte);
+        }
+    }
+    stream_byte(&stream, H9_APRS_FRAME_END);
+    stream_flush(&stream);
+    return stream.total;
+}

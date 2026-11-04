@@ -8,6 +8,7 @@
 #include "h9_aprs_tx_gate.h"
 #include "h9_aprs_tx_packet.h"
 #include "h9_aprs_tx_service.h"
+#include "h9_aprs_uart_receive.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
 #include "h9_main_aprs_control.h"
@@ -23,6 +24,7 @@
 typedef struct {
     uint8_t uart[H9_APRS_ENCODED_CAPACITY];
     size_t uart_length;
+    unsigned uart_writes;
     uint8_t packet[H9_APRS_MAX_RECEIVE];
     size_t packet_length;
     uint8_t afsk_packet[H9_APRS_MAX_RECEIVE];
@@ -38,9 +40,10 @@ typedef struct {
 static void uart_write(void *opaque, const uint8_t *data, size_t length)
 {
     FakeHardware *fake = (FakeHardware *)opaque;
-    assert(length <= sizeof fake->uart);
-    memcpy(fake->uart, data, length);
-    fake->uart_length = length;
+    assert(length <= sizeof fake->uart - fake->uart_length);
+    memcpy(fake->uart + fake->uart_length, data, length);
+    fake->uart_length += length;
+    fake->uart_writes++;
 }
 
 static void queue_packet(void *opaque, const uint8_t *data, size_t length)
@@ -109,6 +112,24 @@ static void test_wire_vectors(void)
     assert(h9_wire_feed(&decoder, 0x10u) == H9_WIRE_MORE);
     assert(h9_wire_feed(&decoder, 0xDBu) == H9_WIRE_MORE);
     assert(h9_wire_feed(&decoder, 0x01u) == H9_WIRE_REJECTED);
+}
+
+static void test_wire_stream_maximum(void)
+{
+    uint8_t payload[H9_APRS_MAX_SEND];
+    uint8_t expected[H9_APRS_ENCODED_CAPACITY];
+    FakeHardware fake = { 0 };
+    size_t length;
+    memset(payload, H9_APRS_FRAME_END, sizeof payload);
+    length = h9_wire_encode(0x10u, payload, sizeof payload,
+                            expected, sizeof expected);
+    assert(length == sizeof expected);
+    assert(h9_wire_encode_stream(0x10u, payload, sizeof payload,
+                                 uart_write, &fake) == length);
+    assert(fake.uart_length == length && fake.uart_writes > 1u);
+    assert(memcmp(fake.uart, expected, length) == 0);
+    assert(h9_wire_encode_stream(0x10u, NULL, 1u,
+                                 uart_write, &fake) == 0u);
 }
 
 static void test_main_aprs_wire_envelope(void)
@@ -923,6 +944,7 @@ static void test_aprs_controller(void)
     assert(h9_main_aprs_version_from_frame(&main_receiver, &versions));
     assert(versions.has_module && !versions.has_protocol);
     assert(strcmp(versions.module, "V1.0.15") == 0);
+    fake.uart_length = 0;
     query = 0;
     feed_frame(&controller, 0x20u, &query, 1);
     h9_main_wire_reset(&main_receiver);
@@ -975,10 +997,64 @@ static void test_aprs_controller(void)
     for (i = 0; i < 18; ++i) assert(fake.uart[i + 2] == (uint8_t)i);
 }
 
+typedef struct {
+    unsigned calls;
+    uint8_t *buffer;
+    size_t capacity;
+} AprsUartRearmCapture;
+
+static void capture_aprs_uart_rearm(void *context, uint8_t *buffer,
+                                    size_t capacity)
+{
+    AprsUartRearmCapture *capture = (AprsUartRearmCapture *)context;
+    capture->calls++;
+    capture->buffer = buffer;
+    capture->capacity = capacity;
+}
+
+static void test_aprs_uart_receive_batches(void)
+{
+    H9AprsUartReceive receive;
+    H9AprsController controller;
+    H9AprsHardware hardware = { 0 };
+    FakeHardware fake = { 0 };
+    AprsUartRearmCapture rearm = { 0 };
+    uint8_t *buffer;
+    hardware.context = &fake;
+    hardware.uart_write = uart_write;
+    h9_aprs_controller_init(&controller, &hardware);
+    h9_aprs_uart_receive_init(&receive);
+    buffer = h9_aprs_uart_receive_buffer(&receive);
+    assert(buffer == receive.buffers[0]);
+    buffer[0] = 0xC0u;
+    buffer[1] = 0x20u;
+    assert(!h9_aprs_uart_receive_complete(&receive, 0));
+    assert(!h9_aprs_uart_receive_complete(&receive, 513));
+    assert(h9_aprs_uart_receive_complete(&receive, 2));
+    assert(h9_aprs_uart_receive_buffer(&receive) == NULL);
+    assert(!h9_aprs_uart_receive_complete(&receive, 2));
+    assert(h9_aprs_uart_receive_process(&receive, &controller,
+                                        capture_aprs_uart_rearm, &rearm) == 2u);
+    assert(fake.uart_length == 0 && rearm.calls == 1u);
+    assert(rearm.buffer == receive.buffers[1] && rearm.capacity == 512u);
+    buffer = h9_aprs_uart_receive_buffer(&receive);
+    buffer[0] = 1u;
+    buffer[1] = 0xC0u;
+    assert(h9_aprs_uart_receive_complete(&receive, 2));
+    assert(h9_aprs_uart_receive_process(&receive, &controller,
+                                        capture_aprs_uart_rearm, &rearm) == 2u);
+    assert(fake.uart_length > 3 && fake.uart[0] == 0xC0u &&
+           fake.uart[1] == 0x21u);
+    assert(receive.current == 0u && rearm.calls == 2u &&
+           rearm.buffer == receive.buffers[0]);
+    assert(h9_aprs_uart_receive_process(&receive, &controller, NULL, NULL) == 0);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
     test_wire_vectors();
+    test_wire_stream_maximum();
     test_main_aprs_wire_envelope();
     test_main_aprs_wire_receiver();
     test_main_ax25_packet();
@@ -999,5 +1075,6 @@ int main(void)
     test_aprs_tx_gate();
     test_aprs_tx_service();
     test_aprs_controller();
+    test_aprs_uart_receive_batches();
     return 0;
 }

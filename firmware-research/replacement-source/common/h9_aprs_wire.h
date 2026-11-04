@@ -30,5 +30,9 @@ void h9_wire_reset(H9WireDecoder *decoder);
 H9WireResult h9_wire_feed(H9WireDecoder *decoder, uint8_t byte);
 size_t h9_wire_encode(uint8_t command, const uint8_t *payload, size_t length,
                       uint8_t *output, size_t capacity);
+/* The sink must consume or copy each fragment before returning. */
+typedef void (*H9WireWrite)(void *context, const uint8_t *data, size_t length);
+size_t h9_wire_encode_stream(uint8_t command, const uint8_t *payload,
+                             size_t length, H9WireWrite write, void *context);
 
 #endif

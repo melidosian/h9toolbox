@@ -1,5 +1,9 @@
 #include <stddef.h>
 
+#include "h9_aprs_runtime_state.h"
+
+static H9AprsRuntimeState runtime;
+
 /* Temporary freestanding shims for a whole-archive link. The board entry is
    intentionally inert until peripheral integration is source-backed. */
 void *memcpy(void *destination, const void *source, size_t length)
@@ -21,5 +25,8 @@ void *memset(void *destination, int value, size_t length)
 
 __attribute__((noreturn)) void h9_aprs_board_main(void)
 {
+    h9_aprs_controller_init(&runtime.controller, NULL);
+    h9_aprs_tx_service_init(&runtime.tx_service, 0, 0, 0);
+    h9_aprs_uart_receive_init(&runtime.uart_receive);
     for (;;) { }
 }

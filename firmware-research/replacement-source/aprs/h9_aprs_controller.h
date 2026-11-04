@@ -11,6 +11,7 @@
 
 /* Hardware-facing operations still require a board-specific implementation. */
 typedef struct {
+    /* Each outgoing fragment is temporary: transmit or copy it before return. */
     void (*uart_write)(void *context, const uint8_t *data, size_t length);
     void (*set_radio_gpio)(void *context, bool high);
     bool (*read_radio_gpio)(void *context);
@@ -34,7 +35,6 @@ typedef struct {
     H9AprsFrame frame;
     H9AprsTx tx;
     H9AprsHardware hardware;
-    uint8_t tx_frame[H9_APRS_ENCODED_CAPACITY];
 } H9AprsController;
 
 void h9_aprs_controller_init(H9AprsController *controller,
