@@ -223,3 +223,45 @@ bool h9_main_clock_match(H9MainClockMatch *match, uint32_t target_hz)
     *match->result_d9e4 = UINT32_MAX;
     return false;
 }
+
+void h9_main_clock_registers_bind_target(H9MainClockRegisters *registers)
+{
+    if (registers == NULL) return;
+    registers->control_1e0014 =
+        (volatile uint32_t *)(uintptr_t)0x001E0014u;
+    registers->source_d9fc = (volatile uint8_t *)(uintptr_t)0x0000D9FCu;
+    registers->divider_da00 = (volatile uint8_t *)(uintptr_t)0x0000DA00u;
+    registers->result_d9e4 = (volatile uint32_t *)(uintptr_t)0x0000D9E4u;
+}
+
+bool h9_main_clock_program_source(H9MainClockRegisters *registers)
+{
+    uint32_t control;
+    if (registers == NULL || registers->control_1e0014 == NULL ||
+        registers->source_d9fc == NULL || registers->divider_da00 == NULL ||
+        registers->result_d9e4 == NULL ||
+        *registers->result_d9e4 == UINT32_MAX) return false;
+    control = registers->control_1e0014[0];
+    control = (control & ~0x3u) | (*registers->source_d9fc & 0x3u);
+    registers->control_1e0014[0] = control;
+    control = registers->control_1e0014[0];
+    control = (control & ~0x3Cu) |
+              (((uint32_t)*registers->divider_da00 & 0xFu) << 2);
+    registers->control_1e0014[0] = control;
+    return true;
+}
+
+bool h9_main_clock_latch_source(H9MainClockRegisters *registers)
+{
+    uint32_t ignored;
+    uint32_t bit;
+    if (registers == NULL || registers->control_1e0014 == NULL)
+        return false;
+    /* Stock performs six volatile reads before setting one bit per write. */
+    for (bit = 0u; bit < 6u; ++bit)
+        ignored = registers->control_1e0014[0];
+    (void)ignored;
+    for (bit = 28u; bit >= 24u; --bit)
+        registers->control_1e0014[12] |= 1u << bit;
+    return true;
+}

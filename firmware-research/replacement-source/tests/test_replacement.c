@@ -4050,6 +4050,34 @@ static void test_main_clock_match(void)
     assert(result == UINT32_MAX);
 }
 
+static void test_main_clock_source_registers(void)
+{
+    uint32_t storage[15];
+    uint32_t *control = storage + 1u;
+    uint8_t source = 3u;
+    uint8_t divider = 4u;
+    uint32_t result = 240000000u;
+    H9MainClockRegisters registers = {
+        control, &source, &divider, &result
+    };
+    unsigned index;
+    for (index = 0u; index < 15u; ++index)
+        storage[index] = 0xA5A5A5A5u;
+    assert(!h9_main_clock_program_source(NULL));
+    assert(h9_main_clock_program_source(&registers));
+    assert(control[0] == ((0xA5A5A5A5u & ~0x3Fu) | 0x13u));
+    assert(control[12] == 0xA5A5A5A5u);
+    result = UINT32_MAX;
+    source = 0u;
+    divider = 0u;
+    assert(!h9_main_clock_program_source(&registers));
+    assert(control[0] == ((0xA5A5A5A5u & ~0x3Fu) | 0x13u));
+    assert(h9_main_clock_latch_source(&registers));
+    assert(control[12] == (0xA5A5A5A5u | 0x1F000000u));
+    assert(storage[0] == 0xA5A5A5A5u &&
+           storage[14] == 0xA5A5A5A5u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -4085,6 +4113,7 @@ int main(void)
     test_main_clock_band();
     test_main_clock_calculation();
     test_main_clock_match();
+    test_main_clock_source_registers();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

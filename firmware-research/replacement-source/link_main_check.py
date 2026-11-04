@@ -321,6 +321,34 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     if stock_clock_tables not in text_data:
         raise ValueError("Linked clock source/divider tables differ from stock")
 
+    register_bind_match = re.search(
+        r"(?ms)^h9_main_clock_registers_bind_target:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    register_program_match = re.search(
+        r"(?ms)^h9_main_clock_program_source:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    register_latch_match = re.search(
+        r"(?ms)^h9_main_clock_latch_source:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if any(item is None for item in
+           (register_bind_match, register_program_match, register_latch_match)):
+        raise ValueError("Linked main ELF lacks clock source register helpers")
+    register_bind = register_bind_match.group(1).lower()
+    register_program = register_program_match.group(1).lower()
+    register_latch = register_latch_match.group(1).lower()
+    if not all(value in register_bind for value in
+               ("1966100", "55804", "r2 = r3 + 4", "r3 += -24")) or \
+            not all(value in register_program for value in
+                    ("if (r1 == -1)", "insert(r1, p:0, l:2)",
+                     "insert(r1, p:2, l:4)")) or \
+            not all(value in register_latch for value in
+                    ("r2 = 6", "r0 = r1", "[r0++=48]", "r1 = 28",
+                     "[r0+0] |= 1 << r1", "r1 > 23")):
+        raise ValueError("Linked clock source helpers differ from stock register flow")
+
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
     bss_start = symbol_address("__bss_start")
@@ -442,6 +470,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_clock_band_path_verified": True,
         "early_board_clock_calculation_path_verified": True,
         "early_board_clock_match_path_verified": True,
+        "clock_source_register_writer_link_verified": True,
+        "clock_source_latch_link_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

@@ -68,4 +68,16 @@ typedef struct {
 void h9_main_clock_match_bind_target(H9MainClockMatch *match);
 bool h9_main_clock_match(H9MainClockMatch *match, uint32_t target_hz);
 
+/* Stock app+0x0C52D4 and app+0x0C5308 update clock source fields. */
+typedef struct {
+    volatile uint32_t *control_1e0014;
+    volatile uint8_t *source_d9fc;
+    volatile uint8_t *divider_da00;
+    volatile uint32_t *result_d9e4;
+} H9MainClockRegisters;
+
+void h9_main_clock_registers_bind_target(H9MainClockRegisters *registers);
+bool h9_main_clock_program_source(H9MainClockRegisters *registers);
+bool h9_main_clock_latch_source(H9MainClockRegisters *registers);
+
 #endif

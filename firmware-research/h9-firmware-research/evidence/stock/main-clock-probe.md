@@ -92,3 +92,18 @@ including match and exhaustion outputs. The diagnostic board entry invokes
 these stages and stops before applying the resulting clock. The Pi32 link
 check verifies key addresses, constants, table bytes, and call placement.
 No radio has run it, and the linked image remains unflashable.
+
+The next two stock helpers are separately ported as
+`h9_main_clock_program_source` and `h9_main_clock_latch_source`. At
+app+`0x0C52D4`, the first helper returns without touching hardware when
+RAM word `0xD9E4` is `0xFFFFFFFF`. Otherwise it reads and writes
+`0x1E0014` twice: RAM byte `0xD9FC` replaces bits 0–1, and RAM byte
+`0xDA00` replaces bits 2–5. At app+`0x0C5308`, the second helper reads
+`0x1E0014` six times, then sets bits 28, 27, 26, 25, and 24 of
+`0x1E0044` in five separate writes. The replacement exposes injectable
+register pointers and a target-address binder, with host tests for the
+bitfields, failure sentinel, and latch bits. The Pi32 link check inspects
+their emitted instructions. These helpers are linked but are **not** called
+by the diagnostic board entry: the intervening stock ROM, timing, and gate
+sequence is still under study. No hardware behavior is inferred from the
+host tests or link check.
