@@ -35,8 +35,21 @@ H9WireResult h9_wire_feed(H9WireDecoder *decoder, uint8_t byte)
     }
     if (!decoder->started) return H9_WIRE_MORE;
     if (!decoder->has_command) {
-        decoder->command = byte;
+        /* FUN_08005B8C keeps these packet commands intact; all other
+         * command bytes are reduced to their low nibble. */
+        decoder->command = byte == 0x10u || byte == 0x11u ||
+                           byte == 0x13u || byte == 0x20u ||
+                           byte == 0x21u ? byte : (byte & 0x0Fu);
         decoder->has_command = 1;
+        return H9_WIRE_MORE;
+    }
+    if (decoder->command == 1u || decoder->command == 2u ||
+        decoder->command == 3u || decoder->command == 4u ||
+        decoder->command == 0x0Fu) {
+        /* These one-byte settings are raw in stock, even when the byte is
+         * 0xDB. Each new byte replaces the previous setting. */
+        decoder->payload[0] = byte;
+        decoder->length = 1u;
         return H9_WIRE_MORE;
     }
     if (decoder->escaped) {

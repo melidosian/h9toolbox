@@ -28,11 +28,18 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
     if sha256(aprs_image).hexdigest() != APRS_SHA256:
         raise ValueError("APRS image is not the analyzed v1.0.15 image")
     for literal, address in ((0x080026C8, 0x20000110),
-                             (0x080026D0, 0x20000114)):
+                             (0x080026D0, 0x20000114),
+                             (0x080057F4, 0x2000011C),
+                             (0x08005DD4, 0x20000110),
+                             (0x08005DD8, 0x20000114),
+                             (0x08005DDC, 0x20000118),
+                             (0x08005DE0, 0x2000011C),
+                             (0x08005DE4, 0x2000010E)):
         if struct.unpack_from("<I", aprs_image, literal - APRS_BASE)[0] != address:
-            raise ValueError(f"APRS TX timing pointer differs at 0x{literal:08X}")
-    for name, expected in (("LEAD", 500), ("TAIL", 100)):
-        match = re.search(rf"H9_APRS_STOCK_TX_{name}_MS\s*=\s*(\d+)",
+            raise ValueError(f"APRS TX setting pointer differs at 0x{literal:08X}")
+    for name, expected in (("LEAD_MS", 500), ("TAIL_MS", 100),
+                           ("PARAMETER3_MS", 200), ("PERSISTENCE", 63)):
+        match = re.search(rf"H9_APRS_STOCK_TX_{name}\s*=\s*(\d+)",
                           tx_defaults_source)
         if match is None or int(match.group(1)) != expected:
             raise ValueError(f"APRS stock TX {name.lower()} default differs")
@@ -184,7 +191,7 @@ def main() -> None:
            source.read_text(encoding="utf-8"),
            tx_source.read_text(encoding="utf-8"),
            tx_defaults.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/tables/limits and Dual Watch side and frequency copies, control group 07 timer/volume paths, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, APRS TX timing pointers/defaults, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, TX call/tables/limits and Dual Watch side and frequency copies, control group 07 timer/volume paths, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, APRS TX setting pointers/defaults, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

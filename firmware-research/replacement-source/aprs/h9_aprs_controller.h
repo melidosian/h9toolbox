@@ -9,6 +9,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Parameter 3 is a 10-ms scaled stock setting; its runtime use is untraced. */
+typedef struct {
+    uint16_t lead_ms;
+    uint16_t tail_ms;
+    uint16_t parameter3_ms;
+    uint8_t persistence;
+} H9AprsTxSettings;
+
 /* Hardware-facing operations still require a board-specific implementation. */
 typedef struct {
     /* Each outgoing fragment is temporary: transmit or copy it before return. */
@@ -19,6 +27,7 @@ typedef struct {
     /* Called synchronously for serial command 0x00; copy packet if deferred. */
     void (*transmit_aprs_packet)(void *context, const uint8_t *packet,
                                  size_t length);
+    void (*tx_settings_changed)(void *context, const H9AprsTxSettings *settings);
     /* Command 0x11/4 writes raw bytes to USART2 when GPIOB bit 5 is high. */
     void (*aux_uart_write)(void *context, const uint8_t *data, size_t length);
     bool (*read_status)(void *context, uint8_t output[48]);
@@ -36,6 +45,7 @@ typedef struct {
     H9AprsDemod demod;
     H9AprsFrame frame;
     H9AprsTx tx;
+    H9AprsTxSettings tx_settings;
     H9AprsHardware hardware;
     bool tx_status_enabled;
     uint32_t valid_rx_frames;

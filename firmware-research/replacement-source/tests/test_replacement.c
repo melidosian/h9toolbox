@@ -59,6 +59,8 @@ typedef struct {
     uint8_t afsk_packet[H9_APRS_MAX_RECEIVE];
     size_t afsk_packet_length;
     H9AprsTxService *tx_service;
+    H9AprsTxSettings tx_settings;
+    unsigned tx_settings_changes;
     int demod_calls;
     int dac_calls;
     int16_t sample;
@@ -84,6 +86,18 @@ static void queue_packet(void *opaque, const uint8_t *data, size_t length)
     assert(length <= sizeof fake->packet);
     memcpy(fake->packet, data, length);
     fake->packet_length = length;
+}
+
+static void capture_tx_settings(void *opaque,
+                                const H9AprsTxSettings *settings)
+{
+    FakeHardware *fake = (FakeHardware *)opaque;
+    fake->tx_settings = *settings;
+    fake->tx_settings_changes++;
+    if (fake->tx_service != NULL) {
+        fake->tx_service->wave.lead_ms = settings->lead_ms;
+        fake->tx_service->wave.tail_ms = settings->tail_ms;
+    }
 }
 
 static bool read_aux_gate(void *opaque)
@@ -1865,6 +1879,7 @@ static void test_aprs_controller(void)
     FakeHardware fake = { 0 };
     H9AprsHardware hw = { 0 };
     H9AprsController controller;
+    H9AprsTxService service;
     H9MainAprsVersions versions;
     H9MainWireReceiver main_receiver;
     uint8_t send_packet[] = { 4, 0x41, 0xC0, 0xDB };
@@ -1876,13 +1891,50 @@ static void test_aprs_controller(void)
     hw.read_radio_gpio = read_aux_gate;
     hw.read_status = read_status;
     hw.transmit_aprs_packet = transmit_afsk_packet;
+    hw.tx_settings_changed = capture_tx_settings;
     hw.read_adc = read_adc;
     hw.demod_sample = demod;
     hw.read_dac_port = read_dac;
     hw.write_dac_port = write_dac;
     hw.tx_wave_active = tx_active;
     hw.next_tx_wave_sample = next_tx_wave;
+    h9_aprs_tx_service_init(&service, 0u,
+                            H9_APRS_STOCK_TX_LEAD_MS,
+                            H9_APRS_STOCK_TX_TAIL_MS);
+    fake.tx_service = &service;
     h9_aprs_controller_init(&controller, &hw);
+    assert(controller.tx_settings.lead_ms == 500u &&
+           controller.tx_settings.tail_ms == 100u &&
+           controller.tx_settings.parameter3_ms == 200u &&
+           controller.tx_settings.persistence == 63u);
+    /* Stock applies single-byte configuration commands before frame end. */
+    h9_aprs_controller_uart_byte(&controller, 0xC0u);
+    h9_aprs_controller_uart_byte(&controller, 0x31u); /* low-nibble alias */
+    h9_aprs_controller_uart_byte(&controller, 42u);
+    assert(controller.tx_settings.lead_ms == 420u &&
+           service.wave.lead_ms == 420u && fake.tx_settings_changes == 1u);
+    h9_aprs_controller_uart_byte(&controller, 0xDBu); /* raw, not escape */
+    assert(controller.tx_settings.lead_ms == 2190u &&
+           service.wave.lead_ms == 2190u);
+    h9_aprs_controller_uart_byte(&controller, 0xC0u);
+    h9_aprs_controller_uart_byte(&controller, 0xC0u);
+    h9_aprs_controller_uart_byte(&controller, 4u);
+    h9_aprs_controller_uart_byte(&controller, 12u);
+    assert(controller.tx_settings.tail_ms == 120u &&
+           service.wave.tail_ms == 120u);
+    h9_aprs_controller_uart_byte(&controller, 0xC0u);
+    h9_aprs_controller_uart_byte(&controller, 0xC0u);
+    h9_aprs_controller_uart_byte(&controller, 3u);
+    h9_aprs_controller_uart_byte(&controller, 25u);
+    assert(controller.tx_settings.parameter3_ms == 250u);
+    h9_aprs_controller_uart_byte(&controller, 0xC0u);
+    h9_aprs_controller_uart_byte(&controller, 0xC0u);
+    h9_aprs_controller_uart_byte(&controller, 2u);
+    h9_aprs_controller_uart_byte(&controller, 17u);
+    assert(controller.tx_settings.persistence == 17u &&
+           fake.tx_settings.persistence == 17u &&
+           fake.tx_settings_changes == 5u);
+    h9_aprs_controller_uart_byte(&controller, 0xC0u);
     assert(!h9_aprs_controller_report_tx_encoded(&controller));
     query = 1u;
     feed_frame(&controller, 0x0Fu, &query, 1u);

@@ -94,6 +94,14 @@ static void board_submit_packet(void *context, const uint8_t *packet,
     (void)h9_aprs_tx_runtime_submit(&state->tx_runtime, packet, length);
 }
 
+static void board_tx_settings_changed(void *context,
+                                      const H9AprsTxSettings *settings)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    state->tx_service.wave.lead_ms = settings->lead_ms;
+    state->tx_service.wave.tail_ms = settings->tail_ms;
+}
+
 static bool board_tx_wave_active(void *context)
 {
     H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
@@ -144,6 +152,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     hardware.write_dac_port = board_write_wave_port;
     hardware.read_adc = board_read_adc;
     hardware.transmit_aprs_packet = board_submit_packet;
+    hardware.tx_settings_changed = board_tx_settings_changed;
     hardware.tx_wave_active = board_tx_wave_active;
     hardware.next_tx_wave_sample = board_next_tx_wave;
     h9_aprs_controller_init(&runtime.controller, &hardware);
@@ -193,7 +202,8 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
         /* RF readiness and carrier sense remain unmapped. This diagnostic
          * entry accepts packets but never authorizes waveform output. */
         (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime, false,
-                                      true, false, false, 0u);
+                                      true, false, false,
+                                      runtime.controller.tx_settings.persistence);
         if (h9_aprs_tx_service_take_encoded_event(&runtime.tx_service))
             (void)h9_aprs_controller_report_tx_encoded(&runtime.controller);
     }

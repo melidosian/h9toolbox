@@ -52,10 +52,6 @@ static void dispatch(H9AprsController *controller)
     size_t length = controller->wire.length;
     void *context = controller->hardware.context;
     switch (controller->wire.command) {
-    case 0x0Fu:
-        if (length != 0u)
-            controller->tx_status_enabled = data[length - 1u] != 0u;
-        break;
     case 0x00u:
         if (length != 0 && controller->hardware.transmit_aprs_packet != NULL)
             controller->hardware.transmit_aprs_packet(context, data, length);
@@ -105,6 +101,36 @@ static void dispatch(H9AprsController *controller)
     }
 }
 
+static void apply_raw_setting(H9AprsController *controller,
+                              uint8_t command, uint8_t value)
+{
+    H9AprsTxSettings *settings = &controller->tx_settings;
+    switch (command) {
+    case 1u:
+        settings->lead_ms = (uint16_t)value * 10u;
+        controller->tx.lead_ms = settings->lead_ms;
+        break;
+    case 2u:
+        settings->persistence = value;
+        break;
+    case 3u:
+        settings->parameter3_ms = (uint16_t)value * 10u;
+        break;
+    case 4u:
+        settings->tail_ms = (uint16_t)value * 10u;
+        controller->tx.tail_ms = settings->tail_ms;
+        break;
+    case 0x0Fu:
+        controller->tx_status_enabled = value != 0u;
+        return;
+    default:
+        return;
+    }
+    if (controller->hardware.tx_settings_changed != NULL)
+        controller->hardware.tx_settings_changed(controller->hardware.context,
+                                                 settings);
+}
+
 void h9_aprs_controller_init(H9AprsController *controller,
                              const H9AprsHardware *hardware)
 {
@@ -114,15 +140,26 @@ void h9_aprs_controller_init(H9AprsController *controller,
     h9_wire_reset(&controller->wire);
     h9_aprs_demod_init(&controller->demod);
     h9_aprs_frame_init(&controller->frame);
-    h9_aprs_tx_init(&controller->tx, H9_APRS_STOCK_TX_LEAD_MS,
-                    H9_APRS_STOCK_TX_TAIL_MS);
+    controller->tx_settings.lead_ms = H9_APRS_STOCK_TX_LEAD_MS;
+    controller->tx_settings.tail_ms = H9_APRS_STOCK_TX_TAIL_MS;
+    controller->tx_settings.parameter3_ms = H9_APRS_STOCK_TX_PARAMETER3_MS;
+    controller->tx_settings.persistence = H9_APRS_STOCK_TX_PERSISTENCE;
+    h9_aprs_tx_init(&controller->tx, controller->tx_settings.lead_ms,
+                    controller->tx_settings.tail_ms);
 }
 
 void h9_aprs_controller_uart_byte(H9AprsController *controller, uint8_t byte)
 {
     H9WireResult result;
+    bool setting_byte;
     if (controller == NULL) return;
+    setting_byte = controller->wire.started && controller->wire.has_command &&
+                   byte != H9_APRS_FRAME_END;
     result = h9_wire_feed(&controller->wire, byte);
+    if (setting_byte && result == H9_WIRE_MORE &&
+        controller->wire.length == 1u)
+        apply_raw_setting(controller, controller->wire.command,
+                          controller->wire.payload[0]);
     if (result == H9_WIRE_FRAME) {
         dispatch(controller);
         h9_wire_reset(&controller->wire);
@@ -165,6 +202,11 @@ bool h9_aprs_controller_configure_tx(H9AprsController *controller,
 {
     if (controller == NULL || controller->tx.active) return false;
     h9_aprs_tx_init(&controller->tx, lead_ms, tail_ms);
+    controller->tx_settings.lead_ms = lead_ms;
+    controller->tx_settings.tail_ms = tail_ms;
+    if (controller->hardware.tx_settings_changed != NULL)
+        controller->hardware.tx_settings_changed(controller->hardware.context,
+                                                 &controller->tx_settings);
     return true;
 }
 
