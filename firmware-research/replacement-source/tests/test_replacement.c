@@ -7,6 +7,7 @@
 #include "h9_aprs_clock.h"
 #include "h9_aprs_ring.h"
 #include "h9_aprs_sample_timer.h"
+#include "h9_aprs_status.h"
 #include "h9_aprs_tx.h"
 #include "h9_aprs_tx_gate.h"
 #include "h9_aprs_tx_packet.h"
@@ -47,6 +48,8 @@ typedef struct {
     uint8_t dac;
     bool tx_active;
     bool aux_gate;
+    bool status_valid;
+    H9AprsStatusSnapshot status;
 } FakeHardware;
 
 static void uart_write(void *opaque, const uint8_t *data, size_t length)
@@ -69,6 +72,14 @@ static void queue_packet(void *opaque, const uint8_t *data, size_t length)
 static bool read_aux_gate(void *opaque)
 {
     return ((FakeHardware *)opaque)->aux_gate;
+}
+
+static bool read_status(void *opaque, uint8_t output[H9_APRS_STATUS_BYTES])
+{
+    FakeHardware *fake = (FakeHardware *)opaque;
+    if (!fake->status_valid) return false;
+    h9_aprs_status_encode(&fake->status, output);
+    return true;
 }
 
 static void transmit_afsk_packet(void *opaque, const uint8_t *data,
@@ -1401,6 +1412,7 @@ static void test_aprs_controller(void)
     hw.uart_write = uart_write;
     hw.aux_uart_write = queue_packet;
     hw.read_radio_gpio = read_aux_gate;
+    hw.read_status = read_status;
     hw.transmit_aprs_packet = transmit_afsk_packet;
     hw.read_adc = read_adc;
     hw.demod_sample = demod;
@@ -1454,6 +1466,38 @@ static void test_aprs_controller(void)
     main_receiver.payload[1] = 'X';
     assert(!h9_main_aprs_version_from_frame(&main_receiver, &versions));
     assert(strcmp(versions.module, "V1.0.15") == 0);
+    fake.status_valid = true;
+    fake.status.words[0] = 0x01020304u;
+    fake.status.words[8] = 0x1000u;
+    fake.status.words[9] = 0xAABBCCDDu;
+    fake.status.current_tick = 0x1234u;
+    fake.status.word_10_low = 0xABu;
+    fake.status.serial_halfword = 0x1234u;
+    fake.status.serial_byte_a = 0x56u;
+    fake.status.serial_byte_b = 0x78u;
+    fake.uart_length = 0u;
+    feed_frame(&controller, 0x13u, &query, 0u);
+    h9_main_wire_reset(&main_receiver);
+    for (i = 0; i < fake.uart_length; ++i)
+        (void)h9_main_wire_feed(&main_receiver, fake.uart[i]);
+    assert(main_receiver.frame_ready && main_receiver.command == 0x13u &&
+           main_receiver.length == H9_APRS_STATUS_BYTES);
+    assert(main_receiver.payload[0] == 4u &&
+           main_receiver.payload[1] == 3u &&
+           main_receiver.payload[2] == 2u &&
+           main_receiver.payload[3] == 1u);
+    assert(main_receiver.payload[32] == 0u &&
+           main_receiver.payload[33] == 0x10u &&
+           main_receiver.payload[36] == 0xDDu &&
+           main_receiver.payload[39] == 0xAAu);
+    assert(main_receiver.payload[40] == 0xABu &&
+           main_receiver.payload[41] == 0x34u &&
+           main_receiver.payload[42] == 0x34u &&
+           main_receiver.payload[43] == 0x12u &&
+           main_receiver.payload[44] == 0x56u &&
+           main_receiver.payload[45] == 0x78u &&
+           main_receiver.payload[46] == 0x34u &&
+           main_receiver.payload[47] == 0x02u);
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.demod_calls == 1 && fake.sample == 0);
     assert(fake.dac_calls == 1 && fake.dac == 0x85u);
