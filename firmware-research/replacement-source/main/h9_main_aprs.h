@@ -51,6 +51,24 @@ H9Side h9_main_side_from_state(uint8_t side_state);
 H9Side h9_main_rf_setup_side(bool dual_watch, uint8_t route_side_byte,
                              uint8_t channel_side_state);
 
+/* The A/B setup routines copy these two 10 Hz frequency words from RAM
+ * 0x11CA0/0x11CA4 or 0x11CA8/0x11CAC to the working 0x11C8C/0x11C9C.
+ * The second word is the normal TX candidate; 0x12BBA selects the first
+ * instead. Other channel settings copied by stock remain unported. */
+typedef struct {
+    uint32_t receive_10hz;
+    uint32_t transmit_10hz;
+} H9MainRfChannelFrequencies;
+
+bool h9_main_rf_select_working_frequencies(
+    bool dual_watch, uint8_t route_side_byte, uint8_t channel_side_state,
+    const H9MainRfChannelFrequencies *a,
+    const H9MainRfChannelFrequencies *b,
+    H9MainRfChannelFrequencies *working, H9Side *selected_side);
+bool h9_main_rf_tx_candidate_10hz(
+    const H9MainRfChannelFrequencies *working,
+    bool use_receive_frequency, uint32_t *candidate_10hz);
+
 /* Policy only: actual audio gates and decoder tap have not been located. */
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
                                H9Side received_side);

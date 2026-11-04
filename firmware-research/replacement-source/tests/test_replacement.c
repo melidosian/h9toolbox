@@ -1068,6 +1068,12 @@ static void test_main_aprs_session(void)
 static void test_main_policy(void)
 {
     H9MainAprsConfig cfg = { true, true, H9_RX_B, H9_TX_B_LOCK };
+    const H9MainRfChannelFrequencies a = { 44539000u, 44540000u };
+    const H9MainRfChannelFrequencies b = { 14439000u, 14441000u };
+    const H9MainRfChannelFrequencies empty_b = { 0u, 0u };
+    H9MainRfChannelFrequencies working = { 0u, 0u };
+    H9Side selected_side = H9_SIDE_A;
+    uint32_t candidate_10hz = 0u;
     H9AudioPlan audio;
     H9TxPlan tx;
     uint8_t side_state = 0x2Du;
@@ -1081,6 +1087,28 @@ static void test_main_policy(void)
     assert(h9_main_rf_setup_side(true, 0u, side_state) == H9_SIDE_A);
     assert(h9_main_rf_setup_side(true, 1u, 0x2Du) == H9_SIDE_B);
     assert(h9_main_rf_setup_side(true, 0xFFu, 0x2Du) == H9_SIDE_B);
+    assert(h9_main_rf_select_working_frequencies(true, 1u, 0x2Du,
+                                                  &a, &b, &working,
+                                                  &selected_side));
+    assert(selected_side == H9_SIDE_B &&
+           working.receive_10hz == b.receive_10hz &&
+           working.transmit_10hz == b.transmit_10hz);
+    assert(h9_main_rf_tx_candidate_10hz(&working, false, &candidate_10hz));
+    assert(candidate_10hz == b.transmit_10hz);
+    assert(h9_main_rf_tx_candidate_10hz(&working, true, &candidate_10hz));
+    assert(candidate_10hz == b.receive_10hz);
+    assert(h9_main_rf_select_working_frequencies(false, 1u, 0x2Du,
+                                                  &a, &b, &working,
+                                                  &selected_side));
+    assert(selected_side == H9_SIDE_A &&
+           working.receive_10hz == a.receive_10hz &&
+           working.transmit_10hz == a.transmit_10hz);
+    assert(!h9_main_rf_select_working_frequencies(true, 1u, 0x2Du,
+                                                   &a, &empty_b, &working,
+                                                   &selected_side));
+    assert(selected_side == H9_SIDE_A &&
+           working.transmit_10hz == a.transmit_10hz);
+    assert(!h9_main_rf_tx_candidate_10hz(NULL, false, &candidate_10hz));
     assert(h9_main_track_side_bit(side_state, false, 445390000u,
                                   445390000u, 144390000u) == side_state);
     assert(h9_main_track_side_bit(side_state, true, 145000000u,

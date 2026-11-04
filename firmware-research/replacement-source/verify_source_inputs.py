@@ -50,6 +50,21 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "BF EA 29 ED 04 82 BF EA AE ED"
     ):
         raise ValueError("main Dual Watch RF-side selector differs")
+    if main_app[0x0567E6:0x0567F6] != bytes.fromhex(
+        "50 65 06 F1 FC B5 D0 60 43 F0 8C 07 50 66 D0 64"
+    ):
+        raise ValueError("main A-side working-frequency copy differs")
+    if main_app[0x0568F6:0x056906] != bytes.fromhex(
+        "50 67 06 F1 0C B6 D0 60 43 F0 8C 07 50 68 D0 64"
+    ):
+        raise ValueError("main B-side working-frequency copy differs")
+    if main_app[0x05AC6C:0x05ACA6] != bytes.fromhex(
+        "41 E0 EA 10 C9 FF D0 1A 01 00 D8 EE 90 21 04 16 "
+        "04 46 49 48 32 E8 00 10 40 60 40 61 04 8E "
+        "02 47 40 E0 89 07 D8 EE 90 10 D1 EC 9C 0B "
+        "04 86 40 E0 89 07 D8 EE 90 10 D1 EC 9C 0C"
+    ):
+        raise ValueError("main working TX-frequency choice differs")
     if main_app[0x078E94:0x078EC2] != bytes.fromhex(
         "75 04 C2 FF D0 1A 01 00 50 EE 26 14 43 E0 4C 02 "
         "44 21 10 18 0D 17 D8 EE 21 43 B5 EE 00 00 40 20 "
@@ -143,7 +158,7 @@ def main() -> None:
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"),
            tx_source.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/tables/limits and Dual Watch side selector, control groups/volume clamp, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, TX call/tables/limits and Dual Watch side and frequency copies, control groups/volume clamp, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

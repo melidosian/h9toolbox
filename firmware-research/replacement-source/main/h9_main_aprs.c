@@ -32,6 +32,39 @@ H9Side h9_main_rf_setup_side(bool dual_watch, uint8_t route_side_byte,
         h9_main_side_from_state(channel_side_state);
 }
 
+bool h9_main_rf_select_working_frequencies(
+    bool dual_watch, uint8_t route_side_byte, uint8_t channel_side_state,
+    const H9MainRfChannelFrequencies *a,
+    const H9MainRfChannelFrequencies *b,
+    H9MainRfChannelFrequencies *working, H9Side *selected_side)
+{
+    H9Side side;
+    const H9MainRfChannelFrequencies *chosen;
+    if (a == NULL || b == NULL || working == NULL || selected_side == NULL)
+        return false;
+    side = h9_main_rf_setup_side(dual_watch, route_side_byte,
+                                  channel_side_state);
+    chosen = side == H9_SIDE_A ? a : b;
+    if (chosen->receive_10hz == 0u || chosen->transmit_10hz == 0u)
+        return false;
+    *working = *chosen;
+    *selected_side = side;
+    return true;
+}
+
+bool h9_main_rf_tx_candidate_10hz(
+    const H9MainRfChannelFrequencies *working,
+    bool use_receive_frequency, uint32_t *candidate_10hz)
+{
+    uint32_t candidate;
+    if (working == NULL || candidate_10hz == NULL) return false;
+    candidate = use_receive_frequency ? working->receive_10hz :
+                                        working->transmit_10hz;
+    if (candidate == 0u) return false;
+    *candidate_10hz = candidate;
+    return true;
+}
+
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
                                H9Side received_side)
 {
