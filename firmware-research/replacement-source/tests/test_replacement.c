@@ -6,6 +6,7 @@
 #include "h9_aprs_tx.h"
 #include "h9_aprs_tx_gate.h"
 #include "h9_aprs_tx_packet.h"
+#include "h9_aprs_tx_service.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
 #include "h9_main_beacon.h"
@@ -19,6 +20,7 @@ typedef struct {
     size_t packet_length;
     uint8_t afsk_packet[H9_APRS_MAX_RECEIVE];
     size_t afsk_packet_length;
+    H9AprsTxService *tx_service;
     int demod_calls;
     int dac_calls;
     int16_t sample;
@@ -49,6 +51,14 @@ static void transmit_afsk_packet(void *opaque, const uint8_t *data,
     assert(length <= sizeof fake->afsk_packet);
     memcpy(fake->afsk_packet, data, length);
     fake->afsk_packet_length = length;
+}
+
+static void submit_service_packet(void *opaque, const uint8_t *data,
+                                  size_t length)
+{
+    FakeHardware *fake = (FakeHardware *)opaque;
+    assert(fake->tx_service != NULL);
+    assert(h9_aprs_tx_service_submit(fake->tx_service, data, length));
 }
 
 static uint16_t read_adc(void *opaque) { (void)opaque; return 0x200u; }
@@ -398,6 +408,57 @@ static void feed_frame(H9AprsController *controller, uint8_t command,
         h9_aprs_controller_uart_byte(controller, encoded[i]);
 }
 
+static void test_aprs_tx_service(void)
+{
+    H9AprsTxService service;
+    H9AprsController controller;
+    H9AprsDemod demodulator;
+    H9AprsFrame receive_frame;
+    PacketOutput decoded = { { 0 }, 0, 0 };
+    H9AprsHardware hw = { 0 };
+    FakeHardware fake = { 0 };
+    uint8_t packet[80];
+    uint8_t expected[80];
+    uint8_t sample;
+    uint8_t receive_byte;
+    size_t samples = 0;
+    unsigned i;
+    for (i = 0; i < sizeof packet; ++i) packet[i] = (uint8_t)(0x30u + i);
+    packet[0] = 0x1Bu;
+    memcpy(expected, packet, sizeof expected);
+    h9_aprs_tx_service_init(&service, 0, 300, 100);
+    h9_aprs_demod_init(&demodulator);
+    h9_aprs_frame_init(&receive_frame);
+    fake.tx_service = &service;
+    hw.context = &fake;
+    hw.transmit_aprs_packet = submit_service_packet;
+    h9_aprs_controller_init(&controller, &hw);
+    feed_frame(&controller, 0x00u, packet, sizeof packet);
+    assert(service.phase == H9_APRS_TX_WAITING);
+    assert(memcmp(service.packet, packet, sizeof packet) == 0);
+    memset(packet, 0, sizeof packet); /* Service owns its queued request. */
+    assert(!h9_aprs_tx_service_next_sample(&service, &sample));
+    assert(h9_aprs_tx_service_step(&service, true, false, false, 255) ==
+           H9_APRS_TX_WAITING);
+    assert(h9_aprs_tx_service_step(&service, false, false, false, 29) ==
+           H9_APRS_TX_ENCODING);
+    while (samples < 20000 && h9_aprs_tx_service_next_sample(&service, &sample)) {
+        (void)h9_aprs_demod_sample(&demodulator, (int16_t)sample - 128);
+        while (h9_aprs_demod_pop_byte(&demodulator, &receive_byte))
+            (void)h9_aprs_frame_feed(&receive_frame, receive_byte,
+                                     emit_packet, &decoded);
+        samples++;
+    }
+    assert(samples >= 5376 && samples < 20000);
+    assert(service.phase == H9_APRS_TX_IDLE);
+    assert(decoded.packets == 1 && decoded.length == sizeof expected);
+    assert(memcmp(decoded.bytes, expected, sizeof expected) == 0);
+    assert(h9_aprs_tx_service_submit(&service, packet, sizeof packet));
+    assert(h9_aprs_tx_service_step(&service, true, true, true, 255) ==
+           H9_APRS_TX_IDLE);
+    assert(!h9_aprs_tx_service_next_sample(&service, &sample));
+}
+
 static void test_aprs_controller(void)
 {
     FakeHardware fake = { 0 };
@@ -478,6 +539,7 @@ int main(void)
     test_aprs_frame_fcs();
     test_aprs_tx_packet_encoder();
     test_aprs_tx_gate();
+    test_aprs_tx_service();
     test_aprs_controller();
     return 0;
 }

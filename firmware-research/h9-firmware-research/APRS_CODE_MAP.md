@@ -11,7 +11,7 @@ The Cortex-M image was imported into Ghidra as `ARM:LE:32:Cortex` at `0x08002000
 | Address | Observed role |
 | --- | --- |
 | `0x08002EF8` | ADC callback reads a sample through `0x08002F82`, calls receive demodulator `0x08002308`, then conditionally calls the TX waveform generator `0x08002468`. |
-| `0x08002308` | Receive demodulator; a five-sample delay, correlation/filter, and timing recovery feed the recovered-bit path at `0x080055C4`. The selected decompilation and state initialization at `0x08002604` are in `evidence/aprs-demod-init.txt`; the source port is in `../replacement-source/aprs/h9_aprs_demod.c`. End-to-end packet decoding is not yet verified. |
+| `0x08002308` | Receive demodulator; a five-sample delay, correlation/filter, and timing recovery feed the recovered-bit path at `0x080055C4`. The selected decompilation and state initialization at `0x08002604` are in `evidence/aprs-demod-init.txt`; the source port is in `../replacement-source/aprs/h9_aprs_demod.c`. Ideal software loopback now recovers a generated packet; recorded audio and radio hardware remain unverified. |
 | `0x08002468` | Transmit waveform scheduler reads a 64-byte queue, sends flag bytes, shifts data bits LSB first, changes the 0x40/0x75 oscillator step for NRZI zero bits, inserts a zero after five data one bits, and produces eight DAC samples per bit. |
 | `0x08002664` / `0x08005150` | First queued transmit byte starts waveform state; settings at RAM `0x20000110` and `0x20000114` become rounded lead and tail flag counts through `(setting * 1200 + 4000) / 8000`. Later queued bytes refresh the tail count. |
 | `0x0800530C` / `0x0800534C` | Packet-to-queue encoder emits an opening flag, escapes `0x7E`/`0x7F`/`0x1B`, updates the reflected CRC, emits complemented FCS low byte then high byte, and closes with a flag. |
@@ -39,7 +39,7 @@ In the opposite direction, `0x080048F4` wraps `0x08004894` with command `0x10`; 
 
 The ADC callback calls the demodulator before its TX/no-TX branch. The demodulator feeds the frame parser, which CRC-checks and forwards received packets to the main radio. This shows that the separate processor has an independent receive-processing path; it does **not** prove which analog signal the main radio feeds into its ADC, or where the speaker is gated. Disabling this ADC path would defeat packet decoding. A correct APRS mute would leave it active.
 
-The transmit scheduler and its queue producer are decompiled in `evidence/aprs-tx-wave-scheduler.txt` and `evidence/aprs-tx-queue-producer.txt`; the packet encoder and send gate are in `evidence/aprs-tx-packet-encoder.txt` and `evidence/aprs-tx-send-gate.txt`. The replacement source implements packet encoding, waveform generation, and a cooperative gate decision, but the gate, PTT control, and physical DAC routing have not been connected or measured. This is not a validated RF transmitter.
+The transmit scheduler and its queue producer are decompiled in `evidence/aprs-tx-wave-scheduler.txt` and `evidence/aprs-tx-queue-producer.txt`; the packet encoder and send gate are in `evidence/aprs-tx-packet-encoder.txt` and `evidence/aprs-tx-send-gate.txt`. The replacement source now connects the serial packet request, cooperative gate, packet encoder, and waveform scheduler in an owned-memory service. Its generated samples decode back to the same packet in an ideal host loopback. Carrier sensing, PTT control, and physical ADC/DAC routing have not been connected or measured. This is not a validated RF transmitter.
 
 ## Main Pi32v2 application v1.0.38
 
