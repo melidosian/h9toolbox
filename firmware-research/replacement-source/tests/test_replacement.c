@@ -42,6 +42,7 @@
 #include "h9_main_boot_record.h"
 #include "h9_main_boot_validator.h"
 #include "h9_main_board_markers.h"
+#include "h9_main_clock_probe.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
 #include "h9_main_serial_profile.h"
@@ -3843,6 +3844,90 @@ static void test_main_board_markers(void)
     assert(flags[0] == 1u && flags[1] == 1u && flags[2] == 1u);
 }
 
+typedef struct {
+    unsigned writes;
+    unsigned reads;
+    unsigned masks;
+    unsigned polls;
+    bool ready;
+} FakeClockProbe;
+
+static void clock_probe_write(void *context, uint32_t selector,
+                              uint32_t value)
+{
+    FakeClockProbe *fake = (FakeClockProbe *)context;
+    unsigned channel = fake->writes / 2u;
+    if ((fake->writes & 1u) == 0u)
+        assert(selector == 0xB0u && value == 0x40u);
+    else
+        assert(selector == 0xB1u && value == (0x82u | (channel << 2)));
+    ++fake->writes;
+}
+
+static uint32_t clock_probe_read(void *context, uint32_t selector)
+{
+    FakeClockProbe *fake = (FakeClockProbe *)context;
+    assert(selector == 0xB2u && fake->writes == (fake->reads + 1u) * 2u);
+    ++fake->reads;
+    return 0u;
+}
+
+static void clock_probe_mask(void *context, uint32_t selector,
+                             uint32_t mask)
+{
+    FakeClockProbe *fake = (FakeClockProbe *)context;
+    assert(selector == 0xB1u && mask == 0xFDu &&
+           fake->reads == fake->masks + 1u);
+    ++fake->masks;
+}
+
+static bool clock_probe_complete(void *context,
+                                 volatile uint32_t *measurement)
+{
+    FakeClockProbe *fake = (FakeClockProbe *)context;
+    assert(measurement[0] == 1u && measurement[1] == 0u &&
+           measurement[2] == 0x960u);
+    ++fake->polls;
+    return fake->ready && (fake->polls & 1u) == 0u;
+}
+
+static void test_main_clock_probe(void)
+{
+    uint32_t fuse = 0x900u;
+    uint32_t calibration[25];
+    uint32_t measurement[3] = { 0u, 0u, 0u };
+    FakeClockProbe fake = { 0 };
+    H9MainClockProbe probe = {
+        &fuse, calibration, measurement, &fake,
+        clock_probe_write, clock_probe_read, clock_probe_mask,
+        clock_probe_complete, 3u
+    };
+    unsigned index;
+    for (index = 0u; index < 25u; ++index)
+        calibration[index] = 0xA5A5A5A5u;
+    fake.ready = true;
+    assert(!h9_main_clock_probe_run(NULL));
+    assert(h9_main_clock_probe_run(&probe));
+    assert(fake.writes == 8u && fake.reads == 4u &&
+           fake.masks == 4u && fake.polls == 8u);
+    assert(measurement[0] == 0x4000u);
+    for (index = 0u; index < 25u; ++index)
+        assert(calibration[index] ==
+               ((index == 3u || index == 8u || index == 13u ||
+                 index == 18u) ? 50000000u : 0xA5A5A5A5u));
+
+    fuse = 0u;
+    fake = (FakeClockProbe){ 0 };
+    fake.ready = false;
+    probe.poll_limit = 2u;
+    calibration[3] = 0xA5A5A5A5u;
+    assert(!h9_main_clock_probe_run(&probe));
+    assert(fake.writes == 2u && fake.reads == 0u &&
+           fake.masks == 0u && fake.polls == 2u);
+    assert(measurement[0] == 0x4000u &&
+           calibration[3] == 0xA5A5A5A5u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -3873,6 +3958,7 @@ int main(void)
     test_main_heap_bitmap();
     test_main_memory_window();
     test_main_board_markers();
+    test_main_clock_probe();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

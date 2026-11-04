@@ -4,6 +4,7 @@
 #include "h9_main_boot_record.h"
 #include "h9_main_boot_validator.h"
 #include "h9_main_board_markers.h"
+#include "h9_main_clock_probe.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
 
@@ -46,6 +47,7 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainHeapBitmap bitmap;
     H9MainMemoryWindow window;
     H9MainBoardMarkers markers;
+    H9MainClockProbe clock_probe;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
     typedef void (*RomContinue)(void);
@@ -62,6 +64,8 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     }
     h9_main_board_markers_bind_target(&markers);
     if (!h9_main_board_markers_initialize(&markers)) for (;;) { }
+    h9_main_clock_probe_bind_target(&clock_probe, 100000u);
+    if (!h9_main_clock_probe_run(&clock_probe)) for (;;) { }
 #endif
     for (;;) { }
 }
