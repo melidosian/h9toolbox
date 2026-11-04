@@ -1,6 +1,7 @@
 #include "h9_aprs_controller.h"
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_ring.h"
+#include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
 #include <assert.h>
 #include <string.h>
@@ -163,6 +164,22 @@ static void test_aprs_byte_queue(void)
     assert(h9_aprs_ring_empty(&ring));
 }
 
+static void test_stock_waveform_vectors(void)
+{
+    static const uint8_t step_40[] = { 218, 255, 217, 127, 37, 0, 38, 128 };
+    static const uint8_t step_75[] = { 254, 160, 10, 63, 227, 219, 53, 16 };
+    H9AprsOscillator oscillator;
+    size_t index;
+    h9_aprs_oscillator_init(&oscillator);
+    for (index = 0; index < sizeof step_40; ++index)
+        assert(h9_aprs_oscillator_next(&oscillator) == step_40[index]);
+    h9_aprs_oscillator_init(&oscillator);
+    assert(h9_aprs_oscillator_set_step(&oscillator, 0x75u));
+    for (index = 0; index < sizeof step_75; ++index)
+        assert(h9_aprs_oscillator_next(&oscillator) == step_75[index]);
+    assert(!h9_aprs_oscillator_set_step(&oscillator, 0));
+}
+
 static void feed_frame(H9AprsController *controller, uint8_t command,
                        const uint8_t *payload, size_t length)
 {
@@ -214,6 +231,7 @@ int main(void)
     test_main_policy();
     test_recovered_bit_path();
     test_aprs_byte_queue();
+    test_stock_waveform_vectors();
     test_aprs_controller();
     return 0;
 }

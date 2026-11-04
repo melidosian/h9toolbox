@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Check reconstructed constants against the exact captured firmware images.
+
+Read-only. The private main and APRS images remain outside this source tree.
+"""
+
+from __future__ import annotations
+
+import argparse
+from hashlib import sha256
+from pathlib import Path
+import re
+import struct
+
+
+MAIN_SHA256 = "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3"
+APRS_SHA256 = "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33"
+APRS_BASE = 0x08002000
+TABLE_OFFSET = 0x40D8
+TABLE_SIZE = 128
+
+
+def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str) -> None:
+    if sha256(main_app).hexdigest() != MAIN_SHA256:
+        raise ValueError("main app is not the analyzed v1.0.38 image")
+    if sha256(aprs_image).hexdigest() != APRS_SHA256:
+        raise ValueError("APRS image is not the analyzed v1.0.15 image")
+    if main_app[0x05C324:0x05C329] != bytes.fromhex("03 05 09 08 18"):
+        raise ValueError("main APRS TX mode table differs")
+    if main_app[0x082F0E:0x082F12] != bytes.fromhex("BE EA E1 C9"):
+        raise ValueError("timed beacon no longer calls the known selector")
+    pointer = struct.unpack_from("<I", aprs_image, 0x5E0)[0]
+    if pointer != APRS_BASE + TABLE_OFFSET:
+        raise ValueError("APRS waveform table pointer differs")
+    match = re.search(r"quarter_wave\[128\]\s*=\s*\{([^}]+)\}",
+                      oscillator_source, re.S)
+    if match is None:
+        raise ValueError("source waveform table not found")
+    source_table = bytes(int(value, 16) for value in
+                         re.findall(r"0x([0-9A-Fa-f]{2})\b", match.group(1)))
+    stock_table = aprs_image[TABLE_OFFSET:TABLE_OFFSET + TABLE_SIZE]
+    if source_table != stock_table:
+        raise ValueError("source waveform table differs from APRS image")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("main_app", type=Path)
+    parser.add_argument("aprs_image", type=Path)
+    args = parser.parse_args()
+    source = Path(__file__).resolve().parent / "aprs" / "h9_aprs_oscillator.c"
+    verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
+           source.read_text(encoding="utf-8"))
+    print("Exact stock image hashes, TX call/table, and all 128 waveform bytes verified")
+
+
+if __name__ == "__main__":
+    main()
