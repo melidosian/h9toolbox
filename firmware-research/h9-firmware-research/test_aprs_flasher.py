@@ -41,12 +41,15 @@ class AprsFlasherTests(unittest.TestCase):
         packet = aprs.write_frame(0x12345678, b"\x01\x02\x03")
         self.assertEqual(packet, b"TID\x00\x08\x03\x12\x34\x56\x78\x01\x02\x03\x25")
 
-    def test_reject_corrupt_reply_and_wrong_status(self):
+    def test_reply_validation_matches_observed_vendor_fields(self):
         aprs.check_reply(ack(0x13), 0x13)
         with self.assertRaises(aprs.AprsFlashError):
             aprs.check_reply(ack(0x10), 0x13)
         with self.assertRaises(aprs.AprsFlashError):
-            aprs.check_reply(ack(0x13)[:-1] + b"\x00", 0x13)
+            aprs.check_reply(ack(0x13)[:-1], 0x13)
+        # Form4 does not inspect these fields in its write/exit ACKs.
+        aprs.check_reply(b"\x55\x66\x77\x88\x99\x13\x00", 0x13)
+        aprs.check_reply(b"\x55\x66\x77\x88\x99\x10\x00", 0x10)
 
     def test_entire_stock_shape_in_simulated_serial_transfer(self):
         data = bytearray(aprs.IMAGE_SIZE)

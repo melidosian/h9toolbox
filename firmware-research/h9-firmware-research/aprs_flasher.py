@@ -70,15 +70,19 @@ def frames(image: Image):
 
 def check_reply(reply: bytes, expected_status: int) -> None:
     if len(reply) != 7:
-        raise AprsFlashError(f"Expected 7-byte APRS acknowledgment, got {len(reply)} bytes")
-    if not reply.startswith(FRAME_PREFIX) or reply[4] != 1:
-        raise AprsFlashError(f"Malformed APRS acknowledgment: {reply.hex(' ')}")
+        raise AprsFlashError(
+            f"Expected 7-byte APRS acknowledgment, got {len(reply)} bytes: "
+            f"{reply.hex(' ')}"
+        )
+    # Vendor Form4 checks the received length and status at byte 5. It does
+    # not validate a TID prefix, length byte, or checksum on acknowledgments;
+    # their actual device values have not been captured. Requiring those
+    # fields here would reject a reply that the supplied updater accepts.
     if reply[5] != expected_status:
         raise AprsFlashError(
-            f"APRS reply status 0x{reply[5]:02X}, expected 0x{expected_status:02X}"
+            f"APRS reply status 0x{reply[5]:02X}, expected "
+            f"0x{expected_status:02X}: {reply.hex(' ')}"
         )
-    if reply[6] != checksum(reply[3:6]):
-        raise AprsFlashError(f"APRS acknowledgment checksum mismatch: {reply.hex(' ')}")
 
 
 def read_exact(port, size: int) -> bytes:
