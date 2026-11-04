@@ -20,6 +20,10 @@ bool h9_main_rf_frequency_words(uint32_t frequency_10hz,
 bool h9_main_rf_mode_word(uint8_t path, uint32_t mode,
                           uint8_t *register_number, uint16_t *word);
 
+/* Stock app+0x0592E4 sends 0x6040 | (mode << 8) to RF register 0x47.
+ * The effect on the APRS ADC and Bluetooth paths is not established. */
+bool h9_main_rf_af_word(uint8_t mode, uint16_t *word);
+
 typedef bool (*H9MainRfWrite)(void *opaque, uint8_t register_number,
                                uint16_t word);
 
@@ -32,5 +36,8 @@ bool h9_main_rf_write_frequency(uint32_t frequency_10hz,
                                  int16_t upper_trim,
                                  H9MainRfWrite write_register,
                                  void *opaque);
+
+bool h9_main_rf_write_af(uint8_t mode, H9MainRfWrite write_register,
+                         void *opaque);
 
 #endif

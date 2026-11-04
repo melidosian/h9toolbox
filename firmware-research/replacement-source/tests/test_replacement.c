@@ -592,6 +592,19 @@ static void test_main_rf_register_values(void)
     assert(h9_main_rf_mode_word(1u, 0u, &reg, &word) &&
            word == 0xF50Bu);
     assert(!h9_main_rf_mode_word(2u, 2u, &reg, &word));
+    assert(h9_main_rf_af_word(0u, &word) && word == 0x6040u);
+    assert(h9_main_rf_af_word(1u, &word) && word == 0x6140u);
+    assert(h9_main_rf_af_word(3u, &word) && word == 0x6340u);
+    assert(!h9_main_rf_af_word(0u, NULL));
+    bus.count = 0u;
+    bus.fail_at = 3u;
+    assert(h9_main_rf_write_af(1u, fake_rf_register_write, &bus));
+    assert(bus.count == 1u && bus.registers[0] == 0x47u &&
+           bus.words[0] == 0x6140u);
+    bus.count = 0u;
+    bus.fail_at = 0u;
+    assert(!h9_main_rf_write_af(1u, fake_rf_register_write, &bus));
+    assert(!h9_main_rf_write_af(1u, NULL, &bus));
 }
 
 static void test_main_gpio_query_reply(void)

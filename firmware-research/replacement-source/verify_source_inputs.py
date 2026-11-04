@@ -40,6 +40,10 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "50 EE 0D 17 72 E1 FE 40 B9 20 21 19 52 EE 0D 17 54 04"
     ):
         raise ValueError("main speaker pin/state writer differs")
+    if main_app[0x0592E4:0x0592F2] != bytes.fromhex(
+        "00 A8 41 E0 40 60 01 19 50 27 FF EA 8C B9"
+    ):
+        raise ValueError("main RF AF selector differs")
     if struct.unpack_from("<4I", main_app, 0x554) != (
         0x001E5000, 0x001E5040, 0x001E5080, 0x001E50C0
     ):
@@ -127,7 +131,7 @@ def main() -> None:
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"),
            tx_source.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/tables/limits, control groups, speaker writer/GPIO bank, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, TX call/tables/limits, control groups, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

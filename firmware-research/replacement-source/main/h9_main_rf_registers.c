@@ -43,6 +43,13 @@ bool h9_main_rf_mode_word(uint8_t path, uint32_t mode,
     return true;
 }
 
+bool h9_main_rf_af_word(uint8_t mode, uint16_t *word)
+{
+    if (word == NULL) return false;
+    *word = (uint16_t)(0x6040u | ((uint16_t)mode << 8));
+    return true;
+}
+
 bool h9_main_rf_write_frequency(uint32_t frequency_10hz,
                                  uint8_t band_selector,
                                  int16_t lower_trim,
@@ -58,4 +65,13 @@ bool h9_main_rf_write_frequency(uint32_t frequency_10hz,
                                     &low_word, &high_word)) return false;
     if (!write_register(opaque, 0x38u, low_word)) return false;
     return write_register(opaque, 0x39u, high_word);
+}
+
+bool h9_main_rf_write_af(uint8_t mode, H9MainRfWrite write_register,
+                         void *opaque)
+{
+    uint16_t word;
+    if (write_register == NULL || !h9_main_rf_af_word(mode, &word))
+        return false;
+    return write_register(opaque, 0x47u, word);
 }
