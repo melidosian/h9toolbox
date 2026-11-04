@@ -48,6 +48,7 @@ SOURCES = {
         "main/h9_main_aprs_control.c",
         "main/h9_main_aprs_metadata.c",
         "main/h9_main_aprs_receive.c",
+        "main/h9_main_aprs_session.c",
         "main/h9_main_aprs_wire.c",
         "main/h9_main_ax25.c",
         "main/h9_main_beacon.c",

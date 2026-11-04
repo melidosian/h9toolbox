@@ -22,6 +22,7 @@
 #include "h9_main_aprs_control.h"
 #include "h9_main_aprs_metadata.h"
 #include "h9_main_aprs_receive.h"
+#include "h9_main_aprs_session.h"
 #include "h9_main_aprs_wire.h"
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
@@ -516,6 +517,158 @@ static void test_main_uart_ring(void)
     assert(ring.read_index == 1500u);
     ring.write_index = 2048u;
     assert(h9_main_uart_ring_drain(&ring, &receiver, NULL, NULL) == 0u);
+}
+
+typedef struct {
+    unsigned packet_count;
+    unsigned gps_count;
+    unsigned control_count;
+    unsigned version_count;
+    unsigned serial_count;
+    H9MainControlAction action;
+    uint8_t source[7];
+    uint8_t sentence[64];
+    size_t sentence_length;
+    uint8_t serial[16];
+    size_t serial_length;
+} MainSessionCapture;
+
+static void session_packet(void *context, const H9MainAx25Decoded *packet)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    capture->packet_count++;
+    memcpy(capture->source, packet->source, sizeof capture->source);
+}
+
+static void session_gps(void *context, const uint8_t *sentence, size_t length)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    assert(length <= sizeof capture->sentence);
+    capture->gps_count++;
+    capture->sentence_length = length;
+    memcpy(capture->sentence, sentence, length);
+}
+
+static void session_control(void *context, H9MainControlAction action)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    capture->control_count++;
+    capture->action = action;
+}
+
+static void session_version(void *context, const H9MainAprsVersions *versions)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    assert(versions->has_module && strcmp(versions->module, "1.0.15") == 0);
+    capture->version_count++;
+}
+
+static void session_serial(void *context, const uint8_t *bytes, size_t length)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    assert(length <= sizeof capture->serial);
+    capture->serial_count++;
+    capture->serial_length = length;
+    memcpy(capture->serial, bytes, length);
+}
+
+static void queue_session_bytes(H9MainAprsSession *session,
+                                const uint8_t *bytes, size_t length)
+{
+    size_t index;
+    for (index = 0; index < length; ++index) {
+        uint16_t next = (uint16_t)((session->uart_ring.write_index + 1u) &
+                                    (H9_MAIN_UART_RING_CAPACITY - 1u));
+        assert(next != session->uart_ring.read_index);
+        session->uart_ring.storage[session->uart_ring.write_index] = bytes[index];
+        session->uart_ring.write_index = next;
+    }
+}
+
+static void test_main_aprs_session(void)
+{
+    static const uint8_t info[] = { '!', 'O', 'K' };
+    static const uint8_t gps_first[] = "$GPR";
+    static const uint8_t gps_last[] = "MC,1*00\r\n";
+    static const uint8_t version[] = { 1u, '1', '.', '0', '.', '1', '5', 0u };
+    static const uint8_t gpio_query[] = { 3u };
+    H9MainAprsSession session;
+    H9MainAprsSessionCallbacks callbacks = { 0 };
+    MainSessionCapture capture = { 0 };
+    H9MainAx25Packet packet = { 0 };
+    uint8_t raw[H9_MAIN_AX25_MAX_PACKET];
+    uint8_t serial[H9_MAIN_APRS_WIRE_CAPACITY];
+    uint8_t control[4];
+    uint16_t crc;
+    size_t raw_length;
+    size_t serial_length;
+    callbacks.packet = session_packet;
+    callbacks.gps_sentence = session_gps;
+    callbacks.control = session_control;
+    callbacks.version = session_version;
+    callbacks.serial_write = session_serial;
+    h9_main_aprs_session_init(&session, &callbacks, &capture);
+    memcpy(packet.destination, "APRS", 4u);
+    memcpy(packet.source, "KD9CRQ", 6u);
+    packet.information = info;
+    packet.information_length = sizeof info;
+    raw_length = h9_main_ax25_encode(&packet, raw, sizeof raw);
+    assert(raw_length > 0u);
+    serial_length = h9_wire_encode(0u, raw, raw_length,
+                                   serial, sizeof serial);
+    queue_session_bytes(&session, serial, serial_length / 2u);
+    assert(h9_main_aprs_session_poll(&session) == serial_length / 2u);
+    assert(capture.packet_count == 0u);
+    queue_session_bytes(&session, serial + serial_length / 2u,
+                        serial_length - serial_length / 2u);
+    assert(h9_main_aprs_session_poll(&session) ==
+           serial_length - serial_length / 2u);
+    assert(capture.packet_count == 1u &&
+           memcmp(capture.source, "KD9CRQ", 6u) == 0);
+
+    serial_length = h9_wire_encode(0x10u, gps_first, sizeof gps_first - 1u,
+                                   serial, sizeof serial);
+    queue_session_bytes(&session, serial, serial_length);
+    assert(h9_main_aprs_session_poll(&session) == serial_length);
+    serial_length = h9_wire_encode(0x10u, gps_last, sizeof gps_last - 1u,
+                                   serial, sizeof serial);
+    queue_session_bytes(&session, serial, serial_length);
+    assert(h9_main_aprs_session_poll(&session) == serial_length);
+    assert(capture.gps_count == 1u &&
+           capture.sentence_length == sizeof "$GPRMC,1*00\r\n" - 1u &&
+           memcmp(capture.sentence, "$GPRMC,1*00\r\n",
+                  capture.sentence_length) == 0);
+
+    serial_length = h9_wire_encode(0x21u, version, sizeof version,
+                                   serial, sizeof serial);
+    queue_session_bytes(&session, serial, serial_length);
+    assert(h9_main_aprs_session_poll(&session) == serial_length);
+    assert(capture.version_count == 1u);
+
+    control[0] = 0x06u;
+    control[1] = 0x01u;
+    crc = h9_main_control_crc(control, 2u);
+    control[2] = (uint8_t)(crc >> 8);
+    control[3] = (uint8_t)crc;
+    serial_length = h9_wire_encode(0x51u, control, sizeof control,
+                                   serial, sizeof serial);
+    queue_session_bytes(&session, serial, serial_length);
+    assert(h9_main_aprs_session_poll(&session) == serial_length);
+    assert(capture.control_count == 1u &&
+           capture.action == H9_MAIN_CONTROL_06_01);
+    control[3] ^= 1u;
+    serial_length = h9_wire_encode(0x51u, control, sizeof control,
+                                   serial, sizeof serial);
+    queue_session_bytes(&session, serial, serial_length);
+    assert(h9_main_aprs_session_poll(&session) == serial_length);
+    assert(capture.control_count == 1u);
+
+    serial_length = h9_wire_encode(0x11u, gpio_query, sizeof gpio_query,
+                                   serial, sizeof serial);
+    queue_session_bytes(&session, serial, serial_length);
+    assert(h9_main_aprs_session_poll(&session) == serial_length);
+    assert(capture.serial_count == 1u && capture.serial_length == 11u);
+    assert(h9_main_aprs_session_poll(&session) == 0u);
 }
 
 static void test_main_policy(void)
@@ -1648,6 +1801,7 @@ int main(void)
     test_main_gpio_query_reply();
     test_main_control_frames();
     test_main_uart_ring();
+    test_main_aprs_session();
     test_main_policy();
     test_main_tx_service();
     test_timed_beacon_scheduler();
