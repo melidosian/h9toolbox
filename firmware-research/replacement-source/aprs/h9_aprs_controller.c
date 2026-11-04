@@ -14,6 +14,13 @@ static bool send_frame(H9AprsController *controller, uint8_t command,
     return true;
 }
 
+static void forward_valid_frame(void *context, const uint8_t *data,
+                                size_t length)
+{
+    H9AprsController *controller = (H9AprsController *)context;
+    (void)send_frame(controller, 0x00u, data, length);
+}
+
 static void send_version(H9AprsController *controller, uint8_t query)
 {
     static const uint8_t module_version[8] = "V1.0.15";
@@ -95,6 +102,7 @@ void h9_aprs_controller_init(H9AprsController *controller,
     if (hardware != NULL) controller->hardware = *hardware;
     h9_wire_reset(&controller->wire);
     h9_aprs_demod_init(&controller->demod);
+    h9_aprs_frame_init(&controller->frame);
 }
 
 void h9_aprs_controller_uart_byte(H9AprsController *controller, uint8_t byte)
@@ -120,6 +128,15 @@ bool h9_aprs_controller_pop_received_byte(H9AprsController *controller,
                                           uint8_t *byte)
 {
     return controller != NULL && h9_aprs_demod_pop_byte(&controller->demod, byte);
+}
+
+void h9_aprs_controller_process_received(H9AprsController *controller)
+{
+    uint8_t byte;
+    if (controller == NULL) return;
+    while (h9_aprs_demod_pop_byte(&controller->demod, &byte))
+        (void)h9_aprs_frame_feed(&controller->frame, byte,
+                                 forward_valid_frame, controller);
 }
 
 static uint8_t reverse_high_nibble(uint8_t byte)

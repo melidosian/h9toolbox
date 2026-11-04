@@ -10,6 +10,7 @@ add_library(h9_replacement_core STATIC
     main/h9_main_beacon.c
     aprs/h9_aprs_bitstream.c
     aprs/h9_aprs_demod.c
+    aprs/h9_aprs_frame.c
     aprs/h9_aprs_oscillator.c
     aprs/h9_aprs_ring.c
     aprs/h9_aprs_controller.c)

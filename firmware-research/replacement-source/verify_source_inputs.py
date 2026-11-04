@@ -18,6 +18,7 @@ APRS_SHA256 = "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33"
 APRS_BASE = 0x08002000
 TABLE_OFFSET = 0x40D8
 TABLE_SIZE = 128
+CRC_TABLE_OFFSET = 0x4158
 
 
 def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str) -> None:
@@ -41,6 +42,20 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str) -> None:
     stock_table = aprs_image[TABLE_OFFSET:TABLE_OFFSET + TABLE_SIZE]
     if source_table != stock_table:
         raise ValueError("source waveform table differs from APRS image")
+    if struct.unpack_from("<H", aprs_image, 0x31F8)[0] != 0xFFFF:
+        raise ValueError("APRS frame CRC initial value differs")
+    if struct.unpack_from("<H", aprs_image, 0x3304)[0] != 0xF0B8:
+        raise ValueError("APRS frame CRC residue differs")
+    if struct.unpack_from("<I", aprs_image, 0x4040)[0] != APRS_BASE + CRC_TABLE_OFFSET:
+        raise ValueError("APRS frame CRC table pointer differs")
+    for index in range(256):
+        crc = index
+        for _ in range(8):
+            crc = (crc >> 1) ^ (0x8408 if crc & 1 else 0)
+        stock_crc = struct.unpack_from("<H", aprs_image,
+                                       CRC_TABLE_OFFSET + index * 2)[0]
+        if crc != stock_crc:
+            raise ValueError(f"APRS frame CRC table differs at {index}")
 
 
 def main() -> None:
@@ -51,7 +66,7 @@ def main() -> None:
     source = Path(__file__).resolve().parent / "aprs" / "h9_aprs_oscillator.c"
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"))
-    print("Exact stock image hashes, TX call/table, and all 128 waveform bytes verified")
+    print("Exact stock image hashes, TX call/table, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

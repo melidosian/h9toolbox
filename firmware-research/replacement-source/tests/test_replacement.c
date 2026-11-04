@@ -1,5 +1,6 @@
 #include "h9_aprs_controller.h"
 #include "h9_aprs_demod.h"
+#include "h9_aprs_frame.h"
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_ring.h"
 #include "h9_aprs_oscillator.h"
@@ -228,6 +229,51 @@ static void test_stock_demod_delay(void)
     assert(!h9_aprs_demod_sample(&demod_state, 128));
 }
 
+typedef struct {
+    uint8_t bytes[H9_APRS_MAX_RECEIVE];
+    size_t length;
+    unsigned packets;
+} PacketOutput;
+
+static void emit_packet(void *opaque, const uint8_t *data, size_t length)
+{
+    PacketOutput *output = (PacketOutput *)opaque;
+    assert(length <= sizeof output->bytes);
+    memcpy(output->bytes, data, length);
+    output->length = length;
+    output->packets++;
+}
+
+static void test_aprs_frame_fcs(void)
+{
+    static const uint8_t check[] = "123456789";
+    uint16_t crc = 0xFFFFu;
+    H9AprsFrame frame;
+    PacketOutput output = { { 0 }, 0, 0 };
+    unsigned i;
+    for (i = 0; i < 9; ++i)
+        crc = h9_aprs_frame_crc_byte(crc, check[i]);
+    assert(crc == 0x6F91u); /* CRC-16/X-25 check value is ~0x6F91. */
+
+    h9_aprs_frame_init(&frame);
+    assert(!h9_aprs_frame_feed(&frame, 0x7Eu, emit_packet, &output));
+    for (i = 0; i < 18; ++i)
+        assert(!h9_aprs_frame_feed(&frame, (uint8_t)i,
+                                   emit_packet, &output));
+    assert(!h9_aprs_frame_feed(&frame, 0x45u, emit_packet, &output));
+    assert(!h9_aprs_frame_feed(&frame, 0x87u, emit_packet, &output));
+    assert(h9_aprs_frame_feed(&frame, 0x7Eu, emit_packet, &output));
+    assert(output.packets == 1 && output.length == 18);
+    for (i = 0; i < 18; ++i) assert(output.bytes[i] == (uint8_t)i);
+
+    for (i = 0; i < 18; ++i)
+        (void)h9_aprs_frame_feed(&frame, (uint8_t)i, emit_packet, &output);
+    (void)h9_aprs_frame_feed(&frame, 0x45u, emit_packet, &output);
+    (void)h9_aprs_frame_feed(&frame, 0x86u, emit_packet, &output);
+    assert(!h9_aprs_frame_feed(&frame, 0x7Eu, emit_packet, &output));
+    assert(output.packets == 1);
+}
+
 static void feed_frame(H9AprsController *controller, uint8_t command,
                        const uint8_t *payload, size_t length)
 {
@@ -247,6 +293,7 @@ static void test_aprs_controller(void)
     H9AprsController controller;
     uint8_t send_packet[] = { 4, 0x41, 0xC0, 0xDB };
     uint8_t query = 1;
+    unsigned i;
     hw.context = &fake;
     hw.uart_write = uart_write;
     hw.queue_packet_tx = queue_packet;
@@ -276,6 +323,19 @@ static void test_aprs_controller(void)
     fake.dac_calls = 0;
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.demod_calls == 3 && fake.dac_calls == 0);
+
+    fake.uart_length = 0;
+    assert(h9_aprs_ring_push(&controller.demod.receive, 0x7Eu));
+    for (i = 0; i < 18; ++i)
+        assert(h9_aprs_ring_push(&controller.demod.receive, (uint8_t)i));
+    assert(h9_aprs_ring_push(&controller.demod.receive, 0x45u));
+    assert(h9_aprs_ring_push(&controller.demod.receive, 0x87u));
+    assert(h9_aprs_ring_push(&controller.demod.receive, 0x7Eu));
+    h9_aprs_controller_process_received(&controller);
+    assert(fake.uart_length == 21);
+    assert(fake.uart[0] == 0xC0u && fake.uart[1] == 0 &&
+           fake.uart[20] == 0xC0u);
+    for (i = 0; i < 18; ++i) assert(fake.uart[i + 2] == (uint8_t)i);
 }
 
 int main(void)
@@ -287,6 +347,7 @@ int main(void)
     test_aprs_byte_queue();
     test_stock_waveform_vectors();
     test_stock_demod_delay();
+    test_aprs_frame_fcs();
     test_aprs_controller();
     return 0;
 }

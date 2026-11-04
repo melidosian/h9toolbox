@@ -13,6 +13,9 @@ The Cortex-M image was imported into Ghidra as `ARM:LE:32:Cortex` at `0x08002000
 | `0x08002EF8` | ADC callback reads a sample through `0x08002F82`, calls receive demodulator `0x08002308`, then conditionally calls the TX waveform generator `0x08002468`. |
 | `0x08002308` | Receive demodulator; a five-sample delay, correlation/filter, and timing recovery feed the recovered-bit path at `0x080055C4`. The selected decompilation and state initialization at `0x08002604` are in `evidence/aprs-demod-init.txt`; the source port is in `../replacement-source/aprs/h9_aprs_demod.c`. End-to-end packet decoding is not yet verified. |
 | `0x0800555C` | Sends an assembled received frame to the main radio through `0x080048F4`. |
+| `0x080051FC` | Drains the recovered-byte queue, assembles a frame between `0x7E` flags, handles `0x1B` escaping, caps payload plus FCS at `0x318` bytes, and accepts frames longer than 17 bytes only when the running CRC equals `0xF0B8`. |
+| `0x08006028` | CRC table update. The 256-entry stock table at `0x08006158` matches reflected polynomial `0x8408`, initialized to `0xFFFF`. |
+| `0x08005180` / `0x08005830` | Valid-frame callback forwards to the main radio as command `0x00` with the last two FCS bytes removed. |
 | `0x08004894` | Sends a serial frame bounded by `0xC0`, escaping `0xC0` as `0xDB 0xDC` and `0xDB` as `0xDB 0xDD`. |
 | `0x08005B8C` | Parses incoming serial frames and dispatches command bytes. |
 | `0x08002A4C` | Accepts a packet for the TX path, then calls `0x08002C94`, which passes it to `0x0800476C`. |
@@ -29,7 +32,7 @@ The parser at `0x08005B8C` uses these command IDs (direction is **main radio to 
 
 In the opposite direction, `0x080048F4` wraps `0x08004894` with command `0x10`; one of its callers is the received-frame sender at `0x0800555C`. The handler's source and destination may share command numbers; do not infer the same semantics in both directions.
 
-The ADC callback calls the demodulator before its TX/no-TX branch. This shows that the separate processor has an independent receive-processing path; it does **not** prove which analog signal the main radio feeds into its ADC, or where the speaker is gated. Disabling this ADC path would defeat packet decoding. A correct APRS mute would leave it active.
+The ADC callback calls the demodulator before its TX/no-TX branch. The demodulator feeds the frame parser, which CRC-checks and forwards received packets to the main radio. This shows that the separate processor has an independent receive-processing path; it does **not** prove which analog signal the main radio feeds into its ADC, or where the speaker is gated. Disabling this ADC path would defeat packet decoding. A correct APRS mute would leave it active.
 
 ## Main Pi32v2 application v1.0.38
 
@@ -99,7 +102,7 @@ The original Ghidra-JieLi Pi32v2 SLEIGH source misdecodes the 32-bit unsigned-by
 
 ## Reproduce the Ghidra inspection
 
-These read-only Ghidra scripts are kept alongside this map: `H9Seed.java` seeds main Pi32 function entries; `H9Inventory.java` decompiles selected main functions; `H9AprsInventory.java` decompiles requested ARM addresses; `H9Refs.java` lists callers/data references; and `H9FunctionStarts.java` exports function seeds. `trace_pi32.py` uses those seeds plus the independent Pi32v2 decoder to build a partial direct-call index. The generated reports and imported binaries live in ignored `output/`. Use Ghidra 12.1.4 with [Ghidra-JieLi](https://github.com/quarkslab/ghidra-jieli) compiled by its `support/sleigh.bat` tool for the main app. The ARM image uses Ghidra's built-in Cortex language.
+These read-only Ghidra scripts are kept alongside this map: `H9Seed.java` seeds main Pi32 function entries; `H9AprsSeed.java` seeds ARM entry points; `H9Inventory.java` and `H9AprsInventory.java` decompile selected functions; `H9Refs.java` lists callers/data references; and `H9FunctionStarts.java` exports function seeds. `trace_pi32.py` uses those seeds plus the independent Pi32v2 decoder to build a partial direct-call index. The generated reports and imported binaries live in ignored `output/`. Use Ghidra 12.1.4 with [Ghidra-JieLi](https://github.com/quarkslab/ghidra-jieli) compiled by its `support/sleigh.bat` tool for the main app. The ARM image uses Ghidra's built-in Cortex language.
 
 The next specific static tasks are to trace the CH-A/CH-B receive decision, locate the main application's APRS UART frame handler, and determine where the APRS controller ADC and Bluetooth audio are fed relative to the RF audio selector. Keep that trace separate from the TX command construction and CH-A/CH-B PTT selection. Until the decoder tap and an audible gate covering both outputs are identified, do not present a modified image as the APRS mute option.
 

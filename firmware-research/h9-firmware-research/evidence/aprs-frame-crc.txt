@@ -1,0 +1,68 @@
+program=aprs-1.0.15.bin
+language=ARM:LE:32:Cortex
+
+address=0800518c function=FUN_0800518c@0800518c
+caller_reference=08005232 UNCONDITIONAL_CALL
+
+void FUN_0800518c(int param_1)
+
+{
+  if (*(int *)(param_1 + 0x328) != 0) {
+    (**(code **)(param_1 + 0x328))(param_1);
+  }
+  return;
+}
+
+
+
+address=08006028 function=FUN_08006028@08006028
+caller_reference=080052ce UNCONDITIONAL_CALL
+
+uint FUN_08006028(uint param_1,uint param_2)
+
+{
+  return (int)param_2 >> 8 ^ (uint)*(ushort *)(DAT_08006040 + ((param_2 ^ param_1) & 0xff) * 2);
+}
+
+
+
+address=080051ac function=FUN_080051ac@080051ac
+caller_reference=080056fe UNCONDITIONAL_CALL
+
+void FUN_080051ac(int param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4)
+
+{
+  undefined2 uVar1;
+
+  FUN_08002172(param_1,0x330,param_3,param_4,param_4);
+  *(undefined4 *)(param_1 + 0x31c) = param_3;
+  *(undefined4 *)(param_1 + 0x318) = param_2;
+  *(undefined4 *)(param_1 + 0x328) = param_4;
+  uVar1 = (undefined2)DAT_080051f8;
+  *(undefined2 *)(param_1 + 0x326) = uVar1;
+  *(undefined2 *)(param_1 + 0x324) = uVar1;
+  *(undefined1 *)(param_1 + 0x32e) = 1;
+  return;
+}
+
+
+
+address=08005e00 function=FUN_08005de8@08005de8
+caller_reference=0800221e UNCONDITIONAL_CALL
+
+void FUN_08005de8(void)
+
+{
+  FUN_080038b4();
+  FUN_080027b4();
+  FUN_080056ec();
+  FUN_08004ffc(&DAT_08005e10);
+  FUN_08005e34();
+  do {
+    FUN_08005f98();
+    FUN_080051fc(DAT_08005e14);
+    FUN_080054c8();
+  } while( true );
+}
+
+
