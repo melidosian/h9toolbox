@@ -700,6 +700,55 @@ static void test_main_control_frames(void)
     assert(!h9_main_control_from_frame(&receiver, &action));
 }
 
+static void test_main_control_volume(void)
+{
+    H9MainControlVolumeState state;
+    H9MainControlVolumeEffects effects;
+    assert(!h9_main_control_volume_init(&state, 31u));
+    assert(h9_main_control_volume_init(&state, 29u));
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_05,
+                                         &effects));
+    assert(state.level == 30u && state.held_adjustment == 1u &&
+           state.timer_armed && state.volume_display_pending);
+    assert(effects.level_changed && !effects.cancel_timer &&
+           effects.start_timer_units == 200u);
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_01,
+                                         &effects));
+    assert(state.level == 30u && !effects.level_changed &&
+           !effects.boundary_feedback && !effects.cancel_timer &&
+           effects.start_timer_units == 150u);
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_05,
+                                         &effects));
+    assert(state.level == 30u && !effects.level_changed &&
+           !effects.boundary_feedback && effects.cancel_timer &&
+           effects.start_timer_units == 200u);
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_02,
+                                         &effects));
+    assert(state.held_adjustment == 0u && !state.timer_armed &&
+           effects.cancel_timer && effects.start_timer_units == 0u);
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_01,
+                                         &effects));
+    assert(state.level == 30u && effects.boundary_feedback &&
+           !effects.level_changed);
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_06,
+                                         &effects));
+    assert(state.level == 29u && state.held_adjustment == 2u &&
+           effects.level_changed && effects.start_timer_units == 200u);
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_04,
+                                         &effects));
+    assert(!state.timer_armed && state.held_adjustment == 0u);
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_03,
+                                         &effects));
+    assert(state.level == 28u && effects.level_changed);
+    assert(!h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_07_01,
+                                          &effects));
+    assert(state.level == 28u);
+    assert(h9_main_control_volume_init(&state, 0u));
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_03,
+                                         &effects));
+    assert(state.level == 0u && effects.boundary_feedback);
+}
+
 typedef struct {
     unsigned calls;
     uint8_t command;
@@ -2996,6 +3045,7 @@ int main(void)
     test_main_rf_register_values();
     test_main_gpio_query_reply();
     test_main_control_frames();
+    test_main_control_volume();
     test_main_uart_ring();
     test_main_aprs_session();
     test_main_policy();

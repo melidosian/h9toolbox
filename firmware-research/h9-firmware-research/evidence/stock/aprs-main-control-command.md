@@ -28,11 +28,23 @@ one as a group and opcode. The observed routes are:
 
 The group `07` correction comes from the independent Pi32v2 decode at
 app+`0x087130`: `if (r1 == 7)`, followed by `if (r1 != 6)` for the other
-group. The earlier `0A` reading was incorrect. The `0x078E94` routine adjusts
-an internal value within `0..30`; this appears related to volume. The other
-side effects and user-visible names need more tracing. The replacement source
-currently validates the CRC and returns the raw recognized pair. It does not
-execute any of these effects or change radio settings. Host tests check the
-standard CRC vector `123456789 → 0x29B1`, all eight pairs, escaped serial
-payload, a corrupted CRC, and the unsupported `0A 01` pair. This is offline
-source analysis, not runtime validation on the radio.
+group. The earlier `0A` reading was incorrect. The `0x078E94` routine reads
+the level at RAM `0x11B16`, adds `+1` or `-1`, sets pending-display byte
+`0x11D1C`, and clamps the result to `0..30`. At a boundary, it resets an
+active timer to 150 or requests tone `7` if no timer is active. When the
+new level differs from both the current byte and setting `0xC0F9`, it
+updates both and invokes audio/UI routines whose board effects need more
+tracing. The `0x087086` wrapper for
+`06 05/06` stores held-adjustment state `1/2`, calls the same step routine,
+cancels a previous timer, then starts a 200-unit timer. The `06 02/04` paths
+cancel that timer and clear the held state. The timer unit is inferred to be
+milliseconds from its API; the physical timing has not been measured.
+
+The replacement source validates the CRC and returns the recognized pair.
+It also supplies a pure `0..30` volume/held-state reducer with timer and
+boundary-feedback effects for a future board adapter. It does not model the
+separate saved-setting comparison or downstream audio/UI calls. No hardware
+is invoked by this reducer, and the session still only emits the
+raw action. Host tests cover CRC, all eight pairs, escaped serial payload,
+corruption, the unsupported `0A 01` pair, and volume/timer transitions at
+both boundaries. This is offline source analysis, not runtime validation.

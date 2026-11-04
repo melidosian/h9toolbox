@@ -1,5 +1,7 @@
 #include "h9_main_aprs_control.h"
 
+#include <string.h>
+
 uint16_t h9_main_control_crc(const uint8_t *data, size_t length)
 {
     uint16_t crc = 0xFFFFu;
@@ -47,4 +49,62 @@ int h9_main_control_from_frame(const H9MainWireReceiver *receiver,
     default:
         return 0;
     }
+}
+
+bool h9_main_control_volume_init(H9MainControlVolumeState *state,
+                                  uint8_t initial_level)
+{
+    if (state == NULL || initial_level > 30u) return false;
+    memset(state, 0, sizeof *state);
+    state->level = initial_level;
+    return true;
+}
+
+bool h9_main_control_volume_apply(H9MainControlVolumeState *state,
+                                   H9MainControlAction action,
+                                   H9MainControlVolumeEffects *effects)
+{
+    int adjustment = 0;
+    int next;
+    bool held = false;
+    if (state == NULL || effects == NULL || state->level > 30u) return false;
+    memset(effects, 0, sizeof *effects);
+    switch (action) {
+    case H9_MAIN_CONTROL_06_01: adjustment = 1; break;
+    case H9_MAIN_CONTROL_06_03: adjustment = -1; break;
+    case H9_MAIN_CONTROL_06_05:
+        adjustment = 1;
+        state->held_adjustment = 1u;
+        held = true;
+        break;
+    case H9_MAIN_CONTROL_06_06:
+        adjustment = -1;
+        state->held_adjustment = 2u;
+        held = true;
+        break;
+    case H9_MAIN_CONTROL_06_02:
+    case H9_MAIN_CONTROL_06_04:
+        effects->cancel_timer = state->timer_armed;
+        state->timer_armed = false;
+        state->held_adjustment = 0u;
+        return true;
+    default:
+        return false;
+    }
+    next = (int)state->level + adjustment;
+    if (next < 0) next = 0;
+    if (next > 30) next = 30;
+    effects->level_changed = (uint8_t)next != state->level;
+    effects->boundary_feedback = !effects->level_changed &&
+                                 !state->timer_armed;
+    state->level = (uint8_t)next;
+    state->volume_display_pending = true;
+    if (held) {
+        effects->cancel_timer = state->timer_armed;
+        effects->start_timer_units = 200u;
+        state->timer_armed = true;
+    } else if (!effects->level_changed && state->timer_armed) {
+        effects->start_timer_units = 150u;
+    }
+    return true;
 }
