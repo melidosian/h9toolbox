@@ -52,3 +52,37 @@ const H9MainTaskDescriptor *h9_main_task_find(const char *name)
             return &h9_main_tasks[index];
     return NULL;
 }
+
+int h9_main_task_launch(const H9MainTaskHooks *hooks,
+                        uintptr_t entry, uintptr_t argument,
+                        const char *name)
+{
+    const H9MainTaskDescriptor *descriptor = h9_main_task_find(name);
+    if (descriptor != NULL && hooks != NULL && hooks->create != NULL &&
+        hooks->create(hooks->context, entry, argument,
+                      descriptor->byte_4, descriptor->halfword_6,
+                      descriptor->halfword_8, name) == 0)
+        return 0;
+    if (hooks != NULL && hooks->report_failure != NULL)
+        hooks->report_failure(hooks->context);
+    return H9_MAIN_TASK_LAUNCH_ERROR;
+}
+
+static int target_create(void *context, uintptr_t entry, uintptr_t argument,
+                         uint8_t byte_4, uint16_t halfword_6,
+                         uint16_t halfword_8, const char *name)
+{
+    typedef int (*RomCreate)(uintptr_t, uintptr_t, uint32_t, uint32_t,
+                             uint32_t, const char *);
+    (void)context;
+    return ((RomCreate)(uintptr_t)0x02003102u)(
+        entry, argument, byte_4, halfword_6, halfword_8, name);
+}
+
+void h9_main_task_hooks_bind_target(H9MainTaskHooks *hooks)
+{
+    if (hooks == NULL) return;
+    hooks->context = NULL;
+    hooks->create = target_create;
+    hooks->report_failure = NULL;
+}

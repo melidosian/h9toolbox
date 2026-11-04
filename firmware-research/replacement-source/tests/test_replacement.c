@@ -5698,11 +5698,50 @@ static void test_aprs_uart2_maintenance(void)
     assert(h9_aprs_uart2_maintenance_due(&state, 1000u, true, true));
 }
 
+typedef struct {
+    unsigned calls;
+    unsigned failures;
+    uintptr_t entry;
+    uintptr_t argument;
+    uint8_t byte_4;
+    uint16_t halfword_6;
+    uint16_t halfword_8;
+    const char *name;
+    int result;
+} TaskLaunchCapture;
+
+static int capture_task_create(void *context, uintptr_t entry,
+                               uintptr_t argument, uint8_t byte_4,
+                               uint16_t halfword_6, uint16_t halfword_8,
+                               const char *name)
+{
+    TaskLaunchCapture *capture = (TaskLaunchCapture *)context;
+    ++capture->calls;
+    capture->entry = entry;
+    capture->argument = argument;
+    capture->byte_4 = byte_4;
+    capture->halfword_6 = halfword_6;
+    capture->halfword_8 = halfword_8;
+    capture->name = name;
+    return capture->result;
+}
+
+static void capture_task_failure(void *context)
+{
+    ++((TaskLaunchCapture *)context)->failures;
+}
+
 static void test_main_task_registry(void)
 {
     const H9MainTaskDescriptor *core = h9_main_task_find("app_core");
     const H9MainTaskDescriptor *app = h9_main_task_find("my_app");
     const H9MainTaskDescriptor *tone = h9_main_task_find("key_tone");
+    TaskLaunchCapture capture = { 0 };
+    H9MainTaskHooks hooks = {
+        &capture, capture_task_create, capture_task_failure
+    };
+    H9MainTaskHooks target;
+    char copied_core_name[] = "app_core";
     size_t index;
     assert(core == &h9_main_tasks[0] && core->byte_4 == 1u &&
            core->halfword_6 == 0x0380u && core->halfword_8 == 0x0300u);
@@ -5714,6 +5753,29 @@ static void test_main_task_registry(void)
     for (index = 0u; index < H9_MAIN_TASK_COUNT; ++index)
         assert(h9_main_task_find(h9_main_tasks[index].name) ==
                &h9_main_tasks[index]);
+    assert(h9_main_task_launch(NULL, 1u, 0u, "app_core") ==
+           H9_MAIN_TASK_LAUNCH_ERROR);
+    assert(h9_main_task_launch(&hooks, 0x01E66748u, 0u,
+                               copied_core_name) == 0);
+    assert(capture.calls == 1u && capture.failures == 0u &&
+           capture.entry == 0x01E66748u && capture.argument == 0u &&
+           capture.byte_4 == 1u && capture.halfword_6 == 0x0380u &&
+           capture.halfword_8 == 0x0300u &&
+           capture.name == copied_core_name);
+    assert(h9_main_task_launch(&hooks, 0x01E88280u, 0u, "my_app") == 0);
+    assert(capture.calls == 2u && capture.entry == 0x01E88280u &&
+           capture.byte_4 == 2u && capture.halfword_6 == 0x0800u &&
+           capture.halfword_8 == 0x0300u);
+    capture.result = 1;
+    assert(h9_main_task_launch(&hooks, 1u, 0u, "app_core") ==
+           H9_MAIN_TASK_LAUNCH_ERROR);
+    assert(capture.calls == 3u && capture.failures == 1u);
+    assert(h9_main_task_launch(&hooks, 1u, 0u, "missing") ==
+           H9_MAIN_TASK_LAUNCH_ERROR);
+    assert(capture.calls == 3u && capture.failures == 2u);
+    h9_main_task_hooks_bind_target(&target);
+    assert(target.context == NULL && target.create != NULL &&
+           target.report_failure == NULL);
 }
 
 int main(void)
