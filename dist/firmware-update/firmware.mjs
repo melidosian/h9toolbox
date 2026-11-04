@@ -134,7 +134,9 @@ export class H9Hid {
     requireValue(result.length === 16, 'Invalid update geometry reply.');
     const view = new DataView(result.buffer);
     const geometry = { address: view.getUint32(0, true), length: view.getUint32(4, true), eraseOffset: view.getUint32(8, true), blockSize: view.getUint32(12, true) };
-    requireValue(geometry.address === APP_START && geometry.eraseOffset === 0 && geometry.blockSize === SECTOR_SIZE && geometry.length >= IMAGE_SIZE - APP_START, 'Unexpected radio update geometry.');
+    // The observed recovery tool checks address, erase offset and sector size.
+    // The length describes the named app_dir_head file, not a proven flash limit.
+    requireValue(geometry.address === APP_START && geometry.eraseOffset === 0 && geometry.blockSize === SECTOR_SIZE, 'Unexpected radio update geometry.');
     return geometry;
   }
   async crcs(relative, count) {

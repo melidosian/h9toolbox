@@ -26,13 +26,13 @@ test('WebHID transport sends one report ID zero and accepts identified geometry'
       assert.equal(report.length, 64);
       const response = new Uint8Array(16), view = new DataView(response.buffer);
       view.setUint32(0, APP_START, true);
-      view.setUint32(4, 0xfb000, true);
+      view.setUint32(4, 0x20, true); // named-file length is not the flash capacity
       view.setUint32(8, 0, true);
       view.setUint32(12, SECTOR_SIZE, true);
       queueMicrotask(() => { for (const callback of listeners) callback({ reportId: 0, data: new DataView(makePacket(0xc0, response).buffer) }); });
     },
   };
-  assert.deepEqual(await new H9Hid(device).initialize(), { address: APP_START, length: 0xfb000, eraseOffset: 0, blockSize: SECTOR_SIZE });
+  assert.deepEqual(await new H9Hid(device).initialize(), { address: APP_START, length: 0x20, eraseOffset: 0, blockSize: SECTOR_SIZE });
   assert.equal(listeners.size, 0);
 });
 

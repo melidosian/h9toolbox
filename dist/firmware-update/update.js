@@ -1,7 +1,7 @@
 import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, loadStockPackage, planUpdate, scanRadio, writeSector } from './firmware.mjs';
 
 const $ = id => document.getElementById(id);
-let target = null, backup = null, device = null, hid = null, plan = null, busy = false;
+let target = null, backup = null, device = null, hid = null, plan = null, restorePlan = null, busy = false;
 const resumeKey = 'h9-hid-pending-v1';
 function status(message, error = false) {
   $('status').textContent = message;
@@ -16,14 +16,15 @@ function refresh() {
   $('connect').disabled = busy || !!device;
   $('disconnect').disabled = busy || !device;
   $('inspect').disabled = busy || !hid || !target || !backup;
-  $('acknowledge').disabled = busy || !plan?.length;
+  $('acknowledge').disabled = busy || (!plan?.length && !restorePlan?.length);
   $('flash').disabled = busy || !plan?.length || !$('acknowledge').checked;
+  $('restore').disabled = busy || !restorePlan?.length || !$('acknowledge').checked;
   $('firmwareFile').disabled = busy;
   $('backupFile').disabled = busy;
 }
 function fail(error) { status(error?.message || String(error), true); }
 function pending() { try { return JSON.parse(localStorage.getItem(resumeKey)); } catch { return null; } }
-function forgetPlan() { plan = null; $('acknowledge').checked = false; $('planState').textContent = 'Inspect the radio before writing.'; refresh(); }
+function forgetPlan() { plan = null; restorePlan = null; $('acknowledge').checked = false; $('planState').textContent = 'Inspect the radio before writing.'; refresh(); }
 
 $('firmwareFile').addEventListener('change', async event => {
   target = null; forgetPlan();
@@ -82,36 +83,40 @@ $('inspect').addEventListener('click', async () => {
     if (unknown.length && (unknown.length !== 1 || unknown[0] !== resumeSector)) throw new Error('Unknown sector state outside the saved interrupted update. No writes allowed.');
     const remaining = changed.filter(physical => current[(physical - APP_START) / SECTOR_SIZE] !== targetCrcs[(physical - APP_START) / SECTOR_SIZE]);
     plan = remaining;
-    $('planState').textContent = remaining.length ? `${remaining.length} firmware sectors need writing${unknown.length ? ' (resuming one interrupted sector)' : ''}.` : 'Firmware already matches; no write needed.';
-    status(`Inspection complete. ${remaining.length} sector(s) to update; no writes sent.`);
+    restorePlan = changed.filter(physical => current[(physical - APP_START) / SECTOR_SIZE] !== backupCrcs[(physical - APP_START) / SECTOR_SIZE]);
+    $('planState').textContent = `${plan.length} sector(s) to update; ${restorePlan.length} to restore${unknown.length ? ' (one interrupted sector)' : ''}.`;
+    status(`Inspection complete. ${plan.length} sector(s) to update, ${restorePlan.length} to restore; no writes sent.`);
   } catch (error) { fail(error); }
   busy = false; refresh();
 });
-$('flash').addEventListener('click', async () => {
-  if (!plan?.length || !backup || !target || !hid || !$('acknowledge').checked) return;
+async function performWrite(direction) {
+  const work = [...((direction === 'update' ? plan : restorePlan) || [])];
+  if (!work.length || !backup || !target || !hid || !$('acknowledge').checked) return;
+  const destination = direction === 'update' ? target.image : backup.image;
   busy = true; refresh();
-  const work = [...plan];
   try {
-    status(`Writing ${work.length} sectors. Keep USB connected and the radio powered on.`);
+    status(`${direction === 'update' ? 'Updating' : 'Restoring'} ${work.length} sectors. Keep USB connected and the radio powered on.`);
     for (let index = 0; index < work.length; index++) {
       const physical = work[index];
-      localStorage.setItem(resumeKey, JSON.stringify({ packageHash: target.packageHash, backupHash: backup.hash, sector: physical }));
-      await writeSector(hid, physical, target.image);
+      localStorage.setItem(resumeKey, JSON.stringify({ packageHash: target.packageHash, backupHash: backup.hash, sector: physical, direction }));
+      await writeSector(hid, physical, destination);
       localStorage.removeItem(resumeKey);
       progress(index + 1, work.length);
       if (index % 8 === 7 || index === work.length - 1) status(`Verified ${index + 1}/${work.length} sectors.`);
     }
-    const after = await scanRadio(hid, progress), desired = expectedCrcs(target.image);
+    const after = await scanRadio(hid, progress), desired = expectedCrcs(destination);
     for (let physical = APP_START; physical < IMAGE_SIZE; physical += SECTOR_SIZE) {
       const index = (physical - APP_START) / SECTOR_SIZE;
       if (after[index] !== desired[index]) throw new Error(`Final CRC mismatch at 0x${physical.toString(16)}.`);
     }
-    plan = null; $('acknowledge').checked = false;
-    $('planState').textContent = 'All accessible firmware sectors verified.';
-    status('Firmware sector CRC verification passed. Disconnect USB and power-cycle the radio, then check its version and saved settings.');
+    plan = null; restorePlan = null; $('acknowledge').checked = false;
+    $('planState').textContent = 'All main-firmware sectors verified.';
+    status(`${direction === 'update' ? 'Updated firmware' : 'Restored backup'} sector CRC verification passed. Disconnect USB and power-cycle the radio, then check its version and saved settings.`);
   } catch (error) { fail(error); status('Leave the backup and firmware files available. Reconnect in PTT + 2 mode and run Inspect to resume; do not discard the files.', true); }
   busy = false; refresh();
-});
+}
+$('flash').addEventListener('click', () => performWrite('update'));
+$('restore').addEventListener('click', () => performWrite('restore'));
 
 if (!('hid' in navigator)) status('WebHID is unavailable here. Use desktop Chrome or Edge over HTTPS.', true);
 refresh();

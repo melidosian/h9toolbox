@@ -47,7 +47,8 @@
         <p class="subtext">Inspect reads sector CRCs only. No erase or write is sent until you explicitly start the update.</p>
         <div class="controls"><button class="button ghost" id="inspect" disabled>Inspect radio</button><span id="planState" class="hint">Select both files and connect the radio.</span></div>
         <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may damage my radio. I have a raw flash backup and a recovery method.</span></label>
-        <button class="button write-button" id="flash" disabled>Write verified firmware</button>
+        <div class="controls"><button class="button write-button" id="flash" disabled>Write verified firmware</button><button class="button ghost" id="restore" disabled>Restore selected backup</button></div>
+        <p class="fine">Restore writes the saved application sectors back through HID and checks their CRCs. It cannot restore or inspect the protected boot bytes or settings beyond 0xDA000.</p>
         <div class="progress-wrap"><div class="progress-track"><div id="progress"></div></div><span id="progressText">0%</span></div>
       </section>
       <section class="card status-card" aria-live="polite" aria-labelledby="activity-title">
