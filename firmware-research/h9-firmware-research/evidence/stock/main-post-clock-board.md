@@ -193,5 +193,14 @@ reads `0x101074`, `0x101070`, `0x10107C`, and `0x101078` in order without
 using their values. `h9_main_clock_map_sources` ports this stage with the
 replacement linker symbols `h9_main_reset` and `__ram_code_load_start`.
 The linked target check verifies those symbols and all four read operations.
-The next stock instruction begins a repeated write to address zero; its
-count and purpose need separate analysis before extending the board entry.
+At app+`0x05FF52`, the next stock stage sets `r0=0` and `r1=-1`, then
+`rep 2 16` applies `[r0++=4] = r1` sixteen times. It overwrites RAM words
+`0x00..0x3C` with `0xFFFFFFFF`, exactly the 64-byte prefix left blank in
+the copied stock RAM code. It waits for status bit 0 to set, clears bit 10
+at `0x101040`, writes `0` to `0x101054` and `0x66BF` to `0x101050`, then
+sets bits 11 and 10 at `0x101040` before waiting for status to clear. A
+second set-wait clears bit 8, writes `0` to `0x10105C` and `0x66BF` to
+`0x101058`, sets bits 9 and 8, then waits for clear. The call targets at
+app+`0x05FF5E`, `0x05FF7E`, `0x05FF82`, and `0x05FF96` resolve to the same
+status helpers. This sequence ends at app+`0x05FF9A`; its hardware purpose
+remains unknown.
