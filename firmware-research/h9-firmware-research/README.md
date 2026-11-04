@@ -99,6 +99,12 @@ py -3 firmware-research/h9-firmware-research/trace_pi32.py firmware-research/h9-
 
 This index located the radio AF register `0x47` selector and a separate audio on/off request, described in [APRS_CODE_MAP.md](APRS_CODE_MAP.md). Neither is an identified safe APRS mute patch until the decoder's analog tap and the selected receive channel are traced.
 
+For the 55,928-byte Pi32 code copied to RAM address zero during main startup, decode a selected RAM-address range with the hash-pinned `analyze_main_ram.py` tool. Its output belongs under ignored `output/` and can include data interpreted as code:
+
+```powershell
+py -3 firmware-research/h9-firmware-research/analyze_main_ram.py firmware-research/h9-firmware-research/output/stock/app.bin --isa-repo 'C:\path\to\pi32v2-isa' --offset 0x40 --length 0x240 --output firmware-research/h9-firmware-research/output/main-ram-entry.asm
+```
+
 ## Speaker-gate bench probe (not the APRS mute option)
 
 `build_audio_gate_probe.py` makes a reproducible diagnostic **main** `.fw` from the exact stock v1.0.38 package. It changes one instruction before the GPIO output writer so **each call to that writer** drives index 3 low. The caller can skip the write when its stored state already matches a request, so the patch does not guarantee a continuously low GPIO pin. The independent Pi32 decoder confirms the replacement instruction is `r1 = 0`, and the resulting package passes app-only validation. The radio booted with this image. The user heard APRS and RF traffic through Bluetooth; after Bluetooth audio was disconnected, the built-in speaker remained silent. The original image was restored and the user confirmed that the built-in speaker audio returned. A newly decoded APRS packet under the probe was not confirmed. This probe does not meet the requested mute behavior because Bluetooth still carried the bursts, and it does not add a menu option or a CH-B-only mute.

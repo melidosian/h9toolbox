@@ -8,4 +8,4 @@ Source: captured APRS v1.0.15 image, SHA-256 `1dbbc10425f186f22a4d82d73f139f1e3c
 - `FUN_08002964` passes the same base and mask to `FUN_08003870`, which tests base+`0x10` (input data). The serial `0x11` subcommand 3 uses that result.
 - The three base-address literals occur at image addresses `0x08002970`, `0x080029E0`, and `0x080029F4`; `verify_source_inputs.py` checks them in the pinned image.
 
-`replacement-source/aprs/h9_aprs_gpio_board.*` ports only these register operations. No evidence yet identifies the external circuit connected to bit 5 or proves that the replacement runtime has configured the pin's direction and mode. This source cannot be treated as a validated PTT driver.
+`replacement-source/aprs/h9_aprs_gpio_board.*` ports these register operations and the later-traced stock initializer at `0x080029F8`: enable the GPIOB clock, configure bit 5 as an output, and initially clear it. No evidence identifies the external circuit connected to bit 5, and this source cannot be treated as a validated PTT driver.
