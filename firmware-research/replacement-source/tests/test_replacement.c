@@ -1178,6 +1178,14 @@ static void test_main_rf_live_route(void)
     working_tx = b_tx;
     assert(h9_main_rf_state_read(&memory, &snapshot));
     assert(h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    snapshot.b.transmit_10hz = 14500000u;
+    snapshot.working.transmit_10hz = 14500000u;
+    assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    snapshot.b.transmit_10hz = b_tx;
+    snapshot.working.transmit_10hz = b_tx;
+    plan.expected_tx_hz++;
+    assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    plan.expected_tx_hz--;
     working_tx = a_tx;
     assert(h9_main_rf_state_read(&memory, &snapshot));
     assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
@@ -1394,6 +1402,7 @@ typedef struct {
     bool wrong_readback_hz;
     bool wrong_route_side;
     bool wrong_working_pair;
+    bool changed_selected_frequency;
     bool changed_logical_side;
     H9MainTxFrequencyPolicy frequency_policy;
     unsigned validate_calls;
@@ -1472,6 +1481,10 @@ static bool main_read_rf_snapshot(void *opaque, H9MainRfSnapshot *snapshot)
     snapshot->working = fake->wrong_working_pair ? snapshot->a :
                         (fake->prepared_side == H9_SIDE_B ?
                          snapshot->b : snapshot->a);
+    if (fake->changed_selected_frequency) {
+        snapshot->b.transmit_10hz = 14500000u;
+        snapshot->working.transmit_10hz = 14500000u;
+    }
     return true;
 }
 
@@ -1576,6 +1589,14 @@ static void test_main_tx_service(void)
     result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
                              packet, sizeof packet, &hardware, &fake);
     assert(result == H9_MAIN_TX_ROUTE_FAILED && fake.send_calls == 0u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.changed_selected_frequency = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_ROUTE_FAILED && fake.send_calls == 0u);
+    assert(fake.stop_calls == 1u && fake.restore_calls == 1u);
 
     memset(&fake, 0, sizeof fake);
     fake.current_side = H9_SIDE_B;

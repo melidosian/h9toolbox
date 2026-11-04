@@ -14,11 +14,15 @@ It copies the chosen side's RX/TX words from `0x11CA0/0x11CA4` (A) or
 The replacement `h9_main_rf_state_read` captures both selectors and the
 frequency pairs, then rereads the selectors to reject an observed change.
 `h9_main_rf_snapshot_matches_plan` requires the setup side and working pair
-to match the planned side; Lock and Current modes also require the logical
+to match the planned side. It also requires the selected channel's stored TX
+word (in 10 Hz units) to equal the planned frequency in Hz, so a changed
+channel frequency cannot pass merely because the working copy changed with it.
+Lock and Current modes also require the logical
 side to still match. `h9_main_tx_send` now requires this snapshot after its
 prepared side/frequency readback and before its only keying callback. A
 host test reproduces a B logical side with an A Dual Watch route and confirms
-that no packet send is allowed; it also checks a wrong copied frequency pair.
+that no packet send is allowed; it also checks a wrong copied frequency pair
+and a changed selected-channel TX frequency.
 
 `h9_main_rf_route_prepare` is a new replacement primitive for the unkeyed
 board preparation step. It preserves the logical-side guard for Lock/Current,

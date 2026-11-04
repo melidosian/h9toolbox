@@ -54,7 +54,8 @@ bool h9_main_rf_route_prepare(const H9MainRfStateMemory *memory,
 bool h9_main_rf_route_restore(const H9MainRfStateMemory *memory,
                               H9MainRfRouteSaved *saved);
 
-/* This verifies side routing and the copied working frequency pair only.
+/* This verifies side routing, the copied working frequency pair, and the
+ * selected channel's stored TX frequency against the planned Hz value.
  * It cannot verify the final synthesizer frequency or emitted RF. */
 bool h9_main_rf_snapshot_matches_plan(const H9MainRfSnapshot *snapshot,
                                       const H9MainAprsConfig *config,

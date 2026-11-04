@@ -136,6 +136,8 @@ bool h9_main_rf_snapshot_matches_plan(const H9MainRfSnapshot *snapshot,
     selected = plan->side == H9_SIDE_A ? &snapshot->a : &snapshot->b;
     return selected->receive_10hz != 0u &&
            selected->transmit_10hz != 0u &&
+           plan->expected_tx_hz % 10u == 0u &&
+           selected->transmit_10hz == plan->expected_tx_hz / 10u &&
            snapshot->working.receive_10hz == selected->receive_10hz &&
            snapshot->working.transmit_10hz == selected->transmit_10hz;
 }
