@@ -9,6 +9,7 @@
 #include "h9_aprs_tx_service.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
+#include "h9_main_aprs_metadata.h"
 #include "h9_main_aprs_receive.h"
 #include "h9_main_aprs_wire.h"
 #include "h9_main_ax25.h"
@@ -284,6 +285,54 @@ static void test_main_received_aprs_packet(void)
         (void)h9_main_wire_feed(&receiver, serial[i]);
     assert(receiver.frame_ready);
     assert(!h9_main_aprs_packet_from_frame(&receiver, &decoded));
+}
+
+typedef struct {
+    uint8_t sentence[256];
+    size_t length;
+    unsigned count;
+} GpsOutput;
+
+static void capture_gps_sentence(void *context, const uint8_t *sentence,
+                                 size_t length)
+{
+    GpsOutput *output = (GpsOutput *)context;
+    assert(length <= sizeof output->sentence);
+    memcpy(output->sentence, sentence, length);
+    output->length = length;
+    output->count++;
+}
+
+static void test_main_gps_sentence_frames(void)
+{
+    static const uint8_t first[] = "noise$BAD$GPR";
+    static const uint8_t second[] = "MC,1*00\r\n";
+    static const uint8_t expected[] = "$GPRMC,1*00\r\n";
+    H9MainGpsCollector collector;
+    H9MainWireReceiver receiver;
+    GpsOutput output = { { 0 }, 0, 0 };
+    uint8_t serial[H9_APRS_ENCODED_CAPACITY];
+    size_t serial_length;
+    size_t i;
+    h9_main_gps_init(&collector);
+    h9_main_wire_reset(&receiver);
+    serial_length = h9_wire_encode(0x10u, first, sizeof first - 1u,
+                                   serial, sizeof serial);
+    for (i = 0; i < serial_length; ++i)
+        (void)h9_main_wire_feed(&receiver, serial[i]);
+    assert(receiver.frame_ready);
+    assert(h9_main_aprs_gps_from_frame(&collector, &receiver,
+                                        capture_gps_sentence, &output) == 0);
+    serial_length = h9_wire_encode(0x10u, second, sizeof second - 1u,
+                                   serial, sizeof serial);
+    for (i = 0; i < serial_length; ++i)
+        (void)h9_main_wire_feed(&receiver, serial[i]);
+    assert(receiver.frame_ready);
+    assert(h9_main_aprs_gps_from_frame(&collector, &receiver,
+                                        capture_gps_sentence, &output) == 1);
+    assert(output.count == 1 && output.length == sizeof expected - 1u);
+    assert(memcmp(output.sentence, expected, output.length) == 0);
+    assert(collector.length == 0);
 }
 
 static void test_main_policy(void)
@@ -686,6 +735,7 @@ static void test_aprs_controller(void)
     FakeHardware fake = { 0 };
     H9AprsHardware hw = { 0 };
     H9AprsController controller;
+    H9MainAprsVersions versions;
     H9MainWireReceiver main_receiver;
     uint8_t send_packet[] = { 4, 0x41, 0xC0, 0xDB };
     uint8_t query = 1;
@@ -722,6 +772,25 @@ static void test_aprs_controller(void)
     assert(main_receiver.payload[0] == 1u);
     assert(memcmp(main_receiver.payload + 1, "V1.0.15", 7) == 0);
     assert(main_receiver.payload[8] == 0);
+    h9_main_aprs_versions_init(&versions);
+    assert(h9_main_aprs_version_from_frame(&main_receiver, &versions));
+    assert(versions.has_module && !versions.has_protocol);
+    assert(strcmp(versions.module, "V1.0.15") == 0);
+    query = 0;
+    feed_frame(&controller, 0x20u, &query, 1);
+    h9_main_wire_reset(&main_receiver);
+    for (i = 0; i < fake.uart_length; ++i)
+        (void)h9_main_wire_feed(&main_receiver, fake.uart[i]);
+    assert(main_receiver.frame_ready);
+    assert(h9_main_aprs_version_from_frame(&main_receiver, &versions));
+    assert(versions.has_module && versions.has_protocol);
+    assert(strcmp(versions.module, "V1.0.15") == 0);
+    assert(strcmp(versions.protocol, "V1.0.0") == 0);
+    main_receiver.length = 2;
+    main_receiver.payload[0] = 1;
+    main_receiver.payload[1] = 'X';
+    assert(!h9_main_aprs_version_from_frame(&main_receiver, &versions));
+    assert(strcmp(versions.module, "V1.0.15") == 0);
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.demod_calls == 1 && fake.sample == 0);
     assert(fake.dac_calls == 1 && fake.dac == 0x85u);
@@ -766,6 +835,7 @@ int main(void)
     test_main_aprs_wire_receiver();
     test_main_ax25_packet();
     test_main_received_aprs_packet();
+    test_main_gps_sentence_frames();
     test_main_policy();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();

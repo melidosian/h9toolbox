@@ -83,6 +83,8 @@ The main application's **incoming** APRS-module path is the ring-buffer receiver
 
 The command-`0x00` dispatch path calls the AX.25 decoder at app+`0x05D9F6`, whose address helper is app+`0x05D9A6`. The dispatcher forwards decoded packets only with nonempty information and PID `0xF0` or high nibble `0x3`. The decoded source path and its limits are recorded in `evidence/stock/aprs-main-ax25-decode.md`. The replacement source now decodes those packets and filters them after the incoming frame parser; the remaining command cases and the final UI/data-model callback are still absent.
 
+The same dispatcher routes command `0x10` into a GPS sentence collector at app+`0x086EF4` and command `0x21` into module/protocol version handling via app+`0x086FB6`. Their source-backed behavior and limits are in `evidence/stock/aprs-main-command-metadata.md`. The replacement source now collects complete GPS sentences and parses bounded version replies, but the GPS fields, version persistence, and final UI callbacks remain open. Commands `0x11` and `0x51` need additional tracing.
+
 `H9FrameCandidates.java` previously scanned recognized Pi32 functions for the APRS controller's `0xC0`/`0xDB` framing constants and missed this outgoing framer because its entry point was not recognized. The main application's **incoming** APRS serial parser remains unidentified; the short scan candidates were unrelated initialization/UI code, and the large candidate has unreliable function boundaries. This negative result is limited by the incomplete Pi32 processor module and possible framing in another unrecognized routine.
 
 ## APRS mute and unexpected CH-A TX
