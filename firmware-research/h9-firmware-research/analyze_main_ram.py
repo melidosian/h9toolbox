@@ -12,12 +12,16 @@ import argparse
 from hashlib import sha256
 import importlib
 from pathlib import Path
+import re
 import sys
 
 
 STOCK_SHA256 = "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3"
 RAM_SOURCE_OFFSET = 0x0C618C
 RAM_CODE_BYTES = 55_928
+APP_BASE = 0x01E00100
+APP_END = APP_BASE + 0x0D3C2C
+CALL_WINDOW_MASK = 0x01FFFFFF
 
 
 def ram_code(path: Path) -> bytes:
@@ -42,6 +46,7 @@ def disassemble(data: bytes, isa_repo: Path, offset: int, length: int) -> str:
         "; TD-H9 stock main v1.0.38 RAM-code copy; RAM address = offset",
         f"; source app+0x{RAM_SOURCE_OFFSET:06X}; SHA-256 {sha256(data).hexdigest()}",
         "; Linear decode includes possible data and unreachable bytes.",
+        "; Relative-call app targets are candidates after 32 MiB address-window wrapping.",
     ]
     position = offset
     end = offset + length
@@ -53,7 +58,16 @@ def disassemble(data: bytes, isa_repo: Path, offset: int, length: int) -> str:
         else:
             size = hit[2]
             mnemonic = hit[3]
-        lines.append(f"0x{position:06X}  {data[position:position + size].hex():<16} {mnemonic}")
+        annotation = ""
+        call = re.fullmatch(r"call (-?\d+)", mnemonic)
+        if call is not None:
+            candidate = (position + size + int(call.group(1))) & CALL_WINDOW_MASK
+            if APP_BASE <= candidate < APP_END:
+                annotation = f"  ; candidate app+0x{candidate - APP_BASE:06X}"
+        lines.append(
+            f"0x{position:06X}  {data[position:position + size].hex():<16} "
+            f"{mnemonic}{annotation}"
+        )
         position += size
     return "\n".join(lines) + "\n"
 

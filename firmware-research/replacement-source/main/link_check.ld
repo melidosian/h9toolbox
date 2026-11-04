@@ -24,6 +24,7 @@ SECTIONS {
         FILL(0x00);
         . += 0x40;
         *(.ram_code .ram_code.*)
+        *(.ram_late .ram_late.*)
         . = ALIGN(4);
         __ram_code_end = .;
     } > RAMCODE AT> CODE

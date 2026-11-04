@@ -42,15 +42,58 @@ h9_main_interrupt_config:
     rts
     .size h9_main_interrupt_config, .-h9_main_interrupt_config
 
-/* Timer-3 IRQ shell from stock app+0x03126C/0x0312CA. The C body performs
- * the register, ROM, and fault decisions while this preserves CPU state. */
+/* Timer-3 ISR from stock app+0x03126C..0x0312D2. Direct ROM calls retain the
+ * input registers left by the previous instruction, unlike a C callback. */
+    .set h9_rom_timer_poll, 0x02001D2E
+    .set h9_rom_clock_enter, 0x02001634
+    .set h9_rom_clock_check, 0x02001E2C
+    .set h9_rom_clock_leave, 0x02001650
     .globl h9_main_timer3_isr
     .type h9_main_timer3_isr,@function
 h9_main_timer3_isr:
     [--sp] = {psr, rets, reti}
     [--sp] = {r4-r0}
-    call h9_main_timer3_irq_target_body
+    r0 = 0xC0A4
+    [r0+0] += 1
+    r0 = 0x10F0EC
+    [r0+0] |= 0x40
+    r0 = 0x1D8B0
+    [r0+0] += 1
+    call h9_rom_timer_poll
+    if (r0 == 0) goto .Ltimer3_return
+    call h9_rom_clock_enter
+    csync
+    call h9_rom_clock_check
+    if (r0 == 0) goto .Ltimer3_leave
+    r0 = 0
+    r1 = 0xD5E8
+    r2 = 0xD5BC
+    r3 = [r1+0]
+    r4 = [r2+0]
+    if (r4 == r3) goto .Ltimer3_match
+    swi 0
+.Ltimer3_match:
+    r0 = 1
+.Ltimer3_leave:
+    call h9_rom_clock_leave
+.Ltimer3_return:
     {r4-r0} = [sp++]
     {psr, rets, reti} = [sp++]
     rti
     .size h9_main_timer3_isr, .-h9_main_timer3_isr
+
+/* Stock RAM 0x1622 starts with these three save instructions, then enters
+ * flash crash-report code and loops. This first-pass replacement preserves
+ * the frame and leaves a compact RAM snapshot for debugger inspection. */
+    .section .ram_late.h9_default_irq,"ax",@progbits
+    .globl h9_main_default_irq
+    .type h9_main_default_irq,@function
+h9_main_default_irq:
+    [--sp] = {ssp, usp, icfg, psr, rets, retx, rete, reti}
+    [--sp] = {r15-r0}
+    r0 = sp
+    r1 = h9_main_exception_capture
+    call r1
+.Ldefault_irq_halt:
+    goto .Ldefault_irq_halt
+    .size h9_main_default_irq, .-h9_main_default_irq

@@ -9,6 +9,8 @@
 #include "h9_main_clock_rom_mode.h"
 #include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
+#include "h9_main_exception.h"
+#include "h9_main_irq_registration.h"
 #include "h9_main_memory_window.h"
 #include "h9_main_post_clock_rom.h"
 
@@ -75,6 +77,7 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainPostClockDescriptor32Board post_clock_descriptor32_board;
     H9MainPostClockGateRegisters post_clock_gate;
     H9MainPostClockTimerStage post_clock_timer;
+    H9MainIrqRegistration irq_registration;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -154,6 +157,11 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     h9_main_post_clock_timer_stage_bind_target(&post_clock_timer,
                                                 &post_clock_rom);
     if (!h9_main_post_clock_timer_stage_run(&post_clock_timer)) for (;;) { }
+    h9_main_irq_registration_bind_target(&irq_registration);
+    if (!h9_main_irq_register(&irq_registration, 0u, 2u,
+                               h9_main_default_irq)) for (;;) { }
+    if (!h9_main_irq_register(&irq_registration, 1u, 2u,
+                               h9_main_default_irq)) for (;;) { }
 #endif
     for (;;) { }
 }

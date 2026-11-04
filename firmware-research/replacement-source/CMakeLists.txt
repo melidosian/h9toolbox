@@ -27,6 +27,7 @@ add_library(h9_replacement_core STATIC
     main/h9_main_clock_rom_mode.c
     main/h9_main_clock_timing.c
     main/h9_main_heap_bitmap.c
+    main/h9_main_exception.c
     main/h9_main_irq_registration.c
     main/h9_main_memory_window.c
     main/h9_main_post_clock_rom.c

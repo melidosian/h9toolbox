@@ -157,5 +157,12 @@ app+`0x0A2A22` yields field values `1` for IRQ 0, `15` for IRQ 1, and
 bounded vector update, and ROM-guarded control write; the target timer-3
 stage now uses it instead of a hardcoded IRQ-3 write. The RAM handler at
 `0x1622` saves the full register and processor state, calls another routine,
-then loops. Its call target and fault behavior are unresolved, so the
-replacement board entry stops before registering IRQs 0 and 1.
+then loops. The four-byte relative call at RAM `0x162E` has displacement
+`-1,528,554`; adding the four-byte PC adjustment and wrapping in the Pi32
+32 MiB call window yields `0x01E8C348` (app+`0x08C248`). The target reads
+saved registers and status, prints diagnostic text, checks stack-guard
+words, and continues dumping state. This is a static target inference, not
+a tested crash path. The replacement now installs IRQs 0 and 1 with a
+RAM-resident exception entry whose first 12 bytes match the stock save
+sequence. It records 24 saved words in RAM and halts. The stock printer is
+still unported.

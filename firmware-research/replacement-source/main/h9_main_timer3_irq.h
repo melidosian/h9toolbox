@@ -23,8 +23,6 @@ typedef struct {
 } H9MainTimer3Irq;
 
 bool h9_main_timer3_irq_handle(const H9MainTimer3Irq *irq);
-void h9_main_timer3_irq_bind_target(H9MainTimer3Irq *irq);
-void h9_main_timer3_irq_target_body(void);
 void h9_main_timer3_isr(void);
 
 #endif

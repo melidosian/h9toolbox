@@ -51,6 +51,7 @@
 #include "h9_main_clock_rom_mode.h"
 #include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
+#include "h9_main_exception.h"
 #include "h9_main_irq_registration.h"
 #include "h9_main_memory_window.h"
 #include "h9_main_post_clock_rom.h"
@@ -5301,13 +5302,6 @@ static void test_main_timer3_irq(void)
         timer3_poll, timer3_enter, timer3_sync, timer3_check,
         timer3_leave, timer3_fault
     };
-    H9MainTimer3Irq target;
-    h9_main_timer3_irq_bind_target(&target);
-    assert((uintptr_t)target.tick_count_c0a4 == 0xC0A4u &&
-           (uintptr_t)target.timer_control_10f0ec == 0x10F0ECu &&
-           (uintptr_t)target.clock_count_1d8b0 == 0x1D8B0u &&
-           (uintptr_t)target.compare_d5e8 == 0xD5E8u &&
-           (uintptr_t)target.compare_d5bc == 0xD5BCu);
     assert(!h9_main_timer3_irq_handle(NULL));
     irq.fault_swi0 = NULL;
     assert(!h9_main_timer3_irq_handle(&irq));
@@ -5334,6 +5328,21 @@ static void test_main_timer3_irq(void)
     assert(!h9_main_timer3_irq_handle(&irq));
     assert(capture.length == 5u &&
            memcmp(capture.calls, "PESCF", 5u) == 0);
+}
+
+static void test_main_exception_capture(void)
+{
+    uint32_t frame[H9_MAIN_EXCEPTION_FRAME_WORDS];
+    unsigned index;
+    h9_main_last_exception[0] = 0u;
+    h9_main_exception_capture(NULL);
+    assert(h9_main_last_exception[0] == 0u);
+    for (index = 0; index < H9_MAIN_EXCEPTION_FRAME_WORDS; ++index)
+        frame[index] = 0xABCD0000u + index;
+    h9_main_exception_capture(frame);
+    assert(h9_main_last_exception[0] == 0x48394654u);
+    for (index = 0; index < H9_MAIN_EXCEPTION_FRAME_WORDS; ++index)
+        assert(h9_main_last_exception[index + 1u] == frame[index]);
 }
 
 typedef struct {
@@ -5464,6 +5473,7 @@ int main(void)
     test_main_post_clock_timer_stage();
     test_main_irq_registration();
     test_main_timer3_irq();
+    test_main_exception_capture();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

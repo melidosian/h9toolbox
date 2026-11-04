@@ -115,6 +115,9 @@ STOCK_IRQ_MAP = bytes.fromhex(
     "010102020200020101010303030002020000000000010004"
     "01010102010100000000000000000000"
 )
+STOCK_RAM_EXCEPTION_ENTRY = bytes.fromhex(
+    "58e92f38d8e8ffff64e0000eb4ea8b56f79f"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -160,6 +163,8 @@ def verify_stock_image(path: Path) -> None:
             data[0x3126C:0x312D2] != STOCK_TIMER3_IRQ or \
             data[0x2465A:0x246B0] != STOCK_IRQ_REGISTRATION or \
             data[0xA2A22:0xA2A62] != STOCK_IRQ_MAP or \
+            data[0xC618C + 0x1622:0xC618C + 0x1634] != \
+                STOCK_RAM_EXCEPTION_ENTRY or \
             data[0xBA:0xD2] != STOCK_DESCRIPTOR_LOOKUP or \
             data[0x554:0x564] != STOCK_DESCRIPTOR_TABLE or \
             data[0x482:0x48E] != STOCK_DESCRIPTOR_WORD5_HELPER or \
@@ -317,6 +322,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             board_body.rfind("h9_main_clock_selector_run") < \
             board_body.find("h9_main_clock_rom_mode_apply"):
         raise ValueError("Linked board entry lost repeated clock selector")
+    if board_body.count("h9_main_irq_register") < 2 or \
+            "h9_main_default_irq" not in board_body:
+        raise ValueError("Linked board entry lacks default IRQ 0/1 registration")
     for name, required in (
         ("target_rom_apply", "2001634"),
         ("target_synchronize", "csync"),
@@ -422,8 +430,12 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     timer_isr_body = timer_isr.group(1) if timer_isr else ""
     timer_isr_order = (
         "[--sp] = {psr, rets, reti}", "[--sp] = {r4-r0}",
-        "h9_main_timer3_irq_target_body", "{r4-r0} = [sp++]",
-        "{psr, rets, reti} = [sp++]", "rti",
+        "c0a4", "10f0ec", "|= 0x40", "1d8b0",
+        "h9_rom_timer_poll : 2001d2e",
+        "h9_rom_clock_enter : 2001634", "csync",
+        "h9_rom_clock_check : 2001e2c", "d5e8", "d5bc",
+        "swi 0", "h9_rom_clock_leave : 2001650",
+        "{r4-r0} = [sp++]", "{psr, rets, reti} = [sp++]", "rti",
     )
     timer_isr_positions = [timer_isr_body.find(item) for item in timer_isr_order]
     if -1 in timer_isr_positions or timer_isr_positions != sorted(timer_isr_positions):
@@ -453,12 +465,6 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             "r1 |= 1" not in irq_register_body:
         raise ValueError("Linked IRQ installer lost stock priority mapping")
     for name, expected in (
-        ("target_poll", "2001d2e"),
-        ("target_clock_enter", "2001634"),
-        ("target_clock_sync", "csync"),
-        ("target_clock_check", "2001e2c"),
-        ("target_clock_leave", "2001650"),
-        ("h9_main_timer3_irq_target_body", "swi 0"),
         ("target_enter", "2001634"),
         ("target_leave", "2001650"),
     ):
@@ -690,6 +696,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     serial_write_entry = symbol_address("h9_main_serial_command_write")
     serial_gate_acquire = symbol_address("h9_main_serial_gate_acquire")
     serial_gate_release = symbol_address("h9_main_serial_gate_release")
+    default_irq_entry = symbol_address("h9_main_default_irq")
     if symbol_address("__stock_clear_start") != RAM_START or \
             symbol_address("__stock_clear_end") != RAM_END:
         raise ValueError("Linked RAM-clear interval differs from stock startup")
@@ -704,6 +711,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             serial_bus_entry < serial_gate_acquire < serial_gate_release <
             ram_code_end):
         raise ValueError("Linked serial command handlers are not relocated RAM code")
+    if not (0x40 < default_irq_entry < ram_code_end):
+        raise ValueError("Linked default IRQ handler is not in RAM code")
     ram_code_section = output / "main-ram-code.bin"
     run([sibling_tool(compiler, "llvm-objcopy"), "-O", "binary",
          "-j=.ram_code", str(elf), str(ram_code_section)])
@@ -711,6 +720,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     if len(ram_code_data) != ram_code_end - ram_code_start or \
             ram_code_data[:0x40] != bytes(0x40):
         raise ValueError("Linked RAM code has unexpected length or nonzero prefix")
+    if ram_code_data[default_irq_entry:default_irq_entry + 12] != \
+            STOCK_RAM_EXCEPTION_ENTRY[:12]:
+        raise ValueError("Linked default IRQ entry lost stock register saves")
     gate_bytes = ram_code_data[serial_gate_acquire:serial_gate_release]
     if not all(opcode in gate_bytes for opcode in
                (bytes.fromhex("60 00"), bytes.fromhex("20 00"),
@@ -766,7 +778,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         raise ValueError(f"Linked ELF has undefined symbols:\n{undefined}")
     map_data = map_file.read_text(encoding="utf-8", errors="replace")
     archive_section = map_data.split("Memory Configuration", 1)[0]
-    included = re.findall(r"libh9_main_replacement\.a\(([^)]+)\)",
+    included = re.findall(r"libh9_main_replacement\.a\(([^)]+)\)"
+                          r"\s+\(--whole-archive\)",
                           archive_section)
     expected = {item["object"] for item in object_manifest["objects"]}
     if len(included) != len(expected) or set(included) != expected:
@@ -811,6 +824,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_post_clock_descriptor32_verified": True,
         "early_board_post_clock_gate_verified": True,
         "early_board_timer3_setup_and_isr_link_verified": True,
+        "early_board_default_irq_snapshot_link_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
