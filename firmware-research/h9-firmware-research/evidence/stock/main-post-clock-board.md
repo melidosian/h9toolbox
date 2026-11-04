@@ -81,6 +81,24 @@ with the route's base word, and descriptor 16 word `+32` with the complement
 of the bitmap's next 16 bits. The bounded lookup helper returns MMIO bases
 `0x1E5000` and `0x1E5040` for these indices. The replacement now performs
 these four read-modify-write operations in the same order, and its diagnostic
-entry stops before the following descriptor-32 branch at app+`0x05FDA6`.
+entry continues into the descriptor-32 branch below.
 The stock instruction slices and helper tails are pinned by the link check;
 host tests verify the masks and register words.
+
+At app+`0x05FDA6..0x05FE04`, the code looks up descriptor 32. If found, it
+retains the high 16 bits of word `+12` and replaces the low 16 bits with
+`0x0040`. Before that write, bank-status word `0x1E0200` low nibble `0..2`
+and a descriptor pointer equal to `0x1E5080` trigger three bit-6 clears at
+descriptor offsets `+16`, `+0`, and `+8`, then a call to app+`0x44C84` with
+argument zero. That local routine compares RAM byte `0xD975` to zero. On a
+change, it clears the byte and updates control words at `0x1E19C0`;
+RAM word `0xD90C` decides whether its first two clears occur. The later
+register clears always occur when the byte changes. The hardware purpose
+of these state and MMIO fields is unproven, so the replacement names them
+by address and ports only the observed zero-argument path. Regardless of
+whether descriptor 32 exists, the board code then ANDs descriptor 32 word
+`+32` with the complement of the bitmap's third halfword, descriptor 48
+word `+20` with the route control word, and descriptor 48 word `+32` with
+the complement of the fourth halfword. The target binder, four branch
+cases, and missing-descriptor behavior are host-tested. The diagnostic
+entry stops before app+`0x05FE04`; no hardware test has run this path.

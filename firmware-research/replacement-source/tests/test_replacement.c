@@ -4865,12 +4865,15 @@ static void test_main_post_clock_handoff(void)
 typedef struct {
     volatile uint32_t descriptor0[9];
     volatile uint32_t descriptor16[9];
+    volatile uint32_t descriptor32[9];
+    volatile uint32_t descriptor48[9];
     volatile uint32_t descriptor15[6];
     volatile uint32_t descriptor23[6];
     volatile uint32_t descriptor53[6];
     uint32_t queried[4];
     unsigned queries;
     bool omit53;
+    bool omit32;
 } PostClockDescriptorCapture;
 
 static volatile uint32_t *post_clock_lookup_descriptor(void *context,
@@ -4882,6 +4885,8 @@ static volatile uint32_t *post_clock_lookup_descriptor(void *context,
     capture->queried[capture->queries++] = index;
     if (index == 0u) return capture->descriptor0;
     if (index == 16u) return capture->descriptor16;
+    if (index == 32u && !capture->omit32) return capture->descriptor32;
+    if (index == 48u) return capture->descriptor48;
     if (index == 15u) return capture->descriptor15;
     if (index == 23u) return capture->descriptor23;
     if (index == 53u && !capture->omit53) return capture->descriptor53;
@@ -4968,6 +4973,81 @@ static void test_main_post_clock_descriptor_route(void)
         assert(capture.descriptor16[8] == 0xFFFF5432u);
         assert(capture.descriptor0[4] == UINT32_MAX &&
                capture.descriptor16[4] == UINT32_MAX);
+    }
+    {
+        H9MainPostClockWords words = { UINT32_MAX, 0xABCD1234u };
+        H9MainPostClockDescriptorResult profile = {
+            UINT32_MAX, UINT32_MAX, 0xFFFF0013u
+        };
+        H9MainPostClockDescriptor32Board board;
+        uint32_t bank_status = 2u;
+        uint32_t guard = 0u;
+        uint32_t control_regs[13];
+        uint8_t state_byte = 1u;
+        h9_main_post_clock_descriptor32_bind_target(&board);
+        assert((uintptr_t)board.bank_status_1e0200 == 0x1E0200u &&
+               (uintptr_t)board.expected_descriptor32_1e5080 == 0x1E5080u &&
+               (uintptr_t)board.state_byte_d975 == 0xD975u &&
+               (uintptr_t)board.state_guard_d90c == 0xD90Cu &&
+               (uintptr_t)board.control_registers_1e19c0 == 0x1E19C0u);
+        board.bank_status_1e0200 = &bank_status;
+        board.expected_descriptor32_1e5080 = capture.descriptor32;
+        board.state_byte_d975 = &state_byte;
+        board.state_guard_d90c = &guard;
+        board.control_registers_1e19c0 = control_regs;
+        for (i = 0u; i < 9u; ++i) {
+            capture.descriptor32[i] = UINT32_MAX;
+            capture.descriptor48[i] = UINT32_MAX;
+        }
+        for (i = 0u; i < 13u; ++i) control_regs[i] = UINT32_MAX;
+        capture.descriptor32[3] = 0xDEADBEEFu;
+        capture.queries = 0u;
+        assert(!h9_main_post_clock_descriptor32_run(NULL, &board,
+                                                       &words, &profile));
+        assert(h9_main_post_clock_descriptor32_run(&route, &board,
+                                                    &words, &profile));
+        assert(capture.queries == 4u && capture.queried[0] == 32u &&
+               capture.queried[1] == 32u && capture.queried[2] == 48u &&
+               capture.queried[3] == 48u);
+        assert(capture.descriptor32[0] == 0xFFFFFFBFu &&
+               capture.descriptor32[2] == 0xFFFFFFBFu &&
+               capture.descriptor32[3] == 0xDEAD0040u &&
+               capture.descriptor32[4] == 0xFFFFFFBFu &&
+               capture.descriptor32[8] == 0xFFFFEDCBu);
+        assert(capture.descriptor48[5] == 0xFFFF0013u &&
+               capture.descriptor48[8] == 0xFFFF5432u);
+        assert(state_byte == 0u && control_regs[0] == 0xFFFFFFFCu &&
+               control_regs[3] == 0xFFFEFFFFu &&
+               control_regs[8] == 0xFFFCFFFFu &&
+               control_regs[10] == 0xFFFFBFFFu &&
+               control_regs[12] == 0xFFEEFFFFu);
+        bank_status = 3u;
+        state_byte = 1u;
+        capture.queries = 0u;
+        capture.descriptor32[3] = 0x12345678u;
+        assert(h9_main_post_clock_descriptor32_run(&route, &board,
+                                                    &words, &profile));
+        assert(state_byte == 1u &&
+               capture.descriptor32[3] == 0x12340040u);
+        bank_status = 0u;
+        guard = 1u;
+        state_byte = 1u;
+        capture.queries = 0u;
+        for (i = 0u; i < 13u; ++i) control_regs[i] = UINT32_MAX;
+        assert(h9_main_post_clock_descriptor32_run(&route, &board,
+                                                    &words, &profile));
+        assert(state_byte == 0u && control_regs[0] == UINT32_MAX &&
+               control_regs[3] == UINT32_MAX &&
+               control_regs[8] == 0xFFFCFFFFu);
+        capture.omit32 = true;
+        capture.queries = 0u;
+        state_byte = 1u;
+        for (i = 0u; i < 9u; ++i) capture.descriptor48[i] = UINT32_MAX;
+        assert(h9_main_post_clock_descriptor32_run(&route, &board,
+                                                    &words, &profile));
+        assert(capture.queries == 4u && state_byte == 1u &&
+               capture.descriptor48[5] == 0xFFFF0013u &&
+               capture.descriptor48[8] == 0xFFFF5432u);
     }
 }
 

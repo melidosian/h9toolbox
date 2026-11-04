@@ -252,3 +252,69 @@ bool h9_main_post_clock_apply_initial_masks(
                         ~((words->first_word >> 16u) & 0xFFFFu));
     return true;
 }
+
+void h9_main_post_clock_descriptor32_bind_target(
+    H9MainPostClockDescriptor32Board *board)
+{
+    if (board == NULL) return;
+    board->bank_status_1e0200 =
+        (volatile uint32_t *)(uintptr_t)0x001E0200u;
+    board->expected_descriptor32_1e5080 =
+        (volatile uint32_t *)(uintptr_t)0x001E5080u;
+    board->state_byte_d975 =
+        (volatile uint8_t *)(uintptr_t)0x0000D975u;
+    board->state_guard_d90c =
+        (volatile uint32_t *)(uintptr_t)0x0000D90Cu;
+    board->control_registers_1e19c0 =
+        (volatile uint32_t *)(uintptr_t)0x001E19C0u;
+}
+
+static void apply_zero_state(
+    const H9MainPostClockDescriptor32Board *board)
+{
+    volatile uint32_t *regs = board->control_registers_1e19c0;
+    if (*board->state_byte_d975 == 0u) return;
+    *board->state_byte_d975 = 0u;
+    if (*board->state_guard_d90c == 0u) {
+        regs[3] &= ~0x10000u;
+        regs[0] &= ~3u;
+    }
+    regs[8] &= ~0x30000u;
+    regs[10] &= ~0x4000u;
+    regs[12] &= 0xFFEEFFFFu;
+}
+
+bool h9_main_post_clock_descriptor32_run(
+    const H9MainPostClockDescriptorRoute *route,
+    const H9MainPostClockDescriptor32Board *board,
+    const H9MainPostClockWords *words,
+    const H9MainPostClockDescriptorResult *profile)
+{
+    volatile uint32_t *descriptor;
+    uint32_t previous;
+    if (route == NULL || board == NULL || words == NULL || profile == NULL ||
+        route->lookup_descriptor == NULL ||
+        board->bank_status_1e0200 == NULL ||
+        board->expected_descriptor32_1e5080 == NULL ||
+        board->state_byte_d975 == NULL ||
+        board->state_guard_d90c == NULL ||
+        board->control_registers_1e19c0 == NULL) return false;
+    descriptor = route->lookup_descriptor(route->context, 32u);
+    if (descriptor != NULL) {
+        previous = descriptor[3];
+        if ((*board->bank_status_1e0200 & 0xFu) <= 2u &&
+            descriptor == board->expected_descriptor32_1e5080) {
+            descriptor[4] &= ~0x40u;
+            descriptor[0] &= ~0x40u;
+            descriptor[2] &= ~0x40u;
+            apply_zero_state(board);
+        }
+        descriptor[3] = (previous & 0xFFFF0000u) | 0x40u;
+    }
+    and_descriptor_word(route, 32u, 8u,
+                        ~(words->second_word & 0xFFFFu));
+    and_descriptor_word(route, 48u, 5u, profile->control_word);
+    and_descriptor_word(route, 48u, 8u,
+                        ~((words->second_word >> 16u) & 0xFFFFu));
+    return true;
+}

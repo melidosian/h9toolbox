@@ -114,4 +114,23 @@ bool h9_main_post_clock_apply_initial_masks(
     const H9MainPostClockWords *words,
     const H9MainPostClockDescriptorResult *profile);
 
+/* App+0x05FDA6..0x05FE04: descriptor 32's conditional state reset and the
+ * remaining bitmap/control masks for descriptors 32 and 48. The zero-state
+ * callback at app+0x44C84 is ported for the only argument used here. */
+typedef struct {
+    volatile uint32_t *bank_status_1e0200;
+    volatile uint32_t *expected_descriptor32_1e5080;
+    volatile uint8_t *state_byte_d975;
+    volatile uint32_t *state_guard_d90c;
+    volatile uint32_t *control_registers_1e19c0;
+} H9MainPostClockDescriptor32Board;
+
+void h9_main_post_clock_descriptor32_bind_target(
+    H9MainPostClockDescriptor32Board *board);
+bool h9_main_post_clock_descriptor32_run(
+    const H9MainPostClockDescriptorRoute *route,
+    const H9MainPostClockDescriptor32Board *board,
+    const H9MainPostClockWords *words,
+    const H9MainPostClockDescriptorResult *profile);
+
 #endif
