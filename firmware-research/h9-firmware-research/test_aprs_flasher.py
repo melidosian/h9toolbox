@@ -142,15 +142,22 @@ class AprsFlasherTests(unittest.TestCase):
         port = FakePort([ack(0x13)] * 136 + [ack(0x10)])
         with tempfile.TemporaryDirectory() as directory:
             image_path = Path(directory) / "test.bin"
+            manifest_path = Path(directory) / "release.json"
             journal_path = Path(directory) / "attempt.jsonl"
             image_path.write_bytes(data)
+            manifest_path.write_text(json.dumps({
+                "kind": "aprs_release_image", "flashable": True,
+                "image_sha256": aprs.inspect_image(image_path).digest,
+                "image_bytes": aprs.IMAGE_SIZE, "image_base": aprs.IMAGE_BASE,
+            }))
             output = io.StringIO()
             serial_module = SimpleNamespace(Serial=lambda *args, **kwargs: port)
             with patch.dict(sys.modules, {"serial": serial_module}):
                 with contextlib.redirect_stdout(output):
                     result = aprs.main([
                         "flash", str(image_path), "--port", "COM7", "--yes",
-                        "--allow-modified", "--journal", str(journal_path)
+                        "--allow-modified", "--release-manifest", str(manifest_path),
+                        "--journal", str(journal_path)
                     ])
             self.assertEqual(result, 0)
             self.assertIn(str(journal_path), output.getvalue())
@@ -159,6 +166,37 @@ class AprsFlasherTests(unittest.TestCase):
             self.assertEqual(len(rows), 139)
             self.assertEqual(rows[-1]["event"], "transfer_acknowledged")
             self.assertEqual(rows[-1]["acknowledged_end"], aprs.IMAGE_SIZE)
+
+    def test_diagnostic_or_mismatched_manifest_cannot_open_serial_port(self):
+        data = bytearray(aprs.IMAGE_SIZE)
+        struct.pack_into("<II", data, 0, 0x20001A50, 0x080020D5)
+        with tempfile.TemporaryDirectory() as directory:
+            image_path = Path(directory) / "h9_aprs_diagnostic_NOT_FOR_FLASH.raw"
+            manifest_path = Path(directory) / "link-check-manifest.json"
+            image_path.write_bytes(data)
+            image = aprs.inspect_image(image_path)
+            base_args = ["flash", str(image_path), "--port", "COM7",
+                         "--yes", "--allow-modified"]
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(aprs.main(base_args), 1)
+            self.assertFalse(manifest_path.exists())
+
+            manifest = {"kind": "aprs_whole_archive_link_check",
+                        "flashable": False, "image_sha256": image.digest,
+                        "image_bytes": aprs.IMAGE_SIZE,
+                        "image_base": aprs.IMAGE_BASE}
+            manifest_path.write_text(json.dumps(manifest))
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(aprs.main(base_args + [
+                    "--release-manifest", str(manifest_path)]), 1)
+
+            manifest["kind"] = "aprs_release_image"
+            manifest["flashable"] = True
+            manifest["image_sha256"] = "0" * 64
+            manifest_path.write_text(json.dumps(manifest))
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(aprs.main(base_args + [
+                    "--release-manifest", str(manifest_path)]), 1)
 
 
 if __name__ == "__main__":

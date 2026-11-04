@@ -123,6 +123,29 @@ def inspect_image(path: Path) -> Image:
     return Image(data, sha256(data).hexdigest(), stack, reset)
 
 
+def validate_release_manifest(path: Path, image: Image) -> None:
+    """Require an explicit, matching release record for a non-stock image."""
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeError) as error:
+        raise AprsFlashError(f"Invalid APRS release manifest: {error}") from error
+    if not isinstance(manifest, dict):
+        raise AprsFlashError("APRS release manifest must be a JSON object")
+    required = {
+        "kind": "aprs_release_image",
+        "flashable": True,
+        "image_sha256": image.digest,
+        "image_bytes": len(image.data),
+        "image_base": IMAGE_BASE,
+    }
+    for key, expected in required.items():
+        value = manifest.get(key)
+        if type(value) is not type(expected) or value != expected:
+            raise AprsFlashError(
+                f"APRS release manifest {key} must match {expected!r}; got {value!r}"
+            )
+
+
 def checksum(data: bytes) -> int:
     """Vendor Form4.CalculateChecksum: sum inclusive bytes, modulo 256."""
     return sum(data) & 0xFF
@@ -204,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
             option.add_argument("--port", required=True, help="APRS serial COM port or /dev/tty* path")
             option.add_argument("--baud", type=int, default=38400)
             option.add_argument("--allow-modified", action="store_true")
+            option.add_argument("--release-manifest", type=Path,
+                                help="matching release record required for modified images")
             option.add_argument("--yes", action="store_true", help="Authorize writing the APRS controller")
             option.add_argument("--journal", type=Path,
                                 help="New JSONL transfer journal (default: beside image)")
@@ -219,6 +244,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "flash":
             if image.digest != STOCK_SHA256 and not args.allow_modified:
                 raise AprsFlashError("Modified image requires --allow-modified")
+            if image.digest != STOCK_SHA256:
+                if args.release_manifest is None:
+                    raise AprsFlashError(
+                        "Modified image requires --release-manifest; "
+                        "diagnostic link-check exports are not flashable"
+                    )
+                validate_release_manifest(args.release_manifest, image)
             if not args.yes:
                 raise AprsFlashError("Add --yes to write the APRS controller")
             try:
