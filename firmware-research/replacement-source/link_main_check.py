@@ -110,6 +110,11 @@ STOCK_IRQ_REGISTRATION = bytes.fromhex(
     "00a4e11401251a8eea52e7406090e10305b3e8ff00"
     "311611a161e10e103120211a1019c0608eea51e75504"
 )
+STOCK_IRQ_MAP = bytes.fromhex(
+    "000700010503050301030003020000000303030300000000"
+    "010102020200020101010303030002020000000000010004"
+    "01010102010100000000000000000000"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -154,7 +159,7 @@ def verify_stock_image(path: Path) -> None:
             data[0x5FE5C:0x5FE94] != STOCK_POST_CLOCK_TIMER_BOARD or \
             data[0x3126C:0x312D2] != STOCK_TIMER3_IRQ or \
             data[0x2465A:0x246B0] != STOCK_IRQ_REGISTRATION or \
-            data[0xA2A25] != 1 or \
+            data[0xA2A22:0xA2A62] != STOCK_IRQ_MAP or \
             data[0xBA:0xD2] != STOCK_DESCRIPTOR_LOOKUP or \
             data[0x554:0x564] != STOCK_DESCRIPTOR_TABLE or \
             data[0x482:0x48E] != STOCK_DESCRIPTOR_WORD5_HELPER or \
@@ -225,6 +230,10 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         if symbol is None:
             raise ValueError(f"Linked main ELF lacks {name}")
         return int(symbol.group(1), 16)
+
+    irq_map_offset = symbol_address("irq_map") - IMAGE_BASE
+    if text_data[irq_map_offset:irq_map_offset + 64] != STOCK_IRQ_MAP:
+        raise ValueError("Linked IRQ mapping table differs from stock")
 
     icfg_offset = symbol_address("h9_main_interrupt_config") - IMAGE_BASE
     if text_data[icfg_offset:icfg_offset + len(STOCK_ICFG_AFTER_RAM_COPY)] != \
@@ -424,11 +433,25 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
     )
     timer_install_body = timer_install.group(1) if timer_install else ""
-    if "2bf0c" not in timer_install_body or \
-            "10f100" not in timer_install_body or \
-            "0xFFFF0FFF" not in timer_install_body or \
-            "0x3000" not in timer_install_body:
-        raise ValueError("Linked timer-3 registration lost vector or control")
+    if "h9_main_irq_registration_bind_target" not in timer_install_body or \
+            "h9_main_irq_register" not in timer_install_body:
+        raise ValueError("Linked timer-3 registration lost common installer")
+    irq_binder = re.search(
+        r"(?ms)^h9_main_irq_registration_bind_target:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    irq_binder_body = irq_binder.group(1) if irq_binder else ""
+    if "2bf00" not in irq_binder_body or "10f100" not in irq_binder_body:
+        raise ValueError("Linked IRQ binder lost vector or control base")
+    irq_register = re.search(
+        r"(?ms)^h9_main_irq_register:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    irq_register_body = irq_register.group(1) if irq_register else ""
+    if "irq_map" not in irq_register_body or \
+            "r1 = r1 & 0xE" not in irq_register_body or \
+            "r1 |= 1" not in irq_register_body:
+        raise ValueError("Linked IRQ installer lost stock priority mapping")
     for name, expected in (
         ("target_poll", "2001d2e"),
         ("target_clock_enter", "2001634"),
@@ -436,6 +459,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         ("target_clock_check", "2001e2c"),
         ("target_clock_leave", "2001650"),
         ("h9_main_timer3_irq_target_body", "swi 0"),
+        ("target_enter", "2001634"),
+        ("target_leave", "2001650"),
     ):
         helper = re.search(
             rf"(?ms)^{name}:\n(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly

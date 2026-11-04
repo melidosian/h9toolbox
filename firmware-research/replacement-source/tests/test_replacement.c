@@ -51,6 +51,7 @@
 #include "h9_main_clock_rom_mode.h"
 #include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
+#include "h9_main_irq_registration.h"
 #include "h9_main_memory_window.h"
 #include "h9_main_post_clock_rom.h"
 #include "h9_main_timer3_irq.h"
@@ -5175,6 +5176,75 @@ static void test_main_post_clock_timer_stage(void)
 }
 
 typedef struct {
+    unsigned enters;
+    unsigned leaves;
+    uint32_t bank;
+    uint32_t priority;
+    uint32_t shift;
+    uint32_t field;
+    uint32_t value;
+} IrqRegistrationCapture;
+
+static void irq_registration_enter(void *context, uint32_t bank,
+                                   uint32_t priority, uint32_t shift)
+{
+    IrqRegistrationCapture *capture = (IrqRegistrationCapture *)context;
+    ++capture->enters;
+    capture->bank = bank;
+    capture->priority = priority;
+    capture->shift = shift;
+}
+
+static void irq_registration_leave(void *context, uint32_t value,
+                                   uint32_t field, uint32_t shift)
+{
+    IrqRegistrationCapture *capture = (IrqRegistrationCapture *)context;
+    ++capture->leaves;
+    assert(capture->enters == capture->leaves &&
+           capture->shift == shift);
+    capture->value = value;
+    capture->field = field;
+}
+
+static void test_main_irq_registration(void)
+{
+    IrqRegistrationCapture capture = { 0u };
+    uint32_t vectors[64] = { 0u };
+    uint32_t controls[8] = { 0u };
+    H9MainIrqRegistration registration = {
+        &capture, vectors, controls,
+        irq_registration_enter, irq_registration_leave
+    };
+    H9MainIrqRegistration target;
+    h9_main_irq_registration_bind_target(&target);
+    assert((uintptr_t)target.vector_words_2bf00 == 0x2BF00u &&
+           (uintptr_t)target.control_words_10f100 == 0x10F100u);
+    assert(!h9_main_irq_register(NULL, 3u, 1u,
+                                  post_clock_timer_handler));
+    assert(!h9_main_irq_register(&registration, 64u, 1u,
+                                  post_clock_timer_handler));
+    assert(capture.enters == 0u && capture.leaves == 0u);
+    controls[0] = UINT32_MAX;
+    assert(h9_main_irq_register(&registration, 3u, 1u,
+                                 post_clock_timer_handler));
+    assert(vectors[3] == (uint32_t)(uintptr_t)post_clock_timer_handler &&
+           controls[0] == 0xFFFF3FFFu && capture.bank == 0u &&
+           capture.priority == 1u && capture.shift == 12u &&
+           capture.field == 0x3000u && capture.value == controls[0]);
+    assert(h9_main_irq_register(&registration, 0u, 2u,
+                                 post_clock_timer_handler));
+    assert((controls[0] & 0xFu) == 1u && capture.priority == 2u);
+    assert(h9_main_irq_register(&registration, 1u, 2u,
+                                 post_clock_timer_handler));
+    assert((controls[0] & 0xF0u) == 0xF0u);
+    assert(h9_main_irq_register(&registration, 63u, 2u,
+                                 post_clock_timer_handler));
+    assert(vectors[63] == (uint32_t)(uintptr_t)post_clock_timer_handler &&
+           controls[7] == 0x10000000u && capture.bank == 7u &&
+           capture.shift == 28u);
+}
+
+typedef struct {
     uint32_t poll_result;
     uint32_t check_result;
     char calls[8];
@@ -5392,6 +5462,7 @@ int main(void)
     test_main_post_clock_descriptor_route();
     test_main_post_clock_gate();
     test_main_post_clock_timer_stage();
+    test_main_irq_registration();
     test_main_timer3_irq();
     test_main_serial_profile();
     test_main_serial_bus();

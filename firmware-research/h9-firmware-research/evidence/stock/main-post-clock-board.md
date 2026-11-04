@@ -123,7 +123,7 @@ jump enters app+`0x031162`, a normal returning setup routine: it registers
 interrupt 3 with priority 1 and handler app+`0x03126C`, clears timer word
 `0x10F0F0`, loads `0x10F0F4` with signed `RAM[0xD9D8] / 100 - 1`, and writes
 `0x41` to `0x10F0EC`. The handler itself saves processor state, updates
-timer and scheduler words, and returns with `rti`; it has not been ported.
+timer and scheduler words, and returns with `rti`.
 The board routine then reads `0x1E00C0` without retaining the value, reads
 ROM selector 49, and writes its low byte to RAM `0x11B40` if bit 7 is
 clear. If bit 7 is set, it calls ROM control `(49, 64)`, reads selector 18,
@@ -146,3 +146,16 @@ IRQ-3 registration using stock table value `1` at app+`0x0A2A25`. Its
 linked vector write is `0x2BF0C` and its control field at `0x10F100` is
 `0x3000`. The wider clock contract and live interrupt behavior remain
 unverified; this linked image is still diagnostic and not flashable.
+
+At app+`0x05FE94..0x05FEAE`, stock passes IRQ indices `0` and `1`, each
+with priority argument `2` and handler RAM address `0x1622`, to the same
+registration function at app+`0x02465A`. That function writes the handler
+pointer into `0x2BF00 + 4*index`, then updates one four-bit field in the
+eight control words beginning at `0x10F100`. Its 64-entry mapping table at
+app+`0x0A2A22` yields field values `1` for IRQ 0, `15` for IRQ 1, and
+`3` for IRQ 3. `main/h9_main_irq_registration.*` ports the whole table,
+bounded vector update, and ROM-guarded control write; the target timer-3
+stage now uses it instead of a hardcoded IRQ-3 write. The RAM handler at
+`0x1622` saves the full register and processor state, calls another routine,
+then loops. Its call target and fault behavior are unresolved, so the
+replacement board entry stops before registering IRQs 0 and 1.

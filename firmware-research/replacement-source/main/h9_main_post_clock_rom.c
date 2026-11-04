@@ -1,4 +1,5 @@
 #include "h9_main_post_clock_rom.h"
+#include "h9_main_irq_registration.h"
 #include "h9_main_timer3_irq.h"
 
 #include <stddef.h>
@@ -412,22 +413,10 @@ static void target_timer_setup(void *context, uint32_t mode, uint32_t value)
 static void target_install_timer_irq(void *context, uint32_t irq,
                                      uint32_t priority, void (*handler)(void))
 {
-    typedef void (*RomClock)(void);
-    volatile uint32_t *vector =
-        (volatile uint32_t *)(uintptr_t)0x0002BF00u;
-    volatile uint32_t *control =
-        (volatile uint32_t *)(uintptr_t)0x0010F100u;
-    uint32_t value;
+    H9MainIrqRegistration registration;
     (void)context;
-    if (irq != 3u || priority != 1u || handler == NULL) return;
-    /* IRQ-3 mapping byte at pinned stock app+0x0A2A25 is 1. */
-    vector[3] = (uint32_t)(uintptr_t)handler;
-    ((RomClock)(uintptr_t)0x02001634u)();
-    value = *control;
-    value &= ~0xF000u;
-    value |= 0x3000u;
-    *control = value;
-    ((RomClock)(uintptr_t)0x02001650u)();
+    h9_main_irq_registration_bind_target(&registration);
+    (void)h9_main_irq_register(&registration, irq, priority, handler);
 }
 
 void h9_main_post_clock_timer_stage_bind_target(
