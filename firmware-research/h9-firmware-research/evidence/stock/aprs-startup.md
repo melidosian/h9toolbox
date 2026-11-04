@@ -30,6 +30,7 @@ linker reserves the first `0xC0` RAM bytes for those vectors. The linked
 diagnostic image now maps DMA channel 1 and USART1 slots to replacement
 receive handlers, while other interrupt slots retain default handlers. Its
 board entry now selects the observed 24 MHz internal-clock path, configures
-USART1 and DMA channel 1, and polls received UART batches. This source path
+USART1 and DMA channel 1, polls received UART batches, and sends serial
+replies through USART1. This source path
 is untested on the board. ADC/DAC initialization, the rest of the timebase,
 other interrupts, and the full APRS application are still absent.

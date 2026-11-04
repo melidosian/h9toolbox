@@ -11,6 +11,7 @@
 #include "h9_aprs_uart_receive.h"
 #include "h9_aprs_uart1_dma.h"
 #include "h9_aprs_uart1_board.h"
+#include "h9_aprs_uart1_tx.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
 #include "h9_main_aprs_control.h"
@@ -1175,6 +1176,42 @@ static void test_aprs_internal_clock_selection(void)
     assert(!h9_aprs_clock_select_internal(rcc, 0x1234u, 2));
 }
 
+static void test_aprs_uart1_reply_transmit(void)
+{
+    H9AprsUart1Tx tx;
+    H9AprsController controller;
+    H9AprsHardware hardware = { 0 };
+    uint32_t usart[6] = { 0 };
+    const uint8_t query[] = { 0xC0u, 0x20u, 2u, 0xC0u };
+    const uint8_t bytes[] = { 0x31u, 0x32u, 0x33u };
+    size_t index;
+    h9_aprs_uart1_tx_bind(&tx, usart, 3u);
+    usart[0] = 0xC0u;
+    assert(h9_aprs_uart1_tx_write(&tx, bytes, sizeof bytes) == 3u);
+    assert(tx.bytes_completed == 3u && tx.timeouts == 0u &&
+           usart[1] == 0x33u);
+    hardware.context = &tx;
+    hardware.uart_write = h9_aprs_uart1_tx_callback;
+    hardware.uart_ok = h9_aprs_uart1_tx_ok;
+    h9_aprs_controller_init(&controller, &hardware);
+    for (index = 0; index < sizeof query; ++index)
+        h9_aprs_controller_uart_byte(&controller, query[index]);
+    /* Command 0x20 query 2 replies with command 0x21, eight data bytes,
+     * and two frame delimiters. */
+    assert(tx.bytes_completed == 14u && usart[1] == 0xC0u);
+
+    usart[0] = 0;
+    assert(!h9_aprs_controller_received_packet(&controller, bytes, 1u));
+    assert(tx.timeouts == 1u && tx.faulted);
+    usart[0] = 0xC0u;
+    assert(h9_aprs_uart1_tx_write(&tx, bytes, 1u) == 0u);
+    h9_aprs_uart1_tx_bind(&tx, usart, 3u);
+    assert(h9_aprs_uart1_tx_write(&tx, bytes, 1u) == 1u);
+    usart[0] = 0x80u;
+    assert(h9_aprs_uart1_tx_write(&tx, bytes, 1u) == 0u);
+    assert(tx.timeouts == 1u && tx.faulted && usart[1] == 0x31u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -1204,5 +1241,6 @@ int main(void)
     test_aprs_uart1_dma_interrupts();
     test_aprs_uart1_board_setup();
     test_aprs_internal_clock_selection();
+    test_aprs_uart1_reply_transmit();
     return 0;
 }

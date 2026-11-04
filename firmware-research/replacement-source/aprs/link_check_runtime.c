@@ -5,6 +5,18 @@
 
 static H9AprsRuntimeState runtime;
 
+static void board_uart_write(void *context, const uint8_t *data, size_t length)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    (void)h9_aprs_uart1_tx_write(&state->uart1_tx, data, length);
+}
+
+static bool board_uart_ok(void *context)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    return h9_aprs_uart1_tx_ok(&state->uart1_tx);
+}
+
 /* Temporary freestanding shims for a whole-archive link. */
 void *memcpy(void *destination, const void *source, size_t length)
 {
@@ -26,7 +38,12 @@ void *memset(void *destination, int value, size_t length)
 __attribute__((noreturn)) void h9_aprs_board_main(void)
 {
     uint32_t system_clock_hz;
-    h9_aprs_controller_init(&runtime.controller, NULL);
+    H9AprsHardware hardware = { 0 };
+    h9_aprs_uart1_tx_bind_target(&runtime.uart1_tx, 240000u);
+    hardware.context = &runtime;
+    hardware.uart_write = board_uart_write;
+    hardware.uart_ok = board_uart_ok;
+    h9_aprs_controller_init(&runtime.controller, &hardware);
     h9_aprs_tx_service_init(&runtime.tx_service, 0, 0, 0);
     h9_aprs_uart_receive_init(&runtime.uart_receive);
     h9_aprs_uart1_dma_bind_target(&runtime.uart1_dma,

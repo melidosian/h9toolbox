@@ -13,6 +13,7 @@
 typedef struct {
     /* Each outgoing fragment is temporary: transmit or copy it before return. */
     void (*uart_write)(void *context, const uint8_t *data, size_t length);
+    bool (*uart_ok)(void *context);
     void (*set_radio_gpio)(void *context, bool high);
     bool (*read_radio_gpio)(void *context);
     /* Called synchronously for serial command 0x00; copy packet if deferred. */

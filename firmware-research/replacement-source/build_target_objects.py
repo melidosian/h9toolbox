@@ -34,6 +34,7 @@ SOURCES = {
         "aprs/h9_aprs_tx_service.c",
         "aprs/h9_aprs_uart1_board.c",
         "aprs/h9_aprs_uart1_dma.c",
+        "aprs/h9_aprs_uart1_tx.c",
         "aprs/h9_aprs_uart_receive.c",
     ),
     "main": (

@@ -5,9 +5,12 @@ static bool send_frame(H9AprsController *controller, uint8_t command,
                        const uint8_t *data, size_t length)
 {
     if (controller->hardware.uart_write == NULL) return false;
-    return h9_wire_encode_stream(command, data, length,
-                                 controller->hardware.uart_write,
-                                 controller->hardware.context) != 0;
+    if (h9_wire_encode_stream(command, data, length,
+                              controller->hardware.uart_write,
+                              controller->hardware.context) == 0)
+        return false;
+    return controller->hardware.uart_ok == NULL ||
+           controller->hardware.uart_ok(controller->hardware.context);
 }
 
 static void forward_valid_frame(void *context, const uint8_t *data,
