@@ -251,6 +251,7 @@ bool h9_aprs_uart2_dma_poll(H9AprsUart2Dma *driver,
     sent = h9_aprs_controller_forward_aux(controller,
                                            driver->receive->bytes,
                                            forward_length);
+    if (!sent) driver->receive->dropped_count += (uint32_t)forward_length;
     for (;;) {
         spill_length = 0u;
         while (spill_length < sizeof spill_chunk &&

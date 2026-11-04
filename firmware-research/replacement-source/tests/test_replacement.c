@@ -2886,6 +2886,17 @@ static void test_aprs_uart2_irq_forward(void)
     assert(fake.uart_length == H9_APRS_MAX_SEND + 3u);
     assert(rx.dropped_count == 4u);
     assert(rx.length == 0u && !rx.ready);
+
+    /* A failed serial forward must account for the entire discarded batch. */
+    controller.hardware.uart_write = NULL;
+    usart[0] = 0x20u;
+    usart[1] = 'Q';
+    h9_aprs_uart2_rx_irq(&rx);
+    usart[0] = 0x10u;
+    h9_aprs_uart2_rx_irq(&rx);
+    assert(rx.ready && rx.length == 1u);
+    assert(!h9_aprs_uart2_rx_poll(&rx, &controller));
+    assert(rx.dropped_count == 5u && !rx.ready);
 }
 
 static void test_aprs_uart2_dma_forward(void)
@@ -3008,6 +3019,18 @@ static void test_aprs_uart2_dma_forward(void)
     usart[0] = 0x10u;
     h9_aprs_uart2_dma_usart_irq(&dma);
     assert(dma.invalid_counts == 1u && !rx.ready &&
+           channel[1] == H9_APRS_UART2_BATCH_CAPACITY);
+
+    /* The DMA path must account for a failed full-batch forward too. */
+    controller.hardware.uart_write = NULL;
+    rx.bytes[0] = 'Q';
+    rx.bytes[1] = 'R';
+    channel[1] = H9_APRS_UART2_BATCH_CAPACITY - 2u;
+    usart[0] = 0x10u;
+    h9_aprs_uart2_dma_usart_irq(&dma);
+    assert(rx.ready && rx.length == 2u);
+    assert(!h9_aprs_uart2_dma_poll(&dma, &controller));
+    assert(rx.dropped_count == 7u && !rx.ready &&
            channel[1] == H9_APRS_UART2_BATCH_CAPACITY);
 }
 

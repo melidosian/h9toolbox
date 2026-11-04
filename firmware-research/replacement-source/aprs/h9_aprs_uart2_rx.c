@@ -90,6 +90,7 @@ bool h9_aprs_uart2_rx_poll(H9AprsUart2Rx *receiver,
     }
     sent = h9_aprs_controller_forward_aux(controller, receiver->bytes,
                                           forward_length);
+    if (!sent) receiver->dropped_count += (uint32_t)forward_length;
     receiver->length = 0u;
     receiver->ready = false;
     receiver->usart[USART_CR1] |= USART_RXNEIE | USART_IDLEIE;
