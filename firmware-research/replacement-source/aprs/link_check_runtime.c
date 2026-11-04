@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "h9_aprs_clock.h"
+#include "h9_aprs_boot_banner.h"
 #include "h9_aprs_runtime_state.h"
 #include "h9_aprs_runtime_status.h"
 #include "h9_aprs_status.h"
@@ -19,6 +20,12 @@ static bool board_uart_ok(void *context)
 {
     H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
     return h9_aprs_uart1_tx_ok(&state->uart1_tx);
+}
+
+static bool board_boot_write(void *context, const uint8_t *data, size_t length)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    return h9_aprs_uart1_tx_write(&state->uart1_tx, data, length) == length;
 }
 
 static bool board_read_status(void *context, uint8_t output[48])
@@ -167,6 +174,8 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
         !h9_aprs_adc_board_start(&runtime.adc_board, 100000u, NULL, NULL))
         for (;;) { }
     h9_aprs_uart1_board_enable_irqs(&runtime.uart1_board);
+    if (!h9_aprs_boot_banner_send(board_boot_write, &runtime))
+        for (;;) { }
     for (;;) {
         uint32_t now;
         H9AprsDemodGateState gate_state;

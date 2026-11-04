@@ -23,6 +23,7 @@ SOURCES = {
         "common/h9_aprs_wire.c",
         "aprs/h9_aprs_adc_board.c",
         "aprs/h9_aprs_bitstream.c",
+        "aprs/h9_aprs_boot_banner.c",
         "aprs/h9_aprs_clock.c",
         "aprs/h9_aprs_controller.c",
         "aprs/h9_aprs_demod.c",

@@ -64,6 +64,18 @@ def verify_stock_envelope(path: Path) -> None:
             any(data[offset:offset + 2] != bytes.fromhex("70 47")
                 for offset in (0x2906, 0x2980, 0x2982)):
         raise ValueError("Stock APRS exception handler bodies differ")
+    for address, literal in (
+        (0x08005E10, b"888"),
+        (0x08005E54, b"\r\n========== APRS Module Version Info ==========\r\n"),
+        (0x08005E88, b"V1.0.15"),
+        (0x08005E90, b"Software Version: %s\r\n"),
+        (0x08005EA8, b"V1.0.0"),
+        (0x08005EB0, b"Hardware Version: %s\r\n"),
+        (0x08005EC8, b"===========================================\r\n"),
+    ):
+        offset = address - IMAGE_BASE
+        if data[offset:offset + len(literal) + 1] != literal + b"\x00":
+            raise ValueError(f"Stock APRS boot text differs at 0x{address:08X}")
 
 
 def read_stack_usage(paths: list[Path]) -> list[dict]:
@@ -226,6 +238,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "board_initialization_implemented": False,
         "uart1_receive_initialization_included": True,
         "uart1_transmit_callback_included": True,
+        "stock_boot_banner_source_included": True,
         "tx_service_callbacks_included": True,
         "tx_rf_authorized_in_diagnostic": False,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),

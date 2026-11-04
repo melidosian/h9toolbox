@@ -4,6 +4,7 @@
 #include "h9_aprs_frame.h"
 #include "h9_aprs_gpio_board.h"
 #include "h9_aprs_bitstream.h"
+#include "h9_aprs_boot_banner.h"
 #include "h9_aprs_clock.h"
 #include "h9_aprs_ring.h"
 #include "h9_aprs_runtime_status.h"
@@ -4572,6 +4573,42 @@ static void test_main_post_clock_classification(void)
     assert(result.accepted && result.channel_flag == 0u);
 }
 
+typedef struct {
+    uint8_t bytes[192];
+    size_t length;
+    unsigned calls;
+    bool fail;
+} BootBannerCapture;
+
+static bool boot_banner_capture(void *context, const uint8_t *data,
+                                size_t length)
+{
+    BootBannerCapture *capture = (BootBannerCapture *)context;
+    assert(length <= sizeof capture->bytes);
+    memcpy(capture->bytes, data, length);
+    capture->length = length;
+    capture->calls++;
+    return !capture->fail;
+}
+
+static void test_aprs_boot_banner(void)
+{
+    static const char expected[] =
+        "888"
+        "\r\n========== APRS Module Version Info ==========\r\n"
+        "Software Version: V1.0.15\r\n"
+        "Hardware Version: V1.0.0\r\n"
+        "===========================================\r\n";
+    BootBannerCapture capture = { { 0 }, 0u, 0u, false };
+    assert(!h9_aprs_boot_banner_send(NULL, &capture));
+    assert(capture.calls == 0u);
+    assert(h9_aprs_boot_banner_send(boot_banner_capture, &capture));
+    assert(capture.calls == 1u && capture.length == sizeof expected - 1u);
+    assert(memcmp(capture.bytes, expected, capture.length) == 0);
+    capture.fail = true;
+    assert(!h9_aprs_boot_banner_send(boot_banner_capture, &capture));
+}
+
 int main(void)
 {
 #ifdef _MSC_VER
@@ -4581,6 +4618,7 @@ int main(void)
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
     test_wire_vectors();
     test_aprs_systick();
+    test_aprs_boot_banner();
     test_wire_stream_maximum();
     test_main_aprs_wire_envelope();
     test_main_aprs_wire_receiver();

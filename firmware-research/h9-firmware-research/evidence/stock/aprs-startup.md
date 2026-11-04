@@ -44,6 +44,10 @@ replacement waveform-board setup now performs these PA0 register writes as
 well as the previously ported PA4..7 setup. The external role of PA0 is not
 identified, and this observation does not authorize RF transmit.
 
+The application prints a version banner over USART1 after this setup. The
+replacement diagnostic entry now sends the pinned 151-byte text through its
+bounded USART1 writer. See [the boot-text trace](aprs-boot-banner.md).
+
 `replacement-source/aprs/h9_aprs_clock.*`, `h9_aprs_startup.c`, and
 `link_check_startup.S` now implement the reset-register writes, ordinary
 `.data` copy, `.bss` zeroing, 48-vector RAM relocation, and VTOR setup. The
