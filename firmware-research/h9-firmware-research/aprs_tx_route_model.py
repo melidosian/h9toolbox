@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Readable model of the TD-H9 v1.0.38 APRS TX-channel decision.
+"""Readable model of one TD-H9 v1.0.38 APRS TX-channel decision.
 
 Reconstructed from app.bin at app+0x05C2D4 and the channel setup at
 app+0x058D3E. This predicts which channel setup the code requests; it does
 not measure the transmitted RF frequency or the display's red-line behavior.
 It starts after the function's other eligibility checks (including APRS state)
-and does not model the beacon scheduler or RF hardware.
+and its caller's PTT Linkage guard. It does not model timed-beacon routing,
+other transmit entry paths, or RF hardware.
 No hardware or firmware image is accessed.
 """
 
