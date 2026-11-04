@@ -1,6 +1,25 @@
 program=aprs-1.0.15.bin
 language=ARM:LE:32:Cortex
 
+address=0800211c function=FUN_0800211c@0800211c
+caller_reference=08005776 UNCONDITIONAL_CALL
+
+uint FUN_0800211c(void)
+{
+  uint uVar1;
+  uVar1 = DAT_08002138 * *DAT_08002134 + DAT_0800213c;
+  *DAT_08002134 = uVar1;
+  return uVar1 >> 1;
+}
+
+literal[08002134]=0x20000144 (random state address)
+literal[08002138]=0x41C64E6D (multiplier)
+literal[0800213C]=0x00003039 (increment)
+literal[080057F0]=0x20000100 (busy/receive state structure)
+literal[080057F4]=0x2000011C (persistence threshold address)
+literal[080057F8]=0x200000FC (receive parser state pointer)
+literal[080057FC]=0x2000010E (status reply enable address)
+
 address=08005760 function=FUN_08005760@08005760
 
 void FUN_08005760(int param_1,undefined4 param_2,undefined4 param_3)

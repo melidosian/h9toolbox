@@ -4,6 +4,7 @@
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_ring.h"
 #include "h9_aprs_tx.h"
+#include "h9_aprs_tx_gate.h"
 #include "h9_aprs_tx_packet.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
@@ -364,6 +365,27 @@ static void test_aprs_tx_packet_encoder(void)
     assert(memcmp(output.bytes, packet, sizeof packet) == 0);
 }
 
+static void test_aprs_tx_gate(void)
+{
+    H9AprsTxGate gate;
+    h9_aprs_tx_gate_init(&gate, 0);
+    assert(h9_aprs_tx_gate_step(&gate, true, false, false, 255) ==
+           H9_APRS_TX_WAIT);
+    assert(gate.random_state == 0); /* busy channel consumes no draw */
+    assert(h9_aprs_tx_gate_step(&gate, true, true, true, 255) ==
+           H9_APRS_TX_DROP);
+    assert(gate.random_state == 0);
+    assert(h9_aprs_tx_gate_step(&gate, false, false, false, 28) ==
+           H9_APRS_TX_WAIT);
+    assert(gate.random_state == 0x3039u); /* first LCG state, draw 28 */
+    h9_aprs_tx_gate_init(&gate, 0);
+    assert(h9_aprs_tx_gate_step(&gate, false, false, false, 29) ==
+           H9_APRS_TX_SEND);
+    h9_aprs_tx_gate_init(&gate, 0);
+    assert(h9_aprs_tx_gate_step(&gate, false, false, false, 0) ==
+           H9_APRS_TX_WAIT);
+}
+
 static void feed_frame(H9AprsController *controller, uint8_t command,
                        const uint8_t *payload, size_t length)
 {
@@ -455,6 +477,7 @@ int main(void)
     test_stock_tx_scheduler();
     test_aprs_frame_fcs();
     test_aprs_tx_packet_encoder();
+    test_aprs_tx_gate();
     test_aprs_controller();
     return 0;
 }

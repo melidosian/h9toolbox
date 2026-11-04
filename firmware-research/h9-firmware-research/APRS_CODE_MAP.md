@@ -15,7 +15,7 @@ The Cortex-M image was imported into Ghidra as `ARM:LE:32:Cortex` at `0x08002000
 | `0x08002468` | Transmit waveform scheduler reads a 64-byte queue, sends flag bytes, shifts data bits LSB first, changes the 0x40/0x75 oscillator step for NRZI zero bits, inserts a zero after five data one bits, and produces eight DAC samples per bit. |
 | `0x08002664` / `0x08005150` | First queued transmit byte starts waveform state; settings at RAM `0x20000110` and `0x20000114` become rounded lead and tail flag counts through `(setting * 1200 + 4000) / 8000`. Later queued bytes refresh the tail count. |
 | `0x0800530C` / `0x0800534C` | Packet-to-queue encoder emits an opening flag, escapes `0x7E`/`0x7F`/`0x1B`, updates the reflected CRC, emits complemented FCS low byte then high byte, and closes with a flag. |
-| `0x08005760` | Transmit send gate checks channel-busy state and a random threshold before calling the encoder; other branches poll receive state. Its hardware timing and PTT behavior are not ported. |
+| `0x0800211C` / `0x08005760` | Transmit send gate checks channel-busy state and an 8-bit draw from `state = state * 0x41C64E6D + 0x3039` against a persistence threshold before calling the encoder. Its busy branch polls receive state and can end without sending. A cooperative decision step is ported; hardware signal mapping, timing, and PTT remain unverified. |
 | `0x0800555C` | Sends an assembled received frame to the main radio through `0x080048F4`. |
 | `0x080051FC` | Drains the recovered-byte queue, assembles a frame between `0x7E` flags, handles `0x1B` escaping, caps payload plus FCS at `0x318` bytes, and accepts frames longer than 17 bytes only when the running CRC equals `0xF0B8`. |
 | `0x08006028` | CRC table update. The 256-entry stock table at `0x08006158` matches reflected polynomial `0x8408`, initialized to `0xFFFF`. |
@@ -39,7 +39,7 @@ In the opposite direction, `0x080048F4` wraps `0x08004894` with command `0x10`; 
 
 The ADC callback calls the demodulator before its TX/no-TX branch. The demodulator feeds the frame parser, which CRC-checks and forwards received packets to the main radio. This shows that the separate processor has an independent receive-processing path; it does **not** prove which analog signal the main radio feeds into its ADC, or where the speaker is gated. Disabling this ADC path would defeat packet decoding. A correct APRS mute would leave it active.
 
-The transmit scheduler and its queue producer are decompiled in `evidence/aprs-tx-wave-scheduler.txt` and `evidence/aprs-tx-queue-producer.txt`; the packet encoder and send gate are in `evidence/aprs-tx-packet-encoder.txt` and `evidence/aprs-tx-send-gate.txt`. The replacement source implements packet encoding and the waveform path, but the send gate, PTT control, and physical DAC routing have not been connected or measured. This is not a validated RF transmitter.
+The transmit scheduler and its queue producer are decompiled in `evidence/aprs-tx-wave-scheduler.txt` and `evidence/aprs-tx-queue-producer.txt`; the packet encoder and send gate are in `evidence/aprs-tx-packet-encoder.txt` and `evidence/aprs-tx-send-gate.txt`. The replacement source implements packet encoding, waveform generation, and a cooperative gate decision, but the gate, PTT control, and physical DAC routing have not been connected or measured. This is not a validated RF transmitter.
 
 ## Main Pi32v2 application v1.0.38
 

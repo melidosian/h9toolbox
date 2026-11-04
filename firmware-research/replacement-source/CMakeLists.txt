@@ -14,6 +14,7 @@ add_library(h9_replacement_core STATIC
     aprs/h9_aprs_oscillator.c
     aprs/h9_aprs_ring.c
     aprs/h9_aprs_tx.c
+    aprs/h9_aprs_tx_gate.c
     aprs/h9_aprs_tx_packet.c
     aprs/h9_aprs_controller.c)
 target_include_directories(h9_replacement_core PUBLIC common main aprs)
