@@ -2328,7 +2328,7 @@ static void test_aprs_controller(void)
     feed_frame(&controller, 0x20u, &query, 1);
     assert(fake.uart_length == 12);
     assert(fake.uart[0] == 0xC0u && fake.uart[1] == 0x21u);
-    assert(fake.uart[2] == 1 && memcmp(fake.uart + 3, "V1.0.15", 7) == 0);
+    assert(fake.uart[2] == 1 && memcmp(fake.uart + 3, "H9R0.01", 7) == 0);
     h9_main_wire_reset(&main_receiver);
     for (i = 0; i < fake.uart_length - 1; ++i)
         assert(h9_main_wire_feed(&main_receiver, fake.uart[i]) ==
@@ -2337,12 +2337,12 @@ static void test_aprs_controller(void)
            H9_MAIN_WIRE_FRAME);
     assert(main_receiver.command == 0x21u && main_receiver.length == 9u);
     assert(main_receiver.payload[0] == 1u);
-    assert(memcmp(main_receiver.payload + 1, "V1.0.15", 7) == 0);
+    assert(memcmp(main_receiver.payload + 1, "H9R0.01", 7) == 0);
     assert(main_receiver.payload[8] == 0);
     h9_main_aprs_versions_init(&versions);
     assert(h9_main_aprs_version_from_frame(&main_receiver, &versions));
     assert(versions.has_module && !versions.has_protocol);
-    assert(strcmp(versions.module, "V1.0.15") == 0);
+    assert(strcmp(versions.module, "H9R0.01") == 0);
     fake.uart_length = 0;
     query = 0;
     feed_frame(&controller, 0x20u, &query, 1);
@@ -2352,13 +2352,13 @@ static void test_aprs_controller(void)
     assert(main_receiver.frame_ready);
     assert(h9_main_aprs_version_from_frame(&main_receiver, &versions));
     assert(versions.has_module && versions.has_protocol);
-    assert(strcmp(versions.module, "V1.0.15") == 0);
+    assert(strcmp(versions.module, "H9R0.01") == 0);
     assert(strcmp(versions.protocol, "V1.0.0") == 0);
     main_receiver.length = 2;
     main_receiver.payload[0] = 1;
     main_receiver.payload[1] = 'X';
     assert(!h9_main_aprs_version_from_frame(&main_receiver, &versions));
-    assert(strcmp(versions.module, "V1.0.15") == 0);
+    assert(strcmp(versions.module, "H9R0.01") == 0);
     fake.status_valid = true;
     fake.status.words[0] = 0x01020304u;
     fake.status.words[8] = 0x1000u;
@@ -4704,7 +4704,7 @@ static void test_aprs_boot_banner(void)
     static const char expected[] =
         "888"
         "\r\n========== APRS Module Version Info ==========\r\n"
-        "Software Version: V1.0.15\r\n"
+        "Software Version: H9R0.01\r\n"
         "Hardware Version: V1.0.0\r\n"
         "===========================================\r\n";
     BootBannerCapture capture = { { 0 }, 0u, 0u, false };

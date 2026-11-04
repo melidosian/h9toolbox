@@ -16,6 +16,7 @@ import struct
 import sys
 
 from build_target_objects import ROOT, build, find_compiler, run, verify_arm_object
+from analyze_aprs_stack import analyze as analyze_direct_stack
 
 
 IMAGE_BASE = 0x08002000
@@ -137,6 +138,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
          "-lgcc"])
     elf_data = elf.read_bytes()
     verify_arm_object(elf_data, elf.name)
+    if b"H9R0.01" not in elf_data or b"V1.0.15" in elf_data:
+        raise ValueError("Linked APRS image lost its replacement identity")
 
     vector_bytes = output / "vectors.bin"
     objcopy = sibling_tool(compiler, "arm-none-eabi-objcopy")
@@ -201,6 +204,12 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     stack_headroom = symbol_values["__stack_top"] - symbol_values["__bss_end"]
     if stack_headroom < 1024:
         raise ValueError(f"APRS diagnostic stack headroom is only {stack_headroom} bytes")
+    direct_stack = analyze_direct_stack(
+        run([sibling_tool(compiler, "arm-none-eabi-objdump"), "-d", str(elf)]),
+        stack_usage, stack_headroom,
+    )
+    if direct_stack["largest_known_path_exceeds_headroom"]:
+        raise ValueError("A known APRS call path exceeds diagnostic stack headroom")
     raw_file = None
     raw_digest = None
     if emit_raw:
@@ -238,7 +247,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "board_initialization_implemented": False,
         "uart1_receive_initialization_included": True,
         "uart1_transmit_callback_included": True,
-        "stock_boot_banner_source_included": True,
+        "replacement_boot_banner_source_included": True,
+        "replacement_module_version": "H9R0.01",
         "tx_service_callbacks_included": True,
         "tx_rf_authorized_in_diagnostic": False,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
@@ -253,7 +263,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "stack_headroom_bytes": stack_headroom,
         "largest_compiler_reported_frame_bytes": stack_usage[0]["frame_bytes"],
         "stack_usage_records": stack_usage,
-        "stack_usage_limit": "per-function frames only; no call-chain or ISR nesting proof",
+        "stack_direct_analysis": direct_stack,
+        "stack_usage_limit": "known call paths only; no complete callback or ISR nesting proof",
         "raw_export": raw_file.name if raw_file is not None else None,
         "raw_export_sha256": raw_digest,
         "raw_export_purpose": "offline_layout_inspection_only" if emit_raw else None,
@@ -288,6 +299,10 @@ def main() -> int:
           f"reset 0x{manifest['reset_vector']:08X}")
     print(manifest["size_output"])
     print(f"RAM headroom above BSS: {manifest['stack_headroom_bytes']:,} bytes")
+    print("Longest direct / known-callback call paths: "
+          f"{manifest['stack_direct_analysis']['largest_direct_path_bytes']:,} / "
+          f"{manifest['stack_direct_analysis']['largest_known_callback_path_bytes']:,} "
+          "bytes (unknown callbacks and IRQ nesting excluded)")
     print("Largest compiler-reported stack frame: "
           f"{manifest['largest_compiler_reported_frame_bytes']:,} bytes "
           "(call chains not included)")

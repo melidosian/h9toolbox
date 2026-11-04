@@ -1,4 +1,5 @@
 #include "h9_aprs_controller.h"
+#include "h9_aprs_identity.h"
 #include "h9_aprs_tx_defaults.h"
 #include <string.h>
 
@@ -24,8 +25,8 @@ static void forward_valid_frame(void *context, const uint8_t *data,
 
 static void send_version(H9AprsController *controller, uint8_t query)
 {
-    static const uint8_t module_version[8] = "V1.0.15";
-    static const uint8_t protocol_version[7] = "V1.0.0";
+    static const uint8_t module_version[8] = H9_APRS_MODULE_VERSION;
+    static const uint8_t protocol_version[7] = H9_APRS_PROTOCOL_VERSION;
     uint8_t reply[16] = { 0 };
     size_t length;
     reply[0] = query;

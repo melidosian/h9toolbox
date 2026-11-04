@@ -5,8 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Stock 0x08005DE8/0x08005E34 writes this diagnostic text after USART1
- * board setup. The supplied callback must consume the bytes before return. */
+/* Follows stock 0x08005DE8/0x08005E34 startup order, with a distinct
+ * replacement version. The callback must consume bytes before return. */
 typedef bool (*H9AprsBootWrite)(void *context, const uint8_t *data,
                                 size_t length);
 
