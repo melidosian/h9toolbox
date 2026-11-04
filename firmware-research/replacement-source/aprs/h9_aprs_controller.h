@@ -28,6 +28,8 @@ typedef struct {
     void (*transmit_aprs_packet)(void *context, const uint8_t *packet,
                                  size_t length);
     void (*tx_settings_changed)(void *context, const H9AprsTxSettings *settings);
+    /* Replacement-only command 0x53; board owns the expiring RF permit. */
+    void (*tx_permit_changed)(void *context, bool enabled);
     /* Command 0x11/4 writes raw bytes to USART2 when GPIOB bit 5 is high. */
     void (*aux_uart_write)(void *context, const uint8_t *data, size_t length);
     bool (*read_status)(void *context, uint8_t output[48]);

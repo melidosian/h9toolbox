@@ -16,6 +16,7 @@ add_library(h9_replacement_core STATIC
     main/h9_main_aprs_mute.c
     main/h9_main_aprs_receive.c
     main/h9_main_aprs_session.c
+    main/h9_main_aprs_tx_permit.c
     main/h9_main_aprs_uart1_link.c
     main/h9_main_aprs_wire.c
     main/h9_main_ax25.c
@@ -76,6 +77,7 @@ add_library(h9_replacement_core STATIC
     aprs/h9_aprs_tx.c
     aprs/h9_aprs_tx_gate.c
     aprs/h9_aprs_tx_packet.c
+    aprs/h9_aprs_tx_permit.c
     aprs/h9_aprs_tx_runtime.c
     aprs/h9_aprs_tx_service.c
     aprs/h9_aprs_uart1_board.c

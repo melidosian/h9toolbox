@@ -4,10 +4,11 @@
 #include "h9_aprs_tx_service.h"
 #include <stdatomic.h>
 
-/* Connects serial packet requests to the waveform service. The caller must
- * establish RF readiness from a board signal before submission and each step.
- * Pending packets are discarded when readiness falls, preventing delayed TX.
- * No stock GPIO has yet been proven to be that signal. */
+/* Connects serial packet requests to the waveform service. The diagnostic
+ * board uses a replacement serial permit as its logical readiness input.
+ * A real main board adapter must establish RF routing/keying first. Pending
+ * packets are discarded when readiness falls. No stock GPIO is proven to
+ * be an RF-ready input. */
 typedef struct {
     H9AprsTxService *service;
     atomic_bool rf_ready;
@@ -15,6 +16,9 @@ typedef struct {
 
 void h9_aprs_tx_runtime_bind(H9AprsTxRuntime *runtime,
                              H9AprsTxService *service);
+/* Update authorization as soon as its serial command arrives. Dropping it
+ * cancels an in-flight packet; the ADC ISR acknowledges a waveform abort. */
+void h9_aprs_tx_runtime_set_ready(H9AprsTxRuntime *runtime, bool rf_ready);
 bool h9_aprs_tx_runtime_submit(H9AprsTxRuntime *runtime,
                                const uint8_t *packet, size_t length);
 H9AprsTxPhase h9_aprs_tx_runtime_step(H9AprsTxRuntime *runtime,

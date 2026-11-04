@@ -85,6 +85,14 @@ static void board_tx_settings_changed(void *context,
                                    settings->lead_ms, settings->tail_ms);
 }
 
+static void board_tx_permit_changed(void *context, bool enabled)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    uint32_t now = h9_aprs_systick_now(&state->systick);
+    h9_aprs_tx_permit_set(&state->tx_permit, enabled, now);
+    h9_aprs_tx_runtime_set_ready(&state->tx_runtime, enabled);
+}
+
 static bool board_tx_wave_active(void *context)
 {
     H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
@@ -136,6 +144,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     hardware.read_adc = board_read_adc;
     hardware.transmit_aprs_packet = board_submit_packet;
     hardware.tx_settings_changed = board_tx_settings_changed;
+    hardware.tx_permit_changed = board_tx_permit_changed;
     hardware.tx_wave_active = board_tx_wave_active;
     hardware.next_tx_wave_sample = board_next_tx_wave;
     h9_aprs_controller_init(&runtime.controller, &hardware);
@@ -143,6 +152,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
                             H9_APRS_STOCK_TX_LEAD_MS,
                             H9_APRS_STOCK_TX_TAIL_MS);
     h9_aprs_tx_runtime_bind(&runtime.tx_runtime, &runtime.tx_service);
+    h9_aprs_tx_permit_set(&runtime.tx_permit, false, 0u);
     h9_aprs_uart2_maintenance_init(&runtime.uart2_maintenance);
     h9_aprs_uart_receive_init(&runtime.uart_receive);
     h9_aprs_uart1_dma_bind_target(&runtime.uart1_dma,
@@ -203,9 +213,12 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
         queue_error = gate_state.queue_overflow !=
                       runtime.gate_overflow_seen;
         runtime.gate_overflow_seen = gate_state.queue_overflow;
-        /* Preamble/in-frame state comes from the ADC demodulator. RF route
-         * authorization remains unmapped and deliberately false. */
-        (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime, false,
+        /* Replacement command 0x53 carries a bounded permit. The main
+         * board adapter must still prove RF route and keying before sending
+         * it; this diagnostic entry has no such main-side adapter. */
+        (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime,
+                                      h9_aprs_tx_permit_active(
+                                          &runtime.tx_permit, now),
                                       gate_state.preamble_seen,
                                       gate_state.in_frame, queue_error,
                                       runtime.controller.tx_settings.persistence);

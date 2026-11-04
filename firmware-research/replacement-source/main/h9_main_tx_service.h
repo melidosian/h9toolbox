@@ -15,6 +15,7 @@ typedef enum {
     H9_MAIN_TX_PREPARE_FAILED,
     H9_MAIN_TX_READBACK_FAILED,
     H9_MAIN_TX_ROUTE_FAILED,
+    H9_MAIN_TX_PERMIT_FAILED,
     H9_MAIN_TX_SEND_FAILED,
     H9_MAIN_TX_CLEANUP_FAILED,
     H9_MAIN_TX_SENT
@@ -36,9 +37,11 @@ typedef enum {
  * The adapter must check current band/region settings in validate_frequency
  * and leave PTT inactive throughout prepare_tx, read_prepared_tx, and
  * read_rf_snapshot. The snapshot captures the live Dual Watch route and
- * working frequency pair after preparation. send_packet is the only callback
+ * working frequency pair after preparation. set_aprs_permit(true) is called
+ * only after both readbacks match; the adapter must verify that the APRS
+ * module supports replacement command 0x53. send_packet is the only callback
  * allowed to key RF and must return only when this packet has finished or
- * failed; the route remains reserved until stop_tx and restore_receive run.
+ * failed; the route stays reserved through stop, permit clear, and restore.
  * stop_tx must deassert PTT even when send_packet reports failure. */
 typedef struct {
     bool (*begin_route)(void *opaque);
@@ -51,6 +54,7 @@ typedef struct {
     bool (*prepare_tx)(void *opaque, const H9TxPlan *plan);
     bool (*read_prepared_tx)(void *opaque, H9Side *side, uint32_t *tx_hz);
     bool (*read_rf_snapshot)(void *opaque, H9MainRfSnapshot *snapshot);
+    bool (*set_aprs_permit)(void *opaque, bool enabled);
     bool (*send_packet)(void *opaque, const uint8_t *packet, size_t length);
     bool (*stop_tx)(void *opaque);
     bool (*restore_receive)(void *opaque, H9Side previous_side);

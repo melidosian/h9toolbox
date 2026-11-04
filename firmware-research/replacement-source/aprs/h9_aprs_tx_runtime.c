@@ -18,6 +18,13 @@ bool h9_aprs_tx_runtime_submit(H9AprsTxRuntime *runtime,
            h9_aprs_tx_service_submit(runtime->service, packet, length);
 }
 
+void h9_aprs_tx_runtime_set_ready(H9AprsTxRuntime *runtime, bool rf_ready)
+{
+    if (runtime == NULL || runtime->service == NULL) return;
+    atomic_store_explicit(&runtime->rf_ready, rf_ready, memory_order_release);
+    if (!rf_ready) (void)h9_aprs_tx_service_cancel(runtime->service);
+}
+
 H9AprsTxPhase h9_aprs_tx_runtime_step(H9AprsTxRuntime *runtime,
                                       bool rf_ready, bool preamble_seen,
                                       bool in_frame,
@@ -27,8 +34,9 @@ H9AprsTxPhase h9_aprs_tx_runtime_step(H9AprsTxRuntime *runtime,
     H9AprsTxService *service;
     if (runtime == NULL || runtime->service == NULL) return H9_APRS_TX_IDLE;
     service = runtime->service;
-    atomic_store_explicit(&runtime->rf_ready, rf_ready, memory_order_release);
-    if (!rf_ready) return h9_aprs_tx_service_cancel(service);
+    h9_aprs_tx_runtime_set_ready(runtime, rf_ready);
+    if (!rf_ready) return (H9AprsTxPhase)atomic_load_explicit(
+        &service->phase, memory_order_acquire);
     return h9_aprs_tx_service_step(service, preamble_seen, in_frame,
                                     queue_error, persistence);
 }

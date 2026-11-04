@@ -1,4 +1,5 @@
 #include "h9_aprs_wire.h"
+#include "h9_aprs_tx_permit_protocol.h"
 
 void h9_wire_reset(H9WireDecoder *decoder)
 {
@@ -35,11 +36,13 @@ H9WireResult h9_wire_feed(H9WireDecoder *decoder, uint8_t byte)
     }
     if (!decoder->started) return H9_WIRE_MORE;
     if (!decoder->has_command) {
-        /* FUN_08005B8C keeps these packet commands intact; all other
-         * command bytes are reduced to their low nibble. */
+        /* Stock keeps the listed packet commands intact. Command 0x53 is
+         * reserved for a replacement-to-replacement TX permit. */
         decoder->command = byte == 0x10u || byte == 0x11u ||
                            byte == 0x13u || byte == 0x20u ||
-                           byte == 0x21u ? byte : (byte & 0x0Fu);
+                           byte == 0x21u ||
+                           byte == H9_APRS_TX_PERMIT_COMMAND ?
+                           byte : (byte & 0x0Fu);
         decoder->has_command = 1;
         return H9_WIRE_MORE;
     }

@@ -2,6 +2,7 @@
 #include "h9_aprs_identity.h"
 #include "h9_aprs_burst_protocol.h"
 #include "h9_aprs_tx_defaults.h"
+#include "h9_aprs_tx_permit_protocol.h"
 #include <string.h>
 
 static bool send_frame(H9AprsController *controller, uint8_t command,
@@ -97,6 +98,12 @@ static void dispatch(H9AprsController *controller)
         break;
     case 0x20u:
         send_version(controller, length != 0 ? data[0] : 0);
+        break;
+    case H9_APRS_TX_PERMIT_COMMAND:
+        if (length == 2u && data[0] == H9_APRS_TX_PERMIT_VERSION &&
+            data[1] <= H9_APRS_TX_PERMIT_ENABLE &&
+            controller->hardware.tx_permit_changed != NULL)
+            controller->hardware.tx_permit_changed(context, data[1] != 0u);
         break;
     default:
         break;

@@ -15,6 +15,7 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
     H9BeaconPositionStatus position;
     H9MainTxResult result;
     bool stopped;
+    bool permit_cleared;
     bool restored;
 
     if (config == NULL || packet == NULL || length == 0u ||
@@ -25,7 +26,8 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
         hardware->validate_frequency == NULL ||
         hardware->prepare_tx == NULL ||
         hardware->read_prepared_tx == NULL ||
-        hardware->read_rf_snapshot == NULL || hardware->send_packet == NULL ||
+        hardware->read_rf_snapshot == NULL ||
+        hardware->set_aprs_permit == NULL || hardware->send_packet == NULL ||
         hardware->stop_tx == NULL || hardware->restore_receive == NULL)
         return H9_MAIN_TX_REJECTED;
 
@@ -50,15 +52,19 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
             if (hardware->read_rf_snapshot(opaque, &rf_snapshot) &&
                 h9_main_rf_snapshot_matches_plan(&rf_snapshot, config,
                                                  &plan)) {
-                result = hardware->send_packet(opaque, packet, length) ?
-                         H9_MAIN_TX_SENT : H9_MAIN_TX_SEND_FAILED;
+                result = H9_MAIN_TX_PERMIT_FAILED;
+                if (hardware->set_aprs_permit(opaque, true))
+                    result = hardware->send_packet(opaque, packet, length) ?
+                             H9_MAIN_TX_SENT : H9_MAIN_TX_SEND_FAILED;
             }
         }
     }
 
     stopped = hardware->stop_tx(opaque);
+    permit_cleared = hardware->set_aprs_permit(opaque, false);
     restored = hardware->restore_receive(opaque, previous_side);
-    if (!stopped || !restored) result = H9_MAIN_TX_CLEANUP_FAILED;
+    if (!stopped || !permit_cleared || !restored)
+        result = H9_MAIN_TX_CLEANUP_FAILED;
 release:
     if (!hardware->end_route(opaque)) return H9_MAIN_TX_CLEANUP_FAILED;
     return result;

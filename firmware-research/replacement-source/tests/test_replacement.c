@@ -15,6 +15,8 @@
 #include "h9_aprs_tx_defaults.h"
 #include "h9_aprs_tx_gate.h"
 #include "h9_aprs_tx_packet.h"
+#include "h9_aprs_tx_permit.h"
+#include "h9_aprs_tx_permit_protocol.h"
 #include "h9_aprs_tx_service.h"
 #include "h9_aprs_tx_runtime.h"
 #include "h9_aprs_uart_receive.h"
@@ -34,6 +36,7 @@
 #include "h9_main_aprs_mute.h"
 #include "h9_main_aprs_receive.h"
 #include "h9_main_aprs_session.h"
+#include "h9_main_aprs_tx_permit.h"
 #include "h9_main_aprs_uart1_link.h"
 #include "h9_main_aprs_wire.h"
 #include "h9_main_ax25.h"
@@ -93,6 +96,7 @@ typedef struct {
     uint8_t afsk_packet[H9_APRS_MAX_RECEIVE];
     size_t afsk_packet_length;
     H9AprsTxService *tx_service;
+    H9AprsTxRuntime *tx_runtime;
     H9AprsUart2Dma *inject_uart2_dma;
     volatile uint32_t *inject_uart2_registers;
     bool inject_uart2_once;
@@ -104,6 +108,8 @@ typedef struct {
     uint8_t dac;
     bool tx_active;
     bool aux_gate;
+    H9AprsTxPermit permit;
+    uint32_t now_ms;
     bool status_valid;
     H9AprsStatusSnapshot status;
 } FakeHardware;
@@ -158,6 +164,14 @@ static bool read_aux_gate(void *opaque)
 static void set_aux_gate(void *opaque, bool high)
 {
     ((FakeHardware *)opaque)->aux_gate = high;
+}
+
+static void set_tx_permit(void *opaque, bool enabled)
+{
+    FakeHardware *fake = (FakeHardware *)opaque;
+    h9_aprs_tx_permit_set(&fake->permit, enabled, fake->now_ms);
+    if (fake->tx_runtime != NULL)
+        h9_aprs_tx_runtime_set_ready(fake->tx_runtime, enabled);
 }
 
 static bool read_status(void *opaque, uint8_t output[H9_APRS_STATUS_BYTES])
@@ -1728,6 +1742,9 @@ typedef struct {
     bool fail_prepare;
     bool fail_send;
     bool fail_stop;
+    bool fail_permit_arm;
+    bool fail_permit_clear;
+    bool permit_active;
     bool wrong_readback_side;
     bool wrong_readback_hz;
     bool wrong_route_side;
@@ -1746,6 +1763,8 @@ typedef struct {
     unsigned readback_calls;
     unsigned snapshot_calls;
     unsigned send_calls;
+    unsigned permit_arm_calls;
+    unsigned permit_clear_calls;
     unsigned stop_calls;
     unsigned restore_calls;
     unsigned step;
@@ -1864,12 +1883,28 @@ static bool main_read_rf_snapshot(void *opaque, H9MainRfSnapshot *snapshot)
 static bool main_send_packet(void *opaque, const uint8_t *packet, size_t length)
 {
     FakeMainTx *fake = (FakeMainTx *)opaque;
-    assert(fake->route_reserved);
+    assert(fake->route_reserved && fake->permit_active);
     assert(fake->step == 2u);
     assert(packet[0] == 0x82u && length == 1u);
     fake->step = 3u;
     fake->send_calls++;
     return !fake->fail_send;
+}
+
+static bool main_set_aprs_permit(void *opaque, bool enabled)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    assert(fake->route_reserved);
+    if (enabled) {
+        assert(fake->step == 2u && fake->snapshot_calls == 1u);
+        fake->permit_arm_calls++;
+        fake->permit_active = true;
+        return !fake->fail_permit_arm;
+    }
+    assert(fake->step == 4u);
+    fake->permit_clear_calls++;
+    fake->permit_active = false;
+    return !fake->fail_permit_clear;
 }
 
 static bool main_stop_tx(void *opaque)
@@ -1910,6 +1945,7 @@ static void test_main_tx_service(void)
         .prepare_tx = main_prepare,
         .read_prepared_tx = main_read_prepared,
         .read_rf_snapshot = main_read_rf_snapshot,
+        .set_aprs_permit = main_set_aprs_permit,
         .send_packet = main_send_packet,
         .stop_tx = main_stop_tx,
         .restore_receive = main_restore_receive,
@@ -1971,7 +2007,9 @@ static void test_main_tx_service(void)
     assert(!fake.prepared_restore_side);
     assert(fake.route_side == 0u && fake.side_state == 0x80u);
     assert(fake.send_calls == 1u && fake.stop_calls == 1u &&
-           fake.restore_calls == 1u && fake.snapshot_calls == 1u);
+           fake.restore_calls == 1u && fake.snapshot_calls == 1u &&
+           fake.permit_arm_calls == 1u && fake.permit_clear_calls == 1u &&
+           !fake.permit_active);
 
     memset(&fake, 0, sizeof fake);
     fake.current_side = H9_SIDE_B;
@@ -1996,7 +2034,8 @@ static void test_main_tx_service(void)
                              packet, sizeof packet, &hardware, &fake);
     assert(result == H9_MAIN_TX_ROUTE_FAILED && fake.send_calls == 0u);
     assert(fake.snapshot_calls == 1u && fake.stop_calls == 1u &&
-           fake.restore_calls == 1u);
+           fake.restore_calls == 1u && fake.permit_arm_calls == 0u &&
+           fake.permit_clear_calls == 1u);
 
     memset(&fake, 0, sizeof fake);
     fake.current_side = H9_SIDE_B;
@@ -2034,7 +2073,25 @@ static void test_main_tx_service(void)
     result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
                              packet, sizeof packet, &hardware, &fake);
     assert(result == H9_MAIN_TX_SEND_FAILED && fake.send_calls == 1u);
-    assert(fake.stop_calls == 1u && fake.restore_calls == 1u);
+    assert(fake.stop_calls == 1u && fake.restore_calls == 1u &&
+           fake.permit_clear_calls == 1u && !fake.permit_active);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.fail_permit_arm = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_PERMIT_FAILED && fake.send_calls == 0u &&
+           fake.permit_arm_calls == 1u && fake.permit_clear_calls == 1u &&
+           fake.stop_calls == 1u && !fake.permit_active);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.fail_permit_clear = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_CLEANUP_FAILED && fake.send_calls == 1u &&
+           fake.permit_clear_calls == 1u && fake.restore_calls == 1u);
 
     memset(&fake, 0, sizeof fake);
     fake.current_side = H9_SIDE_B;
@@ -2410,6 +2467,68 @@ static void test_main_aux_gpio_handshake(void)
     assert(!fake.aux_gate);
     feed_frame(&controller, 0x11u, raw_message, sizeof raw_message);
     assert(fake.packet_length == 0u);
+}
+
+static void test_replacement_tx_permit_link(void)
+{
+    static const uint8_t packet[] = { 0x82u, 0xA0u, 0x7Eu };
+    static const uint8_t invalid[] = { H9_APRS_TX_PERMIT_VERSION, 2u };
+    static const uint8_t wrong_version[] = { 2u, 0u };
+    FakeHardware fake = { 0 };
+    H9AprsHardware hardware = { 0 };
+    H9AprsController controller;
+    H9AprsTxService service;
+    H9AprsTxRuntime runtime;
+    H9MainAprsVersions versions;
+    uint8_t frame[16];
+    size_t length;
+
+    h9_main_aprs_versions_init(&versions);
+    assert(h9_main_aprs_tx_permit_encode(&versions, true,
+                                           frame, sizeof frame) == 0u);
+    memcpy(versions.module, "V1.0.15", sizeof "V1.0.15");
+    memcpy(versions.protocol, "V1.0.0", sizeof "V1.0.0");
+    versions.has_module = versions.has_protocol = 1u;
+    assert(h9_main_aprs_tx_permit_encode(&versions, true,
+                                           frame, sizeof frame) == 0u);
+    memcpy(versions.module, "H9R0.01", sizeof "H9R0.01");
+    hardware.context = &fake;
+    hardware.tx_permit_changed = set_tx_permit;
+    h9_aprs_controller_init(&controller, &hardware);
+    h9_aprs_tx_service_init(&service, 0u, 500u, 100u);
+    h9_aprs_tx_runtime_bind(&runtime, &service);
+    fake.tx_runtime = &runtime;
+    fake.now_ms = UINT32_MAX - 1000u;
+    length = h9_main_aprs_tx_permit_encode(&versions, true,
+                                            frame, sizeof frame);
+    assert(length == 11u);
+    assert(main_aux_wire_to_controller(&controller, frame, length));
+    assert(h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
+    assert(h9_aprs_tx_runtime_submit(&runtime, packet, sizeof packet));
+    feed_frame(&controller, H9_APRS_TX_PERMIT_COMMAND,
+               invalid, sizeof invalid);
+    feed_frame(&controller, H9_APRS_TX_PERMIT_COMMAND,
+               wrong_version, sizeof wrong_version);
+    assert(h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
+    fake.now_ms += H9_APRS_TX_PERMIT_LEASE_MS;
+    assert(!h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
+    assert(h9_aprs_tx_runtime_step(&runtime, false, false,
+                                   false, false, 63u) == H9_APRS_TX_IDLE);
+    assert(!h9_aprs_tx_runtime_submit(&runtime, packet, sizeof packet));
+
+    fake.now_ms = 25000u;
+    assert(main_aux_wire_to_controller(&controller, frame, length));
+    assert(h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
+    fake.now_ms += 6000u;
+    assert(main_aux_wire_to_controller(&controller, frame, length));
+    fake.now_ms += 6000u;
+    assert(h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
+    length = h9_main_aprs_tx_permit_encode(&versions, false,
+                                            frame, sizeof frame);
+    assert(length == 11u);
+    assert(main_aux_wire_to_controller(&controller, frame, length));
+    assert(!h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
+    assert(!h9_aprs_tx_runtime_submit(&runtime, packet, sizeof packet));
 }
 
 static void test_aprs_tx_service(void)
@@ -6423,6 +6542,7 @@ int main(void)
     test_aprs_tx_interrupt_handoff();
     test_aprs_tx_runtime();
     test_main_aux_gpio_handshake();
+    test_replacement_tx_permit_link();
     test_aprs_controller();
     test_aprs_uart_receive_batches();
     test_aprs_uart1_dma_interrupts();
