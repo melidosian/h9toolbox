@@ -1270,6 +1270,65 @@ static void test_main_aprs_session(void)
     }
 }
 
+typedef struct {
+    bool reserved;
+    bool route_verified;
+    bool speaker_requested;
+    bool bluetooth_requested;
+    bool speaker_on;
+    bool bluetooth_on;
+    bool fail_bluetooth;
+    H9Side received_side;
+    unsigned writes;
+} FakeMuteOutputs;
+
+static bool fake_mute_begin(void *context)
+{
+    FakeMuteOutputs *fake = (FakeMuteOutputs *)context;
+    if (fake->reserved) return false;
+    fake->reserved = true;
+    return true;
+}
+
+static bool fake_mute_read(void *context, H9Side *side, bool *verified,
+                           bool *speaker, bool *bluetooth)
+{
+    FakeMuteOutputs *fake = (FakeMuteOutputs *)context;
+    assert(fake->reserved);
+    *side = fake->received_side;
+    *verified = fake->route_verified;
+    *speaker = fake->speaker_requested;
+    *bluetooth = fake->bluetooth_requested;
+    return true;
+}
+
+static bool fake_mute_speaker(void *context, bool enabled)
+{
+    FakeMuteOutputs *fake = (FakeMuteOutputs *)context;
+    assert(fake->reserved);
+    fake->speaker_on = enabled;
+    fake->writes++;
+    return true;
+}
+
+static bool fake_mute_bluetooth(void *context, bool enabled)
+{
+    FakeMuteOutputs *fake = (FakeMuteOutputs *)context;
+    assert(fake->reserved);
+    if (fake->fail_bluetooth) return false;
+    fake->bluetooth_on = enabled;
+    fake->writes++;
+    return true;
+}
+
+static bool fake_mute_end(void *context)
+{
+    FakeMuteOutputs *fake = (FakeMuteOutputs *)context;
+    assert(fake->reserved);
+    fake->reserved = false;
+    return true;
+}
+
 static void test_aprs_burst_activity_link(void)
 {
     FakeHardware fake = { 0 };
@@ -1279,6 +1338,11 @@ static void test_aprs_burst_activity_link(void)
     H9MainAprsSessionCallbacks callbacks = { 0 };
     MainSessionCapture capture = { 0 };
     H9MainAprsConfig config = { true, true, H9_RX_B, H9_TX_B_LOCK };
+    FakeMuteOutputs fake_outputs = { 0 };
+    H9MainAprsMuteOutputs outputs = {
+        fake_mute_begin, fake_mute_read, fake_mute_speaker,
+        fake_mute_bluetooth, fake_mute_end, &fake_outputs
+    };
     H9AudioPlan audio;
     uint8_t malformed[16];
     const uint8_t bad_version[] = { 2u, 1u };
@@ -1300,6 +1364,30 @@ static void test_aprs_burst_activity_link(void)
     queue_session_bytes(&session, fake.uart, fake.uart_length);
     assert(h9_main_aprs_session_poll(&session) == fake.uart_length);
     assert(capture.burst_count == 1u);
+    fake_outputs.received_side = H9_SIDE_B;
+    fake_outputs.route_verified = true;
+    fake_outputs.speaker_requested = true;
+    fake_outputs.bluetooth_requested = true;
+    fake_outputs.fail_bluetooth = true;
+    assert(!h9_main_aprs_mute_apply(&config, &capture.mute_lease,
+                                     100u, &outputs));
+    assert(!fake_outputs.reserved && fake_outputs.writes == 0u);
+    fake_outputs.fail_bluetooth = false;
+    assert(h9_main_aprs_mute_apply(&config, &capture.mute_lease,
+                                    100u, &outputs));
+    assert(!fake_outputs.speaker_on && !fake_outputs.bluetooth_on &&
+           !fake_outputs.reserved && fake_outputs.writes == 2u);
+    /* A voice route on A remains audible while B's decoder stays active. */
+    fake_outputs.received_side = H9_SIDE_A;
+    assert(h9_main_aprs_mute_apply(&config, &capture.mute_lease,
+                                    100u, &outputs));
+    assert(fake_outputs.speaker_on && fake_outputs.bluetooth_on);
+    fake_outputs.received_side = H9_SIDE_B;
+    outputs.set_bluetooth = NULL;
+    assert(!h9_main_aprs_mute_apply(&config, &capture.mute_lease,
+                                     100u, &outputs));
+    assert(fake_outputs.writes == 4u);
+    outputs.set_bluetooth = fake_mute_bluetooth;
     audio = h9_main_aprs_mute_plan(&config, &capture.mute_lease,
                                    H9_SIDE_B, true, 100u);
     assert(audio.decoder_feed && !audio.speaker_audio &&
@@ -1343,6 +1431,10 @@ static void test_aprs_burst_activity_link(void)
     assert(capture.burst_count == 3u &&
            !h9_main_aprs_mute_should_silence(&capture.mute_lease,
                                               true, true, 351u));
+    fake_outputs.speaker_requested = false;
+    assert(h9_main_aprs_mute_apply(&config, &capture.mute_lease,
+                                    351u, &outputs));
+    assert(!fake_outputs.speaker_on && fake_outputs.bluetooth_on);
     malformed_length = h9_wire_encode(0x52u, bad_version,
                                       sizeof bad_version, malformed,
                                       sizeof malformed);

@@ -37,3 +37,35 @@ H9AudioPlan h9_main_aprs_mute_plan(const H9MainAprsConfig *config,
     }
     return plan;
 }
+
+bool h9_main_aprs_mute_apply(const H9MainAprsConfig *config,
+                             const H9MainAprsMuteLease *lease,
+                             uint32_t now_ms,
+                             const H9MainAprsMuteOutputs *outputs)
+{
+    H9AudioPlan plan;
+    H9Side received_side;
+    bool route_verified;
+    bool speaker_requested;
+    bool bluetooth_requested;
+    bool applied = false;
+    bool ended;
+    if (config == NULL || outputs == NULL || outputs->begin_route == NULL ||
+        outputs->read_route == NULL || outputs->set_speaker == NULL ||
+        outputs->set_bluetooth == NULL || outputs->end_route == NULL ||
+        !outputs->begin_route(outputs->context)) return false;
+    if (outputs->read_route(outputs->context, &received_side,
+                            &route_verified, &speaker_requested,
+                            &bluetooth_requested)) {
+        plan = h9_main_aprs_mute_plan(config, lease, received_side,
+                                      route_verified, now_ms);
+        /* The policy grants or withholds each output; it never turns on a
+         * path that ordinary squelch/audio routing has requested off. */
+        if (outputs->set_bluetooth(outputs->context,
+                                   bluetooth_requested && plan.bluetooth_audio))
+            applied = outputs->set_speaker(outputs->context,
+                                            speaker_requested && plan.speaker_audio);
+    }
+    ended = outputs->end_route(outputs->context);
+    return applied && ended;
+}

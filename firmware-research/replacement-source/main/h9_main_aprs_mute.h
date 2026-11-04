@@ -33,4 +33,27 @@ H9AudioPlan h9_main_aprs_mute_plan(const H9MainAprsConfig *config,
                                    bool route_verified,
                                    uint32_t now_ms);
 
+/* Replacement audio-route boundary. The adapter must hold its ordinary
+ * receive-route state from begin through end, without masking interrupts
+ * for the duration. read_route returns the ordinary output requests before
+ * APRS mute is overlaid, not the already-gated output levels. Both physical
+ * setters are required: the local speaker pin alone cannot mute Bluetooth.
+ * A failed setter can leave one output changed; the adapter must reconcile
+ * the route before returning to normal audio service. */
+typedef struct {
+    bool (*begin_route)(void *context);
+    bool (*read_route)(void *context, H9Side *received_side,
+                       bool *route_verified, bool *speaker_requested,
+                       bool *bluetooth_requested);
+    bool (*set_speaker)(void *context, bool enabled);
+    bool (*set_bluetooth)(void *context, bool enabled);
+    bool (*end_route)(void *context);
+    void *context;
+} H9MainAprsMuteOutputs;
+
+bool h9_main_aprs_mute_apply(const H9MainAprsConfig *config,
+                             const H9MainAprsMuteLease *lease,
+                             uint32_t now_ms,
+                             const H9MainAprsMuteOutputs *outputs);
+
 #endif

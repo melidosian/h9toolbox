@@ -139,6 +139,8 @@ The stock clock source register writer and latch helper have injectable MMIO bin
 
 The following auxiliary clock helper writes three fields of `0x1E0008`, calling ROM `0x02000110` between the first and second writes. Its ROM callback and register are injectable for host tests. The Pi32 link check verifies the emitted field order and ROM target. The diagnostic board entry calls it before the final `0x02001650` ROM transition.
 
+The main APRS mute module now also has an audio-route transaction. It reads the live receive side and the ordinary speaker/Bluetooth requests under a board-supplied route reservation, overlays the burst lease, then applies both outputs. It refuses to act if either output setter is absent and never turns on an output that normal squelch routing requested off. A host integration test drives the replacement APRS activity frame through the main session and verifies both output requests, voice on the other side, and restoration after the clear. The physical Bluetooth output setter, verified live receive route, and board reservation are still unimplemented; this code alone cannot mute the radio.
+
 ## Next source work
 
 1. Trace and implement the remaining command `0x51` side effects and UART board hooks; connect the one-shot `PY` ready event, parsed GPS, and packet processing to the UI and data model.
