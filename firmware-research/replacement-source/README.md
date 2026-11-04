@@ -64,6 +64,14 @@ py -3 firmware-research/replacement-source/link_aprs_check.py --compiler 'C:\pat
 
 The Windows Arm GNU Toolchain 15.3.1 check linked 11 source objects into a 4,144-byte diagnostic ELF and confirmed its vector table. This establishes that the current modules have no unresolved link symbols within that diagnostic envelope; it does not establish that the radio can run them.
 
+`link_main_check.py` similarly compiles **all current main modules** into native Pi32v2 objects and uses JieLi's `pi32v2-ld` to produce an ELF, map, and manifest under ignored `build/link-check-main/`. JieLi clang's default link invocation selects `pi32-ld`, which rejects Pi32v2 objects, so the script explicitly selects the matching linker. It verifies that all archive objects were included, no symbols remain undefined, the ELF machine is Pi32v2, and its inert entry is at the inferred stock app base `0x01E00100`. The linker script's code length matches the extracted stock app; its RAM range is only provisional. This check does **not** create a `.bin` or `.fw` file.
+
+```powershell
+py -3 firmware-research/replacement-source/link_main_check.py --compiler 'C:\JL\pi32\bin\clang.exe' --stock-image 'C:\path\to\app.bin'
+```
+
+The Windows JieLi toolchain check linked all nine current main objects with no unresolved symbols. The resulting diagnostic ELF cannot boot the radio: the entry loops forever, and startup, interrupt vectors, peripheral drivers, and a verified Pi32 memory map are still absent.
+
 ## Next source work
 
 1. Trace and implement command `0x51` side effects, the GPS sentence parser, and the UART hardware producer; connect packet processing, UI, and data model.

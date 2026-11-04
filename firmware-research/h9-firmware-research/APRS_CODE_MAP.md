@@ -6,6 +6,8 @@ The first compilable replacement core is in [replacement-source](../replacement-
 
 The APRS stock image is 17,304 bytes (SHA-256 `1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33`), with initial stack pointer `0x20001A50` and reset vector `0x080020D5`. `replacement-source/link_aprs_check.py` uses those observed values as a diagnostic link envelope for all 11 replacement APRS objects. The linked ELF has an inert reset handler and is not an update image; production startup, board drivers, and a validated memory map are still absent.
 
+`replacement-source/link_main_check.py` now links all nine current main source objects with the Pi32v2 linker into a separate diagnostic ELF at the inferred main app base `0x01E00100`. It rechecks the private stock-app hash when provided and verifies whole-archive inclusion and no unresolved symbols. Its RAM region is provisional and its entry loops forever, so this is not a bootable app or update image.
+
 ## Separate APRS-1.0.15 controller
 
 The Cortex-M image was imported into Ghidra as `ARM:LE:32:Cortex` at `0x08002000`. The following paths are supported by both caller references and decompilation:
