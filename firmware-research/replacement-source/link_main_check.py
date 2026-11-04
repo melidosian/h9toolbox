@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Whole-archive Pi32v2 link check; emits an unbootable diagnostic ELF only."""
+"""Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
+
+The board entry remains inert. This emits an unbootable diagnostic ELF only.
+"""
 
 from __future__ import annotations
 
@@ -18,6 +21,13 @@ from build_target_objects import ROOT, build, find_compiler, run
 IMAGE_BASE = 0x01E00100
 STOCK_IMAGE_SIZE = 0xD3C2C
 STOCK_SHA256 = "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3"
+RAM_START = 0xE2E0
+RAM_END = 0x1E4D4
+STOCK_BOOT_ARGS = bytes.fromhex(
+    "50 ec 04 20 c1 ff a0 e2 00 00 50 ec 11 21 02 60 "
+    "23 62 93 66 2a 4d 9a 40 0a 66 9a 6e 0a 67 9a 6f "
+    "50 ec 00 21 50 ec 11 22 80 00"
+)
 
 
 def sibling_tool(compiler: str, name: str) -> str:
@@ -33,6 +43,9 @@ def verify_stock_image(path: Path) -> None:
     data = path.read_bytes()
     if len(data) != STOCK_IMAGE_SIZE or sha256(data).hexdigest() != STOCK_SHA256:
         raise ValueError("Stock main app hash or size differs from pinned evidence")
+    if data[4:16] != bytes.fromhex("ee ff 90 e2 00 00 ed ff 90 e2 00 00") or \
+            data[0x2D82E:0x2D858] != STOCK_BOOT_ARGS:
+        raise ValueError("Stock Pi32 entry or boot-argument copy differs")
 
 
 def verify_linked_elf(path: Path) -> int:
@@ -55,6 +68,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     object_manifest = build("main", compiler, output / "objects", no_lto=True)
     source_dir = ROOT / "main"
     runtime = output / "link_check_runtime.o"
+    startup = output / "h9_main_startup.o"
+    run([compiler, "-target", "pi32v2", "-mcpu=r3", "-c",
+         str(source_dir / "h9_main_startup.S"), "-o", str(startup)])
     run([compiler, "-target", "pi32v2", "-mcpu=r3", "-Oz", "-std=c11",
          "-ffreestanding", "-fno-builtin", "-Wall", "-Wextra", "-Werror",
          "-c", str(source_dir / "link_check_runtime.c"), "-o", str(runtime)])
@@ -66,9 +82,42 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     map_file = output / "h9_main_link_check.map"
     script = source_dir / "link_check.ld"
     run([linker, "-m", "elf32pi32v2", "-T", str(script),
-         "-Map", str(map_file), "-o", str(elf), str(runtime),
+         "-Map", str(map_file), "-o", str(elf), str(startup), str(runtime),
          "--whole-archive", str(archive), "--no-whole-archive"])
     entry = verify_linked_elf(elf)
+    text_section = output / "main-text.bin"
+    run([sibling_tool(compiler, "llvm-objcopy"), "-O", "binary", "-j=.text",
+         str(elf), str(text_section)])
+    text_data = text_section.read_bytes()
+    first = text_data[:14]
+    if len(first) != 14 or first[2:8] != bytes.fromhex("ee ff 90 e2 00 00") or \
+            first[8:14] != bytes.fromhex("ed ff 90 e2 00 00"):
+        raise ValueError("Linked main entry lacks the stock stack setup bytes")
+    symbols = run([sibling_tool(compiler, "llvm-nm"), str(elf)])
+    match = re.search(r"^([0-9a-fA-F]+) [tT] h9_main_copy_boot_args$",
+                      symbols, re.M)
+    if match is None:
+        raise ValueError("Linked main entry lacks boot-argument copy symbol")
+    boot_offset = int(match.group(1), 16) - IMAGE_BASE
+    if text_data[boot_offset:boot_offset + len(STOCK_BOOT_ARGS)] != STOCK_BOOT_ARGS:
+        raise ValueError("Linked boot-argument copy differs from stock bytes")
+    def symbol_address(name: str) -> int:
+        symbol = re.search(rf"^([0-9a-fA-F]+) [A-Za-z] {re.escape(name)}$",
+                           symbols, re.M)
+        if symbol is None:
+            raise ValueError(f"Linked main ELF lacks {name}")
+        return int(symbol.group(1), 16)
+
+    data_start = symbol_address("__data_start")
+    data_end = symbol_address("__data_end")
+    bss_start = symbol_address("__bss_start")
+    bss_end = symbol_address("__bss_end")
+    data_load = symbol_address("__data_load_start")
+    if not (RAM_START <= data_start <= data_end <= bss_start <= bss_end <= RAM_END):
+        raise ValueError("Linked C data/BSS exceed observed stock-cleared RAM interval")
+    if not (IMAGE_BASE <= data_load and data_load + data_end - data_start <=
+            IMAGE_BASE + STOCK_IMAGE_SIZE):
+        raise ValueError("Linked C data load exceeds stock app address envelope")
     undefined = run([sibling_tool(compiler, "llvm-nm"), "-u", str(elf)])
     if undefined:
         raise ValueError(f"Linked ELF has undefined symbols:\n{undefined}")
@@ -91,6 +140,12 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "compiler": compiler,
         "linker": linker,
         "source_objects": len(included),
+        "startup_object": startup.name,
+        "stock_stack_pointer": 58000,
+        "entry_stack_bytes_verified": True,
+        "boot_argument_copy_bytes_verified": True,
+        "c_ram_start": data_start,
+        "c_ram_end": bss_end,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
         "elf": elf.name,
         "elf_sha256": sha256(elf.read_bytes()).hexdigest(),

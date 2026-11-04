@@ -1,7 +1,12 @@
 #include <stddef.h>
 
-/* Diagnostic link shims. Neither this entry nor these routines initialize
- * the TD-H9 board or implement its production runtime. */
+/* Diagnostic link shims. This entry initializes C memory but does not
+ * initialize the TD-H9 board or implement its production runtime. */
+extern unsigned char __data_load_start[];
+extern unsigned char __data_start[];
+extern unsigned char __data_end[];
+extern unsigned char __bss_start[];
+extern unsigned char __bss_end[];
 void *memcpy(void *destination, const void *source, size_t length)
 {
     unsigned char *to = (unsigned char *)destination;
@@ -19,8 +24,16 @@ void *memset(void *destination, int value, size_t length)
     return destination;
 }
 
-__attribute__((noreturn, section(".text.h9_link_check_entry")))
-void h9_link_check_entry(void)
+__attribute__((noreturn)) void h9_main_board_entry(void)
 {
     for (;;) { }
+}
+
+__attribute__((noreturn)) void h9_main_runtime_init(void)
+{
+    unsigned char *to;
+    unsigned char *from = __data_load_start;
+    for (to = __data_start; to < __data_end; ++to) *to = *from++;
+    for (to = __bss_start; to < __bss_end; ++to) *to = 0;
+    h9_main_board_entry();
 }
