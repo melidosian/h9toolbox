@@ -1326,9 +1326,17 @@ static void test_aprs_gpio_board(void)
 static void test_aprs_wave_output(void)
 {
     H9AprsWaveOutput output = { 0 };
+    uint32_t rcc[14] = { 0 };
     uint32_t gpio[6] = { 0 };
     assert(h9_aprs_wave_output_read(&output) == 0u);
-    h9_aprs_wave_output_bind(&output, gpio);
+    h9_aprs_wave_output_bind(&output, rcc, gpio);
+    gpio[0] = gpio[1] = gpio[2] = gpio[3] = ~0u;
+    h9_aprs_wave_output_configure(&output);
+    assert(rcc[13] == 1u);
+    assert(((gpio[0] >> 8) & 0xFFu) == 0x55u);
+    assert((gpio[1] & 0xF0u) == 0u);
+    assert(((gpio[2] >> 8) & 0xFFu) == 0xFFu);
+    assert(((gpio[3] >> 8) & 0xFFu) == 0x55u);
     gpio[5] = 0x18Fu;
     assert(h9_aprs_wave_output_read(&output) == 0x8Fu);
     h9_aprs_wave_output_write(&output, 0xA5u);
@@ -1338,9 +1346,16 @@ static void test_aprs_wave_output(void)
 static void test_aprs_adc_board(void)
 {
     H9AprsAdcBoard board = { 0 };
+    uint32_t rcc[17] = { 0 };
+    uint32_t gpio[4] = { 0 };
     uint32_t adc[17] = { 0 };
     assert(h9_aprs_adc_board_read(&board) == 0u);
-    h9_aprs_adc_board_bind(&board, adc);
+    h9_aprs_adc_board_bind(&board, rcc, gpio, adc);
+    gpio[0] = gpio[3] = ~0u;
+    h9_aprs_adc_board_prepare_pin(&board);
+    assert(rcc[13] == 1u && rcc[16] == (1u << 20));
+    assert(((gpio[0] >> 2) & 3u) == 3u);
+    assert(((gpio[3] >> 2) & 3u) == 0u);
     adc[16] = 0xABCD1234u;
     assert(h9_aprs_adc_board_read(&board) == 0x1234u);
 }
@@ -1383,9 +1398,10 @@ static void test_aprs_adc_sample_irq(void)
     H9AprsHardware hardware = { 0 };
     FakeAprsSampleIrq fake = { 0 };
     uint32_t adc[17] = { 0 };
+    uint32_t rcc[17] = { 0 };
     uint32_t gpio[6] = { 0 };
-    h9_aprs_adc_board_bind(&fake.adc, adc);
-    h9_aprs_wave_output_bind(&fake.wave, gpio);
+    h9_aprs_adc_board_bind(&fake.adc, rcc, gpio, adc);
+    h9_aprs_wave_output_bind(&fake.wave, rcc, gpio);
     hardware.context = &fake;
     hardware.read_adc = sample_irq_read_adc;
     hardware.read_dac_port = sample_irq_read_wave;

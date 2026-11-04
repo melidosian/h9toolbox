@@ -93,6 +93,8 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
                                         system_clock_hz) ||
         !h9_aprs_uart1_dma_start(&runtime.uart1_dma))
         for (;;) { }
+    h9_aprs_wave_output_configure(&runtime.wave_output);
+    h9_aprs_adc_board_prepare_pin(&runtime.adc_board);
     h9_aprs_uart1_board_enable_irqs(&runtime.uart1_board);
     for (;;) {
         (void)h9_aprs_uart_receive_process(&runtime.uart_receive,
