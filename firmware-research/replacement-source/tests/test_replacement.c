@@ -9,6 +9,8 @@
 #include "h9_aprs_tx_service.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
+#include "h9_main_aprs_wire.h"
+#include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
 #include <assert.h>
 #include <string.h>
@@ -102,6 +104,74 @@ static void test_wire_vectors(void)
     assert(h9_wire_feed(&decoder, 0x10u) == H9_WIRE_MORE);
     assert(h9_wire_feed(&decoder, 0xDBu) == H9_WIRE_MORE);
     assert(h9_wire_feed(&decoder, 0x01u) == H9_WIRE_REJECTED);
+}
+
+static void test_main_aprs_wire_envelope(void)
+{
+    static const uint8_t payload[] = { 0x41u, 0xC0u, 0xDBu };
+    static const uint8_t expected[] = {
+        0xC0u, 0xC0u, 0xC0u, 0xC0u, 0xC0u, 0x00u,
+        0x41u, 0xDBu, 0xDCu, 0xDBu, 0xDDu,
+        0xC0u, 0xC0u, 0xC0u
+    };
+    uint8_t output[H9_MAIN_APRS_WIRE_CAPACITY];
+    uint8_t max_payload[H9_MAIN_APRS_MAX_PAYLOAD];
+    H9WireDecoder decoder;
+    size_t i;
+    unsigned frames = 0;
+    assert(h9_main_aprs_wire_encode(0, payload, sizeof payload, output,
+                                     15) == 0); /* stock's conservative bound */
+    assert(h9_main_aprs_wire_encode(0, NULL, 0, output,
+                                     sizeof output) == 0);
+    assert(h9_main_aprs_wire_encode(0, payload, sizeof payload, output,
+                                     sizeof output) == sizeof expected);
+    assert(memcmp(output, expected, sizeof expected) == 0);
+    h9_wire_reset(&decoder);
+    for (i = 0; i < sizeof expected; ++i) {
+        if (h9_wire_feed(&decoder, output[i]) == H9_WIRE_FRAME) {
+            frames++;
+            assert(decoder.command == 0 && decoder.length == sizeof payload);
+            assert(memcmp(decoder.payload, payload, sizeof payload) == 0);
+            h9_wire_reset(&decoder);
+        }
+    }
+    assert(frames == 1);
+    memset(max_payload, 0xC0, sizeof max_payload);
+    assert(h9_main_aprs_wire_encode(0, max_payload, sizeof max_payload,
+                                     output, sizeof output) == 2047u);
+    assert(output[2046] == 0xC0u);
+}
+
+static void test_main_ax25_packet(void)
+{
+    static const uint8_t info[] = { '!', 'T', 'E', 'S', 'T' };
+    static const uint8_t expected[] = {
+        0x82u, 0xA0u, 0xA4u, 0xA6u, 0x40u, 0x40u, 0x60u,
+        0x96u, 0x88u, 0x72u, 0x86u, 0xA4u, 0xA2u, 0x61u,
+        0x03u, 0xF0u, '!', 'T', 'E', 'S', 'T'
+    };
+    H9MainAx25Packet packet = { { 0 }, { 0 }, { { 0 } }, 0, 0, info,
+                                sizeof info };
+    uint8_t output[H9_MAIN_AX25_MAX_PACKET];
+    uint8_t max_info[496] = { 0 };
+    memcpy(packet.destination, "APRS", 4);
+    memcpy(packet.source, "KD9CRQ", 6);
+    assert(h9_main_ax25_encode(&packet, output, sizeof output) ==
+           sizeof expected);
+    assert(memcmp(output, expected, sizeof expected) == 0);
+    packet.digipeater_count = 1;
+    memcpy(packet.digipeaters[0], "WIDE1", 5);
+    packet.digipeaters[0][6] = 0x81u;
+    assert(h9_main_ax25_encode(&packet, output, sizeof output) ==
+           sizeof expected + 7u);
+    assert(output[13] == 0x60u && output[20] == 0xE3u);
+    packet.digipeater_count = 0;
+    packet.information = max_info;
+    packet.information_length = sizeof max_info;
+    assert(h9_main_ax25_encode(&packet, output, sizeof output) ==
+           sizeof output);
+    packet.information_length++;
+    assert(h9_main_ax25_encode(&packet, output, sizeof output) == 0);
 }
 
 static void test_main_policy(void)
@@ -439,15 +509,29 @@ static void test_aprs_tx_service(void)
     PacketOutput decoded = { { 0 }, 0, 0 };
     H9AprsHardware hw = { 0 };
     FakeHardware fake = { 0 };
-    uint8_t packet[80];
-    uint8_t expected[80];
+    H9MainAx25Packet ax25 = { 0 };
+    uint8_t information[80];
+    uint8_t packet[H9_MAIN_AX25_MAX_PACKET];
+    uint8_t expected[H9_MAIN_AX25_MAX_PACKET];
+    uint8_t serial[H9_MAIN_APRS_WIRE_CAPACITY];
     uint8_t sample;
     uint8_t receive_byte;
     size_t samples = 0;
+    size_t serial_length;
+    size_t packet_length;
     unsigned i;
-    for (i = 0; i < sizeof packet; ++i) packet[i] = (uint8_t)(0x30u + i);
-    packet[0] = 0x1Bu;
-    memcpy(expected, packet, sizeof expected);
+    for (i = 0; i < sizeof information; ++i)
+        information[i] = (uint8_t)(0x30u + i);
+    information[0] = 0x1Bu;
+    information[1] = 0xC0u;
+    information[2] = 0xDBu;
+    memcpy(ax25.destination, "APRS", 4);
+    memcpy(ax25.source, "KD9CRQ", 6);
+    ax25.information = information;
+    ax25.information_length = sizeof information;
+    packet_length = h9_main_ax25_encode(&ax25, packet, sizeof packet);
+    assert(packet_length == sizeof information + 16u);
+    memcpy(expected, packet, packet_length);
     h9_aprs_tx_service_init(&service, 0, 300, 100);
     h9_aprs_demod_init(&demodulator);
     h9_aprs_frame_init(&receive_frame);
@@ -455,9 +539,13 @@ static void test_aprs_tx_service(void)
     hw.context = &fake;
     hw.transmit_aprs_packet = submit_service_packet;
     h9_aprs_controller_init(&controller, &hw);
-    feed_frame(&controller, 0x00u, packet, sizeof packet);
+    serial_length = h9_main_aprs_wire_encode(0x00u, packet, packet_length,
+                                              serial, sizeof serial);
+    assert(serial_length != 0);
+    for (i = 0; i < serial_length; ++i)
+        h9_aprs_controller_uart_byte(&controller, serial[i]);
     assert(service.phase == H9_APRS_TX_WAITING);
-    assert(memcmp(service.packet, packet, sizeof packet) == 0);
+    assert(memcmp(service.packet, packet, packet_length) == 0);
     memset(packet, 0, sizeof packet); /* Service owns its queued request. */
     assert(!h9_aprs_tx_service_next_sample(&service, &sample));
     assert(h9_aprs_tx_service_step(&service, true, false, false, 255) ==
@@ -473,9 +561,9 @@ static void test_aprs_tx_service(void)
     }
     assert(samples >= 5376 && samples < 20000);
     assert(service.phase == H9_APRS_TX_IDLE);
-    assert(decoded.packets == 1 && decoded.length == sizeof expected);
-    assert(memcmp(decoded.bytes, expected, sizeof expected) == 0);
-    assert(h9_aprs_tx_service_submit(&service, packet, sizeof packet));
+    assert(decoded.packets == 1 && decoded.length == packet_length);
+    assert(memcmp(decoded.bytes, expected, packet_length) == 0);
+    assert(h9_aprs_tx_service_submit(&service, packet, packet_length));
     assert(h9_aprs_tx_service_step(&service, true, true, true, 255) ==
            H9_APRS_TX_IDLE);
     assert(!h9_aprs_tx_service_next_sample(&service, &sample));
@@ -551,6 +639,8 @@ static void test_aprs_controller(void)
 int main(void)
 {
     test_wire_vectors();
+    test_main_aprs_wire_envelope();
+    test_main_ax25_packet();
     test_main_policy();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
