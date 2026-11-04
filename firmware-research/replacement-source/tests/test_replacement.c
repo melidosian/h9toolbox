@@ -34,6 +34,7 @@
 #include "h9_main_beacon.h"
 #include "h9_main_gps_fix.h"
 #include "h9_main_rf_output.h"
+#include "h9_main_rf_registers.h"
 #include "h9_main_boot_record.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_dma.h"
@@ -515,6 +516,60 @@ static void test_main_rf_output_registers(void)
     assert(h9_main_rf_output_set_pwm(&output, false, 255u));
     assert(pwm[3] == 1020u && pwm[0] == 0xA5A50000u);
     assert(!h9_main_rf_output_set_pwm(NULL, true, 0u));
+}
+
+typedef struct {
+    uint8_t registers[2];
+    uint16_t words[2];
+    size_t count;
+    size_t fail_at;
+} FakeRfRegisterBus;
+
+static bool fake_rf_register_write(void *opaque, uint8_t reg, uint16_t word)
+{
+    FakeRfRegisterBus *bus = (FakeRfRegisterBus *)opaque;
+    if (bus->count == bus->fail_at || bus->count >= 2u) return false;
+    bus->registers[bus->count] = reg;
+    bus->words[bus->count] = word;
+    ++bus->count;
+    return true;
+}
+
+static void test_main_rf_register_values(void)
+{
+    uint16_t low;
+    uint16_t high;
+    uint16_t word;
+    uint8_t reg;
+    FakeRfRegisterBus bus = { { 0 }, { 0 }, 0u, 3u };
+    assert(h9_main_rf_frequency_words(14439000u, 0u, 120, -50,
+                                      &low, &high));
+    assert(((uint32_t)high << 16 | low) == 14439012u);
+    assert(h9_main_rf_frequency_words(44539000u, 1u, 120, -50,
+                                      &low, &high));
+    assert(((uint32_t)high << 16 | low) == 44538995u);
+    assert(h9_main_rf_frequency_words(14439000u, 2u, 120, -50,
+                                      &low, &high));
+    assert(((uint32_t)high << 16 | low) == 14439000u);
+    assert(!h9_main_rf_frequency_words(1u, 0u, -50, 0,
+                                       &low, &high));
+    assert(h9_main_rf_write_frequency(14439000u, 0u, 120, -50,
+                                      fake_rf_register_write, &bus));
+    assert(bus.count == 2u && bus.registers[0] == 0x38u &&
+           bus.registers[1] == 0x39u);
+    assert(((uint32_t)bus.words[1] << 16 | bus.words[0]) == 14439012u);
+    bus.count = 0u;
+    bus.fail_at = 0u;
+    assert(!h9_main_rf_write_frequency(14439000u, 0u, 0, 0,
+                                       fake_rf_register_write, &bus));
+    assert(bus.count == 0u);
+    assert(h9_main_rf_mode_word(1u, 2u, &reg, &word) &&
+           reg == 0x74u && word == 0xDF22u);
+    assert(h9_main_rf_mode_word(0u, 0x1Fu, &reg, &word) &&
+           reg == 0x75u && word == 0xFA02u);
+    assert(h9_main_rf_mode_word(1u, 0u, &reg, &word) &&
+           word == 0xF50Bu);
+    assert(!h9_main_rf_mode_word(2u, 2u, &reg, &word));
 }
 
 static void test_main_gpio_query_reply(void)
@@ -2795,6 +2850,7 @@ int main(void)
     test_main_gps_sentence_frames();
     test_main_gps_fix_parser();
     test_main_rf_output_registers();
+    test_main_rf_register_values();
     test_main_gpio_query_reply();
     test_main_control_frames();
     test_main_uart_ring();
