@@ -43,14 +43,14 @@ static bool read_position(void *opaque, H9BeaconPositionStatus *status)
 {
     H9MainTxAdapter *adapter = adapter_from(opaque);
     return adapter->reserved &&
-           adapter->board.read_position(adapter->board.context, status);
+           h9_main_tx_ram_policy_read_position(&adapter->policy, status);
 }
 
 static bool frequency_allowed(void *opaque, uint32_t tx_hz)
 {
     H9MainTxAdapter *adapter = adapter_from(opaque);
     return adapter->reserved &&
-           adapter->board.frequency_allowed(adapter->board.context, tx_hz);
+           h9_main_tx_ram_policy_frequency_allowed(&adapter->policy, tx_hz);
 }
 
 static bool prepare_tx(void *opaque, const H9TxPlan *plan)
@@ -160,8 +160,6 @@ H9MainTxResult h9_main_tx_adapter_send(H9MainTxAdapter *adapter,
         adapter->max_poll_steps == 0u ||
         adapter->board.route_acquire == NULL ||
         adapter->board.route_release == NULL ||
-        adapter->board.read_position == NULL ||
-        adapter->board.frequency_allowed == NULL ||
         adapter->board.prepare_unkeyed == NULL ||
         adapter->board.read_synth == NULL ||
         adapter->board.key_rf == NULL ||

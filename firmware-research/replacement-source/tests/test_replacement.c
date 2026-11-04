@@ -81,6 +81,7 @@
 #include "h9_main_uart1_tx_queue.h"
 #include "h9_main_tx_service.h"
 #include "h9_main_tx_adapter.h"
+#include "h9_main_tx_ram_policy.h"
 #include "h9_main_tx_frequency.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
@@ -4560,6 +4561,18 @@ typedef struct {
     uint32_t a_tx;
     uint32_t b_rx;
     uint32_t b_tx;
+    uint8_t position_source;
+    uint8_t gps_fix_valid;
+    uint32_t latitude_raw;
+    uint32_t longitude_raw;
+    uint8_t region_mode;
+    uint8_t allow_200_to_300_mhz;
+    uint8_t allow_300_to_400_mhz;
+    uint8_t allow_500_mhz_plus;
+    uint32_t range0_low;
+    uint32_t range0_high;
+    uint32_t range1_low;
+    uint32_t range1_high;
     uint32_t now_ms;
     unsigned key_calls;
     unsigned stop_calls;
@@ -4585,20 +4598,6 @@ static bool adapter_route_release(void *context)
     assert(fixture->reserved && !fixture->keyed);
     fixture->reserved = false;
     return true;
-}
-
-static bool adapter_read_position(void *context,
-                                   H9BeaconPositionStatus *status)
-{
-    assert(((MainTxAdapterFixture *)context)->reserved);
-    memset(status, 0, sizeof *status);
-    return true;
-}
-
-static bool adapter_frequency_allowed(void *context, uint32_t tx_hz)
-{
-    assert(((MainTxAdapterFixture *)context)->reserved);
-    return tx_hz == 144390000u;
 }
 
 static bool adapter_prepare_unkeyed(void *context, const H9TxPlan *plan)
@@ -4711,6 +4710,10 @@ static void test_main_tx_adapter_transaction(void)
     fixture.side_state = 0x80u;
     fixture.a_rx = fixture.a_tx = 44539000u;
     fixture.b_rx = fixture.b_tx = 14439000u;
+    fixture.range0_low = 13600000u;
+    fixture.range0_high = 17400000u;
+    fixture.range1_low = 40000000u;
+    fixture.range1_high = 52000000u;
     adapter.uart = &link;
     adapter.route.dual_watch = &fixture.dual_watch;
     adapter.route.route_side = &fixture.route_side;
@@ -4721,10 +4724,22 @@ static void test_main_tx_adapter_transaction(void)
     adapter.route.a_tx_10hz = &fixture.a_tx;
     adapter.route.b_rx_10hz = &fixture.b_rx;
     adapter.route.b_tx_10hz = &fixture.b_tx;
+    adapter.policy.position_source = &fixture.position_source;
+    adapter.policy.gps_fix_valid = &fixture.gps_fix_valid;
+    adapter.policy.latitude_raw = &fixture.latitude_raw;
+    adapter.policy.longitude_raw = &fixture.longitude_raw;
+    adapter.policy.region_mode = &fixture.region_mode;
+    adapter.policy.allow_200_to_300_mhz =
+        &fixture.allow_200_to_300_mhz;
+    adapter.policy.allow_300_to_400_mhz =
+        &fixture.allow_300_to_400_mhz;
+    adapter.policy.allow_500_mhz_plus = &fixture.allow_500_mhz_plus;
+    adapter.policy.range0_low_10hz = &fixture.range0_low;
+    adapter.policy.range0_high_10hz = &fixture.range0_high;
+    adapter.policy.range1_low_10hz = &fixture.range1_low;
+    adapter.policy.range1_high_10hz = &fixture.range1_high;
     adapter.board.route_acquire = adapter_route_acquire;
     adapter.board.route_release = adapter_route_release;
-    adapter.board.read_position = adapter_read_position;
-    adapter.board.frequency_allowed = adapter_frequency_allowed;
     adapter.board.prepare_unkeyed = adapter_prepare_unkeyed;
     adapter.board.read_synth = adapter_read_synth;
     adapter.board.key_rf = adapter_key_rf;
@@ -4786,6 +4801,57 @@ static void test_main_tx_adapter_transaction(void)
     assert(fixture.key_calls == 1u && fixture.stop_calls == 1u &&
            fixture.reserved && fixture.keyed && fixture.route_side == 1u &&
            adapter.saved_route.active);
+}
+
+static void test_main_tx_ram_policy(void)
+{
+    H9MainTxRamPolicy memory;
+    H9BeaconPositionStatus status;
+    uint8_t source = 1u;
+    uint8_t valid = 1u;
+    uint32_t latitude = 123u;
+    uint32_t longitude = 456u;
+    uint8_t region = 1u;
+    uint8_t allow_200 = 0u;
+    uint8_t allow_300 = 0u;
+    uint8_t allow_500 = 0u;
+    uint32_t range0_low = 13600000u;
+    uint32_t range0_high = 17400000u;
+    uint32_t range1_low = 40000000u;
+    uint32_t range1_high = 52000000u;
+
+    memset(&memory, 0, sizeof memory);
+    h9_main_tx_ram_policy_bind_target(&memory);
+    assert((uintptr_t)memory.position_source == 0xC1CAu &&
+           (uintptr_t)memory.gps_fix_valid == 0x12550u &&
+           (uintptr_t)memory.latitude_raw == 0x475C8u &&
+           (uintptr_t)memory.longitude_raw == 0x475D0u &&
+           (uintptr_t)memory.region_mode == 0x12B9Cu &&
+           (uintptr_t)memory.range0_low_10hz == 0xC120u &&
+           (uintptr_t)memory.range1_low_10hz == 0xC118u);
+    memory.position_source = &source;
+    memory.gps_fix_valid = &valid;
+    memory.latitude_raw = &latitude;
+    memory.longitude_raw = &longitude;
+    memory.region_mode = &region;
+    memory.allow_200_to_300_mhz = &allow_200;
+    memory.allow_300_to_400_mhz = &allow_300;
+    memory.allow_500_mhz_plus = &allow_500;
+    memory.range0_low_10hz = &range0_low;
+    memory.range0_high_10hz = &range0_high;
+    memory.range1_low_10hz = &range1_low;
+    memory.range1_high_10hz = &range1_high;
+    assert(h9_main_tx_ram_policy_read_position(&memory, &status));
+    assert(status.position_source == 1u && status.gps_fix_valid &&
+           status.latitude_raw == 123u && status.longitude_raw == 456u &&
+           h9_main_beacon_position_ready(&status));
+    valid = 0u;
+    assert(h9_main_tx_ram_policy_read_position(&memory, &status));
+    assert(!h9_main_beacon_position_ready(&status));
+    assert(h9_main_tx_ram_policy_frequency_allowed(&memory, 144390000u));
+    assert(!h9_main_tx_ram_policy_frequency_allowed(&memory, 149000000u));
+    range0_high = 14400000u;
+    assert(!h9_main_tx_ram_policy_frequency_allowed(&memory, 144390000u));
 }
 
 typedef struct {
@@ -6984,6 +7050,7 @@ int main(void)
     test_main_aprs_uart1_link_forwards_gps_fix();
     test_main_aprs_uart1_tx_transaction();
     test_main_tx_adapter_transaction();
+    test_main_tx_ram_policy();
     test_main_uart1_board_open();
     test_main_uart1_baud();
     test_timed_beacon_scheduler();

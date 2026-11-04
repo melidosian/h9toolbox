@@ -104,6 +104,7 @@ SOURCES = {
         "main/h9_main_uart1_tx_queue.c",
         "main/h9_main_tx_service.c",
         "main/h9_main_tx_adapter.c",
+        "main/h9_main_tx_ram_policy.c",
         "main/h9_main_tx_frequency.c",
         "main/h9_main_uart_ring.c",
     ),

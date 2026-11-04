@@ -3,6 +3,7 @@
 
 #include "h9_main_aprs_uart1_link.h"
 #include "h9_main_tx_service.h"
+#include "h9_main_tx_ram_policy.h"
 
 /* The board must supply these operations from verified hardware paths.
  * prepare_unkeyed must leave RF off; read_synth must inspect the programmed
@@ -12,8 +13,6 @@
 typedef struct {
     bool (*route_acquire)(void *context);
     bool (*route_release)(void *context);
-    bool (*read_position)(void *context, H9BeaconPositionStatus *status);
-    bool (*frequency_allowed)(void *context, uint32_t tx_hz);
     bool (*prepare_unkeyed)(void *context, const H9TxPlan *plan);
     bool (*read_synth)(void *context, H9Side *side, uint32_t *tx_hz);
     bool (*key_rf)(void *context);
@@ -27,6 +26,7 @@ typedef struct {
 typedef struct {
     H9MainAprsUart1Link *uart;
     H9MainRfStateMemory route;
+    H9MainTxRamPolicy policy;
     H9MainRfRouteSaved saved_route;
     H9MainTxBoardHooks board;
     uint32_t timeout_ms;

@@ -52,8 +52,9 @@ success. A failed clear makes the transaction
 report cleanup failure; the APRS lease is a second bound on that condition.
 
 `h9_main_tx_adapter` now binds those callbacks to the UART1 link and the
-ported logical-side and Dual Watch route snapshot. It asks board hooks for
-the live region policy, unkeyed RF setup, synthesizer readback, actual PTT
+ported logical-side and Dual Watch route snapshot. It reads the stock RAM
+position and frequency policy fields, then asks board hooks for unkeyed RF
+setup, synthesizer readback, actual PTT
 control, and a reservation that excludes concurrent route changes. It waits
 for the matching permit acknowledgment before the key hook, then for the
 matching drained event before stop. Both waits have a clock deadline and

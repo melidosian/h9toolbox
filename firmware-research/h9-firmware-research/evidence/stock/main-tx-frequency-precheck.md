@@ -31,9 +31,11 @@ rejects other selector values instead of silently accepting them.
 the shift operation. It also rejects invalid shift modes, zero and
 overflowing results, and Hz inputs not divisible by 10. Those are
 replacement safeguards. `h9_main_tx_service` now requires a frequency
-precheck callback before RF preparation. The board adapter must supply
-the active region and band flags to that callback; the host test does so
-with the ported function.
+precheck callback before RF preparation. The replacement main TX adapter
+reads the observed stock RAM fields for region mode, band flags, and live
+limits through `main/h9_main_tx_ram_policy.*`. Its host tests supply those
+fields in a fake memory map. This is source-level integration, not a
+validated physical RF check.
 
 The stock TX setup next calls `FUN_01e56712` at app+`0x056612`. The
 independent Pi32 decoder resolves both range branches, including the
