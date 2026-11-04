@@ -62,6 +62,10 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str) -> None:
         (0x08003238, 0xFFFEC219),
         (0x0800323C, 0xC33FFFE7),
         (0x08002EE8, 0x00001001),
+        (0x08005754, 0x20000230),
+        (0x080057F0, 0x20000100),
+        (0x08005820, 0x200000FC),
+        (0x08005828, 0x20000100),
     ):
         if struct.unpack_from("<I", aprs_image, address - APRS_BASE)[0] != expected:
             raise ValueError(f"APRS ADC setup literal differs at 0x{address:08X}")

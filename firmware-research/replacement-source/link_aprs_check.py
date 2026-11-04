@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Whole-archive APRS link check against the observed stock address envelope.
 
-This links first-pass memory/vector startup to a partial UART receive board entry. It emits
-only an ELF and map, not an update image or a functioning APRS controller.
+This links first-pass startup to a partial board entry. An optional raw export
+is for offline layout inspection only; it is not a validated update image.
 """
 
 from __future__ import annotations
@@ -44,7 +44,8 @@ def verify_stock_envelope(path: Path) -> None:
         raise ValueError("Stock APRS ADC IRQ vector differs from pinned evidence")
 
 
-def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
+def link(compiler: str, output: Path, stock_image: Path | None = None,
+         emit_raw: bool = False) -> dict:
     if stock_image is not None:
         verify_stock_envelope(stock_image)
     output.mkdir(parents=True, exist_ok=True)
@@ -122,6 +123,17 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     stack_headroom = symbol_values["__stack_top"] - symbol_values["__bss_end"]
     if stack_headroom < 1024:
         raise ValueError(f"APRS diagnostic stack headroom is only {stack_headroom} bytes")
+    raw_file = None
+    raw_digest = None
+    if emit_raw:
+        raw_file = output / "h9_aprs_diagnostic_NOT_FOR_FLASH.raw"
+        run([objcopy, "-O", "binary", "--gap-fill=0xFF",
+             f"--pad-to=0x{IMAGE_BASE + STOCK_IMAGE_SIZE:X}",
+             str(elf), str(raw_file)])
+        raw_data = raw_file.read_bytes()
+        if len(raw_data) != STOCK_IMAGE_SIZE or raw_data[:len(table)] != table:
+            raise ValueError("Raw APRS export differs from linked vectors or stock size")
+        raw_digest = sha256(raw_data).hexdigest()
     manifest = {
         "kind": "aprs_whole_archive_link_check",
         "stock_envelope": {
@@ -153,6 +165,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "size_output": size_output,
         "bss_end": symbol_values["__bss_end"],
         "stack_headroom_bytes": stack_headroom,
+        "raw_export": raw_file.name if raw_file is not None else None,
+        "raw_export_sha256": raw_digest,
+        "raw_export_purpose": "offline_layout_inspection_only" if emit_raw else None,
         "firmware_image_created": False,
         "flashable": False,
     }
@@ -169,10 +184,12 @@ def main() -> int:
                         default=ROOT / "build" / "link-check-aprs")
     parser.add_argument("--stock-image", type=Path,
                         help="optionally recheck the private pinned APRS-1.0.15.bin")
+    parser.add_argument("--emit-raw", action="store_true",
+                        help="export a stock-size raw layout for offline inspection only")
     args = parser.parse_args()
     try:
         compiler = find_compiler("aprs", args.compiler)
-        manifest = link(compiler, args.output, args.stock_image)
+        manifest = link(compiler, args.output, args.stock_image, args.emit_raw)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Link check failed: {error}", file=sys.stderr)
         return 1
@@ -182,7 +199,10 @@ def main() -> int:
           f"reset 0x{manifest['reset_vector']:08X}")
     print(manifest["size_output"])
     print(f"RAM headroom above BSS: {manifest['stack_headroom_bytes']:,} bytes")
-    print("Diagnostic ELF only; no bootable or flashable update image was produced")
+    if manifest["raw_export"]:
+        print(f"Offline raw layout: {args.output / manifest['raw_export']}")
+        print(f"Raw SHA-256: {manifest['raw_export_sha256']}")
+    print("Diagnostic only; no validated bootable or flashable image was produced")
     return 0
 
 
