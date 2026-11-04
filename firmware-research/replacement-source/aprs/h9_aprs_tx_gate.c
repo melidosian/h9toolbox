@@ -7,17 +7,17 @@ void h9_aprs_tx_gate_init(H9AprsTxGate *gate, uint32_t random_seed)
 }
 
 H9AprsTxGateResult h9_aprs_tx_gate_step(H9AprsTxGate *gate,
-                                        bool channel_busy,
-                                        bool receive_active,
-                                        bool receive_complete,
+                                        bool preamble_seen,
+                                        bool in_frame,
+                                        bool queue_error,
                                         uint8_t persistence)
 {
     uint8_t draw;
     if (gate == NULL) return H9_APRS_TX_WAIT;
-    if (channel_busy) {
-        /* Replacement policy: wait or drop on board-provided RX state.
-         * Stock's tested bytes are in a frame buffer, not a known RF pin. */
-        if (receive_active && receive_complete) return H9_APRS_TX_DROP;
+    if (preamble_seen) {
+        /* Stock waits while a demodulated frame is in progress and exits
+         * without encoding on its queue-error event. */
+        if (in_frame && queue_error) return H9_APRS_TX_DROP;
         return H9_APRS_TX_WAIT;
     }
     /* Stock 0x0800211C: rand_state = rand_state * 1103515245 + 12345.

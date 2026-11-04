@@ -95,16 +95,16 @@ H9AprsTxPhase h9_aprs_tx_service_cancel(H9AprsTxService *service)
 }
 
 H9AprsTxPhase h9_aprs_tx_service_step(H9AprsTxService *service,
-                                       bool channel_busy,
-                                       bool receive_active,
-                                       bool receive_complete,
+                                       bool preamble_seen,
+                                       bool in_frame,
+                                       bool queue_error,
                                        uint8_t persistence)
 {
     H9AprsTxGateResult result;
     if (service == NULL) return H9_APRS_TX_IDLE;
     if (phase_now(service) == H9_APRS_TX_WAITING) {
-        result = h9_aprs_tx_gate_step(&service->gate, channel_busy,
-                                      receive_active, receive_complete,
+        result = h9_aprs_tx_gate_step(&service->gate, preamble_seen,
+                                      in_frame, queue_error,
                                       persistence);
         if (result == H9_APRS_TX_DROP) {
             service->packet_length = 0u;

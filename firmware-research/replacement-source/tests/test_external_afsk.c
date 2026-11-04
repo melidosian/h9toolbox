@@ -1,6 +1,7 @@
 /* Independent 1200-baud Bell 202/AX.25 stimulus. This test deliberately
  * bypasses the replacement TX encoder, oscillator, and packet builder. */
 #include "h9_aprs_controller.h"
+#include "h9_aprs_tx_gate.h"
 #include "h9_main_aprs_receive.h"
 
 #include <math.h>
@@ -123,6 +124,8 @@ static void test_at_sample_rate(double sample_rate, bool force_overflow,
     static const uint8_t fcs[] = { 0xFAu, 0x9Bu };
     AfskFixture fixture = { 0 };
     H9AprsHardware hardware = { 0 };
+    H9AprsDemodGateState gate_state;
+    H9AprsTxGate gate;
     size_t index;
     hardware.context = &fixture;
     hardware.read_adc = read_adc;
@@ -148,6 +151,13 @@ static void test_at_sample_rate(double sample_rate, bool force_overflow,
     fixture.samples_since_poll = 0u;
     for (index = 0; index < (force_overflow ? 100u : 50u); ++index)
         send_flag(&fixture);
+    gate_state = h9_aprs_demod_gate_state(&fixture.controller.demod);
+    CHECK(gate_state.in_frame && gate_state.preamble_seen);
+    h9_aprs_tx_gate_init(&gate, 0u);
+    CHECK(h9_aprs_tx_gate_step(&gate, gate_state.preamble_seen,
+                               gate_state.in_frame, false, 255u) ==
+          H9_APRS_TX_WAIT);
+    CHECK(gate.random_state == 0u);
     for (index = 0; index < sizeof packet; ++index)
         send_data_byte(&fixture, packet[index]);
     for (index = 0; index < sizeof fcs; ++index)

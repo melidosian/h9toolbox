@@ -18,9 +18,9 @@ void h9_aprs_tx_runtime_bind(H9AprsTxRuntime *runtime,
 bool h9_aprs_tx_runtime_submit(H9AprsTxRuntime *runtime,
                                const uint8_t *packet, size_t length);
 H9AprsTxPhase h9_aprs_tx_runtime_step(H9AprsTxRuntime *runtime,
-                                      bool rf_ready, bool channel_busy,
-                                      bool receive_active,
-                                      bool receive_complete,
+                                      bool rf_ready, bool preamble_seen,
+                                      bool in_frame,
+                                      bool queue_error,
                                       uint8_t persistence);
 bool h9_aprs_tx_runtime_wave_active(const H9AprsTxRuntime *runtime);
 bool h9_aprs_tx_runtime_next_sample(H9AprsTxRuntime *runtime,

@@ -40,9 +40,9 @@ void h9_aprs_tx_service_set_timing(H9AprsTxService *service,
                                     uint16_t lead_ms, uint16_t tail_ms);
 H9AprsTxPhase h9_aprs_tx_service_cancel(H9AprsTxService *service);
 H9AprsTxPhase h9_aprs_tx_service_step(H9AprsTxService *service,
-                                       bool channel_busy,
-                                       bool receive_active,
-                                       bool receive_complete,
+                                       bool preamble_seen,
+                                       bool in_frame,
+                                       bool queue_error,
                                        uint8_t persistence);
 bool h9_aprs_tx_service_next_sample(H9AprsTxService *service,
                                      uint8_t *sample);

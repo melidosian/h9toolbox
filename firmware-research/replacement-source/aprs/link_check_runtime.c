@@ -169,6 +169,8 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     h9_aprs_uart1_board_enable_irqs(&runtime.uart1_board);
     for (;;) {
         uint32_t now;
+        H9AprsDemodGateState gate_state;
+        bool queue_error;
         (void)h9_aprs_uart_receive_process(&runtime.uart_receive,
             &runtime.controller, h9_aprs_uart1_dma_rearm,
             &runtime.uart1_dma);
@@ -190,10 +192,15 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
                                                 &runtime.uart2_dma,
                                                 system_clock_hz);
         }
-        /* RF readiness and carrier sense remain unmapped. This diagnostic
-         * entry accepts packets but never authorizes waveform output. */
+        gate_state = h9_aprs_demod_gate_state(&runtime.controller.demod);
+        queue_error = gate_state.queue_overflow !=
+                      runtime.gate_overflow_seen;
+        runtime.gate_overflow_seen = gate_state.queue_overflow;
+        /* Preamble/in-frame state comes from the ADC demodulator. RF route
+         * authorization remains unmapped and deliberately false. */
         (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime, false,
-                                      true, false, false,
+                                      gate_state.preamble_seen,
+                                      gate_state.in_frame, queue_error,
                                       runtime.controller.tx_settings.persistence);
         if (h9_aprs_tx_service_take_encoded_event(&runtime.tx_service))
             (void)h9_aprs_controller_report_tx_encoded(&runtime.controller);

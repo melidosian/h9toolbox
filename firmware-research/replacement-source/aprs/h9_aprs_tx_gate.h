@@ -4,10 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Replacement cooperative persistence gate inspired by APRS 0x08005760.
- * Its busy/receive inputs are abstract board signals, not verified stock
- * inputs. Stock tests bytes inside its receive-frame buffer at +3/+4/+0xE0;
- * those bytes must not be treated as a carrier-sense GPIO. */
+/* Cooperative gate based on stock 0x08005760. Its inputs correspond to
+ * demodulator state at TX object 0x2000014C: +4 is the six-flag preamble,
+ * +3 is in-frame, and +0xE0 records a receive queue error. They are not
+ * carrier-sense GPIO signals. */
 typedef struct {
     uint32_t random_state;
 } H9AprsTxGate;
@@ -20,9 +20,9 @@ typedef enum {
 
 void h9_aprs_tx_gate_init(H9AprsTxGate *gate, uint32_t random_seed);
 H9AprsTxGateResult h9_aprs_tx_gate_step(H9AprsTxGate *gate,
-                                        bool channel_busy,
-                                        bool receive_active,
-                                        bool receive_complete,
+                                        bool preamble_seen,
+                                        bool in_frame,
+                                        bool queue_error,
                                         uint8_t persistence);
 
 #endif

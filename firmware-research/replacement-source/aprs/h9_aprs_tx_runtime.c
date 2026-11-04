@@ -19,9 +19,9 @@ bool h9_aprs_tx_runtime_submit(H9AprsTxRuntime *runtime,
 }
 
 H9AprsTxPhase h9_aprs_tx_runtime_step(H9AprsTxRuntime *runtime,
-                                      bool rf_ready, bool channel_busy,
-                                      bool receive_active,
-                                      bool receive_complete,
+                                      bool rf_ready, bool preamble_seen,
+                                      bool in_frame,
+                                      bool queue_error,
                                       uint8_t persistence)
 {
     H9AprsTxService *service;
@@ -29,8 +29,8 @@ H9AprsTxPhase h9_aprs_tx_runtime_step(H9AprsTxRuntime *runtime,
     service = runtime->service;
     atomic_store_explicit(&runtime->rf_ready, rf_ready, memory_order_release);
     if (!rf_ready) return h9_aprs_tx_service_cancel(service);
-    return h9_aprs_tx_service_step(service, channel_busy, receive_active,
-                                    receive_complete, persistence);
+    return h9_aprs_tx_service_step(service, preamble_seen, in_frame,
+                                    queue_error, persistence);
 }
 
 bool h9_aprs_tx_runtime_wave_active(const H9AprsTxRuntime *runtime)

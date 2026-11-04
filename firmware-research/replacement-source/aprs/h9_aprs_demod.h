@@ -24,11 +24,19 @@ typedef struct {
     uint8_t no_transition_count;
     /* ISR-only writer; main loop observes a monotonic generation. */
     _Atomic uint32_t queue_overflow;
+    /* Bit 0: in frame; bit 1: six-flag preamble. Published by ADC ISR. */
+    _Atomic uint32_t gate_flags;
     int16_t timing;
 } H9AprsDemod;
 
 void h9_aprs_demod_init(H9AprsDemod *demod);
 bool h9_aprs_demod_sample(H9AprsDemod *demod, int16_t normalized_sample);
 bool h9_aprs_demod_pop_byte(H9AprsDemod *demod, uint8_t *byte);
+typedef struct {
+    bool in_frame;
+    bool preamble_seen;
+    uint32_t queue_overflow;
+} H9AprsDemodGateState;
+H9AprsDemodGateState h9_aprs_demod_gate_state(const H9AprsDemod *demod);
 
 #endif

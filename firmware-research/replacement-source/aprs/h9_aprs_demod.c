@@ -35,6 +35,7 @@ void h9_aprs_demod_init(H9AprsDemod *demod)
     for (index = 0; index < 4; ++index)
         (void)h9_aprs_ring_push(&demod->delay, 0);
     atomic_init(&demod->queue_overflow, 0u);
+    atomic_init(&demod->gate_flags, 0u);
     h9_aprs_bitstream_reset(&demod->bitstream);
 }
 
@@ -84,10 +85,27 @@ bool h9_aprs_demod_sample(H9AprsDemod *demod, int16_t normalized_sample)
         demod->no_transition_count = 0;
         demod->bitstream.preamble_seen = 0;
     }
+    atomic_store_explicit(&demod->gate_flags,
+        (demod->bitstream.in_frame ? 1u : 0u) |
+        (demod->bitstream.preamble_seen ? 2u : 0u),
+        memory_order_release);
     return true;
 }
 
 bool h9_aprs_demod_pop_byte(H9AprsDemod *demod, uint8_t *byte)
 {
     return demod != NULL && h9_aprs_ring_pop(&demod->receive, byte);
+}
+
+H9AprsDemodGateState h9_aprs_demod_gate_state(const H9AprsDemod *demod)
+{
+    H9AprsDemodGateState state = { false, false, 0u };
+    uint32_t flags;
+    if (demod == NULL) return state;
+    flags = atomic_load_explicit(&demod->gate_flags, memory_order_acquire);
+    state.in_frame = (flags & 1u) != 0u;
+    state.preamble_seen = (flags & 2u) != 0u;
+    state.queue_overflow = atomic_load_explicit(&demod->queue_overflow,
+                                                memory_order_acquire);
+    return state;
 }
