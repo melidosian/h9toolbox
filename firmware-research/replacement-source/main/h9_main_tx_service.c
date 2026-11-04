@@ -33,7 +33,7 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
         return H9_MAIN_TX_REJECTED;
 
     result = H9_MAIN_TX_PREPARE_FAILED;
-    if (hardware->prepare_tx(opaque, plan.side, plan.expected_tx_hz)) {
+    if (hardware->prepare_tx(opaque, &plan)) {
         result = H9_MAIN_TX_READBACK_FAILED;
         if (hardware->read_prepared_tx(opaque, &prepared_side, &prepared_hz) &&
             h9_main_tx_prepared(&plan, prepared_side, prepared_hz)) {

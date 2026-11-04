@@ -8,8 +8,8 @@
 /* Stock main RAM fields read by the APRS TX and RF-side setup paths. */
 typedef struct {
     const volatile uint8_t *dual_watch;
-    const volatile uint8_t *route_side;
-    const volatile uint8_t *channel_side_state;
+    volatile uint8_t *route_side;
+    volatile uint8_t *channel_side_state;
     const volatile uint32_t *working_rx_10hz;
     const volatile uint32_t *working_tx_10hz;
     const volatile uint32_t *a_rx_10hz;
@@ -27,6 +27,13 @@ typedef struct {
     H9MainRfChannelFrequencies b;
 } H9MainRfSnapshot;
 
+typedef struct {
+    uint8_t route_side;
+    uint8_t channel_side_state;
+    /* Initialize the record to zero before its first prepare call. */
+    bool active;
+} H9MainRfRouteSaved;
+
 /* Binding reads no memory and changes no RF output. */
 void h9_main_rf_state_bind_target(H9MainRfStateMemory *memory);
 
@@ -35,6 +42,17 @@ void h9_main_rf_state_bind_target(H9MainRfStateMemory *memory);
  * against Dual Watch updates until the send decision is complete. */
 bool h9_main_rf_state_read(const H9MainRfStateMemory *memory,
                            H9MainRfSnapshot *snapshot);
+
+/* Prepare both stock side selectors before the board's RF setup call.
+ * Lock/Current preserve the logical-side guard; Auto may change it. Dual
+ * Watch also needs its separate route byte aimed at the planned side.
+ * Call only while Dual Watch updates are serialized by the board adapter.
+ * This does not program the synthesizer or key RF. */
+bool h9_main_rf_route_prepare(const H9MainRfStateMemory *memory,
+                              const H9TxPlan *plan,
+                              H9MainRfRouteSaved *saved);
+bool h9_main_rf_route_restore(const H9MainRfStateMemory *memory,
+                              H9MainRfRouteSaved *saved);
 
 /* This verifies side routing and the copied working frequency pair only.
  * It cannot verify the final synthesizer frequency or emitted RF. */

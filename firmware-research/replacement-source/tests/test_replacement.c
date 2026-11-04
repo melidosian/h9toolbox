@@ -1143,6 +1143,7 @@ static void test_main_rf_live_route(void)
         &working_rx, &working_tx, &a_rx, &a_tx, &b_rx, &b_tx
     };
     H9MainRfSnapshot snapshot;
+    H9MainRfRouteSaved saved = { 0 };
     H9MainAprsConfig config = { true, false, H9_RX_B, H9_TX_B_LOCK };
     H9TxPlan plan = h9_main_tx_plan(&config, H9_SIDE_B,
                                     445390000u, 144390000u);
@@ -1161,6 +1162,17 @@ static void test_main_rf_live_route(void)
     assert(snapshot.logical_side == H9_SIDE_B &&
            snapshot.setup_side == H9_SIDE_A);
     assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    assert(h9_main_rf_route_prepare(&memory, &plan, &saved));
+    assert(saved.active && saved.route_side == 0u &&
+           route_side == 1u && side_state == 0x80u);
+    assert(!h9_main_rf_route_prepare(&memory, &plan, &saved));
+    working_rx = b_rx;
+    working_tx = b_tx;
+    assert(h9_main_rf_state_read(&memory, &snapshot));
+    assert(h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    assert(h9_main_rf_route_restore(&memory, &saved));
+    assert(route_side == 0u && side_state == 0x80u && !saved.active);
+    assert(!h9_main_rf_route_restore(&memory, &saved));
     route_side = 1u;
     working_rx = b_rx;
     working_tx = b_tx;
@@ -1172,6 +1184,9 @@ static void test_main_rf_live_route(void)
     working_tx = b_tx;
     dual_watch = 0u;
     route_side = 0u;
+    assert(h9_main_rf_route_prepare(&memory, &plan, &saved));
+    assert(route_side == 0u && side_state == 0x80u);
+    assert(h9_main_rf_route_restore(&memory, &saved));
     assert(h9_main_rf_state_read(&memory, &snapshot));
     assert(h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
     dual_watch = 1u;
@@ -1184,6 +1199,13 @@ static void test_main_rf_live_route(void)
                             445390000u, 144390000u);
     assert(plan.allowed && plan.restore_side_after_send);
     assert(h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    assert(h9_main_rf_route_prepare(&memory, &plan, &saved));
+    assert(side_state == 0x80u && route_side == 1u);
+    assert(h9_main_rf_route_restore(&memory, &saved));
+    assert(side_state == 0u);
+    assert(!h9_main_rf_route_prepare(&memory,
+        &(H9TxPlan){ true, H9_SIDE_B, 144390000u, false }, &saved));
+    assert(side_state == 0u && route_side == 1u);
     config.tx_choice = H9_TX_A_AUTO;
     assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
     config.tx_choice = H9_TX_B_AUTO;
@@ -1360,6 +1382,11 @@ typedef struct {
     H9Side current_side;
     H9Side prepared_side;
     uint32_t prepared_hz;
+    bool prepared_restore_side;
+    volatile uint8_t dual_watch;
+    volatile uint8_t route_side;
+    volatile uint8_t side_state;
+    H9MainRfRouteSaved saved_route;
     bool fail_prepare;
     bool fail_send;
     bool fail_stop;
@@ -1395,15 +1422,24 @@ static bool main_validate_frequency(void *opaque, uint32_t hz)
                                               &h9_main_stock_tx_limits, hz);
 }
 
-static bool main_prepare(void *opaque, H9Side side, uint32_t hz)
+static bool main_prepare(void *opaque, const H9TxPlan *plan)
 {
     FakeMainTx *fake = (FakeMainTx *)opaque;
+    H9MainRfStateMemory memory = { 0 };
     assert(fake->step == 0u);
     assert(fake->validate_calls == 1u);
+    assert(plan != NULL && plan->allowed);
+    fake->dual_watch = 1u;
+    fake->side_state = fake->current_side == H9_SIDE_B ? 0x80u : 0u;
+    memory.dual_watch = &fake->dual_watch;
+    memory.route_side = &fake->route_side;
+    memory.channel_side_state = &fake->side_state;
+    assert(h9_main_rf_route_prepare(&memory, plan, &fake->saved_route));
     fake->step = 1u;
     fake->prepare_calls++;
-    fake->prepared_side = side;
-    fake->prepared_hz = hz;
+    fake->prepared_side = plan->side;
+    fake->prepared_hz = plan->expected_tx_hz;
+    fake->prepared_restore_side = plan->restore_side_after_send;
     return !fake->fail_prepare;
 }
 
@@ -1423,11 +1459,12 @@ static bool main_read_rf_snapshot(void *opaque, H9MainRfSnapshot *snapshot)
     FakeMainTx *fake = (FakeMainTx *)opaque;
     assert(fake->step == 2u);
     fake->snapshot_calls++;
-    snapshot->dual_watch = true;
+    snapshot->dual_watch = fake->dual_watch != 0u;
     snapshot->logical_side = fake->changed_logical_side ?
-                             H9_SIDE_A : fake->current_side;
+                             H9_SIDE_A : h9_main_side_from_state(fake->side_state);
     snapshot->setup_side = fake->wrong_route_side ?
-                           H9_SIDE_A : fake->prepared_side;
+        H9_SIDE_A : h9_main_rf_setup_side(snapshot->dual_watch,
+                                          fake->route_side, fake->side_state);
     snapshot->a.receive_10hz = 44539000u;
     snapshot->a.transmit_10hz = 44539000u;
     snapshot->b.receive_10hz = 14439000u;
@@ -1460,8 +1497,13 @@ static bool main_stop_tx(void *opaque)
 static bool main_restore_receive(void *opaque, H9Side previous_side)
 {
     FakeMainTx *fake = (FakeMainTx *)opaque;
+    H9MainRfStateMemory memory = { 0 };
     assert(fake->step == 4u);
     assert(previous_side == fake->current_side);
+    memory.dual_watch = &fake->dual_watch;
+    memory.route_side = &fake->route_side;
+    memory.channel_side_state = &fake->side_state;
+    assert(h9_main_rf_route_restore(&memory, &fake->saved_route));
     fake->step = 5u;
     fake->restore_calls++;
     return true;
@@ -1498,6 +1540,8 @@ static void test_main_tx_service(void)
                              packet, sizeof packet, &hardware, &fake);
     assert(result == H9_MAIN_TX_SENT && fake.step == 5u);
     assert(fake.prepared_side == H9_SIDE_B && fake.prepared_hz == 144390000u);
+    assert(!fake.prepared_restore_side);
+    assert(fake.route_side == 0u && fake.side_state == 0x80u);
     assert(fake.send_calls == 1u && fake.stop_calls == 1u &&
            fake.restore_calls == 1u && fake.snapshot_calls == 1u);
 
@@ -1569,7 +1613,9 @@ static void test_main_tx_service(void)
     result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
                              packet, sizeof packet, &hardware, &fake);
     assert(result == H9_MAIN_TX_SENT && fake.prepared_side == H9_SIDE_B);
+    assert(fake.prepared_restore_side);
     assert(fake.restore_calls == 1u && fake.current_side == H9_SIDE_A);
+    assert(fake.route_side == 0u && fake.side_state == 0u);
 }
 
 static void test_timed_beacon_scheduler(void)

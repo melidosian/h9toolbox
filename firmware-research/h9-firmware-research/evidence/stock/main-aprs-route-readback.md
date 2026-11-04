@@ -20,6 +20,21 @@ prepared side/frequency readback and before its only keying callback. A
 host test reproduces a B logical side with an A Dual Watch route and confirms
 that no packet send is allowed; it also checks a wrong copied frequency pair.
 
+`h9_main_rf_route_prepare` is a new replacement primitive for the unkeyed
+board preparation step. It preserves the logical-side guard for Lock/Current,
+sets the Dual Watch route byte to the planned A/B side when necessary, and
+temporarily changes logical bit 7 for Auto. Its saved record restores the
+original selectors after the transaction. A fake-RAM test starts with logical
+B and Dual Watch route A, applies B-Lock preparation, and verifies that RF
+setup would select B; it also checks Auto restoration and rejection of a
+Lock request when the logical side is A. The host TX-service adapter uses the
+helper for both B-Lock and B-Auto and restores the original selector bytes
+after the send transaction. The `prepare_tx` callback now receives the full
+plan, including whether Auto may change logical side. No live board adapter
+calls the primitive yet. A live adapter must serialize Dual Watch updates across prepare,
+readback, keying, and restore; the helper alone does not make those actions
+atomic.
+
 This guard operates on firmware state, not a measurement of emitted RF.
 The double read can detect a selector change during the copy, but it is not
 an atomic lock against a later Dual Watch update; a live adapter must

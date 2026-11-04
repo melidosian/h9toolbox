@@ -21,7 +21,10 @@ typedef enum {
 /* read_current_side must report bit 7 of the working channel-state byte
  * (stock RAM 0x11B50), which governs the Lock choice; it must not infer side
  * from the highlighted display line. With Dual Watch, RF setup separately
- * reads the routed side byte at 0x11AEC. A board adapter must check current
+ * reads the routed side byte at 0x11AEC. A board adapter must aim both
+ * selectors at the planned side before RF setup and restore them afterward;
+ * h9_main_rf_route_prepare/restore implements the selector writes. The
+ * adapter must serialize Dual Watch updates. It must check current
  * band/region settings in validate_frequency and leave PTT inactive throughout
  * prepare_tx, read_prepared_tx, and read_rf_snapshot. The snapshot captures the live
  * Dual Watch route and working frequency pair after preparation. send_packet
@@ -30,7 +33,9 @@ typedef enum {
 typedef struct {
     bool (*read_current_side)(void *opaque, H9Side *side);
     bool (*validate_frequency)(void *opaque, uint32_t tx_hz);
-    bool (*prepare_tx)(void *opaque, H9Side side, uint32_t tx_hz);
+    /* Receives the complete plan so a board adapter can distinguish an
+     * Auto side switch from a Lock/Current guard during route preparation. */
+    bool (*prepare_tx)(void *opaque, const H9TxPlan *plan);
     bool (*read_prepared_tx)(void *opaque, H9Side *side, uint32_t *tx_hz);
     bool (*read_rf_snapshot)(void *opaque, H9MainRfSnapshot *snapshot);
     bool (*send_packet)(void *opaque, const uint8_t *packet, size_t length);
