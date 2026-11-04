@@ -15,7 +15,7 @@ This is the beginning of a source rewrite for the **main Pi32v2 firmware** and t
 - The same main APRS module ports the packet-path RX-channel comparison at app+`0x086166..0x08619C`. This comparison maps the working RX frequency to A or B before checking `APRS RX CH`; `Off` bypasses this local comparison, which does not establish that APRS reception is globally enabled in that setting.
 - `main/h9_main_beacon.*` ports the timed-beacon counter, interval threshold, and state/priority guard from main app+`0x082EB2`. The outer scheduler timing and receive/busy conditions remain to be ported.
 
-The framing and command source follows observed behavior where established. The mute and post-setup TX verification are **new desired behavior**, not claims that stock firmware already performs them. Unsupported commands are ignored in this first pass. The full main UI, channel store, RF driver, Bluetooth driver, boot setup, and APRS hardware integration are still absent. The receive chain has not been validated with recorded packet audio. The APRS status command's 48-byte content remains a hardware callback because its fields have not been fully reconstructed. No Pi32 build toolchain or link map has been validated for the radio; CMake currently builds a **host test executable only**.
+The framing and command source follows observed behavior where established. The mute and post-setup TX verification are **new desired behavior**, not claims that stock firmware already performs them. Unsupported commands are ignored in this first pass. The full main UI, channel store, RF driver, Bluetooth driver, boot setup, and APRS hardware integration are still absent. The receive chain has not been validated with recorded packet audio. The APRS status command's 48-byte content remains a hardware callback because its fields have not been fully reconstructed. No Pi32 build toolchain or link map has been validated for the radio. The CMake test executable is host-only; the cross-compile script below creates target objects and archives, not linked firmware.
 
 ## Build and test on Windows
 
@@ -29,7 +29,18 @@ ctest --test-dir firmware-research/replacement-source/build -C Debug --output-on
 
 On Linux, select an available native C compiler and omit the Visual Studio generator and `-A x64`. These tests do not access the radio.
 
-To check the source constants against the private stock images, run `py -3 firmware-research/replacement-source/verify_source_inputs.py <path-to-stock-app.bin> <path-to-APRS-1.0.15.bin>` from the repository root. This reads both files and validates their pinned hashes, the main TX selector call/table, and all 128 waveform-table bytes. It does not create or flash an image.
+## Cross-compile the source modules
+
+`build_target_objects.py` compiles the current source sets separately and records the compiler, flags, source hashes, object hashes, and archive hash in `build-manifest.json`. It runs on Windows or Linux. The APRS build uses [Arm GNU Toolchain](https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain)'s `arm-none-eabi-gcc` and `arm-none-eabi-ar`. The conservative `cortex-m0`/Thumb setting only establishes a compatible ARM object build; the precise APRS CPU variant has not been confirmed. The main build requires JieLi's **Pi32v2 r3** clang and LTO archiver. The [official JieLi SDK build](https://doc.zh-jieli.com/SDKWiki/master/Jieli-Tech/fw-AC63_GP_MCU/5-build-tools/1-build-system-workspace.html) uses `C:/JL/pi32/bin` on Windows and `/opt/jieli/pi32v2/bin` on Linux, with `-target pi32v2 -mcpu=r3 -flto -Oz`.
+
+```powershell
+py -3 firmware-research/replacement-source/build_target_objects.py aprs --compiler 'C:\path\to\arm-none-eabi-gcc.exe'
+py -3 firmware-research/replacement-source/build_target_objects.py main --compiler 'C:\JL\pi32\bin\clang.exe'
+```
+
+On Linux, use `python3` and omit `--compiler` if the respective compiler is at its documented path or on `PATH`. `H9_ARM_GCC` and `H9_PI32_CLANG` can also set explicit compiler paths. The resulting `.o` files and `.a` archive are under ignored `build/target-aprs` or `build/target-main`. The APRS archive was built and checked with Arm GNU Toolchain 15.3.1 on Windows. **Neither archive is a bootable or flashable image**: startup, linker memory map, peripheral drivers, and final image packaging are still missing. The Pi32 compilation path remains untested until that vendor compiler is available.
+
+To check the source constants against the private stock images, run `py -3 firmware-research/replacement-source/verify_source_inputs.py <path-to-stock-app.bin> <path-to-APRS-1.0.15.bin>` from the repository root. This reads both files and validates their pinned hashes, the main TX selector call/table, all 128 waveform-table bytes, and the APRS CRC table. It does not create or flash an image.
 
 ## Next source work
 
