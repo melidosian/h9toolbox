@@ -40,10 +40,40 @@ decode agree that this callee writes band three to `0xD9D4` when the
 `0xD9D0` flag is zero. Otherwise it scans four 32-bit thresholds at
 `0xDA0C`, `0xDA20`, `0xDA34`, and `0xDA48`, advancing while a threshold
 is strictly below the requested frequency. It stores the first matching
-index, capped at three, in `0xD9D4`. This is a calibration-record selector;
-the subsequent app+`0x0C50D8` arithmetic has unresolved Pi32 operations
-in Ghidra and remains unported. Ghidra's selected-function export is in
-ignored `output/main-clock-calibration-ghidra.txt`.
+index, capped at three, in `0xD9D4`. This is a calibration-record selector.
+
+The subsequent app+`0x0C50D8` routine selects the 20-byte record at
+`0xDA08 + 20 * band`. It returns `0xFFFFFFFF` when either record word
+zero or one is below the requested frequency. Otherwise it clamps record
+word three to `[frequency, record word zero]`. The 32-bit predicate opcode
+at app+`0x0C5106` is `11 E9 00 10`; its second word `0x1000` encodes one
+then instruction and one else instruction. Those are the two unsigned
+divides at app+`0x0C510A` and `0x0C510E`. The preceding bounds ensure the
+first divide is selected for a valid record; the result is multiplied by
+the requested frequency. The caller stores it at `0xD9E4`. Ghidra stops
+before these arithmetic operations because its Pi32 p-code cannot resolve
+app+`0x0C50FE`; the independent decoder and the Pi32 predicate format
+resolve the branch. Ghidra's selected-function export is in ignored
+`output/main-clock-calibration-ghidra.txt`. Predicate encoding was checked
+against `docs/ISA.md` in [pi32v2-isa](https://github.com/jvitkauskas/pi32v2-isa)
+at commit `9a06ab98808e1c368dea1741f4eeb5aa1b388615`.
+
+When that result is not `0xFFFFFFFF`, the caller enters
+app+`0x0C5118`. It searches four source words at virtual address
+`0x01EB27DC`: `192000000`, `137000000`, `320000000`, and `480000000`.
+The two four-byte divider tables at `0x01EB146B` and `0x01EB146F`
+contain `{1,2,4,8}` and `{1,3,5,7}`. The nested loops compare
+`source / primary / secondary` with the requested result, in that order.
+On a match, RAM `0xD9FC` receives the source index, `0xDA00` receives
+`primary_index * 4 + secondary_index`, and `0xD9E4` retains the result.
+On exhaustion, `0xD9E4` receives `0xFFFFFFFF` while the two indices
+remain untouched. For a 240 MHz input, the first match is source index
+three (480 MHz), primary index one (divide by two), and secondary index
+zero (divide by one), yielding encoded divider index four. The table
+bytes were read from the pinned stock app hash above; the replacement
+owns equivalent constant tables rather than referring to stock image
+addresses. Zero-divisor handling in the replacement is a guard for
+injected tables; the captured stock tables contain no zero.
 
 `replacement-source/main/h9_main_clock_probe.*` ports this first stage
 with injectable ROM and measurement callbacks. Its target binding uses the
@@ -55,7 +85,10 @@ the next register sequence with a caller-supplied register and flag binding;
 host tests cover both flag bytes and the preserved bit.
 `h9_main_clock_band_select` ports the following 240 MHz band choice and
 caller request flag; host tests cover disabled mode, each boundary, and the
-index cap. The diagnostic board entry invokes these three stages and stops
-before calibration arithmetic. The Pi32 link check verifies key addresses,
-constants, and call placement. No radio has run it, and the linked image
-remains unflashable.
+index cap. `h9_main_clock_calculate` ports the bounded record calculation
+and `0xFFFFFFFF` result; host tests cover valid multiples, clamping, and
+invalid records. `h9_main_clock_match` ports the source/divider search,
+including match and exhaustion outputs. The diagnostic board entry invokes
+these stages and stops before applying the resulting clock. The Pi32 link
+check verifies key addresses, constants, table bytes, and call placement.
+No radio has run it, and the linked image remains unflashable.

@@ -45,4 +45,27 @@ typedef struct {
 void h9_main_clock_band_bind_target(H9MainClockBand *band);
 bool h9_main_clock_band_select(H9MainClockBand *band, uint32_t frequency_hz);
 
+/* Stock app+0x0C50D8 computes a multiple within the selected record. */
+typedef struct {
+    volatile uint32_t *record_words;
+    volatile uint8_t *band_d9d4;
+} H9MainClockCalculation;
+
+void h9_main_clock_calculation_bind_target(H9MainClockCalculation *calculation);
+uint32_t h9_main_clock_calculate(const H9MainClockCalculation *calculation,
+                                 uint32_t frequency_hz);
+
+/* Stock app+0x0C5118 searches four sources and two four-entry dividers. */
+typedef struct {
+    const uint32_t *source_hz;
+    const uint8_t *primary_dividers;
+    const uint8_t *secondary_dividers;
+    volatile uint8_t *source_d9fc;
+    volatile uint8_t *divider_da00;
+    volatile uint32_t *result_d9e4;
+} H9MainClockMatch;
+
+void h9_main_clock_match_bind_target(H9MainClockMatch *match);
+bool h9_main_clock_match(H9MainClockMatch *match, uint32_t target_hz);
+
 #endif

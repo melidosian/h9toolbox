@@ -3991,6 +3991,65 @@ static void test_main_clock_band(void)
            storage[21] == 0xA5A5A5A5u);
 }
 
+static void test_main_clock_calculation(void)
+{
+    uint32_t storage[22];
+    uint32_t *records = storage + 1u;
+    uint8_t band = 2u;
+    H9MainClockCalculation calculation = { records, &band };
+    unsigned index;
+    for (index = 0u; index < 22u; ++index)
+        storage[index] = 0xA5A5A5A5u;
+    records[10] = 600000000u;
+    records[11] = 500000000u;
+    records[13] = 550000000u;
+    assert(h9_main_clock_calculate(&calculation, 240000000u) == 480000000u);
+    records[13] = 200000000u;
+    assert(h9_main_clock_calculate(&calculation, 240000000u) == 240000000u);
+    records[13] = 700000000u;
+    assert(h9_main_clock_calculate(&calculation, 240000000u) == 480000000u);
+    records[10] = 239999999u;
+    assert(h9_main_clock_calculate(&calculation, 240000000u) == UINT32_MAX);
+    records[10] = 600000000u;
+    records[11] = 239999999u;
+    assert(h9_main_clock_calculate(&calculation, 240000000u) == UINT32_MAX);
+    band = 4u;
+    assert(h9_main_clock_calculate(&calculation, 240000000u) == UINT32_MAX);
+    band = 2u;
+    assert(h9_main_clock_calculate(&calculation, 0u) == UINT32_MAX);
+    assert(storage[0] == 0xA5A5A5A5u &&
+           storage[21] == 0xA5A5A5A5u);
+}
+
+static void test_main_clock_match(void)
+{
+    const uint32_t sources[4] = {
+        192000000u, 137000000u, 320000000u, 480000000u
+    };
+    uint8_t primary[4] = { 1u, 2u, 4u, 8u };
+    const uint8_t secondary[4] = { 1u, 3u, 5u, 7u };
+    uint8_t source = 0xA5u;
+    uint8_t divider = 0xA5u;
+    uint32_t result = 0u;
+    H9MainClockMatch match = {
+        sources, primary, secondary, &source, &divider, &result
+    };
+    assert(!h9_main_clock_match(NULL, 240000000u));
+    assert(h9_main_clock_match(&match, 240000000u));
+    assert(source == 3u && divider == 4u && result == 240000000u);
+    assert(h9_main_clock_match(&match, 480000000u));
+    assert(source == 3u && divider == 0u && result == 480000000u);
+    assert(h9_main_clock_match(&match, 192000000u));
+    assert(source == 0u && divider == 0u && result == 192000000u);
+    assert(h9_main_clock_match(&match, 137000000u));
+    assert(source == 1u && divider == 0u && result == 137000000u);
+    assert(!h9_main_clock_match(&match, 123456789u));
+    assert(source == 1u && divider == 0u && result == UINT32_MAX);
+    primary[1] = 0u;
+    assert(!h9_main_clock_match(&match, 240000000u));
+    assert(result == UINT32_MAX);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -4024,6 +4083,8 @@ int main(void)
     test_main_clock_probe();
     test_main_clock_selector();
     test_main_clock_band();
+    test_main_clock_calculation();
+    test_main_clock_match();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

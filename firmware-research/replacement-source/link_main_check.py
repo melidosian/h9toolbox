@@ -157,6 +157,10 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_selector_run",
         "h9_main_clock_band_bind_target",
         "h9_main_clock_band_select",
+        "h9_main_clock_calculation_bind_target",
+        "h9_main_clock_calculate",
+        "55780", "h9_main_clock_match_bind_target",
+        "h9_main_clock_match",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -272,6 +276,50 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
                     ("r3 = 3", "r6 >= r1", "r6 < 4", "r5++=20")) or \
             "240000000" not in board_body:
         raise ValueError("Linked clock band selector differs from stock flow")
+    calculation_bind_match = re.search(
+        r"(?ms)^h9_main_clock_calculation_bind_target:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    calculation_match = re.search(
+        r"(?ms)^h9_main_clock_calculate:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if calculation_bind_match is None or calculation_match is None:
+        raise ValueError("Linked main ELF lacks clock calculation")
+    calculation_bind = calculation_bind_match.group(1).lower()
+    calculation_body = calculation_match.group(1).lower()
+    if not all(value in calculation_bind for value in
+               ("55816", "-52")) or \
+            not all(value in calculation_body for value in
+                    ("r0 = -1", "r2 * 0x14", "[r3+12]",
+                     "umax", "/ r1 (u)", "r0 *= r1")):
+        raise ValueError("Linked clock calculation differs from stock flow")
+    match_bind_match = re.search(
+        r"(?ms)^h9_main_clock_match_bind_target:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    match_match = re.search(
+        r"(?ms)^h9_main_clock_match:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if match_bind_match is None or match_match is None:
+        raise ValueError("Linked main ELF lacks clock source/divider search")
+    match_bind = match_bind_match.group(1).lower()
+    match_body = match_match.group(1).lower()
+    if not all(value in match_bind for value in
+               ("clock_source_hz", "clock_primary_dividers",
+                "clock_secondary_dividers", "55804", "0xda00")) or \
+            not all(value in match_body for value in
+                    ("r13 < 4", "r12 < 4", "r6 < 4", "/ r4 (u)",
+                     "/ r2 (u)", "0xffffffff")) or \
+            "if (r4 == -1)" not in board_body:
+        raise ValueError("Linked clock source/divider search differs from stock flow")
+    stock_clock_tables = bytes.fromhex(
+        "00 b0 71 0b 40 74 2a 08 00 d0 12 13 00 38 9c 1c "
+        "01 02 04 08 01 03 05 07"
+    )
+    if stock_clock_tables not in text_data:
+        raise ValueError("Linked clock source/divider tables differ from stock")
 
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
@@ -392,6 +440,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_clock_probe_path_verified": True,
         "early_board_clock_selector_path_verified": True,
         "early_board_clock_band_path_verified": True,
+        "early_board_clock_calculation_path_verified": True,
+        "early_board_clock_match_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

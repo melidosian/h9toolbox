@@ -147,3 +147,79 @@ bool h9_main_clock_band_select(H9MainClockBand *band, uint32_t frequency_hz)
     *band->band_d9d4 = selected;
     return true;
 }
+
+void h9_main_clock_calculation_bind_target(H9MainClockCalculation *calculation)
+{
+    if (calculation == NULL) return;
+    calculation->record_words = (volatile uint32_t *)(uintptr_t)0x0000DA08u;
+    calculation->band_d9d4 = (volatile uint8_t *)(uintptr_t)0x0000D9D4u;
+}
+
+uint32_t h9_main_clock_calculate(const H9MainClockCalculation *calculation,
+                                 uint32_t frequency_hz)
+{
+    volatile uint32_t *record;
+    uint32_t candidate;
+    if (calculation == NULL || calculation->record_words == NULL ||
+        calculation->band_d9d4 == NULL || frequency_hz == 0u ||
+        *calculation->band_d9d4 >= H9_MAIN_CLOCK_PROBE_CHANNELS)
+        return UINT32_MAX;
+    record = calculation->record_words + (*calculation->band_d9d4 * 5u);
+    if (record[0] < frequency_hz || record[1] < frequency_hz)
+        return UINT32_MAX;
+
+    candidate = record[3];
+    if (candidate < frequency_hz) candidate = frequency_hz;
+    if (candidate > record[0]) candidate = record[0];
+    /* Pi32 if/else at app+0x0C5106 has one instruction in each branch.
+     * The checks above ensure the >= branch is used for valid records. */
+    return (candidate / frequency_hz) * frequency_hz;
+}
+
+static const uint32_t clock_source_hz[4] = {
+    192000000u, 137000000u, 320000000u, 480000000u
+};
+static const uint8_t clock_primary_dividers[4] = { 1u, 2u, 4u, 8u };
+static const uint8_t clock_secondary_dividers[4] = { 1u, 3u, 5u, 7u };
+
+void h9_main_clock_match_bind_target(H9MainClockMatch *match)
+{
+    if (match == NULL) return;
+    match->source_hz = clock_source_hz;
+    match->primary_dividers = clock_primary_dividers;
+    match->secondary_dividers = clock_secondary_dividers;
+    match->source_d9fc = (volatile uint8_t *)(uintptr_t)0x0000D9FCu;
+    match->divider_da00 = (volatile uint8_t *)(uintptr_t)0x0000DA00u;
+    match->result_d9e4 = (volatile uint32_t *)(uintptr_t)0x0000D9E4u;
+}
+
+bool h9_main_clock_match(H9MainClockMatch *match, uint32_t target_hz)
+{
+    uint8_t source;
+    uint8_t primary;
+    uint8_t secondary;
+    if (match == NULL || match->source_hz == NULL ||
+        match->primary_dividers == NULL ||
+        match->secondary_dividers == NULL ||
+        match->source_d9fc == NULL || match->divider_da00 == NULL ||
+        match->result_d9e4 == NULL) return false;
+    for (source = 0u; source < 4u; ++source) {
+        for (primary = 0u; primary < 4u; ++primary) {
+            uint8_t divisor_a = match->primary_dividers[primary];
+            if (divisor_a == 0u) continue;
+            for (secondary = 0u; secondary < 4u; ++secondary) {
+                uint8_t divisor_b = match->secondary_dividers[secondary];
+                if (divisor_b != 0u &&
+                    match->source_hz[source] / divisor_a / divisor_b ==
+                    target_hz) {
+                    *match->source_d9fc = source;
+                    *match->divider_da00 = (uint8_t)(primary * 4u + secondary);
+                    *match->result_d9e4 = target_hz;
+                    return true;
+                }
+            }
+        }
+    }
+    *match->result_d9e4 = UINT32_MAX;
+    return false;
+}

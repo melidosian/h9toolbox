@@ -50,6 +50,9 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainClockProbe clock_probe;
     H9MainClockSelector clock_selector;
     H9MainClockBand clock_band;
+    H9MainClockCalculation clock_calculation;
+    H9MainClockMatch clock_match;
+    uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
     typedef void (*RomContinue)(void);
@@ -72,6 +75,14 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     if (!h9_main_clock_selector_run(&clock_selector)) for (;;) { }
     h9_main_clock_band_bind_target(&clock_band);
     if (!h9_main_clock_band_select(&clock_band, 240000000u)) for (;;) { }
+    h9_main_clock_calculation_bind_target(&clock_calculation);
+    calculated_clock = h9_main_clock_calculate(&clock_calculation,
+                                                240000000u);
+    *(volatile uint32_t *)(uintptr_t)0x0000D9E4u = calculated_clock;
+    if (calculated_clock != UINT32_MAX) {
+        h9_main_clock_match_bind_target(&clock_match);
+        (void)h9_main_clock_match(&clock_match, calculated_clock);
+    }
 #endif
     for (;;) { }
 }
