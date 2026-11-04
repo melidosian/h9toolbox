@@ -1,5 +1,6 @@
 #include "h9_aprs_controller.h"
 #include "h9_aprs_bitstream.h"
+#include "h9_aprs_ring.h"
 #include "h9_main_aprs.h"
 #include <assert.h>
 #include <string.h>
@@ -142,6 +143,26 @@ static void test_recovered_bit_path(void)
            output.bytes[2] == 0x1Bu);
 }
 
+static void test_aprs_byte_queue(void)
+{
+    uint8_t storage[4] = { 0 };
+    uint8_t byte = 0;
+    H9AprsRing ring;
+    assert(h9_aprs_ring_init(&ring, storage, sizeof storage));
+    assert(h9_aprs_ring_empty(&ring));
+    assert(h9_aprs_ring_push(&ring, 0x7Eu));
+    assert(h9_aprs_ring_push(&ring, 0x55u));
+    assert(h9_aprs_ring_push(&ring, 0x7Eu));
+    assert(h9_aprs_ring_full(&ring));
+    assert(!h9_aprs_ring_push(&ring, 0x99u));
+    assert(h9_aprs_ring_pop(&ring, &byte) && byte == 0x7Eu);
+    assert(h9_aprs_ring_push(&ring, 0x99u)); /* tail wraps */
+    assert(h9_aprs_ring_pop(&ring, &byte) && byte == 0x55u);
+    assert(h9_aprs_ring_pop(&ring, &byte) && byte == 0x7Eu);
+    assert(h9_aprs_ring_pop(&ring, &byte) && byte == 0x99u);
+    assert(h9_aprs_ring_empty(&ring));
+}
+
 static void feed_frame(H9AprsController *controller, uint8_t command,
                        const uint8_t *payload, size_t length)
 {
@@ -192,6 +213,7 @@ int main(void)
     test_wire_vectors();
     test_main_policy();
     test_recovered_bit_path();
+    test_aprs_byte_queue();
     test_aprs_controller();
     return 0;
 }

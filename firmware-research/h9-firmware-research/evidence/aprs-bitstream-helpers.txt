@@ -1,0 +1,167 @@
+program=aprs-1.0.15.bin
+language=ARM:LE:32:Cortex
+
+address=0800543e function=FUN_0800543e@0800543e
+caller_reference=0800231a UNCONDITIONAL_CALL
+caller_reference=080024d8 UNCONDITIONAL_CALL
+caller_reference=08002518 UNCONDITIONAL_CALL
+caller_reference=08005464 UNCONDITIONAL_CALL
+
+undefined1 FUN_0800543e(undefined4 *param_1)
+
+{
+  undefined1 uVar1;
+  undefined1 *puVar2;
+  
+  if (param_1[2] == param_1[1]) {
+    param_1[2] = *param_1;
+    uVar1 = *(undefined1 *)param_1[1];
+  }
+  else {
+    puVar2 = (undefined1 *)param_1[2];
+    param_1[2] = puVar2 + 1;
+    uVar1 = *puVar2;
+  }
+  return uVar1;
+}
+
+
+
+address=08005470 function=FUN_08005470@08005470
+caller_reference=08002370 UNCONDITIONAL_CALL
+caller_reference=080055f0 UNCONDITIONAL_CALL
+caller_reference=080056a2 UNCONDITIONAL_CALL
+caller_reference=080056c4 UNCONDITIONAL_CALL
+caller_reference=08005496 UNCONDITIONAL_CALL
+caller_reference=08002650 UNCONDITIONAL_CALL
+
+void FUN_08005470(undefined4 *param_1,undefined1 param_2)
+
+{
+  *(undefined1 *)param_1[3] = param_2;
+  if (param_1[3] == param_1[1]) {
+    param_1[3] = *param_1;
+  }
+  else {
+    param_1[3] = param_1[3] + 1;
+  }
+  return;
+}
+
+
+
+address=080053e0 function=FUN_080053e0@080053e0
+caller_reference=0800247c UNCONDITIONAL_CALL
+caller_reference=080024ba UNCONDITIONAL_CALL
+caller_reference=080024f4 UNCONDITIONAL_CALL
+caller_reference=080053fa UNCONDITIONAL_CALL
+
+bool FUN_080053e0(int param_1)
+
+{
+  return *(int *)(param_1 + 8) == *(int *)(param_1 + 0xc);
+}
+
+
+
+address=08005696 function=FUN_080055c4@080055c4
+caller_reference=08002426 UNCONDITIONAL_CALL
+
+undefined4 FUN_080055c4(byte *param_1,byte param_2,undefined4 param_3)
+
+{
+  byte bVar1;
+  int iVar2;
+  undefined4 uVar3;
+  
+  uVar3 = 1;
+  *param_1 = *param_1 << 1;
+  *param_1 = *param_1 | param_2;
+  if (*param_1 == 0x7e) {
+    iVar2 = FUN_08005406(param_3);
+    if (iVar2 == 0) {
+      FUN_08005470(param_3,0x7e);
+      param_1[3] = 1;
+      if (param_1[5] < 6) {
+        param_1[4] = 0;
+        param_1[5] = param_1[5] + 1;
+      }
+      else {
+        param_1[4] = 1;
+      }
+    }
+    else {
+      uVar3 = 0;
+      param_1[3] = 0;
+      param_1[4] = 0;
+      param_1[5] = 0;
+    }
+    param_1[2] = 0;
+    param_1[1] = 0;
+  }
+  else if ((*param_1 & 0x7f) == 0x7f) {
+    param_1[3] = 0;
+    param_1[4] = 0;
+    param_1[5] = 0;
+    uVar3 = 1;
+  }
+  else if (param_1[3] == 0) {
+    param_1[4] = 0;
+    param_1[5] = 0;
+    uVar3 = 1;
+  }
+  else if ((*param_1 & 0x3f) == 0x3e) {
+    uVar3 = 1;
+  }
+  else {
+    if ((*param_1 & 1) != 0) {
+      param_1[2] = param_1[2] | 0x80;
+    }
+    bVar1 = param_1[1];
+    param_1[1] = bVar1 + 1;
+    if ((byte)(bVar1 + 1) < 8) {
+      param_1[2] = (byte)((int)(uint)param_1[2] >> 1);
+    }
+    else {
+      if (((param_1[2] == 0x7e) || (param_1[2] == 0x7f)) || (param_1[2] == 0x1b)) {
+        iVar2 = FUN_08005406(param_3);
+        if (iVar2 == 0) {
+          FUN_08005470(param_3,0x1b);
+        }
+        else {
+          param_1[3] = 0;
+          param_1[4] = 0;
+          param_1[5] = 0;
+          uVar3 = 0;
+        }
+      }
+      iVar2 = FUN_08005406(param_3);
+      if (iVar2 == 0) {
+        FUN_08005470(param_3,param_1[2]);
+      }
+      else {
+        param_1[3] = 0;
+        param_1[4] = 0;
+        param_1[5] = 0;
+        uVar3 = 0;
+      }
+      param_1[2] = 0;
+      param_1[1] = 0;
+    }
+  }
+  return uVar3;
+}
+
+
+
+address=08002c94 function=FUN_08002c94@08002c94
+caller_reference=08002a74 UNCONDITIONAL_CALL
+
+void FUN_08002c94(undefined4 param_1,undefined4 param_2)
+
+{
+  FUN_0800476c(DAT_08002ca8,param_1,param_2,100);
+  return;
+}
+
+
