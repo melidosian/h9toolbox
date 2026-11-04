@@ -35,7 +35,7 @@
           <label>Official TD-H9 v1.0.38 .fw package<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"><small id="firmwareState">No package selected</small></label>
           <label>Existing recovery backup, optional (.h9hid or raw .bin)<input id="backupFile" type="file" accept=".h9hid,.bin,application/octet-stream"><small id="backupState">No backup selected. You can create one after connecting.</small></label>
         </div>
-        <p class="fine">The official package is checked against its known hash. A raw .bin backup also checks protected boot bytes. An HID archive contains accessible bytes from 0x5000 onward and an integrity hash; protected boot bytes are unavailable through HID.</p>
+        <p class="fine">Select the two files in either order; backup validation starts once the official package is loaded. The package is checked against its known hash. A raw .bin backup also checks protected boot bytes. An HID archive contains accessible bytes from 0x5000 onward and an integrity hash; protected boot bytes are unavailable through HID.</p>
       </section>
       <section class="card" aria-labelledby="connect-title">
         <div class="card-head"><div><span class="step">02</span><h2 id="connect-title">Connect USB HID</h2></div><span class="chip" id="deviceState">Disconnected</span></div>
@@ -61,6 +61,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The HID sector recovery procedure has been tested on a physical TD-H9; this full browser update flow is awaiting hardware validation.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=20261104b"></script>
+  <script type="module" src="./update.js?v=20261104c"></script>
 </body>
 </html>

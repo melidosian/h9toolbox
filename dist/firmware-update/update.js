@@ -4,6 +4,7 @@ import { createHidArchive, loadHidArchive, readAccessibleFlash } from './readbac
 const $ = id => document.getElementById(id);
 let target = null, backup = null, device = null, hid = null, plan = null, restorePlan = null, busy = false;
 let cancelBackup = false, backupRunning = false;
+let firmwareSelection = 0, backupSelection = 0;
 const resumeKey = 'h9-hid-pending-v1';
 function status(message, error = false) {
   $('status').textContent = message;
@@ -34,30 +35,50 @@ function fail(error) { status(error?.message || String(error), true); }
 function pending() { try { return JSON.parse(localStorage.getItem(resumeKey)); } catch { return null; } }
 function forgetPlan() { plan = null; restorePlan = null; $('acknowledge').checked = false; $('planState').textContent = 'Inspect the radio before writing.'; refresh(); }
 
-$('firmwareFile').addEventListener('change', async event => {
-  target = null; forgetPlan();
-  const file = event.target.files[0]; if (!file) return;
-  try {
-    const loaded = await loadStockPackage(new Uint8Array(await file.arrayBuffer()));
-    target = loaded; $('firmwareState').textContent = `${file.name} · official v1.0.38 verified`;
-    status('Official v1.0.38 firmware package verified locally.');
-  } catch (error) { $('firmwareState').textContent = 'Package rejected'; fail(error); }
-  refresh();
-});
-$('backupFile').addEventListener('change', async event => {
+async function validateSelectedBackup(announceWaiting = true) {
+  const selection = ++backupSelection;
   backup = null; forgetPlan();
-  const file = event.target.files[0]; if (!file) return;
+  const file = $('backupFile').files[0];
+  if (!file) { $('backupState').textContent = 'No backup selected. You can create one after connecting.'; refresh(); return; }
+  if (!target) {
+    $('backupState').textContent = `${file.name} · waiting for firmware package`;
+    if (announceWaiting) status('Backup selected. Choose the official Type-C .fw package to validate it.');
+    refresh(); return;
+  }
   try {
-    if (!target) throw new Error('Select the official firmware package first.');
     const bytes = new Uint8Array(await file.arrayBuffer());
-    backup = file.name.toLowerCase().endsWith('.h9hid')
+    const loaded = file.name.toLowerCase().endsWith('.h9hid')
       ? await loadHidArchive(bytes, target.image)
       : await loadBackup(bytes, target.image);
+    if (selection !== backupSelection) return;
+    backup = loaded;
     $('backupState').textContent = `${file.name} · ${backup.source === 'hid' ? 'HID archive verified' : 'boot region verified'}`;
     status(backup.source === 'hid' ? 'HID recovery archive checksum verified locally.' : 'Raw backup format and protected boot bytes verified locally.');
-  } catch (error) { $('backupState').textContent = 'Backup rejected'; fail(error); }
+  } catch (error) {
+    if (selection !== backupSelection) return;
+    $('backupState').textContent = `${file.name} · backup rejected`;
+    fail(error);
+  }
   refresh();
+}
+
+$('firmwareFile').addEventListener('change', async event => {
+  const selection = ++firmwareSelection;
+  ++backupSelection; target = null; backup = null; forgetPlan();
+  const file = event.target.files[0];
+  if (!file) { $('firmwareState').textContent = 'No package selected'; await validateSelectedBackup(false); return; }
+  try {
+    const loaded = await loadStockPackage(new Uint8Array(await file.arrayBuffer()));
+    if (selection !== firmwareSelection) return;
+    target = loaded; $('firmwareState').textContent = `${file.name} · official v1.0.38 verified`;
+    status('Official v1.0.38 firmware package verified locally.');
+  } catch (error) {
+    if (selection !== firmwareSelection) return;
+    $('firmwareState').textContent = 'Package rejected'; fail(error);
+  }
+  await validateSelectedBackup(false);
 });
+$('backupFile').addEventListener('change', () => validateSelectedBackup());
 $('connect').addEventListener('click', async () => {
   if (!('hid' in navigator)) return fail(new Error('WebHID requires desktop Chrome or Edge on HTTPS.'));
   try {
