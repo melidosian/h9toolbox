@@ -191,6 +191,7 @@ static void test_main_ax25_packet(void)
     };
     H9MainAx25Packet packet = { { 0 }, { 0 }, { { 0 } }, 0, 0, info,
                                 sizeof info };
+    H9MainAx25Decoded decoded;
     uint8_t output[H9_MAIN_AX25_MAX_PACKET];
     uint8_t max_info[496] = { 0 };
     memcpy(packet.destination, "APRS", 4);
@@ -198,19 +199,91 @@ static void test_main_ax25_packet(void)
     assert(h9_main_ax25_encode(&packet, output, sizeof output) ==
            sizeof expected);
     assert(memcmp(output, expected, sizeof expected) == 0);
+    assert(h9_main_ax25_decode(output, sizeof expected, &decoded));
+    assert(decoded.digipeater_count == 0 && decoded.control == 0x03u);
+    assert(memcmp(decoded.destination, "APRS", 4) == 0);
+    assert(decoded.destination[4] == 0 && decoded.destination[5] == 0);
+    assert(memcmp(decoded.source, "KD9CRQ", 6) == 0);
+    assert(decoded.pid == 0xF0u && decoded.information_length == sizeof info);
+    assert(memcmp(decoded.information, info, sizeof info) == 0);
+    assert(h9_main_ax25_is_aprs_payload(&decoded));
     packet.digipeater_count = 1;
     memcpy(packet.digipeaters[0], "WIDE1", 5);
     packet.digipeaters[0][6] = 0x81u;
     assert(h9_main_ax25_encode(&packet, output, sizeof output) ==
            sizeof expected + 7u);
     assert(output[13] == 0x60u && output[20] == 0xE3u);
+    assert(h9_main_ax25_decode(output, sizeof expected + 7u, &decoded));
+    assert(decoded.digipeater_count == 1u);
+    assert(memcmp(decoded.digipeaters[0], "WIDE1", 5) == 0);
+    assert(decoded.digipeaters[0][6] == 0x81u);
+    packet.digipeater_count = H9_MAIN_AX25_MAX_DIGI;
+    assert(h9_main_ax25_encode(&packet, output, sizeof output) ==
+           sizeof info + 16u + 7u * H9_MAIN_AX25_MAX_DIGI);
+    assert(h9_main_ax25_decode(output,
+                                sizeof info + 16u + 7u * H9_MAIN_AX25_MAX_DIGI,
+                                &decoded));
+    assert(decoded.digipeater_count == H9_MAIN_AX25_MAX_DIGI);
+    output[55] &= 0xFEu; /* Sixth address no longer ends the path. */
+    assert(!h9_main_ax25_decode(output,
+                                 sizeof info + 16u + 7u * H9_MAIN_AX25_MAX_DIGI,
+                                 &decoded));
     packet.digipeater_count = 0;
     packet.information = max_info;
     packet.information_length = sizeof max_info;
     assert(h9_main_ax25_encode(&packet, output, sizeof output) ==
            sizeof output);
+    assert(h9_main_ax25_decode(output, sizeof output, &decoded));
+    assert(decoded.information_length == H9_MAIN_AX25_MAX_INFORMATION);
     packet.information_length++;
     assert(h9_main_ax25_encode(&packet, output, sizeof output) == 0);
+    assert(!h9_main_ax25_decode(expected, 15u, &decoded));
+    output[13] = 0x60u;
+    assert(!h9_main_ax25_decode(output, 16u, &decoded));
+    decoded.pid = 0xF1u;
+    assert(!h9_main_ax25_is_aprs_payload(&decoded));
+    decoded.pid = 0x30u;
+    assert(h9_main_ax25_is_aprs_payload(&decoded));
+}
+
+static void test_main_received_aprs_packet(void)
+{
+    static const uint8_t info[] = { '!', 'H', 'I' };
+    H9MainAx25Packet packet = { 0 };
+    H9MainAx25Decoded decoded;
+    H9MainWireReceiver receiver;
+    uint8_t raw[H9_MAIN_AX25_MAX_PACKET];
+    uint8_t serial[H9_APRS_ENCODED_CAPACITY];
+    size_t raw_length;
+    size_t serial_length;
+    size_t i;
+    memcpy(packet.destination, "APRS", 4);
+    memcpy(packet.source, "KD9CRQ", 6);
+    packet.information = info;
+    packet.information_length = sizeof info;
+    raw_length = h9_main_ax25_encode(&packet, raw, sizeof raw);
+    assert(raw_length == 19u);
+    serial_length = h9_wire_encode(0x00u, raw, raw_length,
+                                   serial, sizeof serial);
+    assert(serial_length > raw_length);
+    h9_main_wire_reset(&receiver);
+    for (i = 0; i < serial_length - 1; ++i)
+        assert(h9_main_wire_feed(&receiver, serial[i]) == H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&receiver, serial[i]) == H9_MAIN_WIRE_FRAME);
+    assert(h9_main_aprs_packet_from_frame(&receiver, &decoded));
+    assert(memcmp(decoded.source, "KD9CRQ", 6) == 0);
+    assert(decoded.information_length == sizeof info);
+    assert(memcmp(decoded.information, info, sizeof info) == 0);
+    assert(h9_main_wire_feed(&receiver, 0x42u) == H9_MAIN_WIRE_MORE);
+    assert(!h9_main_aprs_packet_from_frame(&receiver, &decoded));
+
+    serial_length = h9_wire_encode(0x10u, raw, raw_length,
+                                   serial, sizeof serial);
+    h9_main_wire_reset(&receiver);
+    for (i = 0; i < serial_length; ++i)
+        (void)h9_main_wire_feed(&receiver, serial[i]);
+    assert(receiver.frame_ready);
+    assert(!h9_main_aprs_packet_from_frame(&receiver, &decoded));
 }
 
 static void test_main_policy(void)
@@ -692,6 +765,7 @@ int main(void)
     test_main_aprs_wire_envelope();
     test_main_aprs_wire_receiver();
     test_main_ax25_packet();
+    test_main_received_aprs_packet();
     test_main_policy();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();

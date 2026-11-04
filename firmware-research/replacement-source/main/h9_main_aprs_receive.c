@@ -11,6 +11,7 @@ void h9_main_wire_reset(H9MainWireReceiver *receiver)
 {
     if (receiver == NULL) return;
     receiver->state = H9_WIRE_IDLE;
+    receiver->frame_ready = 0;
     receiver->command = 0;
     receiver->length = 0;
 }
@@ -29,6 +30,7 @@ static H9MainWireResult append_byte(H9MainWireReceiver *receiver, uint8_t byte)
 H9MainWireResult h9_main_wire_feed(H9MainWireReceiver *receiver, uint8_t byte)
 {
     if (receiver == NULL) return H9_MAIN_WIRE_REJECTED;
+    receiver->frame_ready = 0;
     switch (receiver->state) {
     case H9_WIRE_IDLE:
         if (byte == 0xC0u) {
@@ -45,6 +47,7 @@ H9MainWireResult h9_main_wire_feed(H9MainWireReceiver *receiver, uint8_t byte)
     case H9_WIRE_PAYLOAD:
         if (byte == 0xC0u) {
             receiver->state = H9_WIRE_IDLE;
+            receiver->frame_ready = 1;
             return H9_MAIN_WIRE_FRAME;
         }
         if (byte == 0xDBu) {
@@ -61,4 +64,13 @@ H9MainWireResult h9_main_wire_feed(H9MainWireReceiver *receiver, uint8_t byte)
         h9_main_wire_reset(receiver);
         return H9_MAIN_WIRE_REJECTED;
     }
+}
+
+int h9_main_aprs_packet_from_frame(const H9MainWireReceiver *receiver,
+                                   H9MainAx25Decoded *decoded)
+{
+    return receiver != NULL && receiver->frame_ready != 0 &&
+           receiver->command == 0u &&
+           h9_main_ax25_decode(receiver->payload, receiver->length, decoded) &&
+           h9_main_ax25_is_aprs_payload(decoded);
 }
