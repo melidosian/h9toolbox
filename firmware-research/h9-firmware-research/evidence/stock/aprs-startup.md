@@ -5,9 +5,13 @@ The pinned `APRS-1.0.15.bin` is 17,304 bytes, SHA-256
 Addresses below use the inferred `0x08002000` image base. The image's initial
 stack pointer is `0x20001A50`; reset vector is `0x080020D5`.
 
-- `0x080020D4` calls `0x0800498C`, which writes clock-related registers, then
-  branches to `0x080020C0`. The replacement startup does **not** yet port this
-  clock setup.
+- `0x080020D4` calls `0x0800498C`, then branches to `0x080020C0`.
+  `0x0800498C` reads the 32-bit register at `0x40021004`, preserves its
+  upper 16 bits, sets bit 13, inserts the low 13 bits of the factory
+  halfword at `0x1FFF0F04`, and writes the result back to `0x40021004`.
+  It then writes `0x08002000` to SCB VTOR at `0xE000ED08`. The replacement
+  ports these two writes before memory initialization; broader clock and
+  peripheral setup remains unmapped.
 - `0x080020C0` sets SP to `0x20001A50`, runs the two-entry initialization
   table via `0x0800219C`, then branches to `0x080021FD`.
 - The table at `0x08006358` has records
@@ -19,9 +23,10 @@ stack pointer is `0x20001A50`; reset vector is `0x080020D5`.
   to `0x20000000`, writes that RAM address to SCB VTOR at `0xE000ED08`, then
   calls the application's later initialization at `0x08005DE8`.
 
-`replacement-source/aprs/h9_aprs_startup.c` and `link_check_startup.S` now
-implement ordinary `.data` copy, `.bss` zeroing, 48-vector RAM relocation,
-and VTOR setup. The linker reserves the first `0xC0` RAM bytes for those
-vectors. The linked diagnostic image still has an inert board entry and
-default interrupt handlers. It does not implement the stock clock setup,
-ADC/UART/DAC initialization, interrupt bodies, or the main application.
+`replacement-source/aprs/h9_aprs_clock.*`, `h9_aprs_startup.c`, and
+`link_check_startup.S` now implement the reset-register writes, ordinary
+`.data` copy, `.bss` zeroing, 48-vector RAM relocation, and VTOR setup. The
+linker reserves the first `0xC0` RAM bytes for those vectors. The linked
+diagnostic image still has an inert board entry and default interrupt
+handlers. It does not implement ADC/UART/DAC initialization, interrupt
+bodies, or the main application.

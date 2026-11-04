@@ -1,6 +1,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "h9_aprs_clock.h"
+
 /* Stock image: 48 vectors are copied to RAM 0x20000000 and VTOR is set to
  * that address. Our own data is uncompressed, so its initialization differs
  * from the stock image's two-record decompression/zero table. */
@@ -24,6 +26,7 @@ __attribute__((noreturn)) void h9_aprs_boot(void)
     const uint8_t *source = &__data_load_start;
     uint8_t *destination;
     size_t index;
+    h9_aprs_clock_init();
     for (destination = &__data_start; destination < &__data_end;
          ++destination, ++source)
         *destination = *source;

@@ -2,6 +2,7 @@
 #include "h9_aprs_demod.h"
 #include "h9_aprs_frame.h"
 #include "h9_aprs_bitstream.h"
+#include "h9_aprs_clock.h"
 #include "h9_aprs_ring.h"
 #include "h9_aprs_tx.h"
 #include "h9_aprs_tx_gate.h"
@@ -976,6 +977,7 @@ static void test_aprs_controller(void)
 
 int main(void)
 {
+    assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
     test_wire_vectors();
     test_main_aprs_wire_envelope();
     test_main_aprs_wire_receiver();
