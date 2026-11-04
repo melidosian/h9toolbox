@@ -60,5 +60,11 @@ The open routine at app+`0x0C57BC` compares the pin identifiers with a device
 table, selects one of three UART register blocks (`0x001E2000`, `0x001E2100`,
 `0x001E2200`), registers interrupt numbers `0x12`, `0x13`, or `0x14`, and
 returns a serial object rooted at `0x1E258`, `0x1E32C`, or `0x1E400`. Its
-hardware selection for pins `0x20,0x21`, interrupt callback behavior, and
-read/write timing remain untested. No board adapter is connected yet.
+two 11-byte pin tables reside at copied RAM `0xDA60` and `0xDA6C`. The pair
+`0x20,0x21` occurs at index 5, which maps to UART channel 1 (base
+`0x001E2100`, interrupt `0x13`) when that channel is available. The availability
+helper at app+`0x0C5652` tests control-register bit 0 for each UART. The
+fallback when the preferred channel is busy, interrupt callback behavior, and
+read/write timing remain untested. `replacement-source/main/h9_main_serial_profile.*`
+ports the 32-byte open record and pin-table route without touching hardware;
+no board adapter is connected yet.

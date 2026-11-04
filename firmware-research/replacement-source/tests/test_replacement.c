@@ -31,6 +31,7 @@
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
 #include "h9_main_boot_record.h"
+#include "h9_main_serial_profile.h"
 #include "h9_main_tx_service.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
@@ -2124,6 +2125,25 @@ static void test_main_boot_record(void)
     for (index = 0; index < sizeof record; ++index) assert(record[index] == 0u);
 }
 
+static void test_main_serial_profile(void)
+{
+    H9MainSerialOpenRecord record;
+    H9MainSerialRoute route = { 0 };
+
+    h9_main_aprs_serial_profile(&record, 0x10CFCu, 0x01E78FFEu);
+    assert(record.tx_pin == 0x20u && record.rx_pin == 0x21u);
+    assert(record.storage_address == 0x10CFCu);
+    assert(record.storage_size == 2048u && record.read_limit == 1024u);
+    assert(record.field_10 == 10u);
+    assert(record.event_callback_address == 0x01E78FFEu);
+    assert(record.callback_context_address == 0u && record.baud == 19200u);
+    assert(h9_main_serial_route_pins(record.tx_pin, record.rx_pin) == 1);
+    assert(h9_main_serial_route(1, &route));
+    assert(route.mmio_base == 0x001E2100u && route.interrupt_number == 0x13u);
+    assert(h9_main_serial_route_pins(0xFFu, 0xFFu) == -1);
+    assert(!h9_main_serial_route(3, &route));
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -2142,6 +2162,7 @@ int main(void)
     test_main_policy();
     test_main_tx_service();
     test_main_boot_record();
+    test_main_serial_profile();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();
