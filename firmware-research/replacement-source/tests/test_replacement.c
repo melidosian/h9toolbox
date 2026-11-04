@@ -20,6 +20,7 @@
 #include "h9_main_aprs_wire.h"
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
+#include "h9_main_tx_service.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
 #include <string.h>
@@ -555,6 +556,154 @@ static void test_main_policy(void)
                                        445390000u, 144390000u));
     assert(h9_main_rx_channel_matches(H9_RX_OFF, 145000000u,
                                       445390000u, 144390000u));
+}
+
+typedef struct {
+    H9Side current_side;
+    H9Side prepared_side;
+    uint32_t prepared_hz;
+    bool fail_prepare;
+    bool fail_send;
+    bool fail_stop;
+    bool wrong_readback_side;
+    bool wrong_readback_hz;
+    unsigned prepare_calls;
+    unsigned readback_calls;
+    unsigned send_calls;
+    unsigned stop_calls;
+    unsigned restore_calls;
+    unsigned step;
+} FakeMainTx;
+
+static bool main_read_side(void *opaque, H9Side *side)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    *side = fake->current_side;
+    return true;
+}
+
+static bool main_prepare(void *opaque, H9Side side, uint32_t hz)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    assert(fake->step == 0u);
+    fake->step = 1u;
+    fake->prepare_calls++;
+    fake->prepared_side = side;
+    fake->prepared_hz = hz;
+    return !fake->fail_prepare;
+}
+
+static bool main_read_prepared(void *opaque, H9Side *side, uint32_t *hz)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    assert(fake->step == 1u);
+    fake->step = 2u;
+    fake->readback_calls++;
+    *side = fake->wrong_readback_side ? H9_SIDE_A : fake->prepared_side;
+    *hz = fake->wrong_readback_hz ? 445390000u : fake->prepared_hz;
+    return true;
+}
+
+static bool main_send_packet(void *opaque, const uint8_t *packet, size_t length)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    assert(fake->step == 2u);
+    assert(packet[0] == 0x82u && length == 1u);
+    fake->step = 3u;
+    fake->send_calls++;
+    return !fake->fail_send;
+}
+
+static bool main_stop_tx(void *opaque)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    assert(fake->step == 1u || fake->step == 2u || fake->step == 3u);
+    fake->step = 4u;
+    fake->stop_calls++;
+    return !fake->fail_stop;
+}
+
+static bool main_restore_receive(void *opaque, H9Side previous_side)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    assert(fake->step == 4u);
+    assert(previous_side == fake->current_side);
+    fake->step = 5u;
+    fake->restore_calls++;
+    return true;
+}
+
+static void test_main_tx_service(void)
+{
+    const uint8_t packet[] = { 0x82u };
+    const H9MainTxHardware hardware = {
+        main_read_side, main_prepare, main_read_prepared,
+        main_send_packet, main_stop_tx, main_restore_receive
+    };
+    H9MainAprsConfig cfg = { true, false, H9_RX_B, H9_TX_B_LOCK };
+    FakeMainTx fake = { 0 };
+    H9MainTxResult result;
+
+    fake.current_side = H9_SIDE_A;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_REJECTED && fake.prepare_calls == 0u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_SENT && fake.step == 5u);
+    assert(fake.prepared_side == H9_SIDE_B && fake.prepared_hz == 144390000u);
+    assert(fake.send_calls == 1u && fake.stop_calls == 1u &&
+           fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.fail_prepare = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_PREPARE_FAILED && fake.send_calls == 0u);
+    assert(fake.stop_calls == 1u && fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.wrong_readback_side = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_READBACK_FAILED && fake.send_calls == 0u);
+    assert(fake.stop_calls == 1u && fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.wrong_readback_hz = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_READBACK_FAILED && fake.send_calls == 0u);
+    assert(fake.stop_calls == 1u && fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.fail_send = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_SEND_FAILED && fake.send_calls == 1u);
+    assert(fake.stop_calls == 1u && fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.fail_stop = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_CLEANUP_FAILED && fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_A;
+    cfg.tx_choice = H9_TX_B_AUTO;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_SENT && fake.prepared_side == H9_SIDE_B);
+    assert(fake.restore_calls == 1u && fake.current_side == H9_SIDE_A);
 }
 
 static void test_timed_beacon_scheduler(void)
@@ -1226,6 +1375,7 @@ int main(void)
     test_main_control_frames();
     test_main_uart_ring();
     test_main_policy();
+    test_main_tx_service();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();
