@@ -157,3 +157,45 @@ bool h9_aprs_adc_board_sample_irq(H9AprsAdcBoard *board,
     board->adc[H9_APRS_ADC_ISR_WORD] = H9_APRS_ADC_SAMPLE_FLAGS;
     return true;
 }
+
+uint32_t h9_aprs_adc_board_irq(H9AprsAdcBoard *board,
+                                H9AprsController *controller)
+{
+    uint32_t pending;
+    uint32_t handled = 0u;
+    volatile uint32_t *adc;
+    if (board == NULL || board->adc == NULL || controller == NULL) return 0u;
+    adc = board->adc;
+    pending = adc[H9_APRS_ADC_ISR_WORD] & adc[H9_APRS_ADC_IER_WORD];
+    if ((pending & H9_APRS_ADC_SAMPLE_FLAGS) != 0u) {
+        if ((board->irq_flags & 0x10u) == 0u)
+            board->irq_flags |= 0x200u;
+        if ((pending & 8u) != 0u &&
+            (adc[H9_APRS_ADC_CFGR1_WORD] & 0xC00u) == 0u &&
+            board->state_byte_19 == 0u) {
+            if ((adc[H9_APRS_ADC_CR_WORD] & 4u) == 0u) {
+                adc[H9_APRS_ADC_IER_WORD] &= ~0xCu;
+                board->irq_flags = (board->irq_flags & ~0x100u) | 1u;
+            } else {
+                board->irq_flags |= 0x20u;
+                board->event_flags |= 1u;
+            }
+        }
+        h9_aprs_controller_adc_tick(controller);
+        adc[H9_APRS_ADC_ISR_WORD] = H9_APRS_ADC_SAMPLE_FLAGS;
+        handled |= pending & H9_APRS_ADC_SAMPLE_FLAGS;
+    }
+    if ((pending & 0x80u) != 0u) {
+        board->irq_flags |= 0x10000u;
+        adc[H9_APRS_ADC_ISR_WORD] = 0x80u;
+        handled |= 0x80u;
+    }
+    if ((pending & 0x10u) != 0u) {
+        if (board->state_word_28 == 1u ||
+            (adc[H9_APRS_ADC_CFGR1_WORD] & 1u) != 0u)
+            board->event_flags |= 2u;
+        adc[H9_APRS_ADC_ISR_WORD] = 0x10u;
+        handled |= 0x10u;
+    }
+    return handled;
+}

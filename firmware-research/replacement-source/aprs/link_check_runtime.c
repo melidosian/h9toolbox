@@ -170,8 +170,7 @@ void h9_aprs_usart1_handler(void)
 
 void h9_aprs_adc1_handler(void)
 {
-    (void)h9_aprs_adc_board_sample_irq(&runtime.adc_board,
-                                        &runtime.controller);
+    (void)h9_aprs_adc_board_irq(&runtime.adc_board, &runtime.controller);
 }
 
 void h9_aprs_systick_handler(void)

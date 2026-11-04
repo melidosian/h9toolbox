@@ -57,6 +57,9 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str) -> None:
         raise ValueError("APRS waveform GPIO clock base differs")
     if struct.unpack_from("<I", aprs_image, 0x08002894 - APRS_BASE)[0] != 0x40012C00:
         raise ValueError("APRS sampling timer base differs")
+    for address in (0x08002F80, 0x08003240):
+        if aprs_image[address - APRS_BASE:address - APRS_BASE + 2] != b"\x70\x47":
+            raise ValueError(f"APRS ADC IRQ branch callback differs at 0x{address:08X}")
     for address, expected in (
         (0x080027A0, 0x40021000),
         (0x08003238, 0xFFFEC219),
@@ -87,7 +90,7 @@ def main() -> None:
     source = Path(__file__).resolve().parent / "aprs" / "h9_aprs_oscillator.c"
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/table, ADC setup/GPIO/timer literals, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, TX call/table, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

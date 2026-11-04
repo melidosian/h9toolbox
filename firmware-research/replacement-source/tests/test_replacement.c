@@ -2012,6 +2012,53 @@ static void test_aprs_adc_sample_irq(void)
     assert(adc[0] == 0xCu);
 }
 
+static void test_aprs_adc_full_irq(void)
+{
+    H9AprsController controller;
+    H9AprsHardware hardware = { 0 };
+    FakeAprsSampleIrq fake = { 0 };
+    uint32_t adc[17] = { 0 };
+    uint32_t rcc[17] = { 0 };
+    uint32_t gpio[6] = { 0 };
+    uint32_t nvic_iser = 0u;
+    h9_aprs_adc_board_bind(&fake.adc, rcc, gpio, adc, &nvic_iser);
+    h9_aprs_wave_output_bind(&fake.wave, rcc, gpio);
+    hardware.context = &fake;
+    hardware.read_adc = sample_irq_read_adc;
+    hardware.read_dac_port = sample_irq_read_wave;
+    hardware.write_dac_port = sample_irq_write_wave;
+    hardware.demod_sample = sample_irq_demod;
+    h9_aprs_controller_init(&controller, &hardware);
+    adc[16] = 0x200u;
+    adc[2] = 4u;
+    adc[3] = 0x5C04u;
+    adc[0] = adc[1] = 0x9Cu;
+    fake.adc.state_word_28 = 1u;
+    assert(h9_aprs_adc_board_irq(&fake.adc, &controller) == 0x9Cu);
+    assert(fake.demod_calls == 1u);
+    assert(fake.adc.irq_flags == 0x10200u &&
+           fake.adc.event_flags == 2u);
+    assert(adc[0] == 0x10u);
+
+    fake.demod_calls = 0u;
+    adc[0] = adc[1] = 8u;
+    adc[3] = 0u;
+    assert(h9_aprs_adc_board_irq(&fake.adc, &controller) == 8u);
+    assert(fake.demod_calls == 1u);
+    assert((fake.adc.irq_flags & 0x20u) != 0u &&
+           fake.adc.event_flags == 3u);
+
+    fake.demod_calls = 0u;
+    adc[0] = adc[1] = 8u;
+    adc[2] = 0u;
+    fake.adc.irq_flags |= 0x100u;
+    assert(h9_aprs_adc_board_irq(&fake.adc, &controller) == 8u);
+    assert(fake.demod_calls == 1u && adc[1] == 0u);
+    assert((fake.adc.irq_flags & 0x100u) == 0u &&
+           (fake.adc.irq_flags & 1u) != 0u);
+    assert(h9_aprs_adc_board_irq(&fake.adc, &controller) == 0u);
+}
+
 static void test_aprs_internal_clock_selection(void)
 {
     uint32_t rcc[3] = { 0 };
@@ -2583,6 +2630,7 @@ int main(void)
     test_aprs_adc_board();
     test_aprs_sample_timer();
     test_aprs_adc_sample_irq();
+    test_aprs_adc_full_irq();
     test_aprs_internal_clock_selection();
     test_aprs_uart1_reply_transmit();
     return 0;

@@ -13,6 +13,12 @@ typedef struct {
     volatile uint32_t *gpio_a;
     volatile uint32_t *adc;
     volatile uint32_t *nvic_iser;
+    /* Counterparts of the stock ADC driver's state at +0x38/+0x3C.
+     * The replacement keeps these separately from its register pointers. */
+    uint32_t irq_flags;
+    uint32_t event_flags;
+    uint32_t state_word_28;
+    uint8_t state_byte_19;
 } H9AprsAdcBoard;
 
 void h9_aprs_adc_board_bind(H9AprsAdcBoard *board,
@@ -39,9 +45,13 @@ bool h9_aprs_adc_board_configure(H9AprsAdcBoard *board);
 bool h9_aprs_adc_board_start(H9AprsAdcBoard *board, uint32_t poll_limit,
                              void (*poll_step)(void *context), void *context);
 uint16_t h9_aprs_adc_board_read(const H9AprsAdcBoard *board);
-/* Sample-producing branch of the stock IRQ 12 handler at 0x08002F8A.
- * Other ADC interrupt conditions are not yet reconstructed. */
+/* Sample-producing branch of the stock IRQ 12 handler at 0x08002F8A. */
 bool h9_aprs_adc_board_sample_irq(H9AprsAdcBoard *board,
                                   H9AprsController *controller);
+/* Full observed IRQ 12 dispatch: sample (0xC), watchdog (0x80), and
+ * end-of-sequence (0x10). Returns the handled flag mask. The two stock
+ * branch callbacks are one-instruction returns; state/flag effects remain. */
+uint32_t h9_aprs_adc_board_irq(H9AprsAdcBoard *board,
+                                H9AprsController *controller);
 
 #endif
