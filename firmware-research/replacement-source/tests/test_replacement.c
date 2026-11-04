@@ -1,4 +1,5 @@
 #include "h9_aprs_controller.h"
+#include "h9_aprs_bitstream.h"
 #include "h9_main_aprs.h"
 #include <assert.h>
 #include <string.h>
@@ -95,6 +96,52 @@ static void test_main_policy(void)
     assert(tx.allowed && tx.side == H9_SIDE_B);
 }
 
+typedef struct { uint8_t bytes[32]; size_t length; } BitOutput;
+static bool emit_bitstream_byte(void *opaque, uint8_t byte)
+{
+    BitOutput *output = (BitOutput *)opaque;
+    if (output->length == sizeof output->bytes) return false;
+    output->bytes[output->length++] = byte;
+    return true;
+}
+
+static void feed_lsb_byte(H9AprsBitstream *state, BitOutput *output, uint8_t byte)
+{
+    unsigned bit;
+    for (bit = 0; bit < 8; ++bit)
+        assert(h9_aprs_bitstream_feed(state, (uint8_t)((byte >> bit) & 1u),
+                                       emit_bitstream_byte, output));
+}
+
+static void test_recovered_bit_path(void)
+{
+    H9AprsBitstream state;
+    BitOutput output = { { 0 }, 0 };
+    h9_aprs_bitstream_reset(&state);
+    feed_lsb_byte(&state, &output, 0x7Eu);
+    feed_lsb_byte(&state, &output, 0x55u);
+    feed_lsb_byte(&state, &output, 0x7Eu);
+    assert(output.length == 3);
+    assert(output.bytes[0] == 0x7Eu && output.bytes[1] == 0x55u &&
+           output.bytes[2] == 0x7Eu);
+
+    h9_aprs_bitstream_reset(&state);
+    output.length = 0;
+    feed_lsb_byte(&state, &output, 0x7Eu);
+    feed_lsb_byte(&state, &output, 0xF8u); /* Ends in five 1 bits. */
+    assert(h9_aprs_bitstream_feed(&state, 0, emit_bitstream_byte, &output));
+    feed_lsb_byte(&state, &output, 0x7Eu);
+    assert(output.length == 3 && output.bytes[1] == 0xF8u);
+
+    h9_aprs_bitstream_reset(&state);
+    output.length = 0;
+    feed_lsb_byte(&state, &output, 0x7Eu);
+    feed_lsb_byte(&state, &output, 0x1Bu);
+    feed_lsb_byte(&state, &output, 0x7Eu);
+    assert(output.length == 4 && output.bytes[1] == 0x1Bu &&
+           output.bytes[2] == 0x1Bu);
+}
+
 static void feed_frame(H9AprsController *controller, uint8_t command,
                        const uint8_t *payload, size_t length)
 {
@@ -144,6 +191,7 @@ int main(void)
 {
     test_wire_vectors();
     test_main_policy();
+    test_recovered_bit_path();
     test_aprs_controller();
     return 0;
 }

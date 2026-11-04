@@ -7,6 +7,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 add_library(h9_replacement_core STATIC
     common/h9_aprs_wire.c
     main/h9_main_aprs.c
+    aprs/h9_aprs_bitstream.c
     aprs/h9_aprs_controller.c)
 target_include_directories(h9_replacement_core PUBLIC common main aprs)
 if(MSVC)
