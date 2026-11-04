@@ -93,7 +93,11 @@ app+`0x0C5E94..0x0C5EC6` confirms this order. The replacement
 for the two ROM operations; it has no board implementation for them yet.
 The DMA source must remain valid through TX event 1. It cannot directly use
 a temporary reply buffer from `h9_main_aprs_session_poll`; a persistent
-staging/queue layer is still needed.
+staging/queue layer is required. The replacement
+`h9_main_uart1_tx_queue.*` now accepts caller-owned DMA-addressed slots,
+copies outgoing frames into them, and advances after event 1. Its queue
+depth and overflow counter are replacement policies rather than recovered
+stock behavior; the board still needs to allocate DMA-capable slot storage.
 
 The interrupt routine at
 `0x01EC5FC8` dispatches event numbers 1, 2, and 3 through the object callback.

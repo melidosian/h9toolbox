@@ -35,6 +35,7 @@
 #include "h9_main_serial_dma.h"
 #include "h9_main_uart1_irq.h"
 #include "h9_main_uart1_tx.h"
+#include "h9_main_uart1_tx_queue.h"
 #include "h9_main_tx_service.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
@@ -2285,6 +2286,87 @@ static void test_main_uart1_tx(void)
     assert(capture.count == 2u && registers[0] == 0x2000u);
 }
 
+typedef struct {
+    uint32_t *registers;
+    unsigned starts;
+    uint32_t addresses[3];
+    uint32_t lengths[3];
+} MainTxQueueCapture;
+
+static void main_tx_queue_prepare(void *context, uint32_t descriptor)
+{
+    (void)context;
+    assert(descriptor == 0x001E3B0u);
+}
+
+static void main_tx_queue_enable(void *context, uint32_t descriptor,
+                                  uint32_t option)
+{
+    MainTxQueueCapture *capture = (MainTxQueueCapture *)context;
+    assert(descriptor == 0x001E3B0u && option == 0u);
+    assert(capture->starts < 3u);
+    capture->addresses[capture->starts] = capture->registers[5];
+    capture->lengths[capture->starts] = capture->registers[6];
+    capture->starts++;
+}
+
+static void test_main_uart1_tx_queue(void)
+{
+    uint32_t registers[7] = { 0 };
+    uint8_t storage[2][H9_MAIN_APRS_WIRE_CAPACITY] = { { 0 }, { 0 } };
+    H9MainUart1TxSlot slots[2] = {
+        { storage[0], 0x10000u, sizeof storage[0], 0u },
+        { storage[1], 0x11000u, sizeof storage[1], 0u }
+    };
+    MainTxQueueCapture capture = { registers, 0u, { 0 }, { 0 } };
+    H9MainUart1Tx port = { registers, main_tx_queue_prepare,
+                           main_tx_queue_enable, &capture };
+    H9MainUart1TxQueue queue;
+    H9MainAprsSession session;
+    H9MainAprsSessionCallbacks callbacks = { 0 };
+    uint8_t query_frame[16];
+    static const uint8_t gpio_query[] = { 3u };
+    size_t query_length;
+    uint8_t first[] = { 1u, 2u, 3u };
+    static const uint8_t second[] = { 4u, 5u };
+
+    assert(h9_main_uart1_tx_queue_init(&queue, &port, slots, 2u));
+    assert(h9_main_uart1_tx_queue_enqueue(&queue, first, sizeof first));
+    assert(queue.active && queue.count == 1u && capture.starts == 1u);
+    assert(capture.addresses[0] == 0x10000u &&
+           capture.lengths[0] == sizeof first);
+    first[0] = 99u;
+    assert(slots[0].storage[0] == 1u);
+    h9_main_uart1_tx_queue_write(&queue, second, sizeof second);
+    assert(queue.count == 2u && capture.starts == 1u);
+    assert(!h9_main_uart1_tx_queue_enqueue(&queue, first, sizeof first));
+    assert(queue.rejected == 1u);
+    h9_main_uart1_tx_queue_event(&queue, 2u);
+    h9_main_uart1_tx_queue_pump(&queue);
+    assert(queue.active && queue.count == 2u && capture.starts == 1u);
+    h9_main_uart1_tx_queue_event(&queue, 1u);
+    h9_main_uart1_tx_queue_pump(&queue);
+    assert(queue.active && queue.count == 1u && capture.starts == 2u);
+    assert(capture.addresses[1] == 0x11000u &&
+           capture.lengths[1] == sizeof second);
+    assert(slots[1].storage[0] == 4u);
+    h9_main_uart1_tx_queue_event(&queue, 1u);
+    h9_main_uart1_tx_queue_pump(&queue);
+    assert(!queue.active && queue.count == 0u && queue.head == 0u);
+
+    callbacks.serial_write = h9_main_uart1_tx_queue_write;
+    h9_main_aprs_session_init(&session, &callbacks, &queue);
+    query_length = h9_wire_encode(0x11u, gpio_query, sizeof gpio_query,
+                                   query_frame, sizeof query_frame);
+    assert(query_length != 0u);
+    assert(h9_main_uart_ring_push_batch(&session.uart_ring, query_frame,
+                                         query_length));
+    assert(h9_main_aprs_session_poll(&session) == query_length);
+    assert(queue.active && queue.count == 1u && capture.starts == 3u);
+    assert(capture.addresses[2] == 0x10000u && capture.lengths[2] == 11u);
+    assert(storage[0][0] == 0xC0u && storage[0][10] == 0xC0u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -2307,6 +2389,7 @@ int main(void)
     test_main_serial_dma_read();
     test_main_uart1_irq();
     test_main_uart1_tx();
+    test_main_uart1_tx_queue();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();
