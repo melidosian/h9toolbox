@@ -115,3 +115,12 @@ event callbacks; fake-register tests cover all three events and zero-length
 partial RX. The ROM acknowledgement behavior, DMA setup,
 cache/synchronization rule, actual interrupt-vector binding, and completed TX path are
 not yet connected to the replacement board entry.
+
+`replacement-source/main/h9_main_aprs_uart1_link.*` now binds the three
+replacement components at the C interface: an RX interrupt advances the DMA
+ring, the APRS session drains and parses it in the main loop, and its outgoing
+frames enter persistent TX slots until TX event 1. An end-to-end fake-register
+test covers a command `0x11` GPIO query and the reply's TX completion. This is
+an integration of reconstructed behavior, not evidence of working board
+hardware. The link accepts required ROM operation callbacks and board-owned
+DMA buffers but still has no Pi32 UART/DMA initialization or vector binding.

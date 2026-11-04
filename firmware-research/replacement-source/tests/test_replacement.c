@@ -27,6 +27,7 @@
 #include "h9_main_aprs_metadata.h"
 #include "h9_main_aprs_receive.h"
 #include "h9_main_aprs_session.h"
+#include "h9_main_aprs_uart1_link.h"
 #include "h9_main_aprs_wire.h"
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
@@ -2367,6 +2368,81 @@ static void test_main_uart1_tx_queue(void)
     assert(storage[0][0] == 0xC0u && storage[0][10] == 0xC0u);
 }
 
+typedef struct {
+    uint32_t *registers;
+    unsigned prepares;
+    unsigned enables;
+    unsigned tx_acks;
+    unsigned rx_acks;
+} MainUartLinkCapture;
+
+static void main_uart_link_prepare(void *context, uint32_t descriptor)
+{
+    MainUartLinkCapture *capture = (MainUartLinkCapture *)context;
+    assert(descriptor == 0x001E3B0u);
+    capture->prepares++;
+}
+
+static void main_uart_link_enable(void *context, uint32_t descriptor,
+                                   uint32_t option)
+{
+    MainUartLinkCapture *capture = (MainUartLinkCapture *)context;
+    assert(descriptor == 0x001E3B0u && option == 0u);
+    assert(capture->registers[5] == 0x12000u);
+    assert(capture->registers[6] == 11u);
+    capture->enables++;
+}
+
+static void main_uart_link_tx_ack(void *context)
+{
+    ((MainUartLinkCapture *)context)->tx_acks++;
+}
+
+static void main_uart_link_rx_ack(void *context)
+{
+    ((MainUartLinkCapture *)context)->rx_acks++;
+}
+
+static void test_main_aprs_uart1_link(void)
+{
+    uint32_t registers[11] = { 0 };
+    uint8_t receive[32] = { 0 };
+    uint8_t outgoing[32] = { 0 };
+    H9MainUart1TxSlot slot = { outgoing, 0x12000u,
+                               sizeof outgoing, 0u };
+    MainUartLinkCapture capture = { registers, 0u, 0u, 0u, 0u };
+    H9MainAprsUart1DmaHooks hooks = {
+        main_uart_link_prepare, main_uart_link_enable,
+        main_uart_link_tx_ack, main_uart_link_rx_ack, &capture
+    };
+    H9MainAprsUart1Link link;
+    static const uint8_t gpio_query[] = { 3u };
+    size_t query_length = h9_wire_encode(0x11u, gpio_query,
+                                          sizeof gpio_query,
+                                          receive, sizeof receive);
+    assert(query_length != 0u);
+    assert(!h9_main_aprs_uart1_link_init(&link, registers, receive,
+                                         31u, (uint32_t)query_length,
+                                         &slot, 1u, &hooks, NULL, NULL));
+    assert(h9_main_aprs_uart1_link_init(&link, registers, receive,
+                                        sizeof receive,
+                                        (uint32_t)query_length, &slot, 1u,
+                                        &hooks, NULL, NULL));
+    registers[0] = 0x4008u;
+    h9_main_aprs_uart1_link_irq(&link);
+    assert(capture.rx_acks == 1u && link.receive.produced == query_length);
+    assert(h9_main_aprs_uart1_link_poll(&link) == query_length);
+    assert(link.receive.consumed == query_length);
+    assert(capture.prepares == 1u && capture.enables == 1u);
+    assert(link.transmit_queue.active && outgoing[0] == 0xC0u &&
+           outgoing[10] == 0xC0u);
+    registers[0] = 0x8004u;
+    h9_main_aprs_uart1_link_irq(&link);
+    assert(capture.tx_acks == 1u && link.transmit_queue.completed == 1u);
+    assert(h9_main_aprs_uart1_link_poll(&link) == 0u);
+    assert(!link.transmit_queue.active && link.transmit_queue.count == 0u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -2390,6 +2466,7 @@ int main(void)
     test_main_uart1_irq();
     test_main_uart1_tx();
     test_main_uart1_tx_queue();
+    test_main_aprs_uart1_link();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();
