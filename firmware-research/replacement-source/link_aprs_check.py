@@ -22,6 +22,15 @@ IMAGE_BASE = 0x08002000
 STOCK_IMAGE_SIZE = 17_304
 STOCK_STACK_TOP = 0x20001A50
 STOCK_SHA256 = "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33"
+RESERVED_VECTOR_SLOTS = {4, 5, 6, 7, 8, 9, 10, 12, 13, 24, 27, 31,
+                         34, 36, 40, 42, 45, 46, 47}
+STOCK_EXCEPTION_VECTORS = {
+    2: 0x08004907, 3: 0x0800486D,
+    11: 0x08004983, 14: 0x08004981,
+}
+ACTIVE_IRQ_SLOTS = {15, 25, 26, 28, 43, 44}
+DEFAULT_VECTOR_SLOTS = set(range(2, 48)) - RESERVED_VECTOR_SLOTS - \
+    set(STOCK_EXCEPTION_VECTORS) - ACTIVE_IRQ_SLOTS
 
 
 def sibling_tool(compiler: str, name: str) -> str:
@@ -42,6 +51,19 @@ def verify_stock_envelope(path: Path) -> None:
         raise ValueError("Stock APRS vectors differ from pinned evidence")
     if struct.unpack_from("<I", data, 28 * 4)[0] != 0x08002235:
         raise ValueError("Stock APRS ADC IRQ vector differs from pinned evidence")
+    for slot in RESERVED_VECTOR_SLOTS:
+        if struct.unpack_from("<I", data, slot * 4)[0] != 0:
+            raise ValueError(f"Stock reserved vector {slot} differs")
+    for slot, expected in STOCK_EXCEPTION_VECTORS.items():
+        if struct.unpack_from("<I", data, slot * 4)[0] != expected:
+            raise ValueError(f"Stock exception vector {slot} differs")
+    for slot in DEFAULT_VECTOR_SLOTS:
+        if struct.unpack_from("<I", data, slot * 4)[0] != 0x080020E7:
+            raise ValueError(f"Stock default vector {slot} differs")
+    if data[0x286C:0x2870] != bytes.fromhex("00 BF FE E7") or \
+            any(data[offset:offset + 2] != bytes.fromhex("70 47")
+                for offset in (0x2906, 0x2980, 0x2982)):
+        raise ValueError("Stock APRS exception handler bodies differ")
 
 
 def read_stack_usage(paths: list[Path]) -> list[dict]:
@@ -119,6 +141,10 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         raise ValueError(f"Linked reset vector is outside APRS image: 0x{reset_vector:08X}")
     for index in range(1, 48):
         vector = struct.unpack_from("<I", table, index * 4)[0]
+        if index in RESERVED_VECTOR_SLOTS:
+            if vector != 0:
+                raise ValueError(f"Reserved vector {index} must be zero")
+            continue
         if vector & 1 == 0 or not (
             IMAGE_BASE <= (vector & ~1) < IMAGE_BASE + STOCK_IMAGE_SIZE
         ):
@@ -130,6 +156,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     symbol_values = {}
     required_symbols = {
         "__bss_end", "__stack_top", "Default_Handler",
+        "h9_aprs_nmi_handler", "h9_aprs_hardfault_handler",
+        "h9_aprs_svc_handler", "h9_aprs_pendsv_handler",
         "h9_aprs_systick_handler",
         "h9_aprs_dma1_channel1_handler", "h9_aprs_adc1_handler",
         "h9_aprs_dma1_channel3_handler",
@@ -141,7 +169,11 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             symbol_values[parts[2]] = int(parts[0], 16)
     if set(symbol_values) != required_symbols:
         raise ValueError("Linked ELF lacks RAM-boundary or IRQ symbols")
-    for slot, handler in ((15, "h9_aprs_systick_handler"),
+    for slot, handler in ((2, "h9_aprs_nmi_handler"),
+                          (3, "h9_aprs_hardfault_handler"),
+                          (11, "h9_aprs_svc_handler"),
+                          (14, "h9_aprs_pendsv_handler"),
+                          (15, "h9_aprs_systick_handler"),
                           (25, "h9_aprs_dma1_channel1_handler"),
                           (26, "h9_aprs_dma1_channel3_handler"),
                           (28, "h9_aprs_adc1_handler"),
@@ -150,6 +182,10 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         vector = struct.unpack_from("<I", table, slot * 4)[0]
         if vector != (symbol_values[handler] | 1):
             raise ValueError(f"Vector {slot} does not point to {handler}")
+    for slot in DEFAULT_VECTOR_SLOTS:
+        vector = struct.unpack_from("<I", table, slot * 4)[0]
+        if vector != (symbol_values["Default_Handler"] | 1):
+            raise ValueError(f"Vector {slot} does not point to Default_Handler")
     stack_headroom = symbol_values["__stack_top"] - symbol_values["__bss_end"]
     if stack_headroom < 1024:
         raise ValueError(f"APRS diagnostic stack headroom is only {stack_headroom} bytes")
@@ -177,6 +213,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "source_objects": len(object_manifest["objects"]),
         "startup_source_object": startup_source.name,
         "vector_entries": 48,
+        "reserved_zero_vectors": sorted(RESERVED_VECTOR_SLOTS),
+        "default_spin_vectors": sorted(DEFAULT_VECTOR_SLOTS),
         "irq_vectors": {
             "systick": 15,
             "dma1_channel1": 25,

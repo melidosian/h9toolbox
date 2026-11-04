@@ -34,7 +34,14 @@ stack pointer is `0x20001A50`; reset vector is `0x080020D5`.
 `.data` copy, `.bss` zeroing, 48-vector RAM relocation, and VTOR setup. The
 linker reserves the first `0xC0` RAM bytes for those vectors. The linked
 diagnostic image now maps SysTick, DMA channel 1, DMA channel 3, ADC1, USART1, and USART2 slots to
-replacement handlers, while other interrupt slots retain default handlers. Its
+replacement handlers. The 19 reserved slots remain zero, as in stock. Stock
+vector 2 (NMI) points to `0x08004906` and returns; vector 3 (HardFault)
+points to `0x0800486C` and spins after a `nop`; vector 11 (SVC) and vector
+14 (PendSV) point to one-instruction returns at `0x08004982` and
+`0x08004980`. The replacement now supplies matching first-pass handlers.
+Other populated peripheral slots retain a default spin handler. The pinned
+image check verifies these vector values and handler bytes, and the link
+check verifies the new vector topology. Its
 board entry now selects the observed 24 MHz internal-clock path, configures
 USART1 and DMA channel 1, polls received UART batches, and sends serial
 replies through USART1. This source path
