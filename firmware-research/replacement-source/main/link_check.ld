@@ -21,6 +21,8 @@ SECTIONS {
 
     .ram_code : {
         __ram_code_start = .;
+        FILL(0x00);
+        . += 0x40;
         *(.ram_code .ram_code.*)
         . = ALIGN(4);
         __ram_code_end = .;

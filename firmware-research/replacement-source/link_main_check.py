@@ -116,6 +116,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     ram_code_start = symbol_address("__ram_code_start")
     ram_code_end = symbol_address("__ram_code_end")
     ram_code_load = symbol_address("__ram_code_load_start")
+    serial_bus_entry = symbol_address("h9_main_serial_bus_transfer")
     if symbol_address("__stock_clear_start") != RAM_START or \
             symbol_address("__stock_clear_end") != RAM_END:
         raise ValueError("Linked RAM-clear interval differs from stock startup")
@@ -123,6 +124,15 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         raise ValueError("Linked C data/BSS exceed observed stock-cleared RAM interval")
     if not (0 <= ram_code_start <= ram_code_end <= 0xDA78):
         raise ValueError("Linked RAM code exceeds stock relocation interval")
+    if ram_code_start != 0 or serial_bus_entry != 0x40 or ram_code_end <= 0x40:
+        raise ValueError("Linked RAM serial-bus routine is not at stock RAM address 0x40")
+    ram_code_section = output / "main-ram-code.bin"
+    run([sibling_tool(compiler, "llvm-objcopy"), "-O", "binary",
+         "-j=.ram_code", str(elf), str(ram_code_section)])
+    ram_code_data = ram_code_section.read_bytes()
+    if len(ram_code_data) != ram_code_end - ram_code_start or \
+            ram_code_data[:0x40] != bytes(0x40):
+        raise ValueError("Linked RAM code has unexpected length or nonzero prefix")
     if not (IMAGE_BASE <= data_load and data_load + data_end - data_start <=
             IMAGE_BASE + STOCK_IMAGE_SIZE):
         raise ValueError("Linked C data load exceeds stock app address envelope")
@@ -159,6 +169,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
+        "ram_serial_bus_entry": serial_bus_entry,
+        "ram_code_zero_prefix_verified": True,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
         "elf": elf.name,
         "elf_sha256": sha256(elf.read_bytes()).hexdigest(),

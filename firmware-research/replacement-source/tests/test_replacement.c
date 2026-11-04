@@ -40,6 +40,7 @@
 #include "h9_main_rf_registers.h"
 #include "h9_main_boot_record.h"
 #include "h9_main_serial_profile.h"
+#include "h9_main_serial_bus.h"
 #include "h9_main_serial_dma.h"
 #include "h9_main_uart1_irq.h"
 #include "h9_main_uart1_board.h"
@@ -3018,6 +3019,33 @@ static void test_main_serial_profile(void)
     assert(!h9_main_serial_route(3, &route));
 }
 
+static void test_main_serial_bus(void)
+{
+    volatile uint32_t registers[2] = { 0u, 0u };
+    H9MainSerialBus bus = { 0 };
+    uint8_t received = 0xA5u;
+
+    h9_main_serial_bus_bind(&bus, registers, 3u);
+    assert(h9_main_serial_bus_transfer(&bus, 0x1234u, &received));
+    assert(registers[0] == 0x10u && registers[1] == 0x1234u);
+    assert(received == 0x34u);
+
+    registers[0] = 2u;
+    received = 0xA5u;
+    assert(!h9_main_serial_bus_transfer(&bus, 0x5678u, &received));
+    assert(registers[0] == 0x12u && registers[1] == 0x5678u);
+    assert(received == 0xA5u);
+
+    h9_main_serial_bus_bind(&bus, registers, 0u);
+    assert(!h9_main_serial_bus_transfer(&bus, 0x9999u, &received));
+    assert(registers[1] == 0x5678u);
+
+    h9_main_serial_bus_bind_target(&bus, 1u);
+    assert((uintptr_t)bus.registers == 0x001E3E08u);
+    assert(!h9_main_serial_bus_transfer(NULL, 0u, &received));
+    assert(!h9_main_serial_bus_transfer(&bus, 0u, NULL));
+}
+
 static void test_main_serial_dma_read(void)
 {
     uint8_t storage[2048] = { 0 };
@@ -3470,6 +3498,7 @@ int main(void)
     test_main_tx_service();
     test_main_boot_record();
     test_main_serial_profile();
+    test_main_serial_bus();
     test_main_serial_dma_read();
     test_main_uart1_irq();
     test_main_uart1_tx();

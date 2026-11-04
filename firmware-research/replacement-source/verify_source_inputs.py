@@ -27,6 +27,12 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         raise ValueError("main app is not the analyzed v1.0.38 image")
     if sha256(aprs_image).hexdigest() != APRS_SHA256:
         raise ValueError("APRS image is not the analyzed v1.0.15 image")
+    ram_code = main_app[0x0C618C:0x0C618C + 0x58]
+    if ram_code[:0x40] != bytes(0x40) or ram_code[0x40:] != bytes.fromhex(
+        "c1 ff 08 3e 1e 00 90 61 00 ef 10 10 10 60 "
+        "50 e8 fd 0b 10 61 00 17 80 00"
+    ):
+        raise ValueError("main relocated RAM serial-bus routine differs")
     for literal, address in ((0x080026C8, 0x20000110),
                              (0x080026D0, 0x20000114),
                              (0x080057F4, 0x2000011C),
@@ -191,7 +197,7 @@ def main() -> None:
            source.read_text(encoding="utf-8"),
            tx_source.read_text(encoding="utf-8"),
            tx_defaults.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/tables/limits and Dual Watch side and frequency copies, control group 07 timer/volume paths, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, APRS TX setting pointers/defaults, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, relocated RAM byte-transfer routine, TX call/tables/limits and Dual Watch side and frequency copies, control group 07 timer/volume paths, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, APRS TX setting pointers/defaults, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":
