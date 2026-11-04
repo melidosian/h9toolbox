@@ -74,6 +74,7 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainPostClockDescriptorResult post_clock_descriptor_result;
     H9MainPostClockDescriptor32Board post_clock_descriptor32_board;
     H9MainPostClockGateRegisters post_clock_gate;
+    H9MainPostClockTimerStage post_clock_timer;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -150,6 +151,9 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     h9_main_post_clock_gate_bind_target(&post_clock_gate);
     if (!h9_main_post_clock_gate_run(&post_clock_gate,
                                       &post_clock_route_flags)) for (;;) { }
+    h9_main_post_clock_timer_stage_bind_target(&post_clock_timer,
+                                                &post_clock_rom);
+    if (!h9_main_post_clock_timer_stage_run(&post_clock_timer)) for (;;) { }
 #endif
     for (;;) { }
 }

@@ -129,6 +129,20 @@ ROM selector 49, and writes its low byte to RAM `0x11B40` if bit 7 is
 clear. If bit 7 is set, it calls ROM control `(49, 64)`, reads selector 18,
 and writes that low byte instead. `replacement-source` now models this
 stage with an injected interrupt-registration callback and explicit handler
-pointer. Host tests cover both selector branches and timer arithmetic; the
-diagnostic target entry still stops before it because a complete interrupt
-handler and target registration path are required.
+pointer. Host tests cover both selector branches and timer arithmetic. The
+diagnostic target entry now calls the stage and installs its replacement ISR.
+
+The handler at app+`0x03126C..0x0312D2` saves processor status and registers
+0–4, increments RAM `0xC0A4`, sets timer-control bit `0x40` at `0x10F0EC`,
+and increments RAM `0x1D8B0`. It calls ROM `0x02001D2E`; a zero result
+returns immediately. Otherwise it calls ROM `0x02001634`, executes `csync`,
+and calls ROM `0x02001E2C`. If that result is nonzero, it compares one word
+each at RAM `0xD5E8` and `0xD5BC`, invoking `swi 0` on a mismatch. It then
+calls ROM `0x02001650`, restores processor state, and returns with `rti`.
+The source ports these branch and register effects in
+`main/h9_main_timer3_irq.*`, with injectable ROM operations and a fault
+callback. The Pi32 target adds the stock save/restore shell and a specific
+IRQ-3 registration using stock table value `1` at app+`0x0A2A25`. Its
+linked vector write is `0x2BF0C` and its control field at `0x10F100` is
+`0x3000`. The wider clock contract and live interrupt behavior remain
+unverified; this linked image is still diagnostic and not flashable.

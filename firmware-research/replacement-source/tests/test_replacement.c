@@ -53,6 +53,7 @@
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
 #include "h9_main_post_clock_rom.h"
+#include "h9_main_timer3_irq.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_bus.h"
 #include "h9_main_serial_commands.h"
@@ -5151,6 +5152,13 @@ static void test_main_post_clock_timer_stage(void)
         &capture, post_clock_timer_setup, post_clock_timer_install,
         post_clock_timer_handler, &source, timer, &dummy, &output, &rom
     };
+    H9MainPostClockTimerStage target;
+    h9_main_post_clock_timer_stage_bind_target(&target, &rom);
+    assert((uintptr_t)target.clock_count_d9d8 == 0xD9D8u &&
+           (uintptr_t)target.timer_registers_10f0ec == 0x10F0ECu &&
+           (uintptr_t)target.dummy_read_1e00c0 == 0x1E00C0u &&
+           (uintptr_t)target.selector_byte_11b40 == 0x11B40u &&
+           target.timer_irq_handler == h9_main_timer3_isr);
     assert(!h9_main_post_clock_timer_stage_run(NULL));
     stage.timer_irq_handler = NULL;
     assert(!h9_main_post_clock_timer_stage_run(&stage));
@@ -5164,6 +5172,98 @@ static void test_main_post_clock_timer_stage(void)
     capture.first = 0x180u;
     assert(h9_main_post_clock_timer_stage_run(&stage));
     assert(capture.events == 5u && output == 0xC2u);
+}
+
+typedef struct {
+    uint32_t poll_result;
+    uint32_t check_result;
+    char calls[8];
+    unsigned length;
+} Timer3IrqCapture;
+
+static void timer3_record(Timer3IrqCapture *capture, char event)
+{
+    assert(capture->length < sizeof capture->calls);
+    capture->calls[capture->length++] = event;
+}
+
+static uint32_t timer3_poll(void *context)
+{
+    Timer3IrqCapture *capture = (Timer3IrqCapture *)context;
+    timer3_record(capture, 'P');
+    return capture->poll_result;
+}
+
+static void timer3_enter(void *context)
+{
+    timer3_record((Timer3IrqCapture *)context, 'E');
+}
+
+static void timer3_sync(void *context)
+{
+    timer3_record((Timer3IrqCapture *)context, 'S');
+}
+
+static uint32_t timer3_check(void *context)
+{
+    Timer3IrqCapture *capture = (Timer3IrqCapture *)context;
+    timer3_record(capture, 'C');
+    return capture->check_result;
+}
+
+static void timer3_leave(void *context)
+{
+    timer3_record((Timer3IrqCapture *)context, 'L');
+}
+
+static void timer3_fault(void *context)
+{
+    timer3_record((Timer3IrqCapture *)context, 'F');
+}
+
+static void test_main_timer3_irq(void)
+{
+    Timer3IrqCapture capture = { 0u, 0u, { 0 }, 0u };
+    uint32_t ticks = 2u, control = 0x80u, clocks = 9u;
+    uint32_t expected = 0x1234u, actual = 0x1234u;
+    H9MainTimer3Irq irq = {
+        &capture, &ticks, &control, &clocks, &expected, &actual,
+        timer3_poll, timer3_enter, timer3_sync, timer3_check,
+        timer3_leave, timer3_fault
+    };
+    H9MainTimer3Irq target;
+    h9_main_timer3_irq_bind_target(&target);
+    assert((uintptr_t)target.tick_count_c0a4 == 0xC0A4u &&
+           (uintptr_t)target.timer_control_10f0ec == 0x10F0ECu &&
+           (uintptr_t)target.clock_count_1d8b0 == 0x1D8B0u &&
+           (uintptr_t)target.compare_d5e8 == 0xD5E8u &&
+           (uintptr_t)target.compare_d5bc == 0xD5BCu);
+    assert(!h9_main_timer3_irq_handle(NULL));
+    irq.fault_swi0 = NULL;
+    assert(!h9_main_timer3_irq_handle(&irq));
+    assert(ticks == 2u && capture.length == 0u);
+    irq.fault_swi0 = timer3_fault;
+    assert(h9_main_timer3_irq_handle(&irq));
+    assert(ticks == 3u && control == 0xC0u && clocks == 10u);
+    assert(capture.length == 1u && memcmp(capture.calls, "P", 1u) == 0);
+
+    capture.length = 0u;
+    capture.poll_result = 1u;
+    assert(h9_main_timer3_irq_handle(&irq));
+    assert(capture.length == 5u &&
+           memcmp(capture.calls, "PESCL", 5u) == 0);
+
+    capture.length = 0u;
+    capture.check_result = 1u;
+    assert(h9_main_timer3_irq_handle(&irq));
+    assert(capture.length == 5u &&
+           memcmp(capture.calls, "PESCL", 5u) == 0);
+
+    capture.length = 0u;
+    actual = 0x5678u;
+    assert(!h9_main_timer3_irq_handle(&irq));
+    assert(capture.length == 5u &&
+           memcmp(capture.calls, "PESCF", 5u) == 0);
 }
 
 typedef struct {
@@ -5292,6 +5392,7 @@ int main(void)
     test_main_post_clock_descriptor_route();
     test_main_post_clock_gate();
     test_main_post_clock_timer_stage();
+    test_main_timer3_irq();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

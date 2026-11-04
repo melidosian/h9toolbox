@@ -97,6 +97,19 @@ STOCK_POST_CLOCK_TIMER_BOARD = bytes.fromhex(
     "48318dea6f0050e8023a08170487483151208deaba044032"
     "8dea640052ee8007"
 )
+STOCK_TIMER3_IRQ = bytes.fromhex(
+    "e904d8e81f00c0ffa4c00000c0eb0100c0ffecf0100000ef"
+    "4000c0ffb0d80100c0eb01008eeacd84005a8eea4d812000"
+    "8eea468500524020c1ffe8d50000c2ffbcd500000488d8ec"
+    "1a30d8ec2a4003e80140a000c02180f8f6038eea4381d4"
+    "e81f00a9048100"
+)
+STOCK_IRQ_REGISTRATION = bytes.fromhex(
+    "75047b3fb0ec3f40c3ff222bea01d8ee0033c4ff00bf"
+    "0200d8ec4b2002a262e11c20452f80a3c4ff00f110"
+    "00a4e11401251a8eea52e7406090e10305b3e8ff00"
+    "311611a161e10e103120211a1019c0608eea51e75504"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -139,6 +152,9 @@ def verify_stock_image(path: Path) -> None:
             data[0x5FE04:0x5FE5C] != STOCK_POST_CLOCK_GATE or \
             data[0x31162:0x31196] != STOCK_POST_CLOCK_TIMER_LOCAL or \
             data[0x5FE5C:0x5FE94] != STOCK_POST_CLOCK_TIMER_BOARD or \
+            data[0x3126C:0x312D2] != STOCK_TIMER3_IRQ or \
+            data[0x2465A:0x246B0] != STOCK_IRQ_REGISTRATION or \
+            data[0xA2A25] != 1 or \
             data[0xBA:0xD2] != STOCK_DESCRIPTOR_LOOKUP or \
             data[0x554:0x564] != STOCK_DESCRIPTOR_TABLE or \
             data[0x482:0x48E] != STOCK_DESCRIPTOR_WORD5_HELPER or \
@@ -282,6 +298,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_post_clock_descriptor32_run",
         "h9_main_post_clock_gate_bind_target",
         "h9_main_post_clock_gate_run",
+        "h9_main_post_clock_timer_stage_bind_target",
+        "h9_main_post_clock_timer_stage_run",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -388,6 +406,42 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             gate_body.count("|= 0x8") != 1 or \
             gate_body.count("[r3+0] =") < 6:
         raise ValueError("Linked post-clock gate lost repeated stock writes")
+    timer_isr = re.search(
+        r"(?ms)^h9_main_timer3_isr:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    timer_isr_body = timer_isr.group(1) if timer_isr else ""
+    timer_isr_order = (
+        "[--sp] = {psr, rets, reti}", "[--sp] = {r4-r0}",
+        "h9_main_timer3_irq_target_body", "{r4-r0} = [sp++]",
+        "{psr, rets, reti} = [sp++]", "rti",
+    )
+    timer_isr_positions = [timer_isr_body.find(item) for item in timer_isr_order]
+    if -1 in timer_isr_positions or timer_isr_positions != sorted(timer_isr_positions):
+        raise ValueError("Linked timer-3 interrupt lost stock save/restore order")
+    timer_install = re.search(
+        r"(?ms)^target_install_timer_irq:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    timer_install_body = timer_install.group(1) if timer_install else ""
+    if "2bf0c" not in timer_install_body or \
+            "10f100" not in timer_install_body or \
+            "0xFFFF0FFF" not in timer_install_body or \
+            "0x3000" not in timer_install_body:
+        raise ValueError("Linked timer-3 registration lost vector or control")
+    for name, expected in (
+        ("target_poll", "2001d2e"),
+        ("target_clock_enter", "2001634"),
+        ("target_clock_sync", "csync"),
+        ("target_clock_check", "2001e2c"),
+        ("target_clock_leave", "2001650"),
+        ("h9_main_timer3_irq_target_body", "swi 0"),
+    ):
+        helper = re.search(
+            rf"(?ms)^{name}:\n(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+        )
+        if helper is None or expected not in helper.group(1):
+            raise ValueError(f"Linked timer-3 helper lacks {expected}")
     bitmap_match = re.search(
         r"(?ms)^mark_blocks:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
         disassembly,
@@ -731,6 +785,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_post_clock_initial_masks_verified": True,
         "early_board_post_clock_descriptor32_verified": True,
         "early_board_post_clock_gate_verified": True,
+        "early_board_timer3_setup_and_isr_link_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

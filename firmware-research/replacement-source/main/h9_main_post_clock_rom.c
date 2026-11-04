@@ -1,4 +1,5 @@
 #include "h9_main_post_clock_rom.h"
+#include "h9_main_timer3_irq.h"
 
 #include <stddef.h>
 
@@ -399,4 +400,51 @@ bool h9_main_post_clock_timer_stage_run(H9MainPostClockTimerStage *stage)
     }
     *stage->selector_byte_11b40 = (uint8_t)selector;
     return true;
+}
+
+static void target_timer_setup(void *context, uint32_t mode, uint32_t value)
+{
+    typedef void (*RomSetup)(uint32_t, uint32_t);
+    (void)context;
+    ((RomSetup)(uintptr_t)0x020000A0u)(mode, value);
+}
+
+static void target_install_timer_irq(void *context, uint32_t irq,
+                                     uint32_t priority, void (*handler)(void))
+{
+    typedef void (*RomClock)(void);
+    volatile uint32_t *vector =
+        (volatile uint32_t *)(uintptr_t)0x0002BF00u;
+    volatile uint32_t *control =
+        (volatile uint32_t *)(uintptr_t)0x0010F100u;
+    uint32_t value;
+    (void)context;
+    if (irq != 3u || priority != 1u || handler == NULL) return;
+    /* IRQ-3 mapping byte at pinned stock app+0x0A2A25 is 1. */
+    vector[3] = (uint32_t)(uintptr_t)handler;
+    ((RomClock)(uintptr_t)0x02001634u)();
+    value = *control;
+    value &= ~0xF000u;
+    value |= 0x3000u;
+    *control = value;
+    ((RomClock)(uintptr_t)0x02001650u)();
+}
+
+void h9_main_post_clock_timer_stage_bind_target(
+    H9MainPostClockTimerStage *stage, H9MainPostClockRom *rom)
+{
+    if (stage == NULL) return;
+    stage->context = NULL;
+    stage->rom_setup = target_timer_setup;
+    stage->install_timer_irq = target_install_timer_irq;
+    stage->timer_irq_handler = h9_main_timer3_isr;
+    stage->clock_count_d9d8 =
+        (volatile uint32_t *)(uintptr_t)0x0000D9D8u;
+    stage->timer_registers_10f0ec =
+        (volatile uint32_t *)(uintptr_t)0x0010F0ECu;
+    stage->dummy_read_1e00c0 =
+        (volatile uint32_t *)(uintptr_t)0x001E00C0u;
+    stage->selector_byte_11b40 =
+        (volatile uint8_t *)(uintptr_t)0x00011B40u;
+    stage->rom = rom;
 }

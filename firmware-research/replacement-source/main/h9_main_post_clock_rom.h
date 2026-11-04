@@ -163,5 +163,7 @@ typedef struct {
 } H9MainPostClockTimerStage;
 
 bool h9_main_post_clock_timer_stage_run(H9MainPostClockTimerStage *stage);
+void h9_main_post_clock_timer_stage_bind_target(
+    H9MainPostClockTimerStage *stage, H9MainPostClockRom *rom);
 
 #endif

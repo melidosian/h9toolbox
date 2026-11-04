@@ -41,3 +41,16 @@ h9_main_interrupt_config:
     icfg = r2
     rts
     .size h9_main_interrupt_config, .-h9_main_interrupt_config
+
+/* Timer-3 IRQ shell from stock app+0x03126C/0x0312CA. The C body performs
+ * the register, ROM, and fault decisions while this preserves CPU state. */
+    .globl h9_main_timer3_isr
+    .type h9_main_timer3_isr,@function
+h9_main_timer3_isr:
+    [--sp] = {psr, rets, reti}
+    [--sp] = {r4-r0}
+    call h9_main_timer3_irq_target_body
+    {r4-r0} = [sp++]
+    {psr, rets, reti} = [sp++]
+    rti
+    .size h9_main_timer3_isr, .-h9_main_timer3_isr
