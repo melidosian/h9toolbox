@@ -103,16 +103,22 @@ bool h9_main_post_clock_classify(H9MainPostClockClassifier *classifier,
 
 H9MainPostClockBitmapBranch h9_main_post_clock_bitmap_step(
     H9MainPostClockRom *rom, H9MainPostClockWords *words,
-    const H9MainPostClockClassification *classification)
+    const H9MainPostClockClassification *classification,
+    H9MainPostClockRouteFlags *flags)
 {
     uint32_t index;
     if (rom == NULL || words == NULL || classification == NULL ||
+        flags == NULL ||
         rom->read_selector == NULL) return H9_MAIN_POST_CLOCK_BITMAP_ERROR;
+    flags->r6_flag = classification->channel_flag == 1u;
+    flags->r9_flag = flags->r6_flag;
     if (classification->selector_148_masked == 0u)
         return H9_MAIN_POST_CLOCK_BITMAP_CONTINUE;
 
     index = rom->read_selector(rom->context, 192u);
-    if (index > 55u) return H9_MAIN_POST_CLOCK_BITMAP_ALTERNATE;
+    if (index == 56u) flags->r6_flag = true;
+    else if (index == 57u) flags->r9_flag = true;
+    if (index > 55u) return H9_MAIN_POST_CLOCK_BITMAP_NO_CLEAR;
     if (index < 32u) words->first_word &= ~(1u << index);
     else words->second_word &= ~(1u << (index - 32u));
     return H9_MAIN_POST_CLOCK_BITMAP_CONTINUE;

@@ -35,10 +35,12 @@ established on hardware.
 
 At app+`0x05FCB2`, a zero masked selector-148 result skips the next ROM
 read. Otherwise, the board routine reads ROM selector `192`. Values above
-`55` branch to an alternate board path. For `0..55`, it calls the helper at
-app+`0x05FA44` on the two all-ones local words. The helper uses the index's
-upper bits to select one of four halfwords and clears bit `index & 15`, so
-the pair acts as a 64-bit bitmap. The replacement applies the equivalent
-word-level bit clear and records whether this branch continues or diverts.
-The source verifier pins the branch and helper bytes to the stock image.
-The purpose of this bitmap and the subsequent board actions are still unknown.
+`55` branch to app+`0x05FFEC`. Value `56` sets the stock `r6` condition,
+value `57` sets `r9`, and other values above `55` leave both as initialized.
+Every case rejoins at app+`0x05FCD4`. For `0..55`, the helper at
+app+`0x05FA44` uses the index's upper bits to select one of four halfwords
+and clears bit `index & 15`, so the pair acts as a 64-bit bitmap. The
+replacement applies the equivalent word-level bit clear and preserves the
+two later-board condition flags. The source verifier pins the branch,
+special-value handler, and helper bytes to the stock image. The hardware
+meaning of these flags and the subsequent board actions are still unknown.

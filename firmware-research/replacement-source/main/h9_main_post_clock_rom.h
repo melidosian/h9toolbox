@@ -44,17 +44,24 @@ void h9_main_post_clock_classifier_bind_target(
 bool h9_main_post_clock_classify(H9MainPostClockClassifier *classifier,
                                  H9MainPostClockClassification *result);
 
-/* Stock app+0x05FCB2..0x05FCD4 checks the selector-148 result. When nonzero,
- * ROM selector 192 supplies a 0..55 bitmap index; larger values leave this
- * board path. The bit clear is stock app+0x05FA44..0x05FA5C. */
+/* Stock app+0x05FCB2..0x05FCD4 checks selector 148. Selector 192 values
+ * 0..55 clear a bitmap bit; 56 and 57 set different later-board flags;
+ * other values skip the bit clear. All paths rejoin at app+0x05FCD4.
+ * These are the stock r6/r9 flags, not yet assigned hardware meanings. */
+typedef struct {
+    bool r6_flag;
+    bool r9_flag;
+} H9MainPostClockRouteFlags;
+
 typedef enum {
     H9_MAIN_POST_CLOCK_BITMAP_ERROR = 0,
     H9_MAIN_POST_CLOCK_BITMAP_CONTINUE,
-    H9_MAIN_POST_CLOCK_BITMAP_ALTERNATE
+    H9_MAIN_POST_CLOCK_BITMAP_NO_CLEAR
 } H9MainPostClockBitmapBranch;
 
 H9MainPostClockBitmapBranch h9_main_post_clock_bitmap_step(
     H9MainPostClockRom *rom, H9MainPostClockWords *words,
-    const H9MainPostClockClassification *classification);
+    const H9MainPostClockClassification *classification,
+    H9MainPostClockRouteFlags *flags);
 
 #endif
