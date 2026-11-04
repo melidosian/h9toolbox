@@ -5393,6 +5393,79 @@ static void test_main_post_map_gate(void)
         assert(capture.prefix[index] == UINT32_MAX);
 }
 
+typedef struct {
+    uint32_t words[5];
+    unsigned reads;
+    uint32_t mode;
+} PostMapWindowCapture;
+
+static uint32_t post_map_window_read(void *context,
+                                     volatile uint32_t *status)
+{
+    PostMapWindowCapture *capture = (PostMapWindowCapture *)context;
+    unsigned phase = capture->reads++;
+    (void)status;
+    assert(phase < 2u);
+    if (phase == 0u) {
+        assert(capture->words[2] == 0x2222u &&
+               capture->words[3] == 0x3333u &&
+               capture->words[4] == 0x4444u);
+        return 1u;
+    }
+    assert(capture->words[2] ==
+           (capture->mode == 0u ? 0xE290u : 0x2222u));
+    assert(capture->words[3] == 0xE290u &&
+           capture->words[4] == 0xDA90u);
+    return 0u;
+}
+
+static uint32_t post_map_window_stuck(void *context,
+                                      volatile uint32_t *status)
+{
+    PostMapWindowCapture *capture = (PostMapWindowCapture *)context;
+    (void)status;
+    ++capture->reads;
+    return 0u;
+}
+
+static void test_main_post_map_window(void)
+{
+    PostMapWindowCapture capture = {
+        { 0x0u, 0x1111u, 0x2222u, 0x3333u, 0x4444u }, 0u, 1u
+    };
+    uint32_t status = 0u;
+    H9MainClockHandshake handshake = {
+        &capture, &status, NULL, NULL, NULL,
+        post_map_window_read, 2u, NULL
+    };
+    H9MainPostMapWindow window = { &handshake, capture.words };
+    H9MainPostMapWindow target;
+    h9_main_post_map_window_bind_target(&target, &handshake);
+    assert((uintptr_t)target.words_10f0d8 == 0x10F0D8u &&
+           target.handshake == &handshake);
+    assert(!h9_main_post_map_window_run(NULL, 1u, 0xE290u, 0xDA90u));
+    assert(h9_main_post_map_window_run(&window, 1u, 0xE290u, 0xDA90u));
+    assert(capture.reads == 2u && capture.words[2] == 0x2222u &&
+           capture.words[3] == 0xE290u && capture.words[4] == 0xDA90u);
+
+    capture.reads = 0u;
+    capture.mode = 0u;
+    capture.words[2] = 0x2222u;
+    capture.words[3] = 0x3333u;
+    capture.words[4] = 0x4444u;
+    assert(h9_main_post_map_window_run(&window, 0u, 0xE290u, 0xDA90u));
+    assert(capture.words[2] == 0xE290u);
+
+    capture.reads = 0u;
+    capture.words[2] = 0x2222u;
+    capture.words[3] = 0x3333u;
+    capture.words[4] = 0x4444u;
+    handshake.read_status = post_map_window_stuck;
+    assert(!h9_main_post_map_window_run(&window, 1u, 0xE290u, 0xDA90u));
+    assert(capture.reads == 2u && capture.words[2] == 0x2222u &&
+           capture.words[3] == 0x3333u && capture.words[4] == 0x4444u);
+}
+
 static void test_main_irq_registration(void)
 {
     IrqRegistrationCapture capture = { 0u };
@@ -5660,6 +5733,7 @@ int main(void)
     test_main_irq_registration();
     test_main_clock_handshake();
     test_main_post_map_gate();
+    test_main_post_map_window();
     test_main_timer3_irq();
     test_main_exception_capture();
     test_main_serial_profile();

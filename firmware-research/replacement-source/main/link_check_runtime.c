@@ -83,6 +83,7 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainIrqRegistration irq_registration;
     H9MainClockHandshake clock_handshake;
     H9MainPostMapGate post_map_gate;
+    H9MainPostMapWindow post_map_window;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -175,6 +176,9 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
         for (;;) { }
     h9_main_post_map_gate_bind_target(&post_map_gate, &clock_handshake);
     if (!h9_main_post_map_gate_run(&post_map_gate)) for (;;) { }
+    h9_main_post_map_window_bind_target(&post_map_window, &clock_handshake);
+    if (!h9_main_post_map_window_run(&post_map_window, 1u,
+                                      0xE290u, 0xDA90u)) for (;;) { }
 #endif
     for (;;) { }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after the two post-map register handshakes.
+The board entry stops after the post-map memory-window helper.
 Optional raw output is for offline inspection only.
 """
 
@@ -143,6 +143,13 @@ STOCK_POST_MAP_GATE = bytes.fromhex(
     "10ef804ebfeae9f1bfeaddf1d0ef804fa363a562"
     "10ef004f10ef804fbfeaddf1"
 )
+STOCK_POST_MAP_WINDOW_HELPER = bytes.fromhex(
+    "740413160416619dc0ffd8f0100034e800608262"
+    "c02c8260c02483603404e79b"
+)
+STOCK_POST_MAP_WINDOW_CALLER = bytes.fromhex(
+    "c1ff90da0000c2ff90e200004021bfeae9f1"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -195,6 +202,8 @@ def verify_stock_image(path: Path) -> None:
             data[0x5E368:0x5E37C] != STOCK_MEMORY_SOURCE_HELPER or \
             data[0x5FF36:0x5FF52] != STOCK_MEMORY_SOURCE_BOARD or \
             data[0x5FF52:0x5FF9A] != STOCK_POST_MAP_GATE or \
+            data[0x5E37E:0x5E39E] != STOCK_POST_MAP_WINDOW_HELPER or \
+            data[0x5FF9A:0x5FFAC] != STOCK_POST_MAP_WINDOW_CALLER or \
             data[0xBA:0xD2] != STOCK_DESCRIPTOR_LOOKUP or \
             data[0x554:0x564] != STOCK_DESCRIPTOR_TABLE or \
             data[0x482:0x48E] != STOCK_DESCRIPTOR_WORD5_HELPER or \
@@ -363,6 +372,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_map_sources",
         "h9_main_post_map_gate_bind_target",
         "h9_main_post_map_gate_run",
+        "h9_main_post_map_window_bind_target",
+        "h9_main_post_map_window_run",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -444,6 +455,32 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         if position < 0:
             raise ValueError("Linked post-map gate lost stock register order")
         cursor = position + len(item)
+    window_binder = re.search(
+        r"(?ms)^h9_main_post_map_window_bind_target:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    if window_binder is None or "10f0d8" not in window_binder.group(1):
+        raise ValueError("Linked post-map window lost MMIO base")
+    window_run = re.search(
+        r"(?ms)^h9_main_post_map_window_run:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    window_body = window_run.group(1) if window_run else ""
+    window_order = ("h9_main_clock_wait", "if (r5 != 0)",
+                    "[r0+8] = r7", "[r0+12] = r7",
+                    "[r0+16] = r8", "h9_main_clock_wait")
+    cursor = 0
+    for item in window_order:
+        position = window_body.find(item, cursor)
+        if position < 0:
+            raise ValueError("Linked post-map window lost conditional write order")
+        cursor = position + len(item)
+    window_call = board_body.find("h9_main_post_map_window_run")
+    if window_call < 0 or not all(
+        item in board_body[window_call - 260:window_call]
+        for item in ("r2 = 58000", "r3 = r2 + -2048", "r1 = 1")
+    ):
+        raise ValueError("Linked board entry lost post-map window arguments")
     handshake_wait = re.search(
         r"(?ms)^h9_main_clock_wait:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
         disassembly,
@@ -953,6 +990,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_clock_gate_handshake_link_verified": True,
         "early_board_memory_source_map_link_verified": True,
         "early_board_post_map_gate_link_verified": True,
+        "early_board_post_map_window_link_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

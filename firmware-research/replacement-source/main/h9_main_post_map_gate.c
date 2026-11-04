@@ -30,6 +30,30 @@ bool h9_main_post_map_gate_run(H9MainPostMapGate *gate)
     return h9_main_clock_wait(gate->handshake, false);
 }
 
+bool h9_main_post_map_window_run(H9MainPostMapWindow *window,
+                                  uint32_t mode, uint32_t word_e4,
+                                  uint32_t word_e8)
+{
+    volatile uint32_t *words;
+    if (window == NULL || window->handshake == NULL ||
+        window->words_10f0d8 == NULL) return false;
+    if (!h9_main_clock_wait(window->handshake, true)) return false;
+    words = window->words_10f0d8;
+    if (mode == 0u) words[2] = word_e4;
+    words[3] = word_e4;
+    words[4] = word_e8;
+    return h9_main_clock_wait(window->handshake, false);
+}
+
+void h9_main_post_map_window_bind_target(H9MainPostMapWindow *window,
+                                          H9MainClockHandshake *handshake)
+{
+    if (window == NULL) return;
+    window->handshake = handshake;
+    window->words_10f0d8 =
+        (volatile uint32_t *)(uintptr_t)0x0010F0D8u;
+}
+
 static bool target_fill_prefix_ones(void *context)
 {
     (void)context;

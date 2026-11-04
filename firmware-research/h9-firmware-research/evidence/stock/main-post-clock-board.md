@@ -218,8 +218,16 @@ The next board block at app+`0x05FF9A..0x05FFE4` calls local helper
 app+`0x05E37E` with `(r0,r1,r2)=(1,0xDA90,0xE290)`, then ROM
 `0x0200391A` and `0x02002CAE`. It calls app+`0x02CF22` twice with different
 app pointers, then ROM `0x02003180` and `0x02001650`, before entering an
-`idle` loop. The local helper waits for status bit 0 and writes control
-words near `0x10F0D8`; app+`0x02CF22` walks a descriptor table beginning
-at app address `0x01EA2B64` and calls further helpers. Their effects and
-required replacement resources are not yet traced, so the diagnostic board
-entry stops before this block.
+`idle` loop. The local helper at app+`0x05E37E..0x05E39E` waits for status
+bit 0 to set. If its mode argument is zero, it writes `r2` to `0x10F0E0`;
+it always writes `r2` to `0x10F0E4` and `r1` to `0x10F0E8`, then tail-jumps
+to the clear-wait helper. The board call uses mode 1, `r2=0xE290`, and
+`r1=0xDA90`, so `0x10F0E0` is left alone. The replacement now ports both
+branches in `h9_main_post_map_window_run` and the diagnostic entry calls
+the mode-1 path. Host tests cover both modes and timeout before writes;
+the linked Pi32 check pins the stock helper/caller bytes and control
+addresses. It stops before ROM `0x0200391A`.
+
+App+`0x02CF22` walks a descriptor table beginning at app address
+`0x01EA2B64` and calls further helpers. Its effects and required
+replacement resources are not yet traced.
