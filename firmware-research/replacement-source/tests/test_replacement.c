@@ -4863,10 +4863,12 @@ static void test_main_post_clock_handoff(void)
 }
 
 typedef struct {
+    volatile uint32_t descriptor0[9];
+    volatile uint32_t descriptor16[9];
     volatile uint32_t descriptor15[6];
     volatile uint32_t descriptor23[6];
     volatile uint32_t descriptor53[6];
-    uint32_t queried[2];
+    uint32_t queried[4];
     unsigned queries;
     bool omit53;
 } PostClockDescriptorCapture;
@@ -4876,8 +4878,10 @@ static volatile uint32_t *post_clock_lookup_descriptor(void *context,
 {
     PostClockDescriptorCapture *capture =
         (PostClockDescriptorCapture *)context;
-    assert(capture->queries < 2u);
+    assert(capture->queries < 4u);
     capture->queried[capture->queries++] = index;
+    if (index == 0u) return capture->descriptor0;
+    if (index == 16u) return capture->descriptor16;
     if (index == 15u) return capture->descriptor15;
     if (index == 23u) return capture->descriptor23;
     if (index == 53u && !capture->omit53) return capture->descriptor53;
@@ -4941,6 +4945,30 @@ static void test_main_post_clock_descriptor_route(void)
            capture.descriptor23[5] == (UINT32_MAX & ~0x80u));
     assert(result.filtered_mask == handoff.input_mask &&
            result.control_word == 0xFFFF001Fu);
+    {
+        H9MainPostClockWords words = { 0xABCD1234u, 0xFFFFFFFFu };
+        H9MainPostClockDescriptorResult profile = {
+            0xFFFFFE3Bu, 0xFFFF0080u, 0xFFFF003Fu
+        };
+        capture.queries = 0u;
+        for (i = 0u; i < 9u; ++i) {
+            capture.descriptor0[i] = UINT32_MAX;
+            capture.descriptor16[i] = UINT32_MAX;
+        }
+        assert(!h9_main_post_clock_apply_initial_masks(NULL, &words,
+                                                        &profile));
+        assert(h9_main_post_clock_apply_initial_masks(&route, &words,
+                                                       &profile));
+        assert(capture.queries == 4u && capture.queried[0] == 0u &&
+               capture.queried[1] == 0u && capture.queried[2] == 16u &&
+               capture.queried[3] == 16u);
+        assert(capture.descriptor0[5] == 0xFFFF01C4u);
+        assert(capture.descriptor0[8] == 0xFFFFEDCBu);
+        assert(capture.descriptor16[5] == 0xFFFF0080u);
+        assert(capture.descriptor16[8] == 0xFFFF5432u);
+        assert(capture.descriptor0[4] == UINT32_MAX &&
+               capture.descriptor16[4] == UINT32_MAX);
+    }
 }
 
 typedef struct {

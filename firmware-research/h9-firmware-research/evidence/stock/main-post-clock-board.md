@@ -53,8 +53,8 @@ mask `0xFFFFFE3B` if bit 0 of the captured `0x1F0500` word is set, otherwise
 this handoff through injectable callbacks and a Pi32v2 target binding. The
 linked target wrapper passes the transformed word in both argument registers
 and captures the two result registers as a 64-bit return. The diagnostic
-board entry calls the handoff and stops before acting on the results. Their
-hardware meaning and the subsequent register changes remain unported.
+board entry acts on the four observed result branches below. Their hardware
+meaning has not been established on the radio.
 
 At app+`0x05FCEA..0x05FD74`, the returned `r0` and `r1` select four
 descriptor routes. If `r0 == 4`, nonzero `r1` narrows the input mask to
@@ -70,5 +70,17 @@ chooses `0xFFFF001F`. The lookup helper at app+`0xBA` accepts indices
 that table as a bounded address calculation, since it cannot call a helper
 in the stock app after replacement. Host tests cover all four branches and
 missing descriptors; the target link verifies the lookup and board call
-order. The next common register setup beginning at app+`0x05FD74` remains
-unported and has not been exercised on hardware.
+order. The first four common mask writes beginning at app+`0x05FD74` are
+described below. None of these paths has been exercised on hardware.
+
+At app+`0x05FD74..0x05FDA6`, the stock code calls the app+`0x48E` and
+app+`0x51A` descriptor helpers to AND four words in order: descriptor 0
+word `+20` with `~filtered_mask | 0xFFFF0000`, descriptor 0 word `+32`
+with the complement of the bitmap's low 16 bits, descriptor 16 word `+20`
+with the route's base word, and descriptor 16 word `+32` with the complement
+of the bitmap's next 16 bits. The bounded lookup helper returns MMIO bases
+`0x1E5000` and `0x1E5040` for these indices. The replacement now performs
+these four read-modify-write operations in the same order, and its diagnostic
+entry stops before the following descriptor-32 branch at app+`0x05FDA6`.
+The stock instruction slices and helper tails are pinned by the link check;
+host tests verify the masks and register words.

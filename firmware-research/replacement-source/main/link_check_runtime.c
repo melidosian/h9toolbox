@@ -138,6 +138,9 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     if (!h9_main_post_clock_descriptor_route_run(
             &post_clock_descriptor_route, &post_clock_handoff_result,
             &post_clock_descriptor_result)) for (;;) { }
+    if (!h9_main_post_clock_apply_initial_masks(
+            &post_clock_descriptor_route, &post_clock_words,
+            &post_clock_descriptor_result)) for (;;) { }
 #endif
     for (;;) { }
 }

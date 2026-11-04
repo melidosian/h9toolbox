@@ -227,3 +227,28 @@ bool h9_main_post_clock_descriptor_route_run(
     }
     return true;
 }
+
+static void and_descriptor_word(const H9MainPostClockDescriptorRoute *route,
+                                uint32_t index, uint32_t word, uint32_t mask)
+{
+    volatile uint32_t *descriptor =
+        route->lookup_descriptor(route->context, index);
+    if (descriptor != NULL) descriptor[word] &= mask;
+}
+
+bool h9_main_post_clock_apply_initial_masks(
+    const H9MainPostClockDescriptorRoute *route,
+    const H9MainPostClockWords *words,
+    const H9MainPostClockDescriptorResult *profile)
+{
+    if (route == NULL || words == NULL || profile == NULL ||
+        route->lookup_descriptor == NULL) return false;
+    and_descriptor_word(route, 0u, 5u,
+                        ~profile->filtered_mask | 0xFFFF0000u);
+    and_descriptor_word(route, 0u, 8u,
+                        ~(words->first_word & 0xFFFFu));
+    and_descriptor_word(route, 16u, 5u, profile->base_word);
+    and_descriptor_word(route, 16u, 8u,
+                        ~((words->first_word >> 16u) & 0xFFFFu));
+    return true;
+}

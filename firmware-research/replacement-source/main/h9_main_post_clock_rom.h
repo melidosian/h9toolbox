@@ -107,4 +107,11 @@ bool h9_main_post_clock_descriptor_route_run(
     const H9MainPostClockHandoffResult *handoff,
     H9MainPostClockDescriptorResult *result);
 
+/* First four common writes at app+0x05FD74..0x05FDA6, through the stock
+ * descriptor-mask helpers at app+0x48E and app+0x51A. */
+bool h9_main_post_clock_apply_initial_masks(
+    const H9MainPostClockDescriptorRoute *route,
+    const H9MainPostClockWords *words,
+    const H9MainPostClockDescriptorResult *profile);
+
 #endif
