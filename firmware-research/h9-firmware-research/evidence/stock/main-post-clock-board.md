@@ -166,3 +166,22 @@ a tested crash path. The replacement now installs IRQs 0 and 1 with a
 RAM-resident exception entry whose first 12 bytes match the stock save
 sequence. It records 24 saved words in RAM and halts. The stock printer is
 still unported.
+
+At app+`0x05FEAE..0x05FF36`, stock performs ten status handshakes. The
+set-wait helper at app+`0x05E340` reads bit 0 of `0x101044` until it is 1;
+the clear-wait helper at app+`0x05E354` reads until it is 0. Each helper
+first reads without a write, then writes `0xE7` to `0x101044` after every
+failed read. Stock has no visible retry bound. The board routine waits for
+set, ORs one bit into a control register, then waits for clear, in this order:
+`0x101000` gets bits 29, 28, 27, 26, 25, 24; `0x10F0D0` gets bits 0, 1, 2;
+`0x10F1C0` gets bit 0. It next calls app+`0x05E368`, whose behavior is not
+ported yet.
+
+`main/h9_main_clock_handshake.*` ports the ten stages with a configurable
+retry limit. The target entry currently uses 100,000 polls per wait and
+halts on timeout. Host tests exercise every stage and a stuck status bit;
+the Pi32 link check pins both stock byte ranges, checks the mask constants,
+and inspects generated pointer assignments. The vendor compiler initially
+coalesced `0x10F0D0` and `0x10F1C0` into the same pointer in the target
+binder; an explicit volatile base load corrected the linked instructions.
+The hardware meaning of these gates and safe timeout length are unverified.

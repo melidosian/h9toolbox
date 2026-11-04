@@ -5,6 +5,7 @@
 #include "h9_main_boot_validator.h"
 #include "h9_main_board_markers.h"
 #include "h9_main_clock_probe.h"
+#include "h9_main_clock_handshake.h"
 #include "h9_main_clock_apply.h"
 #include "h9_main_clock_rom_mode.h"
 #include "h9_main_clock_timing.h"
@@ -78,6 +79,7 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainPostClockGateRegisters post_clock_gate;
     H9MainPostClockTimerStage post_clock_timer;
     H9MainIrqRegistration irq_registration;
+    H9MainClockHandshake clock_handshake;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -162,6 +164,8 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
                                h9_main_default_irq)) for (;;) { }
     if (!h9_main_irq_register(&irq_registration, 1u, 2u,
                                h9_main_default_irq)) for (;;) { }
+    h9_main_clock_handshake_bind_target(&clock_handshake, 100000u);
+    if (!h9_main_clock_handshake_run(&clock_handshake)) for (;;) { }
 #endif
     for (;;) { }
 }

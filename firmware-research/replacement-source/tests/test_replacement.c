@@ -47,6 +47,7 @@
 #include "h9_main_boot_validator.h"
 #include "h9_main_board_markers.h"
 #include "h9_main_clock_probe.h"
+#include "h9_main_clock_handshake.h"
 #include "h9_main_clock_apply.h"
 #include "h9_main_clock_rom_mode.h"
 #include "h9_main_clock_timing.h"
@@ -5207,6 +5208,63 @@ static void irq_registration_leave(void *context, uint32_t value,
     capture->field = field;
 }
 
+typedef struct {
+    unsigned reads;
+} ClockHandshakeCapture;
+
+static uint32_t clock_handshake_read(void *context,
+                                     volatile uint32_t *status)
+{
+    ClockHandshakeCapture *capture = (ClockHandshakeCapture *)context;
+    unsigned phase = capture->reads / 2u;
+    unsigned attempt = capture->reads++ % 2u;
+    unsigned desired = phase % 2u == 0u ? 1u : 0u;
+    if (attempt == 1u) assert(*status == 0xE7u);
+    return attempt == 0u ? desired ^ 1u : desired;
+}
+
+static uint32_t clock_handshake_stuck(void *context,
+                                      volatile uint32_t *status)
+{
+    ClockHandshakeCapture *capture = (ClockHandshakeCapture *)context;
+    (void)status;
+    ++capture->reads;
+    return 0u;
+}
+
+static void test_main_clock_handshake(void)
+{
+    ClockHandshakeCapture capture = { 0u };
+    uint32_t status = 0u, gates = 0x5u, control = 0x80u, other = 0x10u;
+    H9MainClockHandshake handshake = {
+        &capture, &status, &gates, &control, &other,
+        clock_handshake_read, 2u
+    };
+    H9MainClockHandshake target;
+    h9_main_clock_handshake_bind_target(&target, 100000u);
+    assert((uintptr_t)target.status_101044 == 0x101044u &&
+           (uintptr_t)target.gates_101000 == 0x101000u &&
+           (uintptr_t)target.control_10f0d0 == 0x10F0D0u &&
+           (uintptr_t)target.control_10f1c0 == 0x10F1C0u);
+    assert(!h9_main_clock_handshake_run(NULL));
+    handshake.poll_limit = 0u;
+    assert(!h9_main_clock_handshake_run(&handshake));
+    assert(capture.reads == 0u);
+    handshake.poll_limit = 2u;
+    assert(h9_main_clock_handshake_run(&handshake));
+    assert(capture.reads == 40u && status == 0xE7u);
+    assert(gates == 0x3F000005u && control == 0x87u && other == 0x11u);
+
+    capture.reads = 0u;
+    gates = 0x5u;
+    control = 0x80u;
+    other = 0x10u;
+    handshake.read_status = clock_handshake_stuck;
+    assert(!h9_main_clock_handshake_run(&handshake));
+    assert(capture.reads == 2u && status == 0xE7u);
+    assert(gates == 0x5u && control == 0x80u && other == 0x10u);
+}
+
 static void test_main_irq_registration(void)
 {
     IrqRegistrationCapture capture = { 0u };
@@ -5472,6 +5530,7 @@ int main(void)
     test_main_post_clock_gate();
     test_main_post_clock_timer_stage();
     test_main_irq_registration();
+    test_main_clock_handshake();
     test_main_timer3_irq();
     test_main_exception_capture();
     test_main_serial_profile();

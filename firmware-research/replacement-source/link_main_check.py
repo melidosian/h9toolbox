@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after the post-clock descriptor and MMIO gate stage.
+The board entry stops after the post-IRQ clock gate handshake.
 Optional raw output is for offline inspection only.
 """
 
@@ -118,6 +118,18 @@ STOCK_IRQ_MAP = bytes.fromhex(
 STOCK_RAM_EXCEPTION_ENTRY = bytes.fromhex(
     "58e92f38d8e8ffff64e0000eb4ea8b56f79f"
 )
+STOCK_CLOCK_STATUS_HELPERS = bytes.fromhex(
+    "c0ff44101000048240eae700016051e8fb018000"
+    "c0ff44101000048240eae700016051e8fb038000"
+)
+STOCK_CLOCK_GATE_HANDSHAKE = bytes.fromhex(
+    "bfea47f2c4ff0010100000ef0045bfea4af2bfea3ef200ef8045"
+    "bfea44f2bfea38f200ef0046bfea3ef2bfea32f200ef8046"
+    "bfea38f2bfea2cf200ef0047bfea32f2bfea26f200ef8047"
+    "bfea2cf2bfea20f2c2ffd0f0100000ef0120bfea23f2"
+    "bfea17f200ef0220bfea1df2bfea11f200ef0420"
+    "bfea17f2bfea0bf200e1f02000ef0100bfea0ff2"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -165,6 +177,8 @@ def verify_stock_image(path: Path) -> None:
             data[0xA2A22:0xA2A62] != STOCK_IRQ_MAP or \
             data[0xC618C + 0x1622:0xC618C + 0x1634] != \
                 STOCK_RAM_EXCEPTION_ENTRY or \
+            data[0x5E340:0x5E368] != STOCK_CLOCK_STATUS_HELPERS or \
+            data[0x5FEAE:0x5FF36] != STOCK_CLOCK_GATE_HANDSHAKE or \
             data[0xBA:0xD2] != STOCK_DESCRIPTOR_LOOKUP or \
             data[0x554:0x564] != STOCK_DESCRIPTOR_TABLE or \
             data[0x482:0x48E] != STOCK_DESCRIPTOR_WORD5_HELPER or \
@@ -239,6 +253,16 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     irq_map_offset = symbol_address("irq_map") - IMAGE_BASE
     if text_data[irq_map_offset:irq_map_offset + 64] != STOCK_IRQ_MAP:
         raise ValueError("Linked IRQ mapping table differs from stock")
+    for name, masks in (
+        ("h9_main_clock_handshake_run.gate_masks",
+         (0x20000000, 0x10000000, 0x08000000,
+          0x04000000, 0x02000000, 0x01000000)),
+        ("h9_main_clock_handshake_run.control_masks", (1, 2, 4)),
+    ):
+        offset = symbol_address(name) - IMAGE_BASE
+        expected_masks = struct.pack("<" + "I" * len(masks), *masks)
+        if text_data[offset:offset + len(expected_masks)] != expected_masks:
+            raise ValueError(f"Linked clock gate masks differ: {name}")
 
     icfg_offset = symbol_address("h9_main_interrupt_config") - IMAGE_BASE
     if text_data[icfg_offset:icfg_offset + len(STOCK_ICFG_AFTER_RAM_COPY)] != \
@@ -314,6 +338,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_post_clock_gate_run",
         "h9_main_post_clock_timer_stage_bind_target",
         "h9_main_post_clock_timer_stage_run",
+        "h9_main_clock_handshake_bind_target",
+        "h9_main_clock_handshake_run",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -325,6 +351,24 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     if board_body.count("h9_main_irq_register") < 2 or \
             "h9_main_default_irq" not in board_body:
         raise ValueError("Linked board entry lacks default IRQ 0/1 registration")
+    if board_body.rfind("h9_main_irq_register") > \
+            board_body.find("h9_main_clock_handshake_bind_target"):
+        raise ValueError("Linked clock handshake precedes IRQ registration")
+    handshake_binder = re.search(
+        r"(?ms)^h9_main_clock_handshake_bind_target:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    binder_body = handshake_binder.group(1) if handshake_binder else ""
+    if "101044" not in binder_body or "10f0d0" not in binder_body or \
+            not re.search(r"\[r0\+12\] = r2.*?r2 = r2 \+ 240.*?"
+                          r"\[r0\+16\] = r2", binder_body, re.S):
+        raise ValueError("Linked clock control pointers alias or lose MMIO base")
+    handshake_wait = re.search(
+        r"(?ms)^wait_for_status:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if handshake_wait is None or "= 0xE7" not in handshake_wait.group(1):
+        raise ValueError("Linked clock status wait lost 0xE7 retry write")
     for name, required in (
         ("target_rom_apply", "2001634"),
         ("target_synchronize", "csync"),
@@ -825,6 +869,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_post_clock_gate_verified": True,
         "early_board_timer3_setup_and_isr_link_verified": True,
         "early_board_default_irq_snapshot_link_verified": True,
+        "early_board_clock_gate_handshake_link_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
