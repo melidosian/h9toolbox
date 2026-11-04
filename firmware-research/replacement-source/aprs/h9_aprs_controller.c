@@ -17,7 +17,8 @@ static void forward_valid_frame(void *context, const uint8_t *data,
                                 size_t length)
 {
     H9AprsController *controller = (H9AprsController *)context;
-    (void)send_frame(controller, 0x00u, data, length);
+    if (send_frame(controller, 0x00u, data, length))
+        ++controller->forwarded_rx_frames;
 }
 
 static void send_version(H9AprsController *controller, uint8_t query)
@@ -145,8 +146,9 @@ void h9_aprs_controller_process_received(H9AprsController *controller)
     uint8_t byte;
     if (controller == NULL) return;
     while (h9_aprs_demod_pop_byte(&controller->demod, &byte))
-        (void)h9_aprs_frame_feed(&controller->frame, byte,
-                                 forward_valid_frame, controller);
+        if (h9_aprs_frame_feed(&controller->frame, byte,
+                               forward_valid_frame, controller))
+            ++controller->valid_rx_frames;
 }
 
 bool h9_aprs_controller_report_tx_encoded(H9AprsController *controller)

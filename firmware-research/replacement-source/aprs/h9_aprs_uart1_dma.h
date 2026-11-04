@@ -12,6 +12,11 @@ typedef struct {
     volatile uint32_t *dma_controller;
     volatile uint32_t *dma_channel;
     H9AprsUartReceive *receive;
+    /* Replacement diagnostics; IRQ writes, board status reply reads. */
+    volatile uint32_t completed_batches;
+    volatile uint32_t rejected_batches;
+    volatile uint32_t transfer_errors;
+    volatile uint16_t last_batch_length;
 } H9AprsUart1Dma;
 
 void h9_aprs_uart1_dma_bind(H9AprsUart1Dma *driver,

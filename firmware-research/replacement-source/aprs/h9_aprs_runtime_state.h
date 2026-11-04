@@ -35,6 +35,8 @@ typedef struct {
     H9AprsAdcBoard adc_board;
     H9AprsSampleTimer sample_timer;
     H9AprsSysTick systick;
+    volatile uint32_t last_uart1_batch_tick;
+    uint32_t forwarded_uart2_batches;
 } H9AprsRuntimeState;
 
 #endif

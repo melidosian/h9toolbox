@@ -1934,9 +1934,21 @@ static void test_aprs_controller(void)
     assert(h9_aprs_ring_push(&controller.demod.receive, 0x7Eu));
     h9_aprs_controller_process_received(&controller);
     assert(fake.uart_length == 21);
+    assert(controller.valid_rx_frames == 1u &&
+           controller.forwarded_rx_frames == 1u);
     assert(fake.uart[0] == 0xC0u && fake.uart[1] == 0 &&
            fake.uart[20] == 0xC0u);
     for (i = 0; i < 18; ++i) assert(fake.uart[i + 2] == (uint8_t)i);
+    controller.hardware.uart_write = NULL;
+    assert(h9_aprs_ring_push(&controller.demod.receive, 0x7Eu));
+    for (i = 0; i < 18; ++i)
+        assert(h9_aprs_ring_push(&controller.demod.receive, (uint8_t)i));
+    assert(h9_aprs_ring_push(&controller.demod.receive, 0x45u));
+    assert(h9_aprs_ring_push(&controller.demod.receive, 0x87u));
+    assert(h9_aprs_ring_push(&controller.demod.receive, 0x7Eu));
+    h9_aprs_controller_process_received(&controller);
+    assert(controller.valid_rx_frames == 2u &&
+           controller.forwarded_rx_frames == 1u);
 }
 
 typedef struct {
@@ -2033,6 +2045,8 @@ static void test_aprs_uart1_dma_interrupts(void)
     h9_aprs_uart1_irq(&driver);
     assert(receive.ready == 1u && receive.pending_length == 2u &&
            (dma_channel[0] & 1u) == 0 && (usart[5] & 0x40u) == 0);
+    assert(driver.completed_batches == 1u &&
+           driver.last_batch_length == 2u);
     assert(h9_aprs_uart_receive_process(&receive, &controller,
             h9_aprs_uart1_dma_rearm, &driver) == 2u);
     assert(receive.current == 1u && dma_channel[1] == 512u &&
@@ -2043,12 +2057,21 @@ static void test_aprs_uart1_dma_interrupts(void)
     h9_aprs_uart1_irq(&driver);
     assert(receive.ready == 0u && receive.current == 1u &&
            dma_channel[1] == 512u && (dma_channel[0] & 1u) != 0);
+    assert(driver.completed_batches == 1u);
+
+    /* An invalid DMA remainder cannot strand the UART with DMA stopped. */
+    dma_channel[1] = 513u;
+    h9_aprs_uart1_irq(&driver);
+    assert(driver.rejected_batches == 1u && receive.ready == 0u &&
+           dma_channel[1] == 512u && (dma_channel[0] & 1u) != 0);
 
     /* A full DMA buffer is published even without a following IDLE. */
     dma_controller[0] = 0x02u;
     h9_aprs_dma1_channel1_irq(&driver);
     assert(receive.ready == 1u && receive.pending_length == 512u &&
            dma_controller[1] == 0x0Fu);
+    assert(driver.completed_batches == 2u &&
+           driver.last_batch_length == 512u);
     assert(h9_aprs_uart_receive_process(&receive, &controller,
             h9_aprs_uart1_dma_rearm, &driver) == 512u);
 
@@ -2056,6 +2079,7 @@ static void test_aprs_uart1_dma_interrupts(void)
     h9_aprs_dma1_channel1_irq(&driver);
     assert(receive.ready == 0u && dma_channel[1] == 512u &&
            (dma_channel[0] & 1u) != 0);
+    assert(driver.transfer_errors == 1u);
 }
 
 static void test_aprs_uart1_board_setup(void)

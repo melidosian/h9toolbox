@@ -1,7 +1,9 @@
 #include <stddef.h>
+#include <string.h>
 
 #include "h9_aprs_clock.h"
 #include "h9_aprs_runtime_state.h"
+#include "h9_aprs_status.h"
 
 static H9AprsRuntimeState runtime;
 
@@ -15,6 +17,36 @@ static bool board_uart_ok(void *context)
 {
     H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
     return h9_aprs_uart1_tx_ok(&state->uart1_tx);
+}
+
+/* A live replacement diagnostic snapshot. The stock byte layout is retained;
+ * words 4/5 stay zero until the stock DMA retry path is reconstructed. */
+static bool board_read_status(void *context, uint8_t output[48])
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    H9AprsStatusSnapshot snapshot;
+    if (state == NULL || output == NULL) return false;
+    memset(&snapshot, 0, sizeof snapshot);
+    snapshot.words[0] = state->uart1_dma.completed_batches;
+    snapshot.words[1] = state->controller.valid_rx_frames;
+    snapshot.words[2] = state->controller.forwarded_rx_frames;
+    snapshot.words[3] = state->uart1_dma.rejected_batches +
+                        state->uart2_rx.overrun_count +
+                        state->uart2_rx.dropped_count;
+    snapshot.words[6] = state->forwarded_uart2_batches;
+    snapshot.words[7] = state->uart1_dma.last_batch_length;
+    snapshot.words[8] = state->last_uart1_batch_tick;
+    snapshot.words[9] = state->uart1_dma.transfer_errors +
+                        state->uart2_dma.transfer_errors +
+                        state->uart2_dma.invalid_counts +
+                        state->uart1_tx.timeouts;
+    snapshot.current_tick = h9_aprs_systick_now(&state->systick);
+    snapshot.serial_halfword = state->uart_receive.pending_length;
+    snapshot.word_10_low = state->uart_receive.current;
+    snapshot.serial_byte_a = state->uart_receive.ready;
+    snapshot.serial_byte_b = state->uart_receive.processing;
+    h9_aprs_status_encode(&snapshot, output);
+    return true;
 }
 
 static void board_set_radio_gpio(void *context, bool high)
@@ -103,6 +135,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     hardware.context = &runtime;
     hardware.uart_write = board_uart_write;
     hardware.uart_ok = board_uart_ok;
+    hardware.read_status = board_read_status;
     hardware.set_radio_gpio = board_set_radio_gpio;
     hardware.read_radio_gpio = board_read_radio_gpio;
     hardware.aux_uart_write = board_aux_uart_write;
@@ -151,8 +184,9 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
             &runtime.controller, h9_aprs_uart1_dma_rearm,
             &runtime.uart1_dma);
         h9_aprs_controller_process_received(&runtime.controller);
-        (void)h9_aprs_uart2_dma_poll(&runtime.uart2_dma,
-                                      &runtime.controller);
+        if (h9_aprs_uart2_dma_poll(&runtime.uart2_dma,
+                                    &runtime.controller))
+            ++runtime.forwarded_uart2_batches;
         /* RF readiness and carrier sense remain unmapped. This diagnostic
          * entry accepts packets but never authorizes waveform output. */
         (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime, false,
@@ -164,12 +198,18 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
 
 void h9_aprs_dma1_channel1_handler(void)
 {
+    uint32_t before = runtime.uart1_dma.completed_batches;
     h9_aprs_dma1_channel1_irq(&runtime.uart1_dma);
+    if (runtime.uart1_dma.completed_batches != before)
+        runtime.last_uart1_batch_tick = h9_aprs_systick_now(&runtime.systick);
 }
 
 void h9_aprs_usart1_handler(void)
 {
+    uint32_t before = runtime.uart1_dma.completed_batches;
     h9_aprs_uart1_irq(&runtime.uart1_dma);
+    if (runtime.uart1_dma.completed_batches != before)
+        runtime.last_uart1_batch_tick = h9_aprs_systick_now(&runtime.systick);
 }
 
 void h9_aprs_adc1_handler(void)

@@ -34,6 +34,10 @@ void h9_aprs_uart1_dma_bind(H9AprsUart1Dma *driver,
     driver->dma_controller = dma_controller;
     driver->dma_channel = dma_channel;
     driver->receive = receive;
+    driver->completed_batches = 0u;
+    driver->rejected_batches = 0u;
+    driver->transfer_errors = 0u;
+    driver->last_batch_length = 0u;
 }
 
 void h9_aprs_uart1_dma_bind_target(H9AprsUart1Dma *driver,
@@ -92,8 +96,23 @@ void h9_aprs_uart1_irq(H9AprsUart1Dma *driver)
     (void)driver->usart[USART_DR];
     stop_receive(driver);
     remaining = driver->dma_channel[DMA_CNDTR];
-    h9_aprs_uart_receive_idle(driver->receive, remaining,
-                              h9_aprs_uart1_dma_rearm, driver);
+    if (remaining > H9_APRS_UART_BATCH_CAPACITY) {
+        uint8_t *buffer;
+        ++driver->rejected_batches;
+        buffer = h9_aprs_uart_receive_buffer(driver->receive);
+        if (buffer != NULL)
+            h9_aprs_uart1_dma_rearm(driver, buffer,
+                                    H9_APRS_UART_BATCH_CAPACITY);
+        return;
+    }
+    if (h9_aprs_uart_receive_idle(driver->receive, remaining,
+                                  h9_aprs_uart1_dma_rearm, driver)) {
+        ++driver->completed_batches;
+        driver->last_batch_length =
+            (uint16_t)(H9_APRS_UART_BATCH_CAPACITY - remaining);
+    } else if (remaining != H9_APRS_UART_BATCH_CAPACITY) {
+        ++driver->rejected_batches;
+    }
 }
 
 void h9_aprs_dma1_channel1_irq(H9AprsUart1Dma *driver)
@@ -106,13 +125,19 @@ void h9_aprs_dma1_channel1_irq(H9AprsUart1Dma *driver)
     driver->dma_controller[DMA_IFCR] = DMA_CHANNEL1_FLAGS;
     if ((flags & DMA_CHANNEL1_TE) != 0u) {
         uint8_t *buffer = h9_aprs_uart_receive_buffer(driver->receive);
+        ++driver->transfer_errors;
         if (buffer != NULL)
             h9_aprs_uart1_dma_rearm(driver, buffer,
                                     H9_APRS_UART_BATCH_CAPACITY);
     } else {
         /* A complete DMA buffer has 512 bytes even without a later IDLE.
          * Stock leaves this case to the UART callback; we publish it here. */
-        h9_aprs_uart_receive_complete(driver->receive,
-                                      H9_APRS_UART_BATCH_CAPACITY);
+        if (h9_aprs_uart_receive_complete(driver->receive,
+                                           H9_APRS_UART_BATCH_CAPACITY)) {
+            ++driver->completed_batches;
+            driver->last_batch_length = H9_APRS_UART_BATCH_CAPACITY;
+        } else {
+            ++driver->rejected_batches;
+        }
     }
 }

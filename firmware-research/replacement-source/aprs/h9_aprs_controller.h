@@ -38,6 +38,8 @@ typedef struct {
     H9AprsTx tx;
     H9AprsHardware hardware;
     bool tx_status_enabled;
+    uint32_t valid_rx_frames;
+    uint32_t forwarded_rx_frames;
 } H9AprsController;
 
 void h9_aprs_controller_init(H9AprsController *controller,
