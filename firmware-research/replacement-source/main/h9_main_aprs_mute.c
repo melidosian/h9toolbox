@@ -21,3 +21,19 @@ bool h9_main_aprs_mute_should_silence(const H9MainAprsMuteLease *lease,
            (uint32_t)(now_ms - lease->last_active_ms) <
                H9_APRS_BURST_LEASE_MS;
 }
+
+H9AudioPlan h9_main_aprs_mute_plan(const H9MainAprsConfig *config,
+                                   const H9MainAprsMuteLease *lease,
+                                   H9Side received_side,
+                                   bool route_verified,
+                                   uint32_t now_ms)
+{
+    H9AudioPlan plan = h9_main_audio_plan(config, received_side, false);
+    if (config != NULL && plan.decoder_feed &&
+        h9_main_aprs_mute_should_silence(lease,
+            config->mute_aprs_audio, route_verified, now_ms)) {
+        plan.speaker_audio = false;
+        plan.bluetooth_audio = false;
+    }
+    return plan;
+}

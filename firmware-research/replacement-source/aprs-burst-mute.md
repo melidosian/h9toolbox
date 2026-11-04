@@ -17,14 +17,18 @@ payload and calls `burst_activity`.
 The main-side `H9MainAprsMuteLease` uses the receiving board's millisecond
 clock. An active event is valid for 750 ms; an inactive event clears it
 immediately. `h9_main_aprs_mute_should_silence` additionally requires the
-user's mute option and a board-confirmed APRS receive route. A missing clear
-or broken UART therefore does not silence the radio indefinitely. The same
-predicate is intended for speaker and Bluetooth paths, but **neither output
-gate is connected**. The APRS receive route, UI setting, persistence, and
+user's mute option and a board-confirmed APRS receive route. The composed
+`h9_main_aprs_mute_plan` preserves decoder feed while clearing both speaker
+and Bluetooth audio decisions during a verified APRS burst. Its
+`route_verified` input must come from the live receive-audio route, not the
+selected display line or a TX setup snapshot. A missing clear or broken UART
+therefore does not silence the radio indefinitely. **Neither physical output
+gate is connected.** The APRS receive route, UI setting, persistence, and
 hardware audio taps still need to be implemented and measured. Even after
 those are connected, some preamble audio may precede decoder recognition.
 
 The host test sends actual framed activity from the APRS controller to the
 main session, checks renewal and inactive transitions, rejects an unknown
-version, and checks route/option guards and lease expiry. Both diagnostic
-target links pass. The linked images are not bootable or flashable firmware.
+version, and checks the composed speaker/Bluetooth plan, route/option guards,
+and lease expiry. Both diagnostic target links pass. The linked images are
+not bootable or flashable firmware.

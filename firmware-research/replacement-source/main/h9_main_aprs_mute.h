@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "h9_main_aprs.h"
+
 typedef struct {
     uint32_t last_active_ms;
     bool active;
@@ -21,5 +23,14 @@ bool h9_main_aprs_mute_should_silence(const H9MainAprsMuteLease *lease,
                                       bool mute_option_enabled,
                                       bool aprs_receive_route_active,
                                       uint32_t now_ms);
+
+/* Compose the replacement burst lease with the existing APRS audio policy.
+ * route_verified must come from the live receive-audio route, not merely
+ * the selected display line or the TX route snapshot. */
+H9AudioPlan h9_main_aprs_mute_plan(const H9MainAprsConfig *config,
+                                   const H9MainAprsMuteLease *lease,
+                                   H9Side received_side,
+                                   bool route_verified,
+                                   uint32_t now_ms);
 
 #endif

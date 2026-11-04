@@ -1240,6 +1240,8 @@ static void test_aprs_burst_activity_link(void)
     H9MainAprsSession session;
     H9MainAprsSessionCallbacks callbacks = { 0 };
     MainSessionCapture capture = { 0 };
+    H9MainAprsConfig config = { true, true, H9_RX_B, H9_TX_B_LOCK };
+    H9AudioPlan audio;
     uint8_t malformed[16];
     const uint8_t bad_version[] = { 2u, 1u };
     size_t malformed_length;
@@ -1260,6 +1262,18 @@ static void test_aprs_burst_activity_link(void)
     queue_session_bytes(&session, fake.uart, fake.uart_length);
     assert(h9_main_aprs_session_poll(&session) == fake.uart_length);
     assert(capture.burst_count == 1u);
+    audio = h9_main_aprs_mute_plan(&config, &capture.mute_lease,
+                                   H9_SIDE_B, true, 100u);
+    assert(audio.decoder_feed && !audio.speaker_audio &&
+           !audio.bluetooth_audio);
+    audio = h9_main_aprs_mute_plan(&config, &capture.mute_lease,
+                                   H9_SIDE_A, true, 100u);
+    assert(!audio.decoder_feed && audio.speaker_audio &&
+           audio.bluetooth_audio);
+    audio = h9_main_aprs_mute_plan(&config, &capture.mute_lease,
+                                   H9_SIDE_B, false, 100u);
+    assert(audio.decoder_feed && audio.speaker_audio &&
+           audio.bluetooth_audio);
     assert(h9_main_aprs_mute_should_silence(&capture.mute_lease,
                                             true, true, 100u));
     assert(!h9_main_aprs_mute_should_silence(&capture.mute_lease,
@@ -1277,6 +1291,10 @@ static void test_aprs_burst_activity_link(void)
                                             true, true, 1099u));
     assert(!h9_main_aprs_mute_should_silence(&capture.mute_lease,
                                              true, true, 1100u));
+    audio = h9_main_aprs_mute_plan(&config, &capture.mute_lease,
+                                   H9_SIDE_B, true, 1100u);
+    assert(audio.decoder_feed && audio.speaker_audio &&
+           audio.bluetooth_audio);
     fake.uart_length = 0u;
     atomic_store_explicit(&controller.demod.gate_flags, 0u,
                           memory_order_release);
