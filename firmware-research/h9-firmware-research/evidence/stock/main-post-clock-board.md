@@ -28,5 +28,15 @@ the masked selector result and enters a larger board setup.
 `replacement-source/main/h9_main_post_clock_rom.*` ports the initial ROM
 block and this classifier through app+`0x05FCB2`, with injectable ROM and
 MMIO. Host tests cover all 16 index values and the flag normalization. The
-diagnostic board entry stops after classification; neither branch after it
-nor the meaning of the modes has been established on hardware.
+diagnostic board entry continues into the bitmap branch described below;
+the meaning of the modes has not been established on hardware.
+
+At app+`0x05FCB2`, a zero masked selector-148 result skips the next ROM
+read. Otherwise, the board routine reads ROM selector `192`. Values above
+`55` branch to an alternate board path. For `0..55`, it calls the helper at
+app+`0x05FA44` on the two all-ones local words. The helper uses the index's
+upper bits to select one of four halfwords and clears bit `index & 15`, so
+the pair acts as a 64-bit bitmap. The replacement applies the equivalent
+word-level bit clear and records whether this branch continues or diverts.
+The source verifier pins the branch and helper bytes to the stock image.
+The purpose of this bitmap and the subsequent board actions are still unknown.

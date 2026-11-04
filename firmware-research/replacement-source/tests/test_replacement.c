@@ -4575,6 +4575,63 @@ static void test_main_post_clock_classification(void)
 }
 
 typedef struct {
+    uint32_t response;
+    unsigned reads;
+} PostClockBitmapCapture;
+
+static uint32_t post_clock_bitmap_read(void *context, uint32_t selector)
+{
+    PostClockBitmapCapture *capture = (PostClockBitmapCapture *)context;
+    assert(selector == 192u);
+    capture->reads++;
+    return capture->response;
+}
+
+static void test_main_post_clock_bitmap(void)
+{
+    PostClockBitmapCapture capture = { 0u, 0u };
+    H9MainPostClockRom rom = { &capture, post_clock_bitmap_read, NULL };
+    H9MainPostClockWords words = { UINT32_MAX, UINT32_MAX };
+    H9MainPostClockClassification classification = { 0 };
+    unsigned index;
+    assert(h9_main_post_clock_bitmap_step(NULL, &words, &classification) ==
+           H9_MAIN_POST_CLOCK_BITMAP_ERROR);
+    assert(h9_main_post_clock_bitmap_step(&rom, NULL, &classification) ==
+           H9_MAIN_POST_CLOCK_BITMAP_ERROR);
+    assert(h9_main_post_clock_bitmap_step(&rom, &words, NULL) ==
+           H9_MAIN_POST_CLOCK_BITMAP_ERROR);
+    classification.accepted = false;
+    assert(h9_main_post_clock_bitmap_step(&rom, &words, &classification) ==
+           H9_MAIN_POST_CLOCK_BITMAP_ALTERNATE);
+    classification.accepted = true;
+    assert(h9_main_post_clock_bitmap_step(&rom, &words, &classification) ==
+           H9_MAIN_POST_CLOCK_BITMAP_CONTINUE);
+    assert(capture.reads == 0u && words.first_word == UINT32_MAX &&
+           words.second_word == UINT32_MAX);
+
+    classification.selector_148_masked = 1u;
+    for (index = 0u; index <= 55u; ++index) {
+        capture.response = index;
+        capture.reads = 0u;
+        words.first_word = UINT32_MAX;
+        words.second_word = UINT32_MAX;
+        assert(h9_main_post_clock_bitmap_step(&rom, &words, &classification) ==
+               H9_MAIN_POST_CLOCK_BITMAP_CONTINUE);
+        assert(capture.reads == 1u);
+        assert(words.first_word ==
+               (index < 32u ? UINT32_MAX & ~(1u << index) : UINT32_MAX));
+        assert(words.second_word ==
+               (index >= 32u ? UINT32_MAX & ~(1u << (index - 32u)) : UINT32_MAX));
+    }
+    capture.response = 56u;
+    words.first_word = UINT32_MAX;
+    words.second_word = UINT32_MAX;
+    assert(h9_main_post_clock_bitmap_step(&rom, &words, &classification) ==
+           H9_MAIN_POST_CLOCK_BITMAP_ALTERNATE);
+    assert(words.first_word == UINT32_MAX && words.second_word == UINT32_MAX);
+}
+
+typedef struct {
     uint8_t bytes[192];
     size_t length;
     unsigned calls;
@@ -4693,6 +4750,7 @@ int main(void)
     test_main_clock_finish();
     test_main_post_clock_rom();
     test_main_post_clock_classification();
+    test_main_post_clock_bitmap();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

@@ -102,3 +102,21 @@ bool h9_main_post_clock_classify(H9MainPostClockClassifier *classifier,
     result->accepted = true;
     return true;
 }
+
+H9MainPostClockBitmapBranch h9_main_post_clock_bitmap_step(
+    H9MainPostClockRom *rom, H9MainPostClockWords *words,
+    const H9MainPostClockClassification *classification)
+{
+    uint32_t index;
+    if (rom == NULL || words == NULL || classification == NULL ||
+        rom->read_selector == NULL) return H9_MAIN_POST_CLOCK_BITMAP_ERROR;
+    if (!classification->accepted) return H9_MAIN_POST_CLOCK_BITMAP_ALTERNATE;
+    if (classification->selector_148_masked == 0u)
+        return H9_MAIN_POST_CLOCK_BITMAP_CONTINUE;
+
+    index = rom->read_selector(rom->context, 192u);
+    if (index > 55u) return H9_MAIN_POST_CLOCK_BITMAP_ALTERNATE;
+    if (index < 32u) words->first_word &= ~(1u << index);
+    else words->second_word &= ~(1u << (index - 32u));
+    return H9_MAIN_POST_CLOCK_BITMAP_CONTINUE;
+}

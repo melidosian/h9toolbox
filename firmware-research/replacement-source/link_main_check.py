@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after the first post-clock hardware classification. Optional raw output is for
-offline inspection only.
+The board entry stops after the first post-clock ROM-selector bitmap step.
+Optional raw output is for offline inspection only.
 """
 
 from __future__ import annotations
@@ -30,6 +30,12 @@ STOCK_BOOT_ARGS = bytes.fromhex(
     "50 ec 00 21 50 ec 11 22 80 00"
 )
 STOCK_ICFG_AFTER_RAM_COPY = bytes.fromhex("64 e0 00 2b 72 e1 40 2f 64 e0 80 2b")
+STOCK_POST_CLOCK_BITMAP_BRANCH = bytes.fromhex(
+    "005070208dea4f01011681fc071e81fc053e81fc035e08ff37108f018880bfeab8fe"
+)
+STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
+    "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
+)
 
 
 def sibling_tool(compiler: str, name: str) -> str:
@@ -52,6 +58,9 @@ def verify_stock_image(path: Path) -> None:
         raise ValueError("Stock post-RAM-copy interrupt configuration differs")
     if data[0xC564E:0xC5652] != bytes((7, 8, 10, 14)):
         raise ValueError("Stock clock ROM mode band table differs")
+    if data[0x5FCB2:0x5FCD4] != STOCK_POST_CLOCK_BITMAP_BRANCH or \
+            data[0x5FA44:0x5FA5E] != STOCK_BITMAP_CLEAR_HELPER:
+        raise ValueError("Stock post-clock bitmap branch or clear helper differs")
 
 
 def verify_linked_elf(path: Path) -> int:
@@ -177,6 +186,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_post_clock_rom_run",
         "h9_main_post_clock_classifier_bind_target",
         "h9_main_post_clock_classify",
+        "h9_main_post_clock_bitmap_step",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -217,6 +227,14 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         for value in ("r1 = 148", "0x154", "0x2A8", "0xFFFFFF01")
     ):
         raise ValueError("Linked post-clock classifier lost stock field masks")
+    bitmap_step = re.search(
+        r"(?ms)^h9_main_post_clock_bitmap_step:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    if bitmap_step is None or "r1 = 192" not in bitmap_step.group(1) or \
+            "r0 > 55" not in bitmap_step.group(1) or \
+            "&= ~(1 << r0)" not in bitmap_step.group(1):
+        raise ValueError("Linked post-clock bitmap step lost selector or bit clear")
     bitmap_match = re.search(
         r"(?ms)^mark_blocks:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
         disassembly,
@@ -554,6 +572,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_clock_finish_path_verified": True,
         "early_board_post_clock_rom_path_verified": True,
         "early_board_post_clock_classifier_path_verified": True,
+        "early_board_post_clock_bitmap_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
