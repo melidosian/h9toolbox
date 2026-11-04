@@ -21,11 +21,13 @@ ROOT = Path(__file__).resolve().parent
 SOURCES = {
     "aprs": (
         "common/h9_aprs_wire.c",
+        "aprs/h9_aprs_adc_board.c",
         "aprs/h9_aprs_bitstream.c",
         "aprs/h9_aprs_clock.c",
         "aprs/h9_aprs_controller.c",
         "aprs/h9_aprs_demod.c",
         "aprs/h9_aprs_frame.c",
+        "aprs/h9_aprs_gpio_board.c",
         "aprs/h9_aprs_oscillator.c",
         "aprs/h9_aprs_ring.c",
         "aprs/h9_aprs_tx.c",
@@ -36,6 +38,7 @@ SOURCES = {
         "aprs/h9_aprs_uart1_dma.c",
         "aprs/h9_aprs_uart1_tx.c",
         "aprs/h9_aprs_uart_receive.c",
+        "aprs/h9_aprs_wave_output.c",
     ),
     "main": (
         "common/h9_aprs_wire.c",

@@ -48,6 +48,11 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str) -> None:
         raise ValueError("APRS frame CRC residue differs")
     if struct.unpack_from("<I", aprs_image, 0x4040)[0] != APRS_BASE + CRC_TABLE_OFFSET:
         raise ValueError("APRS frame CRC table pointer differs")
+    for address in (0x08002970, 0x080029E0, 0x080029F4):
+        if struct.unpack_from("<I", aprs_image, address - APRS_BASE)[0] != 0x50000400:
+            raise ValueError(f"APRS GPIOB base differs at 0x{address:08X}")
+    if struct.unpack_from("<I", aprs_image, 0x080027A4 - APRS_BASE)[0] != 0x40012400:
+        raise ValueError("APRS sample ADC base differs")
     for index in range(256):
         crc = index
         for _ in range(8):
@@ -66,7 +71,7 @@ def main() -> None:
     source = Path(__file__).resolve().parent / "aprs" / "h9_aprs_oscillator.c"
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"))
-    print("Exact stock image hashes, TX call/table, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, TX call/table, ADC/GPIOB bases, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

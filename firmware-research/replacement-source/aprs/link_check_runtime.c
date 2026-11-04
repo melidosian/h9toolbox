@@ -17,6 +17,36 @@ static bool board_uart_ok(void *context)
     return h9_aprs_uart1_tx_ok(&state->uart1_tx);
 }
 
+static void board_set_radio_gpio(void *context, bool high)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    h9_aprs_gpio_board_write(&state->gpio_board, high);
+}
+
+static bool board_read_radio_gpio(void *context)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    return h9_aprs_gpio_board_read(&state->gpio_board);
+}
+
+static uint8_t board_read_wave_port(void *context)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    return h9_aprs_wave_output_read(&state->wave_output);
+}
+
+static void board_write_wave_port(void *context, uint8_t value)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    h9_aprs_wave_output_write(&state->wave_output, value);
+}
+
+static uint16_t board_read_adc(void *context)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    return h9_aprs_adc_board_read(&state->adc_board);
+}
+
 /* Temporary freestanding shims for a whole-archive link. */
 void *memcpy(void *destination, const void *source, size_t length)
 {
@@ -43,12 +73,20 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     hardware.context = &runtime;
     hardware.uart_write = board_uart_write;
     hardware.uart_ok = board_uart_ok;
+    hardware.set_radio_gpio = board_set_radio_gpio;
+    hardware.read_radio_gpio = board_read_radio_gpio;
+    hardware.read_dac_port = board_read_wave_port;
+    hardware.write_dac_port = board_write_wave_port;
+    hardware.read_adc = board_read_adc;
     h9_aprs_controller_init(&runtime.controller, &hardware);
     h9_aprs_tx_service_init(&runtime.tx_service, 0, 0, 0);
     h9_aprs_uart_receive_init(&runtime.uart_receive);
     h9_aprs_uart1_dma_bind_target(&runtime.uart1_dma,
                                   &runtime.uart_receive);
     h9_aprs_uart1_board_bind_target(&runtime.uart1_board);
+    h9_aprs_gpio_board_bind_target(&runtime.gpio_board);
+    h9_aprs_wave_output_bind_target(&runtime.wave_output);
+    h9_aprs_adc_board_bind_target(&runtime.adc_board);
     system_clock_hz = h9_aprs_clock_select_internal_target(100000u);
     if (system_clock_hz == 0u ||
         !h9_aprs_uart1_board_configure(&runtime.uart1_board,

@@ -1,0 +1,7 @@
+# APRS sample output trace
+
+Source: captured APRS v1.0.15 image, SHA-256 `1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33`, read in the `H9Aprs` Ghidra project.
+
+At `0x080026D4`, stock initialization stores peripheral base `0x40012400` (literal at `0x080027A4`) into sample state at `0x20000560`. The sample callback at `0x08002EF8` calls `0x08002F82`, which reads base+`0x40`, the ADC data register at `0x40012440`. It stores the low 16 bits and passes a normalized signed sample to the demodulator `FUN_08002308`. Only afterward does it check transmit state and optionally request the next waveform sample from `FUN_08002468`. The output value is passed through `FUN_08005EF8`, which reverses the high four bits, and written into bits 4 through 7 of the GPIOA output-data register at `0x50000014`. The low four bits of that register are preserved. When no waveform is active, the high output nibble is `0x80`.
+
+`replacement-source/aprs/h9_aprs_controller.c` already implements the normalization, demod-before-output order, nibble reversal, and inactive value. `h9_aprs_adc_board.*` and `h9_aprs_wave_output.*` now bind the input and output register callbacks. The replacement still lacks ADC initialization, GPIO pin-mode setup, and the timer callback that would invoke `h9_aprs_controller_adc_tick` at the stock sample rate. The electrical circuit and timing require verification before this becomes a working modem board path.

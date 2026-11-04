@@ -1,6 +1,8 @@
 #include "h9_aprs_controller.h"
+#include "h9_aprs_adc_board.h"
 #include "h9_aprs_demod.h"
 #include "h9_aprs_frame.h"
+#include "h9_aprs_gpio_board.h"
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_clock.h"
 #include "h9_aprs_ring.h"
@@ -13,6 +15,7 @@
 #include "h9_aprs_uart1_board.h"
 #include "h9_aprs_uart1_tx.h"
 #include "h9_aprs_oscillator.h"
+#include "h9_aprs_wave_output.h"
 #include "h9_main_aprs.h"
 #include "h9_main_aprs_control.h"
 #include "h9_main_aprs_metadata.h"
@@ -1302,6 +1305,46 @@ static void test_aprs_uart1_board_setup(void)
     assert(nvic_iser == ((1u << 9) | (1u << 27)));
 }
 
+static void test_aprs_gpio_board(void)
+{
+    H9AprsGpioBoard board = { 0 };
+    uint32_t gpio[11] = { 0 };
+    assert(!h9_aprs_gpio_board_read(&board));
+    h9_aprs_gpio_board_write(&board, true);
+    h9_aprs_gpio_board_bind(&board, gpio);
+    h9_aprs_gpio_board_write(&board, true);
+    assert(gpio[6] == 0x20u && gpio[10] == 0u);
+    h9_aprs_gpio_board_write(&board, false);
+    assert(gpio[10] == 0x20u);
+    assert(!h9_aprs_gpio_board_read(&board));
+    gpio[4] = 0x20u;
+    assert(h9_aprs_gpio_board_read(&board));
+    gpio[4] = 0x10u;
+    assert(!h9_aprs_gpio_board_read(&board));
+}
+
+static void test_aprs_wave_output(void)
+{
+    H9AprsWaveOutput output = { 0 };
+    uint32_t gpio[6] = { 0 };
+    assert(h9_aprs_wave_output_read(&output) == 0u);
+    h9_aprs_wave_output_bind(&output, gpio);
+    gpio[5] = 0x18Fu;
+    assert(h9_aprs_wave_output_read(&output) == 0x8Fu);
+    h9_aprs_wave_output_write(&output, 0xA5u);
+    assert(gpio[5] == 0xA5u);
+}
+
+static void test_aprs_adc_board(void)
+{
+    H9AprsAdcBoard board = { 0 };
+    uint32_t adc[17] = { 0 };
+    assert(h9_aprs_adc_board_read(&board) == 0u);
+    h9_aprs_adc_board_bind(&board, adc);
+    adc[16] = 0xABCD1234u;
+    assert(h9_aprs_adc_board_read(&board) == 0x1234u);
+}
+
 static void test_aprs_internal_clock_selection(void)
 {
     uint32_t rcc[3] = { 0 };
@@ -1390,6 +1433,9 @@ int main(void)
     test_aprs_uart_receive_batches();
     test_aprs_uart1_dma_interrupts();
     test_aprs_uart1_board_setup();
+    test_aprs_gpio_board();
+    test_aprs_wave_output();
+    test_aprs_adc_board();
     test_aprs_internal_clock_selection();
     test_aprs_uart1_reply_transmit();
     return 0;

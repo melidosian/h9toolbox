@@ -16,9 +16,11 @@ add_library(h9_replacement_core STATIC
     main/h9_main_tx_service.c
     main/h9_main_uart_ring.c
     aprs/h9_aprs_bitstream.c
+    aprs/h9_aprs_adc_board.c
     aprs/h9_aprs_clock.c
     aprs/h9_aprs_demod.c
     aprs/h9_aprs_frame.c
+    aprs/h9_aprs_gpio_board.c
     aprs/h9_aprs_oscillator.c
     aprs/h9_aprs_ring.c
     aprs/h9_aprs_tx.c
@@ -29,6 +31,7 @@ add_library(h9_replacement_core STATIC
     aprs/h9_aprs_uart1_dma.c
     aprs/h9_aprs_uart1_tx.c
     aprs/h9_aprs_uart_receive.c
+    aprs/h9_aprs_wave_output.c
     aprs/h9_aprs_controller.c)
 target_include_directories(h9_replacement_core PUBLIC common main aprs)
 if(MSVC)
