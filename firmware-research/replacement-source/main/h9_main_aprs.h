@@ -44,6 +44,13 @@ uint8_t h9_main_track_side_bit(uint8_t side_state, bool compare_working,
                                 uint32_t a_frequency, uint32_t b_frequency);
 H9Side h9_main_side_from_state(uint8_t side_state);
 
+/* Stock RF-side setup at app+0x058D4C reads 0x11AEC when Dual Watch is
+ * enabled; otherwise it reads bit 7 of 0x11B50. A zero route byte selects A,
+ * and any nonzero route byte selects B. This identifies setup selection,
+ * not measured RF output or the red display line. */
+H9Side h9_main_rf_setup_side(bool dual_watch, uint8_t route_side_byte,
+                             uint8_t channel_side_state);
+
 /* Policy only: actual audio gates and decoder tap have not been located. */
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
                                H9Side received_side);

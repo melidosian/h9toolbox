@@ -1076,6 +1076,11 @@ static void test_main_policy(void)
                                          445390000u, 144390000u);
     assert(side_state == 0xADu);
     assert(h9_main_side_from_state(side_state) == H9_SIDE_B);
+    assert(h9_main_rf_setup_side(false, 0u, side_state) == H9_SIDE_B);
+    assert(h9_main_rf_setup_side(false, 1u, 0x2Du) == H9_SIDE_A);
+    assert(h9_main_rf_setup_side(true, 0u, side_state) == H9_SIDE_A);
+    assert(h9_main_rf_setup_side(true, 1u, 0x2Du) == H9_SIDE_B);
+    assert(h9_main_rf_setup_side(true, 0xFFu, 0x2Du) == H9_SIDE_B);
     assert(h9_main_track_side_bit(side_state, false, 445390000u,
                                   445390000u, 144390000u) == side_state);
     assert(h9_main_track_side_bit(side_state, true, 145000000u,

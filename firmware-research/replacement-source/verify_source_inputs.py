@@ -44,6 +44,12 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "00 A8 41 E0 40 60 01 19 50 27 FF EA 8C B9"
     ):
         raise ValueError("main RF AF selector differs")
+    if main_app[0x058D4C:0x058D76] != bytes.fromhex(
+        "41 E0 D7 10 C0 FF D0 1A 01 00 D8 EE 00 11 01 44 "
+        "50 EE 0C 01 80 48 04 84 54 EE 00 08 80 FD 03 00 "
+        "BF EA 29 ED 04 82 BF EA AE ED"
+    ):
+        raise ValueError("main Dual Watch RF-side selector differs")
     if main_app[0x078E94:0x078EC2] != bytes.fromhex(
         "75 04 C2 FF D0 1A 01 00 50 EE 26 14 43 E0 4C 02 "
         "44 21 10 18 0D 17 D8 EE 21 43 B5 EE 00 00 40 20 "
@@ -137,7 +143,7 @@ def main() -> None:
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"),
            tx_source.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/tables/limits, control groups/volume clamp, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, TX call/tables/limits and Dual Watch side selector, control groups/volume clamp, speaker writer/GPIO bank, RF AF selector, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

@@ -24,6 +24,14 @@ H9Side h9_main_side_from_state(uint8_t side_state)
     return (side_state & 0x80u) != 0 ? H9_SIDE_B : H9_SIDE_A;
 }
 
+H9Side h9_main_rf_setup_side(bool dual_watch, uint8_t route_side_byte,
+                             uint8_t channel_side_state)
+{
+    return dual_watch ?
+        (route_side_byte != 0u ? H9_SIDE_B : H9_SIDE_A) :
+        h9_main_side_from_state(channel_side_state);
+}
+
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
                                H9Side received_side)
 {

@@ -16,7 +16,11 @@ typedef enum {
     H9_MAIN_TX_SENT
 } H9MainTxResult;
 
-/* A board adapter must check current band/region settings in
+/* read_current_side must report bit 7 of the working channel-state byte
+ * (stock RAM 0x11B50), which governs the Lock choice; it must not infer side
+ * from the highlighted display line. With Dual Watch, RF setup separately
+ * reads the routed side byte at 0x11AEC. A board adapter must check current
+ * band/region settings in
  * validate_frequency and leave PTT inactive throughout prepare_tx and
  * read_prepared_tx. send_packet is the only callback allowed to key RF.
  * stop_tx must deassert PTT even when send_packet reports failure. */
