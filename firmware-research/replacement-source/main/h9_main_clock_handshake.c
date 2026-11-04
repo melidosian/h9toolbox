@@ -49,6 +49,26 @@ bool h9_main_clock_handshake_run(H9MainClockHandshake *handshake)
     return true;
 }
 
+bool h9_main_clock_map_sources(H9MainClockHandshake *handshake,
+                                uintptr_t app_entry, uintptr_t ram_code_source)
+{
+    volatile uint32_t *window;
+    if (handshake == NULL || handshake->status_101044 == NULL ||
+        handshake->window_words_101070 == NULL ||
+        handshake->read_status == NULL || handshake->poll_limit == 0u ||
+        app_entry == 0u || ram_code_source == 0u) return false;
+    if (!wait_for_status(handshake, true)) return false;
+    window = handshake->window_words_101070;
+    window[1] = (uint32_t)app_entry;
+    window[0] = (uint32_t)ram_code_source;
+    /* The board entry at app+0x05FF46 reads all four words, in this order. */
+    (void)window[1];
+    (void)window[0];
+    (void)window[3];
+    (void)window[2];
+    return true;
+}
+
 static uint32_t target_read_status(void *context, volatile uint32_t *status)
 {
     (void)context;
@@ -58,9 +78,6 @@ static uint32_t target_read_status(void *context, volatile uint32_t *status)
 void h9_main_clock_handshake_bind_target(H9MainClockHandshake *handshake,
                                           uint32_t poll_limit)
 {
-    /* This volatile load prevents JieLi clang from coalescing the two
-     * adjacent control addresses into the same pointer at -Oz. */
-    volatile uintptr_t control_base = 0x0010F0D0u;
     if (handshake == NULL) return;
     handshake->context = NULL;
     handshake->status_101044 =
@@ -68,9 +85,11 @@ void h9_main_clock_handshake_bind_target(H9MainClockHandshake *handshake,
     handshake->gates_101000 =
         (volatile uint32_t *)(uintptr_t)0x00101000u;
     handshake->control_10f0d0 =
-        (volatile uint32_t *)(uintptr_t)control_base;
+        (volatile uint32_t *)(uintptr_t)0x0010F0D0u;
     handshake->control_10f1c0 =
-        (volatile uint32_t *)(uintptr_t)(control_base + 0xF0u);
+        (volatile uint32_t *)(uintptr_t)0x0010F1C0u;
     handshake->read_status = target_read_status;
     handshake->poll_limit = poll_limit;
+    handshake->window_words_101070 =
+        (volatile uint32_t *)(uintptr_t)0x00101070u;
 }

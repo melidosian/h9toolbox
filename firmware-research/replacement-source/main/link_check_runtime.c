@@ -31,6 +31,7 @@ extern unsigned char __ram_code_end[];
 extern unsigned char __stock_clear_start[];
 extern unsigned char __stock_clear_end[];
 extern void h9_main_interrupt_config(void);
+extern void h9_main_reset(void);
 void *memcpy(void *destination, const void *source, size_t length)
 {
     unsigned char *to = (unsigned char *)destination;
@@ -166,6 +167,10 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
                                h9_main_default_irq)) for (;;) { }
     h9_main_clock_handshake_bind_target(&clock_handshake, 100000u);
     if (!h9_main_clock_handshake_run(&clock_handshake)) for (;;) { }
+    if (!h9_main_clock_map_sources(&clock_handshake,
+                                   (uintptr_t)h9_main_reset,
+                                   (uintptr_t)__ram_code_load_start))
+        for (;;) { }
 #endif
     for (;;) { }
 }

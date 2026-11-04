@@ -5232,10 +5232,20 @@ static uint32_t clock_handshake_stuck(void *context,
     return 0u;
 }
 
+static uint32_t clock_handshake_ready(void *context,
+                                      volatile uint32_t *status)
+{
+    ClockHandshakeCapture *capture = (ClockHandshakeCapture *)context;
+    (void)status;
+    ++capture->reads;
+    return 1u;
+}
+
 static void test_main_clock_handshake(void)
 {
     ClockHandshakeCapture capture = { 0u };
     uint32_t status = 0u, gates = 0x5u, control = 0x80u, other = 0x10u;
+    uint32_t window[4] = { 0u, 0u, 0xCAFEu, 0xBABEu };
     H9MainClockHandshake handshake = {
         &capture, &status, &gates, &control, &other,
         clock_handshake_read, 2u
@@ -5263,6 +5273,24 @@ static void test_main_clock_handshake(void)
     assert(!h9_main_clock_handshake_run(&handshake));
     assert(capture.reads == 2u && status == 0xE7u);
     assert(gates == 0x5u && control == 0x80u && other == 0x10u);
+
+    handshake.window_words_101070 = window;
+    assert((uintptr_t)target.window_words_101070 == 0x101070u);
+    assert(!h9_main_clock_map_sources(&handshake, 0u, 0x1234u));
+    capture.reads = 0u;
+    handshake.read_status = clock_handshake_ready;
+    status = 0x55u;
+    assert(h9_main_clock_map_sources(&handshake, 0x1E00100u, 0x1EC628Cu));
+    assert(capture.reads == 1u && status == 0x55u);
+    assert(window[0] == 0x1EC628Cu && window[1] == 0x1E00100u &&
+           window[2] == 0xCAFEu && window[3] == 0xBABEu);
+    capture.reads = 0u;
+    handshake.read_status = clock_handshake_stuck;
+    window[0] = 0x1111u;
+    window[1] = 0x2222u;
+    assert(!h9_main_clock_map_sources(&handshake, 0x1E00100u, 0x1EC628Cu));
+    assert(capture.reads == 2u && window[0] == 0x1111u &&
+           window[1] == 0x2222u);
 }
 
 static void test_main_irq_registration(void)

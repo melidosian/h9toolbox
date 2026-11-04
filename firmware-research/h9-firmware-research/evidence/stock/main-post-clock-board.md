@@ -174,14 +174,24 @@ first reads without a write, then writes `0xE7` to `0x101044` after every
 failed read. Stock has no visible retry bound. The board routine waits for
 set, ORs one bit into a control register, then waits for clear, in this order:
 `0x101000` gets bits 29, 28, 27, 26, 25, 24; `0x10F0D0` gets bits 0, 1, 2;
-`0x10F1C0` gets bit 0. It next calls app+`0x05E368`, whose behavior is not
-ported yet.
+`0x10F1C0` gets bit 0. It next calls app+`0x05E368`.
 
 `main/h9_main_clock_handshake.*` ports the ten stages with a configurable
 retry limit. The target entry currently uses 100,000 polls per wait and
 halts on timeout. Host tests exercise every stage and a stuck status bit;
 the Pi32 link check pins both stock byte ranges, checks the mask constants,
-and inspects generated pointer assignments. The vendor compiler initially
-coalesced `0x10F0D0` and `0x10F1C0` into the same pointer in the target
-binder; an explicit volatile base load corrected the linked instructions.
-The hardware meaning of these gates and safe timeout length are unverified.
+and inspects generated pointer assignments. Its adjacent address calculation
+and store can issue as a Pi32 parallel pair: that store reads the old base
+while the later store reads the new address. The hardware meaning of these
+gates and safe timeout length are unverified.
+
+At app+`0x05FF36..0x05FF52`, stock passes app base `0x01E00100` and the
+source of its RAM-code copy `0x01EC628C` to app+`0x05E368`. That helper waits
+for status bit 0 at `0x101044` to become set, writes the app base to
+`0x101074`, and writes the RAM-code source to `0x101070`. The caller then
+reads `0x101074`, `0x101070`, `0x10107C`, and `0x101078` in order without
+using their values. `h9_main_clock_map_sources` ports this stage with the
+replacement linker symbols `h9_main_reset` and `__ram_code_load_start`.
+The linked target check verifies those symbols and all four read operations.
+The next stock instruction begins a repeated write to address zero; its
+count and purpose need separate analysis before extending the board entry.

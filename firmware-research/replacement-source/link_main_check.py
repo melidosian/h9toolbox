@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after the post-IRQ clock gate handshake.
+The board entry stops after the post-IRQ memory-source mapping.
 Optional raw output is for offline inspection only.
 """
 
@@ -130,6 +130,13 @@ STOCK_CLOCK_GATE_HANDSHAKE = bytes.fromhex(
     "bfea17f200ef0220bfea1df2bfea11f200ef0420"
     "bfea17f2bfea0bf200e1f02000ef0100bfea0ff2"
 )
+STOCK_MEMORY_SOURCE_HELPER = bytes.fromhex(
+    "1004121603167188c0ff70101000836182608804"
+)
+STOCK_MEMORY_SOURCE_BOARD = bytes.fromhex(
+    "c0ff0001e001c1ff8c62ec01bfea11f2"
+    "02e1504020692068206b206a"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -179,6 +186,8 @@ def verify_stock_image(path: Path) -> None:
                 STOCK_RAM_EXCEPTION_ENTRY or \
             data[0x5E340:0x5E368] != STOCK_CLOCK_STATUS_HELPERS or \
             data[0x5FEAE:0x5FF36] != STOCK_CLOCK_GATE_HANDSHAKE or \
+            data[0x5E368:0x5E37C] != STOCK_MEMORY_SOURCE_HELPER or \
+            data[0x5FF36:0x5FF52] != STOCK_MEMORY_SOURCE_BOARD or \
             data[0xBA:0xD2] != STOCK_DESCRIPTOR_LOOKUP or \
             data[0x554:0x564] != STOCK_DESCRIPTOR_TABLE or \
             data[0x482:0x48E] != STOCK_DESCRIPTOR_WORD5_HELPER or \
@@ -340,6 +349,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_post_clock_timer_stage_run",
         "h9_main_clock_handshake_bind_target",
         "h9_main_clock_handshake_run",
+        "h9_main_clock_map_sources",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -359,10 +369,34 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
     )
     binder_body = handshake_binder.group(1) if handshake_binder else ""
-    if "101044" not in binder_body or "10f0d0" not in binder_body or \
-            not re.search(r"\[r0\+12\] = r2.*?r2 = r2 \+ 240.*?"
-                          r"\[r0\+16\] = r2", binder_body, re.S):
-        raise ValueError("Linked clock control pointers alias or lose MMIO base")
+    binder_order = ("101044", "10f0d0", "d[r0+8] = r3_r2",
+                    "r2 = r3 + 240", "[r0+16] = r2",
+                    "[r0+24] = r1", "101070", "[r0+28] = r1")
+    binder_positions = [binder_body.find(item) for item in binder_order]
+    if -1 in binder_positions or binder_positions != sorted(binder_positions):
+        raise ValueError("Linked clock binder lost MMIO bases or pointer order")
+    map_sources = re.search(
+        r"(?ms)^h9_main_clock_map_sources:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    map_body = map_sources.group(1) if map_sources else ""
+    map_order = ("wait_for_status", "[r0+4] = r6", "[r0+0] = r5",
+                 "[r0+4]", "[r0+0]", "[r0+12]", "[r0+8]")
+    map_positions = []
+    cursor = 0
+    for item in map_order:
+        position = map_body.find(item, cursor)
+        map_positions.append(position)
+        if position >= 0:
+            cursor = position + len(item)
+    if -1 in map_positions:
+        raise ValueError("Linked memory-source mapping lost write/read order")
+    board_map_call = board_body.find("h9_main_clock_map_sources")
+    if board_map_call < 0 or "h9_main_reset" not in \
+            board_body[board_map_call - 260:board_map_call] or \
+            "__ram_code_load_start" not in \
+            board_body[board_map_call - 260:board_map_call]:
+        raise ValueError("Linked memory-source map lost image or RAM load address")
     handshake_wait = re.search(
         r"(?ms)^wait_for_status:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
         disassembly,
@@ -870,6 +904,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_timer3_setup_and_isr_link_verified": True,
         "early_board_default_irq_snapshot_link_verified": True,
         "early_board_clock_gate_handshake_link_verified": True,
+        "early_board_memory_source_map_link_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
