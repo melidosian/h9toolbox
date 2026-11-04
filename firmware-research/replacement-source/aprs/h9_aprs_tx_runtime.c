@@ -2,27 +2,19 @@
 
 #include <stddef.h>
 
-static void abort_wave(H9AprsTxService *service)
-{
-    uint32_t random_state = service->gate.random_state;
-    uint16_t lead_ms = service->wave.lead_ms;
-    uint16_t tail_ms = service->wave.tail_ms;
-    h9_aprs_tx_service_init(service, random_state, lead_ms, tail_ms);
-}
-
 void h9_aprs_tx_runtime_bind(H9AprsTxRuntime *runtime,
                              H9AprsTxService *service)
 {
     if (runtime == NULL) return;
     runtime->service = service;
-    runtime->rf_ready = false;
+    atomic_init(&runtime->rf_ready, false);
 }
 
 bool h9_aprs_tx_runtime_submit(H9AprsTxRuntime *runtime,
                                const uint8_t *packet, size_t length)
 {
     return runtime != NULL && runtime->service != NULL &&
-           runtime->rf_ready &&
+           atomic_load_explicit(&runtime->rf_ready, memory_order_acquire) &&
            h9_aprs_tx_service_submit(runtime->service, packet, length);
 }
 
@@ -35,23 +27,25 @@ H9AprsTxPhase h9_aprs_tx_runtime_step(H9AprsTxRuntime *runtime,
     H9AprsTxService *service;
     if (runtime == NULL || runtime->service == NULL) return H9_APRS_TX_IDLE;
     service = runtime->service;
-    runtime->rf_ready = rf_ready;
-    if (!rf_ready) {
-        if (service->phase != H9_APRS_TX_IDLE)
-            abort_wave(service);
-        return service->phase;
-    }
+    atomic_store_explicit(&runtime->rf_ready, rf_ready, memory_order_release);
+    if (!rf_ready) return h9_aprs_tx_service_cancel(service);
     return h9_aprs_tx_service_step(service, channel_busy, receive_active,
                                     receive_complete, persistence);
 }
 
 bool h9_aprs_tx_runtime_wave_active(const H9AprsTxRuntime *runtime)
 {
-    if (runtime == NULL || runtime->service == NULL || !runtime->rf_ready)
+    H9AprsTxPhase phase;
+    if (runtime == NULL || runtime->service == NULL)
         return false;
-    return (runtime->service->phase == H9_APRS_TX_ENCODING ||
-            runtime->service->phase == H9_APRS_TX_DRAINING) &&
-           runtime->service->wave.active != 0u;
+    phase = (H9AprsTxPhase)atomic_load_explicit(&runtime->service->phase,
+                                                 memory_order_acquire);
+    /* Keep the ADC callback scheduled for the abort acknowledgement, even
+     * when RF readiness has already fallen. */
+    if (phase == H9_APRS_TX_ABORTING) return true;
+    return atomic_load_explicit(&runtime->rf_ready, memory_order_acquire) &&
+           (phase == H9_APRS_TX_STARTING || phase == H9_APRS_TX_ENCODING ||
+            phase == H9_APRS_TX_DRAINING);
 }
 
 bool h9_aprs_tx_runtime_next_sample(H9AprsTxRuntime *runtime,

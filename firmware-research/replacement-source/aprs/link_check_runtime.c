@@ -74,8 +74,8 @@ static void board_tx_settings_changed(void *context,
                                       const H9AprsTxSettings *settings)
 {
     H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
-    state->tx_service.wave.lead_ms = settings->lead_ms;
-    state->tx_service.wave.tail_ms = settings->tail_ms;
+    h9_aprs_tx_service_set_timing(&state->tx_service,
+                                   settings->lead_ms, settings->tail_ms);
 }
 
 static bool board_tx_wave_active(void *context)

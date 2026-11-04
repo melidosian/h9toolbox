@@ -2,6 +2,7 @@
 #define H9_APRS_TX_RUNTIME_H
 
 #include "h9_aprs_tx_service.h"
+#include <stdatomic.h>
 
 /* Connects serial packet requests to the waveform service. The caller must
  * establish RF readiness from a board signal before submission and each step.
@@ -9,7 +10,7 @@
  * No stock GPIO has yet been proven to be that signal. */
 typedef struct {
     H9AprsTxService *service;
-    bool rf_ready;
+    atomic_bool rf_ready;
 } H9AprsTxRuntime;
 
 void h9_aprs_tx_runtime_bind(H9AprsTxRuntime *runtime,

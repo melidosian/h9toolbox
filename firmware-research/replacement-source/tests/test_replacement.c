@@ -60,6 +60,9 @@
 #include "h9_main_uart_ring.h"
 #include <assert.h>
 #include <string.h>
+#ifdef _MSC_VER
+#include <crtdbg.h>
+#endif
 
 typedef struct {
     uint8_t uart[H9_APRS_ENCODED_CAPACITY];
@@ -122,8 +125,8 @@ static void capture_tx_settings(void *opaque,
     fake->tx_settings = *settings;
     fake->tx_settings_changes++;
     if (fake->tx_service != NULL) {
-        fake->tx_service->wave.lead_ms = settings->lead_ms;
-        fake->tx_service->wave.tail_ms = settings->tail_ms;
+        h9_aprs_tx_service_set_timing(fake->tx_service,
+                                       settings->lead_ms, settings->tail_ms);
     }
 }
 
@@ -2032,7 +2035,7 @@ static void test_aprs_tx_service(void)
     assert(h9_aprs_tx_service_step(&service, true, false, false, 255) ==
            H9_APRS_TX_WAITING);
     assert(h9_aprs_tx_service_step(&service, false, false, false, 29) ==
-           H9_APRS_TX_ENCODING);
+           H9_APRS_TX_STARTING);
     while (samples < 20000 && h9_aprs_tx_service_next_sample(&service, &sample)) {
         (void)h9_aprs_demod_sample(&demodulator, (int16_t)sample - 128);
         while (h9_aprs_demod_pop_byte(&demodulator, &receive_byte))
@@ -2051,6 +2054,37 @@ static void test_aprs_tx_service(void)
            H9_APRS_TX_IDLE);
     assert(!h9_aprs_tx_service_next_sample(&service, &sample));
     assert(!h9_aprs_tx_service_take_encoded_event(&service));
+}
+
+static void test_aprs_tx_interrupt_handoff(void)
+{
+    H9AprsTxService service;
+    const uint8_t packet[20] = { 0x82u, 0xA0u, 0xA4u, 0xA6u };
+    uint8_t sample;
+    unsigned attempt;
+    h9_aprs_tx_service_init(&service, 0u, 0u, 0u);
+    assert(h9_aprs_tx_service_submit(&service, packet, sizeof packet));
+    for (attempt = 0; attempt < 8u &&
+         service.phase == H9_APRS_TX_WAITING; ++attempt)
+        (void)h9_aprs_tx_service_step(&service, false, false, false, 255u);
+    assert(service.phase == H9_APRS_TX_STARTING);
+    assert(h9_aprs_tx_service_cancel(&service) == H9_APRS_TX_ABORTING);
+    assert(!h9_aprs_tx_service_submit(&service, packet, sizeof packet));
+    assert(!h9_aprs_tx_service_next_sample(&service, &sample));
+    assert(service.phase == H9_APRS_TX_IDLE && service.wave.active == 0u);
+    assert(!h9_aprs_tx_service_take_encoded_event(&service));
+
+    h9_aprs_tx_service_set_timing(&service, 70u, 40u);
+    assert(h9_aprs_tx_service_submit(&service, packet, sizeof packet));
+    for (attempt = 0; attempt < 8u &&
+         service.phase == H9_APRS_TX_WAITING; ++attempt)
+        (void)h9_aprs_tx_service_step(&service, false, false, false, 255u);
+    assert(service.phase == H9_APRS_TX_STARTING);
+    assert(h9_aprs_tx_service_next_sample(&service, &sample));
+    assert(service.wave.lead_ms == 70u && service.wave.tail_ms == 40u);
+    assert(h9_aprs_tx_service_cancel(&service) == H9_APRS_TX_ABORTING);
+    assert(!h9_aprs_tx_service_next_sample(&service, &sample));
+    assert(service.phase == H9_APRS_TX_IDLE && service.wave.active == 0u);
 }
 
 typedef struct {
@@ -2122,15 +2156,18 @@ static void test_aprs_tx_runtime(void)
     assert(h9_aprs_tx_runtime_step(&fake.runtime, true, true,
                                    false, false, 255u) == H9_APRS_TX_WAITING);
     assert(h9_aprs_tx_runtime_step(&fake.runtime, true, false,
-                                   false, false, 255u) == H9_APRS_TX_DRAINING);
+                                   false, false, 255u) == H9_APRS_TX_STARTING);
     assert(h9_aprs_tx_runtime_wave_active(&fake.runtime));
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.sample_calls == 1u);
     assert(h9_aprs_tx_runtime_step(&fake.runtime, false, true,
-                                   false, false, 255u) == H9_APRS_TX_IDLE);
+                                   false, false, 255u) == H9_APRS_TX_ABORTING);
+    assert(h9_aprs_tx_runtime_wave_active(&fake.runtime));
+    h9_aprs_controller_adc_tick(&controller);
+    assert(fake.service.phase == H9_APRS_TX_IDLE);
     assert(fake.service.wave.active == 0u);
     h9_aprs_controller_adc_tick(&controller);
-    assert(fake.dac == 0x80u && fake.sample_calls == 1u);
+    assert(fake.dac == 0x80u && fake.sample_calls == 2u);
     assert(!h9_aprs_tx_runtime_submit(&fake.runtime, packet, sizeof packet));
     assert(h9_aprs_tx_runtime_step(&fake.runtime, true, true,
                                    false, false, 255u) == H9_APRS_TX_IDLE);
@@ -2178,16 +2215,18 @@ static void test_aprs_controller(void)
     h9_aprs_controller_uart_byte(&controller, 0x31u); /* low-nibble alias */
     h9_aprs_controller_uart_byte(&controller, 42u);
     assert(controller.tx_settings.lead_ms == 420u &&
-           service.wave.lead_ms == 420u && fake.tx_settings_changes == 1u);
+           service.pending_timing_ms ==
+               ((uint32_t)H9_APRS_STOCK_TX_TAIL_MS << 16 | 420u) &&
+           fake.tx_settings_changes == 1u);
     h9_aprs_controller_uart_byte(&controller, 0xDBu); /* raw, not escape */
     assert(controller.tx_settings.lead_ms == 2190u &&
-           service.wave.lead_ms == 2190u);
+           (uint16_t)service.pending_timing_ms == 2190u);
     h9_aprs_controller_uart_byte(&controller, 0xC0u);
     h9_aprs_controller_uart_byte(&controller, 0xC0u);
     h9_aprs_controller_uart_byte(&controller, 4u);
     h9_aprs_controller_uart_byte(&controller, 12u);
     assert(controller.tx_settings.tail_ms == 120u &&
-           service.wave.tail_ms == 120u);
+           (uint16_t)(service.pending_timing_ms >> 16) == 120u);
     h9_aprs_controller_uart_byte(&controller, 0xC0u);
     h9_aprs_controller_uart_byte(&controller, 0xC0u);
     h9_aprs_controller_uart_byte(&controller, 3u);
@@ -4175,6 +4214,10 @@ static void test_main_clock_aux_fields(void)
 
 int main(void)
 {
+#ifdef _MSC_VER
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#endif
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
     test_wire_vectors();
     test_aprs_systick();
@@ -4231,6 +4274,7 @@ int main(void)
     test_aprs_tx_packet_encoder();
     test_aprs_tx_gate();
     test_aprs_tx_service();
+    test_aprs_tx_interrupt_handoff();
     test_aprs_tx_runtime();
     test_aprs_controller();
     test_aprs_uart_receive_batches();
