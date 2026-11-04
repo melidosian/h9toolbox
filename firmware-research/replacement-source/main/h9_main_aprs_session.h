@@ -7,6 +7,7 @@
 
 #include "h9_main_aprs_control.h"
 #include "h9_main_aprs_metadata.h"
+#include "h9_main_gps_fix.h"
 #include "h9_main_uart_ring.h"
 
 /* Callbacks must consume or copy supplied buffers before returning. The
@@ -15,6 +16,8 @@ typedef struct {
     void (*packet)(void *context, const H9MainAx25Decoded *packet);
     void (*gps_sentence)(void *context, const uint8_t *sentence,
                          size_t length);
+    void (*gps_fix)(void *context, H9MainGpsSentenceType type,
+                    const H9MainGpsFix *fix);
     void (*control)(void *context, H9MainControlAction action);
     void (*version)(void *context, const H9MainAprsVersions *versions);
     void (*serial_write)(void *context, const uint8_t *bytes, size_t length);
@@ -30,6 +33,7 @@ typedef struct {
     H9MainWireReceiver receiver;
     H9MainAprsVersions versions;
     H9MainGpsCollector gps;
+    H9MainGpsFix gps_fix;
     H9MainAx25Decoded decoded;
     H9MainAprsSessionCallbacks callbacks;
     void *callback_context;

@@ -31,6 +31,7 @@
 #include "h9_main_aprs_wire.h"
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
+#include "h9_main_gps_fix.h"
 #include "h9_main_boot_record.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_dma.h"
@@ -423,6 +424,70 @@ static void test_main_gps_sentence_frames(void)
     assert(collector.length == 0);
 }
 
+static size_t make_nmea(const char *body, uint8_t *output, size_t capacity)
+{
+    static const char digits[] = "0123456789ABCDEF";
+    size_t length = strlen(body);
+    size_t index;
+    uint8_t checksum = 0u;
+    assert(length + 6u <= capacity);
+    output[0] = '$';
+    for (index = 0u; index < length; ++index) {
+        output[index + 1u] = (uint8_t)body[index];
+        checksum ^= (uint8_t)body[index];
+    }
+    output[length + 1u] = '*';
+    output[length + 2u] = (uint8_t)digits[checksum >> 4];
+    output[length + 3u] = (uint8_t)digits[checksum & 15u];
+    output[length + 4u] = '\r';
+    output[length + 5u] = '\n';
+    return length + 6u;
+}
+
+static void test_main_gps_fix_parser(void)
+{
+    H9MainGpsFix fix = { 0 };
+    H9MainGpsFix previous;
+    uint8_t sentence[160];
+    size_t length;
+    length = make_nmea(
+        "GNRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,231126,,,A",
+        sentence, sizeof sentence);
+    assert(h9_main_gps_parse_fix(sentence, length, &fix) ==
+           H9_MAIN_GPS_RMC);
+    assert(fix.has_position && fix.has_time && fix.has_date);
+    assert(fix.latitude_e7 == 481173000 &&
+           fix.longitude_e7 == 115166667);
+    assert(fix.hour == 12u && fix.minute == 35u && fix.second == 19u);
+    assert(fix.day == 23u && fix.month == 11u && fix.year == 2026u);
+    previous = fix;
+    sentence[length - 4u] ^= 1u;
+    assert(h9_main_gps_parse_fix(sentence, length, &fix) ==
+           H9_MAIN_GPS_UNRECOGNIZED);
+    assert(memcmp(&fix, &previous, sizeof fix) == 0);
+    length = make_nmea(
+        "GPGGA,123520,4807.038,S,01131.000,W,1,08,0.9,545.4,M,46.9,M,,",
+        sentence, sizeof sentence);
+    assert(h9_main_gps_parse_fix(sentence, length, &fix) ==
+           H9_MAIN_GPS_GGA);
+    assert(fix.has_position && fix.latitude_e7 == -481173000 &&
+           fix.longitude_e7 == -115166667);
+    assert(fix.second == 20u && fix.year == 2026u);
+    length = make_nmea("GNRMC,123521,V,,,,,,,231126,,,N",
+                       sentence, sizeof sentence);
+    assert(h9_main_gps_parse_fix(sentence, length, &fix) ==
+           H9_MAIN_GPS_RMC);
+    assert(!fix.has_position && fix.latitude_e7 == 0 &&
+           fix.longitude_e7 == 0);
+    previous = fix;
+    length = make_nmea(
+        "GNRMC,123521,A,9100.000,N,01131.000,E,0,0,231126,,,A",
+        sentence, sizeof sentence);
+    assert(h9_main_gps_parse_fix(sentence, length, &fix) ==
+           H9_MAIN_GPS_UNRECOGNIZED);
+    assert(memcmp(&fix, &previous, sizeof fix) == 0);
+}
+
 static void test_main_gpio_query_reply(void)
 {
     static const uint8_t query[] = { 0xC0u, 0x11u, 3u, 0xC0u };
@@ -589,12 +654,15 @@ static void test_main_uart_ring(void)
 typedef struct {
     unsigned packet_count;
     unsigned gps_count;
+    unsigned gps_fix_count;
     unsigned control_count;
     unsigned version_count;
     unsigned serial_count;
     H9MainControlAction action;
     uint8_t source[7];
-    uint8_t sentence[64];
+    uint8_t sentence[256];
+    H9MainGpsSentenceType gps_type;
+    H9MainGpsFix gps_fix;
     size_t sentence_length;
     uint8_t serial[16];
     size_t serial_length;
@@ -620,6 +688,15 @@ static void session_gps(void *context, const uint8_t *sentence, size_t length)
     capture->gps_count++;
     capture->sentence_length = length;
     memcpy(capture->sentence, sentence, length);
+}
+
+static void session_gps_fix(void *context, H9MainGpsSentenceType type,
+                            const H9MainGpsFix *fix)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    capture->gps_fix_count++;
+    capture->gps_type = type;
+    capture->gps_fix = *fix;
 }
 
 static void session_control(void *context, H9MainControlAction action)
@@ -688,6 +765,7 @@ static void test_main_aprs_session(void)
     size_t serial_length;
     callbacks.packet = session_packet;
     callbacks.gps_sentence = session_gps;
+    callbacks.gps_fix = session_gps_fix;
     callbacks.control = session_control;
     callbacks.version = session_version;
     callbacks.serial_write = session_serial;
@@ -722,6 +800,20 @@ static void test_main_aprs_session(void)
            capture.sentence_length == sizeof "$GPRMC,1*00\r\n" - 1u &&
            memcmp(capture.sentence, "$GPRMC,1*00\r\n",
                   capture.sentence_length) == 0);
+    assert(capture.gps_fix_count == 0u);
+    {
+        uint8_t nmea[160];
+        size_t nmea_length = make_nmea(
+            "GNRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,231126,,,A",
+            nmea, sizeof nmea);
+        serial_length = h9_wire_encode(0x10u, nmea, nmea_length,
+                                       serial, sizeof serial);
+        queue_session_bytes(&session, serial, serial_length);
+        assert(h9_main_aprs_session_poll(&session) == serial_length);
+        assert(capture.gps_fix_count == 1u &&
+               capture.gps_type == H9_MAIN_GPS_RMC &&
+               capture.gps_fix.latitude_e7 == 481173000);
+    }
 
     serial_length = h9_wire_encode(0x21u, version, sizeof version,
                                    serial, sizeof serial);
@@ -2594,6 +2686,7 @@ int main(void)
     test_main_ax25_packet();
     test_main_received_aprs_packet();
     test_main_gps_sentence_frames();
+    test_main_gps_fix_parser();
     test_main_gpio_query_reply();
     test_main_control_frames();
     test_main_uart_ring();

@@ -19,6 +19,12 @@ void h9_main_aprs_session_init(H9MainAprsSession *session,
 static void gps_sentence(void *context, const uint8_t *sentence, size_t length)
 {
     H9MainAprsSession *session = (H9MainAprsSession *)context;
+    H9MainGpsSentenceType type =
+        h9_main_gps_parse_fix(sentence, length, &session->gps_fix);
+    if (type != H9_MAIN_GPS_UNRECOGNIZED &&
+        session->callbacks.gps_fix != NULL)
+        session->callbacks.gps_fix(session->callback_context, type,
+                                   &session->gps_fix);
     if (session->callbacks.gps_sentence != NULL)
         session->callbacks.gps_sentence(session->callback_context,
                                         sentence, length);
