@@ -231,3 +231,7 @@ addresses. It stops before ROM `0x0200391A`.
 App+`0x02CF22` walks a descriptor table beginning at app address
 `0x01EA2B64` and calls further helpers. Its effects and required
 replacement resources are not yet traced.
+
+The table is now identified as a 27-entry task registry. See
+[main-task-registry.md](main-task-registry.md) for the pinned records, the
+`app_core`/`my_app` startup requests, and the remaining task-creation gap.

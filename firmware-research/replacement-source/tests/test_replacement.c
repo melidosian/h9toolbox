@@ -57,6 +57,7 @@
 #include "h9_main_memory_window.h"
 #include "h9_main_post_clock_rom.h"
 #include "h9_main_post_map_gate.h"
+#include "h9_main_task_registry.h"
 #include "h9_main_timer3_irq.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_bus.h"
@@ -5697,6 +5698,24 @@ static void test_aprs_uart2_maintenance(void)
     assert(h9_aprs_uart2_maintenance_due(&state, 1000u, true, true));
 }
 
+static void test_main_task_registry(void)
+{
+    const H9MainTaskDescriptor *core = h9_main_task_find("app_core");
+    const H9MainTaskDescriptor *app = h9_main_task_find("my_app");
+    const H9MainTaskDescriptor *tone = h9_main_task_find("key_tone");
+    size_t index;
+    assert(core == &h9_main_tasks[0] && core->byte_4 == 1u &&
+           core->halfword_6 == 0x0380u && core->halfword_8 == 0x0300u);
+    assert(app == &h9_main_tasks[1] && app->byte_4 == 2u &&
+           app->halfword_6 == 0x0800u && app->halfword_8 == 0x0300u);
+    assert(tone == &h9_main_tasks[25] && tone->halfword_8 == 0x0020u);
+    assert(h9_main_task_find(NULL) == NULL);
+    assert(h9_main_task_find("missing") == NULL);
+    for (index = 0u; index < H9_MAIN_TASK_COUNT; ++index)
+        assert(h9_main_task_find(h9_main_tasks[index].name) ==
+               &h9_main_tasks[index]);
+}
+
 int main(void)
 {
 #ifdef _MSC_VER
@@ -5757,6 +5776,7 @@ int main(void)
     test_main_clock_handshake();
     test_main_post_map_gate();
     test_main_post_map_window();
+    test_main_task_registry();
     test_main_timer3_irq();
     test_main_exception_capture();
     test_main_serial_profile();

@@ -212,6 +212,13 @@ def verify_stock_image(path: Path) -> None:
         raise ValueError("Stock post-clock branch, selector, or clear helper differs")
     if data[0x5224C:0x522A6] != STOCK_AUDIO_GATE_GUARD:
         raise ValueError("Stock audio gate guard differs")
+    if sha256(data[0xA2A64:0xA2BB4]).hexdigest() != \
+            "eb8bc023072f00c68df643283131a9bc5c9adf5699e291ac6b591965a1c37143" or \
+            sha256(data[0x2CF22:0x2CF66]).hexdigest() != \
+            "d020b759cb79c94e2a92f7cf1fe1208deb8d47064e4dae615f3fb3fa3610426e" or \
+            sha256(data[0x5FFAC:0x5FFE4]).hexdigest() != \
+            "215a1c9c0ac888ba32171fd3eacac8d7235bdd9d395e4ffa2019ef86ef978df0":
+        raise ValueError("Stock task table, lookup, or startup calls differ")
 
 
 def verify_linked_elf(path: Path) -> int:
