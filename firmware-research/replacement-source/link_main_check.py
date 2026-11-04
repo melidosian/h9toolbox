@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after its first memory-window stage. Optional raw output is for
+The board entry stops after early guard and state markers. Optional raw output is for
 offline inspection only.
 """
 
@@ -149,6 +149,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_heap_bitmap_initialize",
         "h9_main_memory_window_bind_target",
         "h9_main_memory_window_initialize",
+        "h9_main_board_markers_bind_target",
+        "h9_main_board_markers_initialize",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -190,6 +192,24 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
                          else -1) for item in window_order]
     if -1 in window_positions or window_positions != sorted(window_positions):
         raise ValueError("Linked memory-window setup lost stock order")
+    marker_bind_match = re.search(
+        r"(?ms)^h9_main_board_markers_bind_target:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    marker_match = re.search(
+        r"(?ms)^h9_main_board_markers_initialize:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if marker_bind_match is None or marker_match is None:
+        raise ValueError("Linked main ELF lacks early board markers")
+    marker_bind = marker_bind_match.group(1).lower()
+    marker_body = marker_match.group(1).lower()
+    if not all(value in marker_bind for value in
+               ("55936", "2064", "-40", "-136")) or \
+            not all(value in marker_body for value in
+                    ("r3 = 90", "b[r2+r1] = r3", "r1 != 15",
+                     "b[r2+0] = r1", "b[r0+0] = r1")):
+        raise ValueError("Linked early board markers differ from stock addresses or writes")
 
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
@@ -306,6 +326,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_bitmap_path_verified": True,
         "early_board_metadata_values_verified": True,
         "early_board_memory_window_path_verified": True,
+        "early_board_markers_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

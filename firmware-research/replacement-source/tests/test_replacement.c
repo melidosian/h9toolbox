@@ -40,6 +40,7 @@
 #include "h9_main_rf_registers.h"
 #include "h9_main_boot_record.h"
 #include "h9_main_boot_validator.h"
+#include "h9_main_board_markers.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
 #include "h9_main_serial_profile.h"
@@ -3789,6 +3790,31 @@ static void test_main_memory_window(void)
     assert(state_bytes[0xDDu] == 0xA5u);
 }
 
+static void test_main_board_markers(void)
+{
+    uint8_t ram_guard[H9_MAIN_GUARD_BYTES + 2u];
+    uint8_t stack_guard[H9_MAIN_GUARD_BYTES + 2u];
+    uint8_t flags[3] = { 0u, 0u, 0u };
+    H9MainBoardMarkers markers = {
+        ram_guard + 1u, stack_guard + 1u,
+        &flags[0], &flags[1], &flags[2]
+    };
+    unsigned index;
+    memset(ram_guard, 0xA5, sizeof ram_guard);
+    memset(stack_guard, 0xA5, sizeof stack_guard);
+    assert(!h9_main_board_markers_initialize(NULL));
+    assert(h9_main_board_markers_initialize(&markers));
+    assert(ram_guard[0] == 0xA5u &&
+           ram_guard[H9_MAIN_GUARD_BYTES + 1u] == 0xA5u);
+    assert(stack_guard[0] == 0xA5u &&
+           stack_guard[H9_MAIN_GUARD_BYTES + 1u] == 0xA5u);
+    for (index = 1u; index <= H9_MAIN_GUARD_BYTES; ++index) {
+        assert(ram_guard[index] == 0x5Au);
+        assert(stack_guard[index] == 0x5Au);
+    }
+    assert(flags[0] == 1u && flags[1] == 1u && flags[2] == 1u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -3818,6 +3844,7 @@ int main(void)
     test_main_boot_validator();
     test_main_heap_bitmap();
     test_main_memory_window();
+    test_main_board_markers();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();
