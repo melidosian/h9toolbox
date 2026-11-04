@@ -28,6 +28,8 @@ typedef struct {
     atomic_int phase;
     atomic_uint_least32_t encoded_events;
     uint32_t reported_events;
+    atomic_uint_least32_t drained_events;
+    uint32_t reported_drained_events;
     atomic_uint_least32_t pending_timing_ms;
 } H9AprsTxService;
 
@@ -48,5 +50,7 @@ bool h9_aprs_tx_service_next_sample(H9AprsTxService *service,
                                      uint8_t *sample);
 /* One event when the closing flag has entered the waveform queue. */
 bool h9_aprs_tx_service_take_encoded_event(H9AprsTxService *service);
+/* One event only after the last waveform sample has left the DAC path. */
+bool h9_aprs_tx_service_take_drained_event(H9AprsTxService *service);
 
 #endif

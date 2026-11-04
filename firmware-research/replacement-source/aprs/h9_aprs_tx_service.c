@@ -51,6 +51,7 @@ void h9_aprs_tx_service_init(H9AprsTxService *service,
     h9_aprs_tx_init(&service->wave, lead_ms, tail_ms);
     atomic_init(&service->phase, H9_APRS_TX_IDLE);
     atomic_init(&service->encoded_events, 0u);
+    atomic_init(&service->drained_events, 0u);
     atomic_init(&service->pending_timing_ms, pack_timing(lead_ms, tail_ms));
 }
 
@@ -159,10 +160,14 @@ bool h9_aprs_tx_service_next_sample(H9AprsTxService *service,
         finish_abort(service);
         return false;
     }
-    if (phase_now(service) == H9_APRS_TX_DRAINING)
+    if (phase_now(service) == H9_APRS_TX_DRAINING) {
         atomic_store_explicit(&service->phase, H9_APRS_TX_IDLE,
                               memory_order_release);
-    else if (phase_now(service) == H9_APRS_TX_ABORTING)
+        atomic_store_explicit(&service->drained_events,
+            atomic_load_explicit(&service->drained_events,
+                                 memory_order_relaxed) + 1u,
+            memory_order_release);
+    } else if (phase_now(service) == H9_APRS_TX_ABORTING)
         finish_abort(service);
     return false;
 }
@@ -175,5 +180,16 @@ bool h9_aprs_tx_service_take_encoded_event(H9AprsTxService *service)
                                   memory_order_acquire);
     if (events == service->reported_events) return false;
     service->reported_events = events;
+    return true;
+}
+
+bool h9_aprs_tx_service_take_drained_event(H9AprsTxService *service)
+{
+    uint32_t events;
+    if (service == NULL) return false;
+    events = atomic_load_explicit(&service->drained_events,
+                                  memory_order_acquire);
+    if (events == service->reported_drained_events) return false;
+    service->reported_drained_events = events;
     return true;
 }

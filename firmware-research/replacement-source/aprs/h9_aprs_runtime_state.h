@@ -26,6 +26,7 @@ typedef struct {
     H9AprsTxService tx_service;
     H9AprsTxRuntime tx_runtime;
     H9AprsTxPermit tx_permit;
+    uint16_t active_packet_token;
     H9AprsUartReceive uart_receive;
     H9AprsUart1Dma uart1_dma;
     H9AprsUart1Board uart1_board;

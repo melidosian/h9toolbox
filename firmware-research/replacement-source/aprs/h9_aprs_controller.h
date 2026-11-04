@@ -29,7 +29,7 @@ typedef struct {
                                  size_t length);
     void (*tx_settings_changed)(void *context, const H9AprsTxSettings *settings);
     /* Replacement-only command 0x53; board owns the expiring RF permit. */
-    void (*tx_permit_changed)(void *context, bool enabled);
+    void (*tx_permit_changed)(void *context, bool enabled, uint16_t token);
     /* Command 0x11/4 writes raw bytes to USART2 when GPIOB bit 5 is high. */
     void (*aux_uart_write)(void *context, const uint8_t *data, size_t length);
     bool (*read_status)(void *context, uint8_t output[48]);
@@ -76,6 +76,8 @@ bool h9_aprs_controller_report_burst_activity(H9AprsController *controller,
 /* Stock command 0x0F requests a one-byte status after a TX frame is encoded
  * into the waveform queue. It does not indicate that RF has finished. */
 bool h9_aprs_controller_report_tx_encoded(H9AprsController *controller);
+bool h9_aprs_controller_report_tx_drained(H9AprsController *controller,
+                                          uint16_t token);
 bool h9_aprs_controller_configure_tx(H9AprsController *controller,
                                      uint16_t lead_ms, uint16_t tail_ms);
 bool h9_aprs_controller_queue_tx_byte(H9AprsController *controller,

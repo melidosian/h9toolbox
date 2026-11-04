@@ -166,12 +166,13 @@ static void set_aux_gate(void *opaque, bool high)
     ((FakeHardware *)opaque)->aux_gate = high;
 }
 
-static void set_tx_permit(void *opaque, bool enabled)
+static void set_tx_permit(void *opaque, bool enabled, uint16_t token)
 {
     FakeHardware *fake = (FakeHardware *)opaque;
-    h9_aprs_tx_permit_set(&fake->permit, enabled, fake->now_ms);
+    h9_aprs_tx_permit_set(&fake->permit, enabled, token, fake->now_ms);
     if (fake->tx_runtime != NULL)
-        h9_aprs_tx_runtime_set_ready(fake->tx_runtime, enabled);
+        h9_aprs_tx_runtime_set_ready(fake->tx_runtime,
+            h9_aprs_tx_permit_active(&fake->permit, fake->now_ms));
 }
 
 static bool read_status(void *opaque, uint8_t output[H9_APRS_STATUS_BYTES])
@@ -1050,6 +1051,8 @@ typedef struct {
     H9MainAprsMuteLease mute_lease;
     uint32_t now_ms;
     unsigned burst_count;
+    unsigned tx_drained_count;
+    uint16_t drained_token;
 } MainSessionCapture;
 
 static void session_packet(void *context, const H9MainAx25Decoded *packet)
@@ -1089,6 +1092,13 @@ static void session_burst_activity(void *context, bool active)
     MainSessionCapture *capture = (MainSessionCapture *)context;
     capture->burst_count++;
     h9_main_aprs_mute_event(&capture->mute_lease, active, capture->now_ms);
+}
+
+static void session_tx_drained(void *context, uint16_t token)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    capture->tx_drained_count++;
+    capture->drained_token = token;
 }
 
 static void session_version(void *context, const H9MainAprsVersions *versions)
@@ -2472,24 +2482,24 @@ static void test_main_aux_gpio_handshake(void)
 static void test_replacement_tx_permit_link(void)
 {
     static const uint8_t packet[] = { 0x82u, 0xA0u, 0x7Eu };
-    static const uint8_t invalid[] = { H9_APRS_TX_PERMIT_VERSION, 2u };
-    static const uint8_t wrong_version[] = { 2u, 0u };
+    static const uint8_t invalid[] = { H9_APRS_TX_PERMIT_VERSION, 2u, 0x34u, 0x12u };
+    static const uint8_t wrong_version[] = { 2u, 0u, 0x34u, 0x12u };
     FakeHardware fake = { 0 };
     H9AprsHardware hardware = { 0 };
     H9AprsController controller;
     H9AprsTxService service;
     H9AprsTxRuntime runtime;
     H9MainAprsVersions versions;
-    uint8_t frame[16];
+    uint8_t frame[32];
     size_t length;
 
     h9_main_aprs_versions_init(&versions);
-    assert(h9_main_aprs_tx_permit_encode(&versions, true,
+    assert(h9_main_aprs_tx_permit_encode(&versions, true, 0x1234u,
                                            frame, sizeof frame) == 0u);
     memcpy(versions.module, "V1.0.15", sizeof "V1.0.15");
     memcpy(versions.protocol, "V1.0.0", sizeof "V1.0.0");
     versions.has_module = versions.has_protocol = 1u;
-    assert(h9_main_aprs_tx_permit_encode(&versions, true,
+    assert(h9_main_aprs_tx_permit_encode(&versions, true, 0x1234u,
                                            frame, sizeof frame) == 0u);
     memcpy(versions.module, "H9R0.01", sizeof "H9R0.01");
     hardware.context = &fake;
@@ -2499,11 +2509,14 @@ static void test_replacement_tx_permit_link(void)
     h9_aprs_tx_runtime_bind(&runtime, &service);
     fake.tx_runtime = &runtime;
     fake.now_ms = UINT32_MAX - 1000u;
-    length = h9_main_aprs_tx_permit_encode(&versions, true,
+    assert(h9_main_aprs_tx_permit_encode(&versions, true, 0u,
+                                           frame, sizeof frame) == 0u);
+    length = h9_main_aprs_tx_permit_encode(&versions, true, 0x1234u,
                                             frame, sizeof frame);
-    assert(length == 11u);
+    assert(length == 13u);
     assert(main_aux_wire_to_controller(&controller, frame, length));
     assert(h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
+    assert(fake.permit.token == 0x1234u);
     assert(h9_aprs_tx_runtime_submit(&runtime, packet, sizeof packet));
     feed_frame(&controller, H9_APRS_TX_PERMIT_COMMAND,
                invalid, sizeof invalid);
@@ -2523,12 +2536,49 @@ static void test_replacement_tx_permit_link(void)
     assert(main_aux_wire_to_controller(&controller, frame, length));
     fake.now_ms += 6000u;
     assert(h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
-    length = h9_main_aprs_tx_permit_encode(&versions, false,
+    length = h9_main_aprs_tx_permit_encode(&versions, false, 0x9999u,
                                             frame, sizeof frame);
-    assert(length == 11u);
+    assert(length == 13u);
+    assert(main_aux_wire_to_controller(&controller, frame, length));
+    assert(h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
+    length = h9_main_aprs_tx_permit_encode(&versions, false, 0x1234u,
+                                            frame, sizeof frame);
+    assert(length == 13u);
     assert(main_aux_wire_to_controller(&controller, frame, length));
     assert(!h9_aprs_tx_permit_active(&fake.permit, fake.now_ms));
     assert(!h9_aprs_tx_runtime_submit(&runtime, packet, sizeof packet));
+}
+
+static void test_replacement_tx_drain_link(void)
+{
+    FakeHardware fake = { 0 };
+    H9AprsHardware hardware = { 0 };
+    H9AprsController controller;
+    H9MainAprsSession session;
+    H9MainAprsSessionCallbacks callbacks = { 0 };
+    MainSessionCapture capture = { 0 };
+    uint8_t frame[16];
+    const uint8_t malformed[] = { H9_APRS_TX_DRAINED_VERSION, 0u, 0u };
+    size_t length;
+
+    hardware.context = &fake;
+    hardware.uart_write = uart_write;
+    h9_aprs_controller_init(&controller, &hardware);
+    callbacks.tx_drained = session_tx_drained;
+    h9_main_aprs_session_init(&session, &callbacks, &capture);
+    assert(!h9_aprs_controller_report_tx_drained(&controller, 0u));
+    assert(h9_aprs_controller_report_tx_drained(&controller, 0x1234u));
+    queue_session_bytes(&session, fake.uart, fake.uart_length);
+    assert(h9_main_aprs_session_poll(&session) == fake.uart_length);
+    assert(capture.tx_drained_count == 1u &&
+           capture.drained_token == 0x1234u);
+    length = h9_main_aprs_wire_encode(H9_APRS_TX_DRAINED_COMMAND,
+                                       malformed, sizeof malformed,
+                                       frame, sizeof frame);
+    assert(length != 0u);
+    queue_session_bytes(&session, frame, length);
+    (void)h9_main_aprs_session_poll(&session);
+    assert(capture.tx_drained_count == 1u);
 }
 
 static void test_aprs_tx_service(void)
@@ -2596,6 +2646,8 @@ static void test_aprs_tx_service(void)
     assert(service.phase == H9_APRS_TX_IDLE);
     assert(h9_aprs_tx_service_take_encoded_event(&service));
     assert(!h9_aprs_tx_service_take_encoded_event(&service));
+    assert(h9_aprs_tx_service_take_drained_event(&service));
+    assert(!h9_aprs_tx_service_take_drained_event(&service));
     assert(decoded.packets == 1 && decoded.length == packet_length);
     assert(memcmp(decoded.bytes, expected, packet_length) == 0);
     assert(h9_aprs_tx_service_submit(&service, packet, packet_length));
@@ -2603,6 +2655,7 @@ static void test_aprs_tx_service(void)
            H9_APRS_TX_IDLE);
     assert(!h9_aprs_tx_service_next_sample(&service, &sample));
     assert(!h9_aprs_tx_service_take_encoded_event(&service));
+    assert(!h9_aprs_tx_service_take_drained_event(&service));
 }
 
 static void test_aprs_tx_interrupt_handoff(void)
@@ -2622,6 +2675,7 @@ static void test_aprs_tx_interrupt_handoff(void)
     assert(!h9_aprs_tx_service_next_sample(&service, &sample));
     assert(service.phase == H9_APRS_TX_IDLE && service.wave.active == 0u);
     assert(!h9_aprs_tx_service_take_encoded_event(&service));
+    assert(!h9_aprs_tx_service_take_drained_event(&service));
 
     h9_aprs_tx_service_set_timing(&service, 70u, 40u);
     assert(h9_aprs_tx_service_submit(&service, packet, sizeof packet));
@@ -2634,6 +2688,31 @@ static void test_aprs_tx_interrupt_handoff(void)
     assert(h9_aprs_tx_service_cancel(&service) == H9_APRS_TX_ABORTING);
     assert(!h9_aprs_tx_service_next_sample(&service, &sample));
     assert(service.phase == H9_APRS_TX_IDLE && service.wave.active == 0u);
+    assert(!h9_aprs_tx_service_take_drained_event(&service));
+}
+
+static void test_aprs_tx_cancel_during_drain(void)
+{
+    H9AprsTxService service;
+    const uint8_t packet[] = { 0x82u, 0xA0u, 0xA4u, 0xA6u };
+    uint8_t sample;
+    unsigned attempt;
+    unsigned samples = 0u;
+
+    h9_aprs_tx_service_init(&service, 0u, 0u, 0u);
+    assert(h9_aprs_tx_service_submit(&service, packet, sizeof packet));
+    for (attempt = 0u; attempt < 8u &&
+         service.phase == H9_APRS_TX_WAITING; ++attempt)
+        (void)h9_aprs_tx_service_step(&service, false, false, false, 255u);
+    assert(service.phase == H9_APRS_TX_STARTING);
+    while (samples < 10000u && service.phase != H9_APRS_TX_DRAINING) {
+        assert(h9_aprs_tx_service_next_sample(&service, &sample));
+        ++samples;
+    }
+    assert(service.phase == H9_APRS_TX_DRAINING);
+    assert(h9_aprs_tx_service_cancel(&service) == H9_APRS_TX_ABORTING);
+    assert(!h9_aprs_tx_service_next_sample(&service, &sample));
+    assert(!h9_aprs_tx_service_take_drained_event(&service));
 }
 
 typedef struct {
@@ -6540,9 +6619,11 @@ int main(void)
     test_aprs_tx_gate();
     test_aprs_tx_service();
     test_aprs_tx_interrupt_handoff();
+    test_aprs_tx_cancel_during_drain();
     test_aprs_tx_runtime();
     test_main_aux_gpio_handshake();
     test_replacement_tx_permit_link();
+    test_replacement_tx_drain_link();
     test_aprs_controller();
     test_aprs_uart_receive_batches();
     test_aprs_uart1_dma_interrupts();

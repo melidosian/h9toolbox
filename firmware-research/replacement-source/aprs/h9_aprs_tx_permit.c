@@ -4,10 +4,15 @@
 #include <stddef.h>
 
 void h9_aprs_tx_permit_set(H9AprsTxPermit *permit, bool enabled,
-                            uint32_t now_ms)
+                            uint16_t token, uint32_t now_ms)
 {
-    if (permit == NULL) return;
-    permit->enabled = enabled;
+    if (permit == NULL || token == 0u) return;
+    if (!enabled) {
+        if (permit->token == token) permit->enabled = false;
+        return;
+    }
+    permit->enabled = true;
+    permit->token = token;
     permit->renewed_ms = now_ms;
 }
 

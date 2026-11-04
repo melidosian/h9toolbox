@@ -39,9 +39,11 @@ typedef enum {
  * read_rf_snapshot. The snapshot captures the live Dual Watch route and
  * working frequency pair after preparation. set_aprs_permit(true) is called
  * only after both readbacks match; the adapter must verify that the APRS
- * module supports replacement command 0x53. send_packet is the only callback
- * allowed to key RF and must return only when this packet has finished or
- * failed; the route stays reserved through stop, permit clear, and restore.
+ * module supports replacement command 0x53 and assign a fresh nonzero token.
+ * send_packet is the only callback allowed to key RF and must wait for the
+ * matching replacement 0x54 drained event before returning success. A stale
+ * token, missing event, or timeout is failure; the route stays reserved
+ * through stop, permit clear, and restore.
  * stop_tx must deassert PTT even when send_packet reports failure. */
 typedef struct {
     bool (*begin_route)(void *opaque);

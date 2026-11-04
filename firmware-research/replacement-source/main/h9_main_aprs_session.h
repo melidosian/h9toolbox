@@ -21,6 +21,8 @@ typedef struct {
     void (*control)(void *context, H9MainControlAction action);
     /* Replacement APRS-controller activity signal; does not gate audio. */
     void (*burst_activity)(void *context, bool active);
+    /* Replacement-only completion of the final APRS DAC sample. */
+    void (*tx_drained)(void *context, uint16_t token);
     void (*version)(void *context, const H9MainAprsVersions *versions);
     void (*serial_write)(void *context, const uint8_t *bytes, size_t length);
     /* Returns bytes copied into destination, never more than capacity. */

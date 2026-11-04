@@ -100,10 +100,12 @@ static void dispatch(H9AprsController *controller)
         send_version(controller, length != 0 ? data[0] : 0);
         break;
     case H9_APRS_TX_PERMIT_COMMAND:
-        if (length == 2u && data[0] == H9_APRS_TX_PERMIT_VERSION &&
+        if (length == 4u && data[0] == H9_APRS_TX_PERMIT_VERSION &&
             data[1] <= H9_APRS_TX_PERMIT_ENABLE &&
+            (data[2] != 0u || data[3] != 0u) &&
             controller->hardware.tx_permit_changed != NULL)
-            controller->hardware.tx_permit_changed(context, data[1] != 0u);
+            controller->hardware.tx_permit_changed(context, data[1] != 0u,
+                (uint16_t)data[2] | ((uint16_t)data[3] << 8));
         break;
     default:
         break;
@@ -238,6 +240,18 @@ bool h9_aprs_controller_report_tx_encoded(H9AprsController *controller)
     static const uint8_t accepted = 1u;
     return controller != NULL && controller->tx_status_enabled &&
            send_frame(controller, 0x0Fu, &accepted, 1u);
+}
+
+bool h9_aprs_controller_report_tx_drained(H9AprsController *controller,
+                                          uint16_t token)
+{
+    const uint8_t payload[3] = {
+        H9_APRS_TX_DRAINED_VERSION, (uint8_t)token,
+        (uint8_t)(token >> 8)
+    };
+    return controller != NULL && token != 0u &&
+           send_frame(controller, H9_APRS_TX_DRAINED_COMMAND,
+                      payload, sizeof payload);
 }
 
 bool h9_aprs_controller_configure_tx(H9AprsController *controller,

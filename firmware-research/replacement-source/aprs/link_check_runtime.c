@@ -74,7 +74,8 @@ static void board_submit_packet(void *context, const uint8_t *packet,
                                 size_t length)
 {
     H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
-    (void)h9_aprs_tx_runtime_submit(&state->tx_runtime, packet, length);
+    if (h9_aprs_tx_runtime_submit(&state->tx_runtime, packet, length))
+        state->active_packet_token = state->tx_permit.token;
 }
 
 static void board_tx_settings_changed(void *context,
@@ -85,12 +86,17 @@ static void board_tx_settings_changed(void *context,
                                    settings->lead_ms, settings->tail_ms);
 }
 
-static void board_tx_permit_changed(void *context, bool enabled)
+static void board_tx_permit_changed(void *context, bool enabled,
+                                    uint16_t token)
 {
     H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
     uint32_t now = h9_aprs_systick_now(&state->systick);
-    h9_aprs_tx_permit_set(&state->tx_permit, enabled, now);
-    h9_aprs_tx_runtime_set_ready(&state->tx_runtime, enabled);
+    if (enabled && state->active_packet_token != 0u &&
+        state->active_packet_token != token)
+        h9_aprs_tx_runtime_set_ready(&state->tx_runtime, false);
+    h9_aprs_tx_permit_set(&state->tx_permit, enabled, token, now);
+    h9_aprs_tx_runtime_set_ready(&state->tx_runtime,
+        h9_aprs_tx_permit_active(&state->tx_permit, now));
 }
 
 static bool board_tx_wave_active(void *context)
@@ -152,7 +158,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
                             H9_APRS_STOCK_TX_LEAD_MS,
                             H9_APRS_STOCK_TX_TAIL_MS);
     h9_aprs_tx_runtime_bind(&runtime.tx_runtime, &runtime.tx_service);
-    h9_aprs_tx_permit_set(&runtime.tx_permit, false, 0u);
+    runtime.tx_permit.enabled = false;
     h9_aprs_uart2_maintenance_init(&runtime.uart2_maintenance);
     h9_aprs_uart_receive_init(&runtime.uart_receive);
     h9_aprs_uart1_dma_bind_target(&runtime.uart1_dma,
@@ -224,6 +230,11 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
                                       runtime.controller.tx_settings.persistence);
         if (h9_aprs_tx_service_take_encoded_event(&runtime.tx_service))
             (void)h9_aprs_controller_report_tx_encoded(&runtime.controller);
+        if (h9_aprs_tx_service_take_drained_event(&runtime.tx_service)) {
+            (void)h9_aprs_controller_report_tx_drained(&runtime.controller,
+                                                         runtime.active_packet_token);
+            runtime.active_packet_token = 0u;
+        }
     }
 }
 

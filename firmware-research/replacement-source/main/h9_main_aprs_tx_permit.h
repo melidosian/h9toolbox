@@ -10,7 +10,8 @@
 /* Returns zero unless the received module/protocol identity is the exact
  * replacement pair that implements command 0x53. */
 size_t h9_main_aprs_tx_permit_encode(const H9MainAprsVersions *versions,
-                                      bool enabled, uint8_t *output,
+                                      bool enabled, uint16_t token,
+                                      uint8_t *output,
                                       size_t capacity);
 
 #endif

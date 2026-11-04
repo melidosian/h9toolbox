@@ -15,14 +15,17 @@ static bool version_equals(const char actual[H9_MAIN_APRS_VERSION_CAPACITY],
 }
 
 size_t h9_main_aprs_tx_permit_encode(const H9MainAprsVersions *versions,
-                                      bool enabled, uint8_t *output,
+                                      bool enabled, uint16_t token,
+                                      uint8_t *output,
                                       size_t capacity)
 {
-    const uint8_t payload[2] = {
+    const uint8_t payload[4] = {
         H9_APRS_TX_PERMIT_VERSION,
         enabled ? H9_APRS_TX_PERMIT_ENABLE : 0u,
+        (uint8_t)token,
+        (uint8_t)(token >> 8),
     };
-    if (versions == NULL || !versions->has_module ||
+    if (token == 0u || versions == NULL || !versions->has_module ||
         !versions->has_protocol ||
         !version_equals(versions->module, H9_APRS_MODULE_VERSION) ||
         !version_equals(versions->protocol, H9_APRS_PROTOCOL_VERSION))

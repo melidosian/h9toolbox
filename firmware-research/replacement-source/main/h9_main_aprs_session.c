@@ -1,5 +1,6 @@
 #include "h9_main_aprs_session.h"
 #include "h9_aprs_burst_protocol.h"
+#include "h9_aprs_tx_permit_protocol.h"
 
 #include <string.h>
 
@@ -73,6 +74,15 @@ static void dispatch_frame(void *context, const H9MainWireReceiver *receiver)
             session->callbacks.burst_activity != NULL)
             session->callbacks.burst_activity(session->callback_context,
                 receiver->payload[1] == H9_APRS_BURST_ACTIVE);
+        break;
+    case H9_APRS_TX_DRAINED_COMMAND:
+        if (receiver->length == 3u &&
+            receiver->payload[0] == H9_APRS_TX_DRAINED_VERSION &&
+            (receiver->payload[1] != 0u || receiver->payload[2] != 0u) &&
+            session->callbacks.tx_drained != NULL)
+            session->callbacks.tx_drained(session->callback_context,
+                (uint16_t)receiver->payload[1] |
+                ((uint16_t)receiver->payload[2] << 8));
         break;
     default:
         break;
