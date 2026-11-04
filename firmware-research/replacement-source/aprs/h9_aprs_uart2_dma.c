@@ -108,6 +108,28 @@ static void stop_receive(H9AprsUart2Dma *driver)
     driver->usart[USART_CR1] &= ~USART_IDLEIE;
 }
 
+static uint32_t save_and_disable_irqs(void);
+static void restore_irqs(uint32_t state);
+
+bool h9_aprs_uart2_dma_stop(H9AprsUart2Dma *driver)
+{
+    uint32_t irq_state;
+    if (!valid(driver)) return false;
+    irq_state = save_and_disable_irqs();
+    if (driver->receive->ready || driver->spill_active) {
+        restore_irqs(irq_state);
+        return false;
+    }
+    stop_receive(driver);
+    driver->usart[USART_CR1] &= ~USART_RXNEIE;
+    driver->dma_controller[DMA_IFCR] = DMA_CHANNEL3_FLAGS;
+    (void)driver->usart[USART_SR];
+    (void)driver->usart[USART_DR];
+    driver->spill_active = false;
+    restore_irqs(irq_state);
+    return true;
+}
+
 static void spill_push(H9AprsUart2Dma *driver, uint8_t byte)
 {
     uint8_t next = (uint8_t)(driver->spill_head + 1u);

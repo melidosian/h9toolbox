@@ -2411,6 +2411,47 @@ static void test_aprs_uart2_board_setup_and_raw_write(void)
     assert(board.timeouts == 1u);
 }
 
+static void test_aprs_uart2_recover_after_raw_timeout(void)
+{
+    H9AprsUart2Board board = { 0 };
+    H9AprsUart2Dma dma = { 0 };
+    H9AprsUart2Rx receive = { 0 };
+    uint32_t rcc[17] = { 0 };
+    uint32_t gpio[9] = { 0 };
+    uint32_t usart[6] = { 0 };
+    uint32_t dma_controller[2] = { 0 };
+    uint32_t channel[4] = { 0 };
+    uint32_t request = 0u;
+    uint32_t nvic = 0u;
+    const uint8_t byte = 0x42u;
+
+    h9_aprs_uart2_board_bind(&board, rcc, gpio, usart, 2u);
+    h9_aprs_uart2_dma_bind(&dma, usart, dma_controller, channel,
+                            &request, rcc, &nvic, &receive);
+    assert(h9_aprs_uart2_board_configure(&board, 24000000u));
+    assert(h9_aprs_uart2_dma_start(&dma));
+    assert((channel[0] & 1u) != 0u);
+    assert(h9_aprs_uart2_board_write(&board, &byte, 1u) == 0u);
+    assert(board.faulted && board.timeouts == 1u);
+    receive.ready = true;
+    assert(!h9_aprs_uart2_board_recover(&board, &dma, 24000000u));
+    receive.ready = false;
+    dma.spill_active = true;
+    assert(!h9_aprs_uart2_board_recover(&board, &dma, 24000000u));
+    dma.spill_active = false;
+    assert(!h9_aprs_uart2_board_recover(&board, &dma, 0u));
+    assert(board.faulted && (channel[0] & 1u) != 0u);
+    assert(h9_aprs_uart2_board_recover(&board, &dma, 24000000u));
+    assert(!board.faulted && board.timeouts == 1u &&
+           (channel[0] & 1u) != 0u &&
+           channel[1] == H9_APRS_UART2_BATCH_CAPACITY &&
+           (usart[3] & 0x10u) != 0u);
+    usart[0] = 0xC0u;
+    assert(h9_aprs_uart2_board_write(&board, &byte, 1u) == 1u);
+    assert(usart[1] == byte && board.bytes_completed == 1u);
+    assert(!h9_aprs_uart2_board_recover(&board, &dma, 24000000u));
+}
+
 static void test_aprs_uart2_irq_forward(void)
 {
     H9AprsUart2Rx rx = { 0 };
@@ -3452,6 +3493,7 @@ int main(void)
     test_aprs_uart1_dma_interrupts();
     test_aprs_uart1_board_setup();
     test_aprs_uart2_board_setup_and_raw_write();
+    test_aprs_uart2_recover_after_raw_timeout();
     test_aprs_uart2_irq_forward();
     test_aprs_uart2_dma_forward();
     test_aprs_gpio_board();

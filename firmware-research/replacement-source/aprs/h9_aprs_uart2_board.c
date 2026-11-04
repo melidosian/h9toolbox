@@ -74,6 +74,32 @@ bool h9_aprs_uart2_board_configure(H9AprsUart2Board *board,
     board->usart[USART_CR3] &= ~0xB08u;
     board->usart[USART_BRR] = brr;
     board->usart[USART_CR1] |= 0x2000u;
+    board->faulted = false;
+    return true;
+}
+
+bool h9_aprs_uart2_board_recover(H9AprsUart2Board *board,
+                                  H9AprsUart2Dma *receive_dma,
+                                  uint32_t system_clock_hz)
+{
+    uint32_t peripheral_hz;
+    if (board == NULL || receive_dma == NULL || !board->faulted ||
+        board->rcc == NULL || board->usart == NULL ||
+        board->gpio_c == NULL || receive_dma->rcc != board->rcc ||
+        receive_dma->usart != board->usart ||
+        receive_dma->receive == NULL || receive_dma->receive->ready ||
+        receive_dma->spill_active || system_clock_hz == 0u)
+        return false;
+    peripheral_hz = h9_aprs_uart1_peripheral_clock(
+        system_clock_hz, board->rcc[RCC_PRESCALER]);
+    if (h9_aprs_uart_brr(peripheral_hz, 9600u) == 0u) return false;
+    if (!h9_aprs_uart2_dma_stop(receive_dma) ||
+        !h9_aprs_uart2_board_configure(board, system_clock_hz))
+        return false;
+    if (!h9_aprs_uart2_dma_start(receive_dma)) {
+        board->faulted = true;
+        return false;
+    }
     return true;
 }
 

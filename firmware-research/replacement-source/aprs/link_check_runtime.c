@@ -192,6 +192,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
         for (;;) { }
     h9_aprs_uart1_board_enable_irqs(&runtime.uart1_board);
     for (;;) {
+        uint32_t now;
         (void)h9_aprs_uart_receive_process(&runtime.uart_receive,
             &runtime.controller, h9_aprs_uart1_dma_rearm,
             &runtime.uart1_dma);
@@ -199,6 +200,20 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
         if (h9_aprs_uart2_dma_poll(&runtime.uart2_dma,
                                     &runtime.controller))
             ++runtime.forwarded_uart2_batches;
+        now = h9_aprs_systick_now(&runtime.systick);
+        if (!runtime.uart2_board.faulted) {
+            runtime.uart2_recovery_armed = false;
+        } else if (!runtime.uart2_recovery_armed) {
+            runtime.uart2_fault_tick = now;
+            runtime.uart2_recovery_armed = true;
+        } else if ((uint32_t)(now - runtime.uart2_fault_tick) >= 2000u &&
+                   !runtime.uart2_rx.ready &&
+                   !runtime.uart2_dma.spill_active) {
+            runtime.uart2_fault_tick = now;
+            (void)h9_aprs_uart2_board_recover(&runtime.uart2_board,
+                                                &runtime.uart2_dma,
+                                                system_clock_hz);
+        }
         /* RF readiness and carrier sense remain unmapped. This diagnostic
          * entry accepts packets but never authorizes waveform output. */
         (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime, false,

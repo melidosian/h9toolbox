@@ -37,6 +37,9 @@ void h9_aprs_uart2_dma_bind(H9AprsUart2Dma *driver,
 void h9_aprs_uart2_dma_bind_target(H9AprsUart2Dma *driver,
                                     H9AprsUart2Rx *receive);
 bool h9_aprs_uart2_dma_start(H9AprsUart2Dma *driver);
+/* Stop receive DMA and its USART interrupts only if no batch/spill is ready.
+ * The check and shutdown are atomic with respect to device interrupts. */
+bool h9_aprs_uart2_dma_stop(H9AprsUart2Dma *driver);
 void h9_aprs_uart2_dma_usart_irq(H9AprsUart2Dma *driver);
 void h9_aprs_uart2_dma_channel_irq(H9AprsUart2Dma *driver);
 /* Forwards the completed DMA batch and any bytes collected meanwhile by

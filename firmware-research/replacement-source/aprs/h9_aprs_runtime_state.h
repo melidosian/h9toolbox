@@ -37,6 +37,8 @@ typedef struct {
     H9AprsSysTick systick;
     volatile uint32_t last_uart1_batch_tick;
     uint32_t forwarded_uart2_batches;
+    uint32_t uart2_fault_tick;
+    bool uart2_recovery_armed;
 } H9AprsRuntimeState;
 
 #endif
