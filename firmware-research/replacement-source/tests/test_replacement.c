@@ -39,6 +39,7 @@
 #include "h9_main_speaker_gate.h"
 #include "h9_main_rf_registers.h"
 #include "h9_main_boot_record.h"
+#include "h9_main_boot_validator.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_bus.h"
 #include "h9_main_serial_commands.h"
@@ -3017,7 +3018,7 @@ static uint32_t boot_record_check(const volatile uint8_t *data,
     assert(length == H9_MAIN_BOOT_RECORD_CHECK_BYTES);
     assert(data[0] == 0x34u && data[1] == 0x12u);
     ++*checked;
-    return 0x12345678u;
+    return 0x5678u;
 }
 
 static uint32_t boot_record_check_updates_header(const volatile uint8_t *data,
@@ -3028,7 +3029,7 @@ static uint32_t boot_record_check_updates_header(const volatile uint8_t *data,
     assert(length == H9_MAIN_BOOT_RECORD_CHECK_BYTES);
     header[0] = 0x78u;
     header[1] = 0x56u;
-    return 0x12345678u;
+    return 0x5678u;
 }
 
 static void test_main_boot_record(void)
@@ -3068,6 +3069,70 @@ static void test_main_boot_record(void)
                                       boot_record_check_updates_header, NULL) ==
            0xBEEFABCDu);
     for (index = 0; index < sizeof record; ++index) assert(record[index] == 0u);
+}
+
+typedef struct {
+    volatile uint32_t *stream_data;
+    volatile uint32_t *stream_control;
+    volatile uint32_t *result_word;
+    unsigned events;
+} BootValidatorProbe;
+
+static void boot_probe_begin(void *context, uint32_t descriptor, uint32_t mode)
+{
+    BootValidatorProbe *probe = (BootValidatorProbe *)context;
+    assert(probe->events == 0u);
+    assert(descriptor == H9_MAIN_BOOT_DESCRIPTOR && mode == 0u);
+    probe->events = 1u;
+}
+
+static void boot_probe_sync(void *context)
+{
+    BootValidatorProbe *probe = (BootValidatorProbe *)context;
+    assert(probe->events == 1u);
+    assert(*probe->stream_control == 0u);
+    assert(*probe->stream_data == 0xA5u);
+    probe->events = 2u;
+}
+
+static void boot_probe_finish(void *context, uint32_t descriptor)
+{
+    BootValidatorProbe *probe = (BootValidatorProbe *)context;
+    assert(probe->events == 2u && descriptor == H9_MAIN_BOOT_DESCRIPTOR);
+    *probe->result_word = 0u;
+    probe->events = 3u;
+}
+
+static void test_main_boot_validator(void)
+{
+    uint8_t record[H9_MAIN_BOOT_RECORD_BYTES];
+    volatile uint32_t stream_data = 0u;
+    volatile uint32_t stream_control = 0xFFFFFFFFu;
+    volatile uint32_t result_word = 0xABCD5678u;
+    BootValidatorProbe probe = {
+        &stream_data, &stream_control, &result_word, 0u
+    };
+    H9MainBootValidator validator = {
+        &stream_data, &stream_control, &result_word,
+        boot_probe_begin, boot_probe_sync, boot_probe_finish, &probe
+    };
+    size_t index;
+
+    memset(record, 0xA5, sizeof record);
+    record[0] = 0x78u; record[1] = 0x56u;
+    record[4] = 0xCDu; record[5] = 0xABu;
+    record[6] = 0xEFu; record[7] = 0xBEu;
+    assert(h9_main_consume_boot_record(record, h9_main_boot_validate,
+                                       &validator) == 0xBEEFABCDu);
+    assert(probe.events == 3u && result_word == 0u);
+    for (index = 0; index < sizeof record; ++index) assert(record[index] == 0u);
+
+    validator.begin = NULL;
+    stream_control = 0xFFFFFFFFu;
+    assert(h9_main_boot_validate(record + 2,
+                                 H9_MAIN_BOOT_RECORD_CHECK_BYTES,
+                                 &validator) == 0u);
+    assert(stream_control == 0xFFFFFFFFu && probe.events == 3u);
 }
 
 static void test_main_serial_profile(void)
@@ -3685,6 +3750,7 @@ int main(void)
     test_main_tx_frequency_precheck();
     test_main_tx_service();
     test_main_boot_record();
+    test_main_boot_validator();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();
