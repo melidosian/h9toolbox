@@ -43,5 +43,14 @@ This guard operates on firmware state, not a measurement of emitted RF.
 The double read can detect a selector change during the copy, but it is not
 an atomic lock against a later Dual Watch update; a live adapter must
 serialize state through the final keying decision.
+
+The replacement TX service now requires `begin_route`/`end_route` callbacks.
+It acquires the reservation before reading the logical side and releases it
+only after TX stop and receive-state restoration, including failed setup or
+readback. A failed acquire rejects the packet before preparation. The host
+test checks that every TX callback runs while reserved and that early reject,
+successful send, and cleanup failure release it. This is a replacement
+transaction contract, not behavior established in stock firmware. It does
+not itself identify the radio's scheduler or provide the live lock adapter.
 No stock ROM RF-register reader, physical PTT boundary, or live board adapter
 has been established. The diagnostic main ELF remains unflashable.

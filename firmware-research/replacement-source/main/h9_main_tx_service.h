@@ -10,6 +10,7 @@
 
 typedef enum {
     H9_MAIN_TX_REJECTED,
+    H9_MAIN_TX_ROUTE_BUSY,
     H9_MAIN_TX_PREPARE_FAILED,
     H9_MAIN_TX_READBACK_FAILED,
     H9_MAIN_TX_ROUTE_FAILED,
@@ -24,13 +25,21 @@ typedef enum {
  * reads the routed side byte at 0x11AEC. A board adapter must aim both
  * selectors at the planned side before RF setup and restore them afterward;
  * h9_main_rf_route_prepare/restore implements the selector writes. The
- * adapter must serialize Dual Watch updates. It must check current
- * band/region settings in validate_frequency and leave PTT inactive throughout
- * prepare_tx, read_prepared_tx, and read_rf_snapshot. The snapshot captures the live
- * Dual Watch route and working frequency pair after preparation. send_packet
- * is the only callback allowed to key RF.
+ * begin_route/end_route must reserve the side and channel state against
+ * Dual Watch or menu updates for the entire transaction, including cleanup.
+ * This is a state reservation, not a request to mask interrupts for the
+ * packet duration. A failed begin_route must not retain the reservation.
+ * end_route returns false if release or its final state check fails.
+ * The adapter must check current band/region settings in validate_frequency
+ * and leave PTT inactive throughout prepare_tx, read_prepared_tx, and
+ * read_rf_snapshot. The snapshot captures the live Dual Watch route and
+ * working frequency pair after preparation. send_packet is the only callback
+ * allowed to key RF and must return only when this packet has finished or
+ * failed; the route remains reserved until stop_tx and restore_receive run.
  * stop_tx must deassert PTT even when send_packet reports failure. */
 typedef struct {
+    bool (*begin_route)(void *opaque);
+    bool (*end_route)(void *opaque);
     bool (*read_current_side)(void *opaque, H9Side *side);
     bool (*validate_frequency)(void *opaque, uint32_t tx_hz);
     /* Receives the complete plan so a board adapter can distinguish an
