@@ -69,6 +69,11 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "10 19 61 FF FF 00 18 00 BF EA 0D DD"
     ):
         raise ValueError("timed beacon caller gate differs")
+    for offset, expected in ((0x088912, "BF EA 8C F5"),
+                             (0x088C3C, "BF EA F7 F3"),
+                             (0x089086, "BF EA D2 F1")):
+        if main_app[offset:offset + 4] != bytes.fromhex(expected):
+            raise ValueError(f"timed beacon top-level call differs at 0x{offset:X}")
     if main_app[0x087130:0x087138] != bytes.fromhex(
         "01 F8 57 0E 81 F8 53 0C"
     ):

@@ -5,7 +5,8 @@
 #include <stdint.h>
 
 /* Port of main app+0x082EB2. Its caller gate at app+0x08747C is modeled
- * below; the caller's invocation period is still unknown. */
+ * below. Two top-level mode loops call the caller once and then yield for
+ * one ROM scheduler tick; that tick's duration in milliseconds is unknown. */
 typedef struct { uint32_t counter; } H9BeaconScheduler;
 typedef struct {
     bool call_tx_selector;
