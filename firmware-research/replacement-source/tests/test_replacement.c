@@ -44,6 +44,7 @@
 #include "h9_main_board_markers.h"
 #include "h9_main_clock_probe.h"
 #include "h9_main_clock_apply.h"
+#include "h9_main_clock_rom_mode.h"
 #include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
@@ -4262,6 +4263,55 @@ static void test_main_clock_apply_first(void)
     assert(capture.calls == 3u && control == 2u);
 }
 
+typedef struct {
+    uint32_t group[2];
+    uint32_t field[2];
+    uint32_t value[2];
+    unsigned calls;
+} ClockRomModeCapture;
+
+static void clock_rom_mode_call(void *context, uint32_t group, uint32_t zero,
+                                uint32_t field, uint32_t value)
+{
+    ClockRomModeCapture *capture = (ClockRomModeCapture *)context;
+    assert(capture->calls < 2u && zero == 0u);
+    capture->group[capture->calls] = group;
+    capture->field[capture->calls] = field;
+    capture->value[capture->calls] = value;
+    capture->calls++;
+}
+
+static void test_main_clock_rom_mode(void)
+{
+    static const uint8_t expected[4] = { 7u, 8u, 10u, 14u };
+    uint8_t enabled = 1u;
+    uint8_t band = 0u;
+    ClockRomModeCapture capture = { { 0 }, { 0 }, { 0 }, 0u };
+    H9MainClockRomMode mode = {
+        &enabled, &band, &capture, clock_rom_mode_call
+    };
+    unsigned index;
+    assert(!h9_main_clock_rom_mode_apply(NULL));
+    for (index = 0u; index < 4u; ++index) {
+        capture.calls = 0u;
+        band = (uint8_t)index;
+        assert(h9_main_clock_rom_mode_apply(&mode));
+        assert(capture.calls == 2u && capture.group[0] == 9u &&
+               capture.field[0] == 4u &&
+               capture.value[0] == expected[index]);
+        assert(capture.group[1] == 6u && capture.field[1] == 3u &&
+               capture.value[1] == 7u);
+    }
+    band = 4u;
+    capture.calls = 0u;
+    assert(!h9_main_clock_rom_mode_apply(&mode));
+    assert(capture.calls == 0u);
+    enabled = 0u;
+    assert(h9_main_clock_rom_mode_apply(&mode));
+    assert(capture.calls == 2u && capture.value[0] == 0u &&
+           capture.value[1] == 0u);
+}
+
 static void test_main_clock_source_registers(void)
 {
     uint32_t storage[15];
@@ -4372,6 +4422,7 @@ int main(void)
     test_main_clock_match();
     test_main_clock_timing();
     test_main_clock_apply_first();
+    test_main_clock_rom_mode();
     test_main_clock_source_registers();
     test_main_clock_aux_fields();
     test_main_serial_profile();

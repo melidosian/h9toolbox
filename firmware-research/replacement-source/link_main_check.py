@@ -50,6 +50,8 @@ def verify_stock_image(path: Path) -> None:
         raise ValueError("Stock Pi32 entry or boot-argument copy differs")
     if data[0x7E:0x8A] != STOCK_ICFG_AFTER_RAM_COPY:
         raise ValueError("Stock post-RAM-copy interrupt configuration differs")
+    if data[0xC564E:0xC5652] != bytes((7, 8, 10, 14)):
+        raise ValueError("Stock clock ROM mode band table differs")
 
 
 def verify_linked_elf(path: Path) -> int:
@@ -165,14 +167,21 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_timing_calculate",
         "h9_main_clock_apply_bind_target",
         "h9_main_clock_apply_first",
+        "h9_main_clock_rom_mode_bind_target",
+        "h9_main_clock_rom_mode_apply",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
         raise ValueError("Linked board entry lost ROM and bitmap call order")
+    if board_body.count("h9_main_clock_selector_run") < 2 or \
+            board_body.rfind("h9_main_clock_selector_run") < \
+            board_body.find("h9_main_clock_rom_mode_apply"):
+        raise ValueError("Linked board entry lost repeated clock selector")
     for name, required in (
         ("target_rom_apply", "2001634"),
         ("target_synchronize", "csync"),
         ("target_delay_nops", "nop"),
+        ("target_rom_mode", "20000e2"),
     ):
         helper = re.search(
             rf"(?ms)^{name}:\n(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly

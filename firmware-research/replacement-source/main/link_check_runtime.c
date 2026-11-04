@@ -6,6 +6,7 @@
 #include "h9_main_board_markers.h"
 #include "h9_main_clock_probe.h"
 #include "h9_main_clock_apply.h"
+#include "h9_main_clock_rom_mode.h"
 #include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
@@ -56,6 +57,7 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainClockMatch clock_match;
     H9MainClockTiming clock_timing;
     H9MainClockApply clock_apply;
+    H9MainClockRomMode clock_rom_mode;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -94,6 +96,9 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     }
     h9_main_clock_apply_bind_target(&clock_apply);
     if (!h9_main_clock_apply_first(&clock_apply)) for (;;) { }
+    h9_main_clock_rom_mode_bind_target(&clock_rom_mode);
+    if (!h9_main_clock_rom_mode_apply(&clock_rom_mode)) for (;;) { }
+    if (!h9_main_clock_selector_run(&clock_selector)) for (;;) { }
 #endif
     for (;;) { }
 }

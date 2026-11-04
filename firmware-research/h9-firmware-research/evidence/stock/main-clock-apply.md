@@ -15,14 +15,16 @@ following sequence at app+`0x0C558A..0x0C55A2`:
    zero.
 4. Clears bits 6, 7, and 8 of `0x1E000C`.
 
-The next call at app+`0x0C55A2` targets `0x01EC5388`; its body and effects
-are not yet ported. A further call at app+`0x0C55A6` re-runs the already
-mapped register selector at app+`0x0C5492`.
+The next call at app+`0x0C55A2` targets `0x01EC5388`, now mapped in
+[the ROM mode trace](main-clock-rom-mode.md). A further call at
+app+`0x0C55A6` re-runs the already mapped register selector at
+app+`0x0C5492`.
 
 `replacement-source/main/h9_main_clock_apply.*` implements the first four
 steps with injected ROM, sync, delay, and MMIO operations. Its target binding
 uses the observed ROM and MMIO addresses and Pi32 `csync`/`nop`
 instructions. Host tests verify callback and register-write order. The
-diagnostic board entry now calls this stage after the timing calculation.
-The ROM routine's internal behavior and electrical clock state have not been
-measured; the linked image remains nonflashable.
+diagnostic board entry now calls this stage after the timing calculation,
+then calls the ROM mode helper and repeats the selector. The ROM routines'
+internal behavior and electrical clock state have not been measured; the
+linked image remains nonflashable.
