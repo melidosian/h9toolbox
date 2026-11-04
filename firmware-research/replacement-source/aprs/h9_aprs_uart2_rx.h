@@ -6,13 +6,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Stock USART2 uses 1024-byte DMA buffers. This first-pass replacement
- * receives bytes by IRQ into one bounded 1020-byte packet buffer. It pauses
- * RX while a completed chunk is forwarded to the main radio. */
+/* Stock USART2 uses two 1024-byte DMA buffers. The replacement stores one
+ * 1024-byte batch for either the IRQ fallback or the DMA board path and
+ * forwards at most 1020 bytes, matching the stock serial output cap. */
+#define H9_APRS_UART2_BATCH_CAPACITY 1024u
 typedef struct {
     volatile uint32_t *usart;
     volatile uint32_t *nvic_iser;
-    uint8_t bytes[H9_APRS_MAX_SEND];
+    uint8_t bytes[H9_APRS_UART2_BATCH_CAPACITY];
     volatile uint16_t length;
     volatile bool ready;
     uint32_t overrun_count;

@@ -19,6 +19,7 @@
 #include "h9_aprs_uart1_board.h"
 #include "h9_aprs_uart1_tx.h"
 #include "h9_aprs_uart2_board.h"
+#include "h9_aprs_uart2_dma.h"
 #include "h9_aprs_uart2_rx.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_aprs_wave_output.h"
@@ -1924,15 +1925,93 @@ static void test_aprs_uart2_irq_forward(void)
     assert(!h9_aprs_uart2_rx_poll(&rx, &controller));
 
     fake.uart_length = 0u;
-    for (index = 0; index < H9_APRS_MAX_SEND; ++index) {
+    for (index = 0; index < H9_APRS_UART2_BATCH_CAPACITY; ++index) {
         usart[0] = 0x20u;
         usart[1] = 'A';
         h9_aprs_uart2_rx_irq(&rx);
     }
-    assert(rx.ready && rx.length == H9_APRS_MAX_SEND);
+    assert(rx.ready && rx.length == H9_APRS_UART2_BATCH_CAPACITY);
     assert(h9_aprs_uart2_rx_poll(&rx, &controller));
     assert(fake.uart_length == H9_APRS_MAX_SEND + 3u);
+    assert(rx.dropped_count == 4u);
     assert(rx.length == 0u && !rx.ready);
+}
+
+static void test_aprs_uart2_dma_forward(void)
+{
+    H9AprsUart2Rx rx = { 0 };
+    H9AprsUart2Dma dma = { 0 };
+    H9AprsUart2Dma target = { 0 };
+    H9AprsController controller;
+    H9AprsHardware hardware = { 0 };
+    H9WireDecoder decoded;
+    FakeHardware fake = { 0 };
+    uint32_t usart[6] = { 0 };
+    uint32_t dma_controller[2] = { 0 };
+    uint32_t channel[4] = { 0 };
+    uint32_t dma_request = 0xA5C3u;
+    uint32_t rcc[17] = { 0 };
+    uint32_t nvic = 0u;
+    size_t index;
+    hardware.context = &fake;
+    hardware.uart_write = uart_write;
+    h9_aprs_controller_init(&controller, &hardware);
+    h9_aprs_uart2_rx_bind(&rx, usart, &nvic);
+    h9_aprs_uart2_dma_bind(&dma, usart, dma_controller, channel,
+                            &dma_request,
+                            rcc, &nvic, &rx);
+    h9_aprs_uart2_dma_bind_target(&target, &rx);
+    assert((uintptr_t)target.dma_channel == 0x40020030u);
+    assert((uintptr_t)target.dma_request == 0x4001001Cu);
+    assert(h9_aprs_uart2_dma_start(&dma));
+    assert((rcc[0x38u / 4u] & 1u) != 0u &&
+           (rcc[0x40u / 4u] & 1u) != 0u &&
+           (dma_request & (0x1Fu << 16)) == (8u << 16) &&
+           (dma_request & ~(0x1Fu << 16)) == 0xA5C3u &&
+           channel[0] == 0x108Bu &&
+           channel[1] == H9_APRS_UART2_BATCH_CAPACITY &&
+           channel[2] == (uint32_t)(uintptr_t)&usart[1] &&
+           channel[3] == (uint32_t)(uintptr_t)rx.bytes);
+    assert((usart[3] & 0x10u) != 0u &&
+           (usart[3] & 0x20u) == 0u &&
+           (usart[5] & 0x40u) != 0u &&
+           nvic == ((1u << 10) | (1u << 28)));
+    rx.bytes[0] = 'G';
+    rx.bytes[1] = 'P';
+    channel[1] = H9_APRS_UART2_BATCH_CAPACITY - 2u;
+    usart[0] = 0x10u;
+    h9_aprs_uart2_dma_usart_irq(&dma);
+    assert(rx.ready && rx.length == 2u && (channel[0] & 1u) == 0u &&
+           (usart[5] & 0x40u) == 0u);
+    assert(h9_aprs_uart2_dma_poll(&dma, &controller));
+    assert(!rx.ready && rx.length == 0u &&
+           channel[1] == H9_APRS_UART2_BATCH_CAPACITY &&
+           (channel[0] & 1u) != 0u);
+    h9_wire_reset(&decoded);
+    for (index = 0u; index < fake.uart_length; ++index)
+        (void)h9_wire_feed(&decoded, fake.uart[index]);
+    assert(decoded.command == 0x10u && decoded.length == 2u &&
+           decoded.payload[0] == 'G' && decoded.payload[1] == 'P');
+
+    fake.uart_length = 0u;
+    memset(rx.bytes, 'A', sizeof rx.bytes);
+    dma_controller[0] = 0x200u;
+    h9_aprs_uart2_dma_channel_irq(&dma);
+    assert(rx.ready && rx.length == H9_APRS_UART2_BATCH_CAPACITY);
+    assert(h9_aprs_uart2_dma_poll(&dma, &controller));
+    assert(fake.uart_length == H9_APRS_MAX_SEND + 3u &&
+           rx.dropped_count == 4u);
+
+    dma_controller[0] = 0x800u;
+    h9_aprs_uart2_dma_channel_irq(&dma);
+    assert(dma.transfer_errors == 1u && !rx.ready &&
+           channel[1] == H9_APRS_UART2_BATCH_CAPACITY);
+    dma_controller[0] = 0u;
+    channel[1] = H9_APRS_UART2_BATCH_CAPACITY + 1u;
+    usart[0] = 0x10u;
+    h9_aprs_uart2_dma_usart_irq(&dma);
+    assert(dma.invalid_counts == 1u && !rx.ready &&
+           channel[1] == H9_APRS_UART2_BATCH_CAPACITY);
 }
 
 static void test_aprs_gpio_board(void)
@@ -2747,6 +2826,7 @@ int main(void)
     test_aprs_uart1_board_setup();
     test_aprs_uart2_board_setup_and_raw_write();
     test_aprs_uart2_irq_forward();
+    test_aprs_uart2_dma_forward();
     test_aprs_gpio_board();
     test_aprs_wave_output();
     test_aprs_adc_board();

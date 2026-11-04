@@ -79,10 +79,17 @@ bool h9_aprs_uart2_rx_poll(H9AprsUart2Rx *receiver,
                             H9AprsController *controller)
 {
     bool sent;
+    size_t forward_length;
     if (receiver == NULL || receiver->usart == NULL ||
         controller == NULL || !receiver->ready) return false;
+    forward_length = receiver->length;
+    if (forward_length > H9_APRS_MAX_SEND) {
+        receiver->dropped_count += (uint32_t)(forward_length -
+                                               H9_APRS_MAX_SEND);
+        forward_length = H9_APRS_MAX_SEND;
+    }
     sent = h9_aprs_controller_forward_aux(controller, receiver->bytes,
-                                            receiver->length);
+                                          forward_length);
     receiver->length = 0u;
     receiver->ready = false;
     receiver->usart[USART_CR1] |= USART_RXNEIE | USART_IDLEIE;

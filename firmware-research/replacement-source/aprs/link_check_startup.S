@@ -18,7 +18,8 @@ h9_aprs_vectors:
     .word Default_Handler + 1
     .endr
     .word h9_aprs_dma1_channel1_handler + 1
-    .rept 2
+    .word h9_aprs_dma1_channel3_handler + 1
+    .rept 1
     .word Default_Handler + 1
     .endr
     .word h9_aprs_adc1_handler + 1

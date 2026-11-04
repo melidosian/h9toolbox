@@ -12,6 +12,7 @@
 #include "h9_aprs_uart1_dma.h"
 #include "h9_aprs_uart1_tx.h"
 #include "h9_aprs_uart2_board.h"
+#include "h9_aprs_uart2_dma.h"
 #include "h9_aprs_uart2_rx.h"
 #include "h9_aprs_uart_receive.h"
 #include "h9_aprs_wave_output.h"
@@ -28,6 +29,7 @@ typedef struct {
     H9AprsUart1Tx uart1_tx;
     H9AprsUart2Board uart2_board;
     H9AprsUart2Rx uart2_rx;
+    H9AprsUart2Dma uart2_dma;
     H9AprsGpioBoard gpio_board;
     H9AprsWaveOutput wave_output;
     H9AprsAdcBoard adc_board;
