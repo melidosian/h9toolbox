@@ -68,3 +68,25 @@ fallback when the preferred channel is busy, interrupt callback behavior, and
 read/write timing remain untested. `replacement-source/main/h9_main_serial_profile.*`
 ports the 32-byte open record and pin-table route without touching hardware;
 no board adapter is connected yet.
+
+The selected UART1 serial object has function slots for byte write
+(`0x01EC5E3A`), byte read (`0x01EC5E74`), bulk read (`0x01EC5EFA`), and bulk
+write (`0x01EC5F94`). In its DMA read path, the bulk reader calls
+`0x01EC5C4A` with the ring at RAM `0x1E350`. That helper treats four 32-bit
+fields as storage address, power-of-two capacity, produced count, and consumed
+count. It returns the minimum of requested and available bytes, copies in
+one or two segments across the ring boundary, and increments consumed.
+The independent Pi32v2 decode at app+`0x0C5B4A..0x0C5B82` confirms the
+`consumed & (capacity - 1)` wrap; Ghidra's rendered expression for that mask
+is misleading. `replacement-source/main/h9_main_serial_dma.*` ports the read
+helper and caps a request to capacity to avoid an out-of-bounds copy if a
+caller supplies an oversized request. A host test connects it to the APRS
+session and decodes a framed version reply across a physical buffer wrap.
+
+The UART1 bulk writer at `0x01EC5F94` places DMA address and length in
+registers `0x001E2114` and `0x001E2118`; the interrupt routine at
+`0x01EC5FC8` dispatches event numbers 1, 2, and 3 through the object callback.
+Its conditions and DMA acknowledgement involve ROM calls and still require
+independent instruction-level validation before an interrupt handler is
+ported. The producer counter update, DMA setup, cache/synchronization rule,
+and TX path are not yet connected to the replacement board entry.

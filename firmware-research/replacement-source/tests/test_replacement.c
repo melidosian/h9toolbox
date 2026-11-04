@@ -32,6 +32,7 @@
 #include "h9_main_beacon.h"
 #include "h9_main_boot_record.h"
 #include "h9_main_serial_profile.h"
+#include "h9_main_serial_dma.h"
 #include "h9_main_tx_service.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
@@ -2144,6 +2145,48 @@ static void test_main_serial_profile(void)
     assert(!h9_main_serial_route(3, &route));
 }
 
+static void test_main_serial_dma_read(void)
+{
+    uint8_t storage[2048] = { 0 };
+    uint8_t copied[16] = { 0 };
+    uint8_t serial[64];
+    static const uint8_t version[] = { 1u, '1', '.', '0', '.', '1', '5', 0u };
+    H9MainSerialDmaRing ring = { storage, sizeof storage, 2054u, 2044u };
+    H9MainAprsSession session;
+    H9MainAprsSessionCallbacks callbacks = { 0 };
+    size_t index;
+    size_t serial_length;
+
+    for (index = 0u; index < 4u; ++index) storage[2044u + index] =
+        (uint8_t)(0xA0u + index);
+    for (index = 0u; index < 6u; ++index) storage[index] =
+        (uint8_t)(0xA4u + index);
+    assert(h9_main_serial_dma_read(&ring, copied, 6u) == 6u);
+    for (index = 0u; index < 6u; ++index) assert(copied[index] == 0xA0u + index);
+    assert(ring.consumed == 2050u);
+    assert(h9_main_serial_dma_read(&ring, copied, sizeof copied) == 4u);
+    for (index = 0u; index < 4u; ++index) assert(copied[index] == 0xA6u + index);
+    assert(ring.consumed == ring.produced);
+    assert(h9_main_serial_dma_read(&ring, copied, sizeof copied) == 0u);
+    ring.capacity = 2047u;
+    assert(h9_main_serial_dma_read(&ring, copied, sizeof copied) == 0u);
+
+    serial_length = h9_wire_encode(0x21u, version, sizeof version,
+                                   serial, sizeof serial);
+    assert(serial_length != 0u && serial_length < sizeof serial);
+    ring.capacity = sizeof storage;
+    ring.consumed = 2045u;
+    ring.produced = ring.consumed + (uint32_t)serial_length;
+    for (index = 0u; index < serial_length; ++index)
+        storage[(2045u + index) & 2047u] = serial[index];
+    callbacks.serial_read = h9_main_serial_dma_read;
+    h9_main_aprs_session_init(&session, &callbacks, &ring);
+    assert(h9_main_aprs_session_poll(&session) == serial_length);
+    assert(session.versions.has_module &&
+           strcmp(session.versions.module, "1.0.15") == 0);
+    assert(ring.consumed == ring.produced);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -2163,6 +2206,7 @@ int main(void)
     test_main_tx_service();
     test_main_boot_record();
     test_main_serial_profile();
+    test_main_serial_dma_read();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();

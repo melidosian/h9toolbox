@@ -58,6 +58,7 @@ SOURCES = {
         "main/h9_main_beacon.c",
         "main/h9_main_boot_record.c",
         "main/h9_main_serial_profile.c",
+        "main/h9_main_serial_dma.c",
         "main/h9_main_tx_service.c",
         "main/h9_main_uart_ring.c",
     ),
