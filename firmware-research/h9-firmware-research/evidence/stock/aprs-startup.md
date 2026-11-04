@@ -58,8 +58,9 @@ Other populated peripheral slots retain a default spin handler. The pinned
 image check verifies these vector values and handler bytes, and the link
 check verifies the new vector topology. Its
 board entry now selects the observed 24 MHz internal-clock path, configures
-USART1 and DMA channel 1, polls received UART batches, and sends serial
-replies through USART1. This source path
-is untested on the board. ADC/DAC initialization, other interrupts, and the
-full APRS application are still absent. A replacement SysTick handler is now
-linked at vector 15, but its behavior has not been tested on hardware.
+USART1/USART2 and their DMA channels, configures the candidate sample timer,
+ADC, and waveform GPIO, polls received UART batches, and sends serial replies
+through USART1. These source paths are untested on the board. RF readiness,
+carrier sensing, other interrupts, and the full APRS application remain
+unmapped. A replacement SysTick handler is linked at vector 15, but its
+behavior has not been tested on hardware.

@@ -30,6 +30,10 @@ typedef struct {
     double sample_rate;
     double sample_time;
     double bit_end;
+    double amplitude;
+    int dc_bias;
+    unsigned noise_amplitude;
+    unsigned sample_index;
     unsigned ones;
 } AfskFixture;
 
@@ -65,7 +69,12 @@ static void send_bit(AfskFixture *fixture, unsigned bit)
         fixture->tone_hz = fixture->tone_hz == 1200.0 ? 2200.0 : 1200.0;
     fixture->bit_end += 1.0 / 1200.0;
     while (fixture->sample_time + 1e-12 < fixture->bit_end) {
-        int16_t sample = (int16_t)(95.0 * sin(fixture->phase));
+        int noise = (int)((fixture->sample_index++ * 17u) % 13u) - 6;
+        int sample = (int)(fixture->amplitude * sin(fixture->phase)) +
+                     fixture->dc_bias +
+                     noise * (int)fixture->noise_amplitude / 6;
+        if (sample < -128) sample = -128;
+        if (sample > 127) sample = 127;
         fixture->phase += 6.2831853071795864769 * fixture->tone_hz /
                           fixture->sample_rate;
         fixture->sample_time += 1.0 / fixture->sample_rate;
@@ -100,7 +109,9 @@ static void send_data_byte(AfskFixture *fixture, uint8_t byte)
     }
 }
 
-static void test_at_sample_rate(double sample_rate, bool force_overflow)
+static void test_at_sample_rate(double sample_rate, bool force_overflow,
+                                double amplitude, int dc_bias,
+                                unsigned noise_amplitude)
 {
     /* AX.25 UI frame: APRS-0 > KD9CRQ-0, >TEST. Its independent X.25
      * FCS is 0x9BFA, transmitted low byte first. */
@@ -120,6 +131,9 @@ static void test_at_sample_rate(double sample_rate, bool force_overflow)
     h9_main_wire_reset(&fixture.main_receiver);
     fixture.tone_hz = 1200.0;
     fixture.sample_rate = sample_rate;
+    fixture.amplitude = amplitude;
+    fixture.dc_bias = dc_bias;
+    fixture.noise_amplitude = noise_amplitude;
     if (force_overflow) {
         /* The 64-byte ISR queue fills when main-loop polling is withheld.
          * Recovery must discard the partial stream on the consumer side. */
@@ -154,10 +168,14 @@ static void test_at_sample_rate(double sample_rate, bool force_overflow)
 
 int main(void)
 {
-    test_at_sample_rate(9600.0, false);
-    test_at_sample_rate(9600.0, true);
+    test_at_sample_rate(9600.0, false, 95.0, 0, 0u);
+    test_at_sample_rate(9600.0, true, 95.0, 0, 0u);
     /* 24 MHz / (11+1) / (209+1) from the recovered timer registers. */
-    test_at_sample_rate(24000000.0 / 12.0 / 210.0, false);
-    test_at_sample_rate(24000000.0 / 12.0 / 210.0, true);
+    test_at_sample_rate(24000000.0 / 12.0 / 210.0, false,
+                        95.0, 0, 0u);
+    test_at_sample_rate(24000000.0 / 12.0 / 210.0, true,
+                        95.0, 0, 0u);
+    test_at_sample_rate(24000000.0 / 12.0 / 210.0, false,
+                        65.0, 18, 4u);
     return 0;
 }

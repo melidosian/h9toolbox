@@ -19,3 +19,18 @@ therefore reads inside the frame byte buffer, not reads from an identified
 radio carrier detector. This trace does not establish why stock uses those
 bytes or whether a separate carrier test exists in the packet encoder.
 Do not map the replacement's abstract `channel_busy` input to any of them.
+
+A fresh read-only export of the same Ghidra project shows that
+`0x08005760` is a blocking loop: when frame byte `+4` is zero, it draws
+random values until one falls below persistence, then encodes the packet.
+When byte `+4` is nonzero, it runs the frame parser while byte `+3` remains
+nonzero and exits when word `+0xE0` becomes nonzero. There is no explicit
+tick delay in the exported body. Ghidra reports no direct call reference to
+`0x08005760`, so its indirect caller or callback registration still needs
+to be resolved. The application loop at `0x08005DE8` separately calls the
+USART1 batch processor, frame parser, and receive bookkeeping routine
+`0x080054C8`. The replacement uses a cooperative gate rather than a
+blocking loop; this is a design difference, not a demonstrated stock
+scheduling cadence. Private exports are in ignored
+`output/stock/aprs-gate-control-20261104.txt` and
+`output/stock/aprs-gate-frame-20261104.txt`.
