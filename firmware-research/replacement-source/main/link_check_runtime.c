@@ -48,6 +48,7 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainMemoryWindow window;
     H9MainBoardMarkers markers;
     H9MainClockProbe clock_probe;
+    H9MainClockSelector clock_selector;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
     typedef void (*RomContinue)(void);
@@ -66,6 +67,8 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     if (!h9_main_board_markers_initialize(&markers)) for (;;) { }
     h9_main_clock_probe_bind_target(&clock_probe, 100000u);
     if (!h9_main_clock_probe_run(&clock_probe)) for (;;) { }
+    h9_main_clock_selector_bind_target(&clock_selector);
+    if (!h9_main_clock_selector_run(&clock_selector)) for (;;) { }
 #endif
     for (;;) { }
 }

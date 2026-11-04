@@ -153,6 +153,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_board_markers_initialize",
         "h9_main_clock_probe_bind_target",
         "h9_main_clock_probe_run",
+        "h9_main_clock_selector_bind_target",
+        "h9_main_clock_selector_run",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -232,6 +234,24 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
                     ("50000000", "r1 = 176", "r1 = 177", "r1 = 178",
                      "0x960", "0x82", "r2 = 253", "r7 > 3")):
         raise ValueError("Linked early clock probe differs from stock constants")
+    selector_bind_match = re.search(
+        r"(?ms)^h9_main_clock_selector_bind_target:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    selector_match = re.search(
+        r"(?ms)^h9_main_clock_selector_run:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if selector_bind_match is None or selector_match is None:
+        raise ValueError("Linked main ELF lacks early clock selector")
+    selector_bind = selector_bind_match.group(1).lower()
+    selector_body = selector_match.group(1).lower()
+    if not all(value in selector_bind for value in
+               ("1972512", "55896")) or \
+            not all(value in selector_body for value in
+                    ("857559629", "0x4000000", "4354",
+                     "0xfff807ff", "20480", "0x50000")):
+        raise ValueError("Linked early clock selector differs from stock constants")
 
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
@@ -350,6 +370,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_memory_window_path_verified": True,
         "early_board_markers_path_verified": True,
         "early_board_clock_probe_path_verified": True,
+        "early_board_clock_selector_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

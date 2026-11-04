@@ -85,3 +85,34 @@ bool h9_main_clock_probe_run(H9MainClockProbe *probe)
     }
     return true;
 }
+
+void h9_main_clock_selector_bind_target(H9MainClockSelector *selector)
+{
+    if (selector == NULL) return;
+    selector->clock_registers = (volatile uint32_t *)(uintptr_t)0x001E1920u;
+    selector->flag_da58 = (volatile uint8_t *)(uintptr_t)0x0000DA58u;
+    selector->flag_da5c = (volatile uint8_t *)(uintptr_t)0x0000DA5Cu;
+}
+
+bool h9_main_clock_selector_run(H9MainClockSelector *selector)
+{
+    uint32_t previous;
+    uint32_t flag_bits = 0u;
+    if (selector == NULL || selector->clock_registers == NULL ||
+        selector->flag_da58 == NULL || selector->flag_da5c == NULL)
+        return false;
+
+    previous = selector->clock_registers[0];
+    selector->clock_registers[0] = 0x331D524Du;
+    if ((previous & 0x04000000u) != 0u)
+        selector->clock_registers[0] |= 0x04000000u;
+    selector->clock_registers[1] = 0x1102u;
+
+    /* The tail-called stock helper first clears both fields, then inserts
+     * one field for each nonzero byte at 0xDA58 and 0xDA5C. */
+    selector->clock_registers[0] &= 0xFFF807FFu;
+    if (*selector->flag_da58 != 0u) flag_bits |= 0x00005000u;
+    if (*selector->flag_da5c != 0u) flag_bits |= 0x00050000u;
+    selector->clock_registers[0] |= flag_bits;
+    return true;
+}

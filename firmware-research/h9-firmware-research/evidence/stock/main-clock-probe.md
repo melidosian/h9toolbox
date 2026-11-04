@@ -22,14 +22,26 @@ writes one to `0x1E0400`. Stock polls bit 15 of that first word until set,
 restores `0x4000`, calls ROM `0x02000058(0xB2)`, and calls ROM
 `0x02000A28(0xB1, 0xFD)`. The first loop ends at app+`0x0C5544`.
 The rest of the helper configures clocks and calibrates a 240 MHz path;
-it remains unported.
+the calibration path remains unported.
+
+The next call at app+`0x0C5544` targets app+`0x0C5492`. Its independent
+decode reads register `0x1E1920`, replaces it with `0x331D524D`, preserves
+bit 26 from the old word, and writes `0x1102` to `0x1E1924`. It tail-calls
+app+`0x0C543E`, which clears the two fields under `0xFFF807FF` in
+`0x1E1920` and inserts `0x5000` when RAM byte `0xDA58` is nonzero and
+`0x50000` when byte `0xDA5C` is nonzero. The board marker stage sets both
+bytes to one. The independent decode is in ignored
+`output/main-clock-helpers-independent.asm`. No hardware clock-rate
+measurement has confirmed this interpretation.
 
 `replacement-source/main/h9_main_clock_probe.*` ports this first stage
 with injectable ROM and measurement callbacks. Its target binding uses the
 observed addresses. Unlike stock's unbounded poll, the replacement has a
 caller-selected bound; on timeout it restores `0x4000` and stops before
 the ROM read/mask calls. Host tests verify four-channel order, calibration
-word boundaries, and timeout behavior. The diagnostic board entry invokes
-this stage and then stops. The Pi32 link check verifies key addresses,
-constants, and call placement. No radio has run it, and the linked image
-remains unflashable.
+word boundaries, and timeout behavior. `h9_main_clock_selector_run` ports
+the next register sequence with a caller-supplied register and flag binding;
+host tests cover both flag bytes and the preserved bit. The diagnostic board
+entry invokes both stages and then stops before the 240 MHz calibration
+path. The Pi32 link check verifies key addresses, constants, and call
+placement. No radio has run it, and the linked image remains unflashable.

@@ -3928,6 +3928,35 @@ static void test_main_clock_probe(void)
            calibration[3] == 0xA5A5A5A5u);
 }
 
+static void test_main_clock_selector(void)
+{
+    uint32_t registers[3] = { 0u, 0u, 0xA5A5A5A5u };
+    uint8_t flag_da58 = 0u;
+    uint8_t flag_da5c = 0u;
+    H9MainClockSelector selector = {
+        registers, &flag_da58, &flag_da5c
+    };
+    unsigned preserved;
+    unsigned flags;
+    assert(!h9_main_clock_selector_run(NULL));
+    for (preserved = 0u; preserved < 2u; ++preserved) {
+        for (flags = 0u; flags < 4u; ++flags) {
+            uint32_t expected = 0x331D524Du & 0xFFF807FFu;
+            registers[0] = preserved ? 0x04000000u : 0u;
+            registers[1] = 0u;
+            flag_da58 = (flags & 1u) != 0u;
+            flag_da5c = (flags & 2u) != 0u;
+            if (preserved) expected |= 0x04000000u;
+            if (flag_da58) expected |= 0x00005000u;
+            if (flag_da5c) expected |= 0x00050000u;
+            assert(h9_main_clock_selector_run(&selector));
+            assert(registers[0] == expected);
+            assert(registers[1] == 0x1102u);
+            assert(registers[2] == 0xA5A5A5A5u);
+        }
+    }
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -3959,6 +3988,7 @@ int main(void)
     test_main_memory_window();
     test_main_board_markers();
     test_main_clock_probe();
+    test_main_clock_selector();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();
