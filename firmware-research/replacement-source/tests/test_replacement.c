@@ -3266,6 +3266,45 @@ static void test_main_aprs_uart1_link(void)
     assert(!link.transmit_queue.active && link.transmit_queue.count == 0u);
 }
 
+static void test_main_aprs_uart1_link_forwards_gps_fix(void)
+{
+    uint32_t registers[11] = { 0 };
+    uint8_t receive[256] = { 0 };
+    uint8_t outgoing[32] = { 0 };
+    uint8_t nmea[160];
+    H9MainUart1TxSlot slot = { outgoing, 0x12000u,
+                               sizeof outgoing, 0u };
+    MainUartLinkCapture dma_capture = { registers, 0u, 0u, 0u, 0u };
+    MainSessionCapture application_capture = { 0 };
+    H9MainAprsUart1DmaHooks hooks = {
+        main_uart_link_prepare, main_uart_link_enable,
+        main_uart_link_tx_ack, main_uart_link_rx_ack, &dma_capture
+    };
+    H9MainAprsSessionCallbacks application = { 0 };
+    H9MainAprsUart1Link link;
+    size_t nmea_length = make_nmea(
+        "GNRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,231126,,,A",
+        nmea, sizeof nmea);
+    size_t frame_length = h9_wire_encode(0x10u, nmea, nmea_length,
+                                          receive, sizeof receive);
+
+    assert(nmea_length != 0u && frame_length != 0u);
+    application.gps_fix = session_gps_fix;
+    assert(h9_main_aprs_uart1_link_init(&link, registers, receive,
+                                        sizeof receive, 128u, &slot, 1u,
+                                        &hooks, &application,
+                                        &application_capture));
+    registers[0] = 0x0820u;
+    registers[10] = (uint32_t)frame_length;
+    h9_main_aprs_uart1_link_irq(&link);
+    assert(dma_capture.rx_acks == 1u &&
+           link.receive.produced == frame_length);
+    assert(h9_main_aprs_uart1_link_poll(&link) == frame_length);
+    assert(application_capture.gps_fix_count == 1u);
+    assert(application_capture.gps_type == H9_MAIN_GPS_RMC);
+    assert(application_capture.gps_fix.latitude_e7 == 481173000);
+}
+
 typedef struct {
     uint32_t *registers;
     unsigned steps[5];
@@ -3390,6 +3429,7 @@ int main(void)
     test_main_uart1_tx();
     test_main_uart1_tx_queue();
     test_main_aprs_uart1_link();
+    test_main_aprs_uart1_link_forwards_gps_fix();
     test_main_uart1_board_open();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();

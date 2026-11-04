@@ -64,6 +64,14 @@ static void gps_sentence(void *context, const uint8_t *bytes, size_t length)
                                        bytes, length);
 }
 
+static void gps_fix(void *context, H9MainGpsSentenceType type,
+                    const H9MainGpsFix *fix)
+{
+    H9MainAprsUart1Link *link = as_link(context);
+    if (link->application.gps_fix != NULL)
+        link->application.gps_fix(link->application_context, type, fix);
+}
+
 static void control(void *context, H9MainControlAction value)
 {
     H9MainAprsUart1Link *link = as_link(context);
@@ -118,6 +126,7 @@ int h9_main_aprs_uart1_link_init(
     link->irq.context = link;
     callbacks.packet = packet;
     callbacks.gps_sentence = gps_sentence;
+    callbacks.gps_fix = gps_fix;
     callbacks.control = control;
     callbacks.version = version;
     callbacks.serial_read = serial_read;
