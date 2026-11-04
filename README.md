@@ -4,7 +4,7 @@ Firmware reverse-engineering notes, offline analysis, the Windows/Linux USB-C fl
 
 A small, buildless Web Bluetooth programmer for the TIDRADIO TD-H9. Open the HTTPS site in Chrome or Edge on a computer with Bluetooth. No account or cloud storage is used by the page itself; the radio image stays in browser memory until you download a backup.
 
-**AI disclosure:** H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; save an untouched backup and verify settings before writing to your radio.
+**AI disclosure:** H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; saving an untouched backup and verifying settings before writing are recommended.
 
 ## GitHub Pages
 
@@ -16,9 +16,9 @@ The checked-in workflow publishes `dist/` directly to GitHub Pages on each push 
 
 1. Enable the TD-H9's Bluetooth programming mode.
 2. Connect and read the radio.
-3. Save the untouched `.img` backup immediately. Optionally download readable JSON for transfer or editing.
+3. Optionally save the untouched `.img` backup so you can recover the original configuration. You can also download readable JSON for transfer or editing.
 4. Confirm the displayed channels and radio settings against the radio.
-5. Edit channels or mapped radio settings and write the changed blocks. The app checks the radio's identity and original bytes before writing, waits for ACK, and reads each changed block back.
+5. Edit channels or mapped radio settings, acknowledge the experimental software risk, and write the changed blocks. The app checks the radio's identity and original bytes before writing, waits for ACK, and reads each changed block back.
 
 The channel editor covers RX/TX frequency, name, offset direction, FM/AM and wide/narrow mode, separate TX/RX CTCSS or DCS tones with polarity, transmit power, scan inclusion, channel enablement, PTT ID, busy lockout, hopping RX, and scramble code. It has direct Create and Remove buttons for channels 1–199. Changing RX also updates TX for simplex and common US repeater pairs. It suggests −600 kHz for 145.20–145.50 and 146.61–146.97 MHz outputs, +600 kHz for 147.00–147.39 MHz outputs, and −1.6 MHz for 223.85–224.98 MHz outputs. For 70 cm, the user chooses + or −5 MHz because direction varies locally. Existing custom splits follow RX changes, while a manually entered TX remains untouched until Use suggested TX is selected. ARRL's [band plan](https://www.arrl.org/band-plan) and [offset guidance](https://www.arrl.org/phone-patch-guidelines) are the source for these US defaults; individual repeater listings take precedence.
 
@@ -26,7 +26,7 @@ The radio settings editor maps basic radio behavior, VFO/scan, display/buttons, 
 
 ## Channel CSV and portable JSON
 
-`Export channels CSV` saves populated channels and every editable channel option in a spreadsheet-friendly file, without radio settings or raw memory blocks. `Import channels CSV` applies it to a loaded image. It merges by channel number unless **Replace all channels** is selected; that option also clears occupied slots omitted from the CSV. To clear one channel, set its `action` column to `clear`. The app lists counts and asks before replacing or removing occupied channels. Older channels JSON exports are still accepted on import. Import only changes the working image until Write changes is used. Save the original `.img` before writing to the radio.
+`Export channels CSV` saves populated channels and every editable channel option in a spreadsheet-friendly file, without radio settings or raw memory blocks. `Import channels CSV` applies it to a loaded image. It merges by channel number unless **Replace all channels** is selected; that option also clears occupied slots omitted from the CSV. To clear one channel, set its `action` column to `clear`. The app lists counts and asks before replacing or removing occupied channels. Older channels JSON exports are still accepted on import. Import only changes the working image until Write changes is used. Saving the original `.img` is recommended but is not required to write.
 
 The CSV has columns for radio mode, channel number, action, name, RX/TX frequency, modulation, TX/RX tones and DCS polarity, power, scan and enabled flags, offset direction, PTT ID, scramble, busy lock, and hopping. Keep `radio_mode` equal to the loaded image mode. Boolean columns accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`. Tone types are `off`, `ctcss`, `dcs`, or `raw`; raw tones can only be preserved on their original channel.
 Channel names starting with spreadsheet formula characters get a leading apostrophe in the CSV; the importer removes it on round trip.

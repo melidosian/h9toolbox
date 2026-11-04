@@ -77,12 +77,12 @@ function refresh() {
   $('newChannelNumber').disabled = busy || !edited;
   $('exportChannels').disabled = busy || !edited;
   $('applySettings').disabled = busy || !edited;
-  $('backupConfirmed').disabled = !edited || !backupSaved;
+  $('riskAcknowledged').disabled = busy || !edited;
   const count = edited && baseline ? changedBlocks().length : 0;
   $('changeCount').textContent = count ? `${count} changed block${count === 1 ? '' : 's'}` : 'No changes';
-  $('write').disabled = busy || !connected || !backupSaved || !$('backupConfirmed').checked || !count;
+  $('write').disabled = busy || !connected || !$('riskAcknowledged').checked || !count;
   $('radioMode').textContent = edited ? `${modeName(edited)} image` : 'No image';
-  $('imageInfo').textContent = edited ? `${IMAGE_SIZE.toLocaleString()} bytes · ${modeName(edited)} · ${backupSaved ? 'Original backup saved' : 'Save the original backup before writing'}` : 'No radio image loaded.';
+  $('imageInfo').textContent = edited ? `${IMAGE_SIZE.toLocaleString()} bytes · ${modeName(edited)} · ${backupSaved ? 'Original backup saved' : 'Original backup available to save'}` : 'No radio image loaded.';
 }
 function escapeHtml(str) { return str.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 function modeName(image) { return modeNames[image[7]] || 'Unknown'; }
@@ -237,10 +237,10 @@ async function download() {
       edited = image.slice();
       originalBackup = image.slice();
       backupSaved = false;
-      $('backupConfirmed').checked = false;
+      $('riskAcknowledged').checked = false;
       renderChannels();
       renderSettings();
-      status(`Read complete: ${modeName(image)} image, ${IMAGE_SIZE.toLocaleString()} bytes. Save the untouched backup now.`);
+      status(`Read complete: ${modeName(image)} image, ${IMAGE_SIZE.toLocaleString()} bytes. You can save an untouched backup before editing.`);
     } finally { if (entered) await exitProgramming(); }
   });
 }
@@ -303,7 +303,7 @@ async function openChannels(event) {
     $('replaceChannels').checked = false;
     selectedChannel = null;
     $('editPanel').hidden = true;
-    $('backupConfirmed').checked = false;
+    $('riskAcknowledged').checked = false;
     $('search').value = '';
     renderChannels();
     status(`Imported ${document.channels.length} channel entr${document.channels.length === 1 ? 'y' : 'ies'}: ${result.additions.length} added, ${result.conflicts.length} replaced, ${result.removals.length} removed, ${result.unchanged.length} unchanged. Radio has not been changed.`);
@@ -325,7 +325,7 @@ async function openJson(event) {
       backupSaved = true;
     }
     edited = parsed.edited;
-    $('backupConfirmed').checked = false;
+    $('riskAcknowledged').checked = false;
     renderChannels();
     renderSettings();
     status(`Opened ${file.name}: ${changedBlocks().length} changed block${changedBlocks().length === 1 ? '' : 's'}. Connect the same radio before writing.`);
@@ -341,7 +341,7 @@ async function openBackup(event) {
     edited = bytes.slice();
     originalBackup = bytes.slice();
     backupSaved = true;
-    $('backupConfirmed').checked = false;
+    $('riskAcknowledged').checked = false;
     renderChannels();
     renderSettings();
     status(`Opened ${file.name}: TD-H9 ${modeName(bytes)}. Connect the same radio before writing.`);
@@ -492,6 +492,7 @@ function applyEdit() {
       txTone: toneForm('Tx', original.txTone), rxTone: toneForm('Rx', original.rxTone),
     };
     edited = writeChannel(edited, selectedChannel, form);
+    $('riskAcknowledged').checked = false;
     $('editPanel').hidden = true;
     status(`Channel ${selectedChannel} updated in the image. Radio has not been changed.`);
     selectedChannel = null;
@@ -503,6 +504,7 @@ function removeChannel(n) {
   const name = readChannel(edited, n).name;
   if (!window.confirm(`Remove channel ${n}${name ? ` (${name})` : ''} from the working image? The radio is not changed until you write.`)) return;
   edited = clearChannel(edited, n);
+  $('riskAcknowledged').checked = false;
   status(`Channel ${n} removed from the image. Radio has not been changed.`);
   selectedChannel = null;
   $('editPanel').hidden = true;
@@ -592,6 +594,7 @@ function applySettings() {
       next = writeSetting(next, setting, control.value);
     }
     edited = next;
+    $('riskAcknowledged').checked = false;
     $('settingsError').textContent = '';
     renderSettings();
     refresh();
@@ -608,7 +611,7 @@ function changedBlocks() {
 }
 async function writeChanges() {
   await work(async () => {
-    if (!backupSaved || !$('backupConfirmed').checked || !baseline || !edited) throw new Error('Save and confirm the original backup first.');
+    if (!$('riskAcknowledged').checked || !baseline || !edited) throw new Error('Review the changes and acknowledge the experimental software risk first.');
     const addresses = changedBlocks();
     if (!addresses.length) return;
     if (addresses.some(a => !(a < 0x1f80 || (a >= 0x3000 && a < 0x3140)))) throw new Error('An edit touches an unsupported radio memory region.');
@@ -633,6 +636,7 @@ async function writeChanges() {
         showProgress(i + 1, addresses.length);
       }
       baseline = edited.slice();
+      $('riskAcknowledged').checked = false;
       status(`${writes} changed block${writes === 1 ? '' : 's'} written and read back. Check the changed settings on the radio after it restarts.`);
       renderChannels();
       renderSettings();
@@ -691,6 +695,6 @@ for (const side of ['Tx', 'Rx']) {
   $(`${prefix}ToneType`).addEventListener('change', () => updateToneControls(side));
 }
 $('editScramble').replaceChildren(new Option('Off', '0'), ...Array.from({ length: 16 }, (_, i) => new Option(`Code ${i + 1}`, String(i + 1))));
-$('backupConfirmed').addEventListener('change', refresh);
+$('riskAcknowledged').addEventListener('change', refresh);
 $('write').addEventListener('click', writeChanges);
 refresh();

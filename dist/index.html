@@ -20,7 +20,7 @@
       <section class="intro">
         <div class="eyebrow">DIRECT TO RADIO · NO ODMASTER ACCOUNT</div>
         <h1>H9 Toolbox.<br><em>Your radio, your way.</em></h1>
-        <p>Connect over Bluetooth, save a full backup, and edit channels and radio settings. Everything stays in this browser unless you download a file.</p>
+        <p>Connect over Bluetooth, read your radio, and edit channels and settings. You can save a full backup at any time. Everything stays in this browser unless you download a file.</p>
         <div class="intro-actions"><a class="button ghost" href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">View GitHub repository ↗</a></div>
       </section>
 
@@ -40,10 +40,10 @@
 
           <section class="card" aria-labelledby="backup-title">
             <div class="card-head"><div><span class="step">02</span><h2 id="backup-title">Read &amp; back up</h2></div><span id="radioMode" class="chip">No image</span></div>
-            <p class="subtext">Read the radio before editing. Keep the untouched backup so you can recover your original configuration.</p>
+            <p class="subtext">Read the radio before editing. Saving an untouched backup is recommended so you can recover your original configuration.</p>
             <div class="controls backup-actions">
               <div class="option-help"><button id="read" class="button primary-button" type="button" disabled>Read from radio</button><button class="info-button" type="button" aria-label="About Read from radio" aria-describedby="help-read" aria-expanded="false"></button><span class="tooltip-text" id="help-read" role="tooltip">Copies the complete radio image into this browser. Reading does not change the radio.</span></div>
-              <div class="option-help"><button id="save" class="button ghost" type="button" disabled>Save original .img</button><button class="info-button" type="button" aria-label="About Save original image" aria-describedby="help-save" aria-expanded="false"></button><span class="tooltip-text" id="help-save" role="tooltip">Downloads the untouched radio image. Keep it safe; saving it unlocks the write confirmation.</span></div>
+              <div class="option-help"><button id="save" class="button ghost" type="button" disabled>Save original .img</button><button class="info-button" type="button" aria-label="About Save original image" aria-describedby="help-save" aria-expanded="false"></button><span class="tooltip-text" id="help-save" role="tooltip">Optionally downloads the untouched radio image so you can restore your original configuration later.</span></div>
               <div class="option-help"><label class="button ghost file-label">Open .img or JSON<input id="openFile" type="file" accept=".img,.json,application/octet-stream,application/json"></label><button class="info-button" type="button" aria-label="About Open image or JSON" aria-describedby="help-open" aria-expanded="false"></button><span class="tooltip-text" id="help-open" role="tooltip">Open a full .img backup or an H9 Toolbox JSON file. A config JSON needs a radio read or .img loaded first; a lossless archive can open by itself.</span></div>
             </div>
             <details class="advanced file-options"><summary>More file options</summary>
@@ -110,8 +110,8 @@
 
           <section class="card" aria-labelledby="write-title">
             <div class="card-head"><div><span class="step">05</span><h2 id="write-title">Write changes</h2></div><span class="chip warn" id="changeCount">No changes</span></div>
-            <p class="subtext">Only changed 32-byte blocks are sent. Before each write, the app checks that the radio still matches the original backup, then reads the block back.</p>
-            <label class="confirm"><input id="backupConfirmed" type="checkbox" disabled><span>I saved the untouched backup and checked the edited channels and settings.</span></label>
+            <p class="subtext">Only changed 32-byte blocks are sent. Before each write, the app checks that the radio still matches the original image, then reads the block back.</p>
+            <label class="confirm"><input id="riskAcknowledged" type="checkbox" disabled><span>I understand this is experimental software. Even with safety checks, writing may change or damage my radio. I have reviewed my changes and accept that risk.</span></label>
             <div class="controls"><button id="write" class="button write-button" disabled>Write changed blocks</button></div>
           </section>
         </div>
@@ -122,7 +122,7 @@
         </aside>
       </div>
     </main>
-    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; save an untouched backup and verify settings before writing to your radio.</p></footer>
+    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; saving an untouched backup and verifying settings before writing are recommended.</p></footer>
   </div>
   <script type="module" src="./app.js"></script>
 </body>
