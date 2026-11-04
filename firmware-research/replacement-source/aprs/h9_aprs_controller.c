@@ -182,10 +182,8 @@ void h9_aprs_controller_adc_tick(H9AprsController *controller)
     if (hw->read_dac_port == NULL || hw->write_dac_port == NULL) return;
     dac = (uint8_t)(hw->read_dac_port(hw->context) & 0x0Fu);
     if (hw->tx_wave_active != NULL && hw->next_tx_wave_sample != NULL) {
-        if (hw->tx_wave_active(hw->context)) {
-            wave = hw->next_tx_wave_sample(hw->context);
-            has_wave = true;
-        }
+        if (hw->tx_wave_active(hw->context))
+            has_wave = hw->next_tx_wave_sample(hw->context, &wave);
     } else {
         has_wave = h9_aprs_tx_next_sample(&controller->tx, &wave);
     }

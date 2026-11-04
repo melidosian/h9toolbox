@@ -11,6 +11,7 @@
 #include "h9_aprs_tx_gate.h"
 #include "h9_aprs_tx_packet.h"
 #include "h9_aprs_tx_service.h"
+#include "h9_aprs_tx_runtime.h"
 #include "h9_aprs_uart_receive.h"
 #include "h9_aprs_uart1_dma.h"
 #include "h9_aprs_uart1_board.h"
@@ -82,7 +83,13 @@ static void submit_service_packet(void *opaque, const uint8_t *data,
 static uint16_t read_adc(void *opaque) { (void)opaque; return 0x200u; }
 static uint8_t read_dac(void *opaque) { (void)opaque; return 0x05u; }
 static bool tx_active(void *opaque) { return ((FakeHardware *)opaque)->tx_active; }
-static uint8_t next_tx_wave(void *opaque) { (void)opaque; return 0x20u; }
+static bool next_tx_wave(void *opaque, uint8_t *sample)
+{
+    (void)opaque;
+    if (sample == NULL) return false;
+    *sample = 0x20u;
+    return true;
+}
 static void demod(void *opaque, int16_t sample)
 {
     FakeHardware *fake = (FakeHardware *)opaque;
@@ -1054,6 +1061,82 @@ static void test_aprs_tx_service(void)
     assert(!h9_aprs_tx_service_next_sample(&service, &sample));
 }
 
+typedef struct {
+    H9AprsTxService service;
+    H9AprsTxRuntime runtime;
+    unsigned sample_calls;
+    uint8_t dac;
+} FakeTxRuntime;
+
+static void runtime_submit(void *context, const uint8_t *packet, size_t length)
+{
+    FakeTxRuntime *fake = (FakeTxRuntime *)context;
+    assert(h9_aprs_tx_runtime_submit(&fake->runtime, packet, length));
+}
+
+static bool runtime_wave_active(void *context)
+{
+    FakeTxRuntime *fake = (FakeTxRuntime *)context;
+    return h9_aprs_tx_runtime_wave_active(&fake->runtime);
+}
+
+static bool runtime_next_wave(void *context, uint8_t *sample)
+{
+    FakeTxRuntime *fake = (FakeTxRuntime *)context;
+    fake->sample_calls++;
+    return h9_aprs_tx_runtime_next_sample(&fake->runtime, sample);
+}
+
+static uint8_t runtime_read_dac(void *context)
+{
+    (void)context;
+    return 0u;
+}
+
+static void runtime_write_dac(void *context, uint8_t value)
+{
+    FakeTxRuntime *fake = (FakeTxRuntime *)context;
+    fake->dac = value;
+}
+
+static void test_aprs_tx_runtime(void)
+{
+    FakeTxRuntime fake = { 0 };
+    H9AprsController controller;
+    H9AprsHardware hardware = { 0 };
+    const uint8_t packet[18] = { 0x82u, 0xA0u, 0xA4u, 0xA6u };
+    h9_aprs_tx_service_init(&fake.service, 0u, 0u, 0u);
+    h9_aprs_tx_runtime_bind(&fake.runtime, &fake.service);
+    hardware.context = &fake;
+    hardware.transmit_aprs_packet = runtime_submit;
+    hardware.tx_wave_active = runtime_wave_active;
+    hardware.next_tx_wave_sample = runtime_next_wave;
+    hardware.read_adc = read_adc;
+    hardware.read_dac_port = runtime_read_dac;
+    hardware.write_dac_port = runtime_write_dac;
+    h9_aprs_controller_init(&controller, &hardware);
+    feed_frame(&controller, 0u, packet, sizeof packet);
+    assert(fake.service.phase == H9_APRS_TX_WAITING);
+    h9_aprs_controller_adc_tick(&controller);
+    assert(fake.dac == 0x80u && fake.sample_calls == 0u);
+    assert(h9_aprs_tx_runtime_step(&fake.runtime, false, true,
+                                   false, false, 255u) == H9_APRS_TX_WAITING);
+    assert(!h9_aprs_tx_runtime_wave_active(&fake.runtime));
+    assert(h9_aprs_tx_runtime_step(&fake.runtime, true, true,
+                                   false, false, 255u) == H9_APRS_TX_WAITING);
+    assert(h9_aprs_tx_runtime_step(&fake.runtime, true, false,
+                                   false, false, 255u) == H9_APRS_TX_DRAINING);
+    assert(h9_aprs_tx_runtime_wave_active(&fake.runtime));
+    h9_aprs_controller_adc_tick(&controller);
+    assert(fake.sample_calls == 1u);
+    assert(h9_aprs_tx_runtime_step(&fake.runtime, false, true,
+                                   false, false, 255u) == H9_APRS_TX_IDLE);
+    assert(fake.service.wave.active == 0u);
+    h9_aprs_controller_adc_tick(&controller);
+    assert(fake.dac == 0x80u && fake.sample_calls == 1u);
+    assert(h9_aprs_tx_runtime_submit(&fake.runtime, packet, sizeof packet));
+}
+
 static void test_aprs_controller(void)
 {
     FakeHardware fake = { 0 };
@@ -1577,6 +1660,7 @@ int main(void)
     test_aprs_tx_packet_encoder();
     test_aprs_tx_gate();
     test_aprs_tx_service();
+    test_aprs_tx_runtime();
     test_aprs_controller();
     test_aprs_uart_receive_batches();
     test_aprs_uart1_dma_interrupts();

@@ -47,6 +47,25 @@ static uint16_t board_read_adc(void *context)
     return h9_aprs_adc_board_read(&state->adc_board);
 }
 
+static void board_submit_packet(void *context, const uint8_t *packet,
+                                size_t length)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    (void)h9_aprs_tx_runtime_submit(&state->tx_runtime, packet, length);
+}
+
+static bool board_tx_wave_active(void *context)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    return h9_aprs_tx_runtime_wave_active(&state->tx_runtime);
+}
+
+static bool board_next_tx_wave(void *context, uint8_t *sample)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    return h9_aprs_tx_runtime_next_sample(&state->tx_runtime, sample);
+}
+
 /* Temporary freestanding shims for a whole-archive link. */
 void *memcpy(void *destination, const void *source, size_t length)
 {
@@ -78,8 +97,12 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     hardware.read_dac_port = board_read_wave_port;
     hardware.write_dac_port = board_write_wave_port;
     hardware.read_adc = board_read_adc;
+    hardware.transmit_aprs_packet = board_submit_packet;
+    hardware.tx_wave_active = board_tx_wave_active;
+    hardware.next_tx_wave_sample = board_next_tx_wave;
     h9_aprs_controller_init(&runtime.controller, &hardware);
     h9_aprs_tx_service_init(&runtime.tx_service, 0, 0, 0);
+    h9_aprs_tx_runtime_bind(&runtime.tx_runtime, &runtime.tx_service);
     h9_aprs_uart_receive_init(&runtime.uart_receive);
     h9_aprs_uart1_dma_bind_target(&runtime.uart1_dma,
                                   &runtime.uart_receive);
@@ -109,6 +132,10 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
             &runtime.controller, h9_aprs_uart1_dma_rearm,
             &runtime.uart1_dma);
         h9_aprs_controller_process_received(&runtime.controller);
+        /* RF readiness and carrier sense remain unmapped. This diagnostic
+         * entry accepts packets but never authorizes waveform output. */
+        (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime, false,
+                                      true, false, false, 0u);
     }
 }
 

@@ -6,6 +6,7 @@
 #include "h9_aprs_gpio_board.h"
 #include "h9_aprs_sample_timer.h"
 #include "h9_aprs_tx_service.h"
+#include "h9_aprs_tx_runtime.h"
 #include "h9_aprs_uart1_board.h"
 #include "h9_aprs_uart1_dma.h"
 #include "h9_aprs_uart1_tx.h"
@@ -17,6 +18,7 @@
 typedef struct {
     H9AprsController controller;
     H9AprsTxService tx_service;
+    H9AprsTxRuntime tx_runtime;
     H9AprsUartReceive uart_receive;
     H9AprsUart1Dma uart1_dma;
     H9AprsUart1Board uart1_board;

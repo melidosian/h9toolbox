@@ -23,7 +23,7 @@ typedef struct {
     bool (*read_status)(void *context, uint8_t output[48]);
     void (*demod_sample)(void *context, int16_t normalized_sample);
     bool (*tx_wave_active)(void *context);
-    uint8_t (*next_tx_wave_sample)(void *context);
+    bool (*next_tx_wave_sample)(void *context, uint8_t *sample);
     uint16_t (*read_adc)(void *context);
     uint8_t (*read_dac_port)(void *context);
     void (*write_dac_port)(void *context, uint8_t value);
