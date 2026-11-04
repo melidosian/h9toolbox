@@ -31,6 +31,15 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         raise ValueError("main APRS TX mode table differs")
     if main_app[0x082F0E:0x082F12] != bytes.fromhex("BE EA E1 C9"):
         raise ValueError("timed beacon no longer calls the known selector")
+    if main_app[0x052228:0x05224C] != bytes.fromhex(
+        "74 04 04 16 40 23 41 16 BD EA 4F 6F C0 FF D0 1A 01 00 "
+        "50 EE 0D 17 72 E1 FE 40 B9 20 21 19 52 EE 0D 17 54 04"
+    ):
+        raise ValueError("main speaker pin/state writer differs")
+    if struct.unpack_from("<4I", main_app, 0x554) != (
+        0x001E5000, 0x001E5040, 0x001E5080, 0x001E50C0
+    ):
+        raise ValueError("main GPIO bank pointers differ")
     match = re.search(r"mode2_frequency_10hz\[30\]\s*=\s*\{([^}]+)\}",
                       tx_frequency_source, re.S)
     if match is None:
@@ -113,7 +122,7 @@ def main() -> None:
     verify(args.main_app.read_bytes(), args.aprs_image.read_bytes(),
            source.read_text(encoding="utf-8"),
            tx_source.read_text(encoding="utf-8"))
-    print("Exact stock hashes, TX call/tables/limits, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
+    print("Exact stock hashes, TX call/tables/limits, speaker writer/GPIO bank, ADC setup/IRQ/GPIO/timer bytes, waveform bytes, and CRC table verified")
 
 
 if __name__ == "__main__":

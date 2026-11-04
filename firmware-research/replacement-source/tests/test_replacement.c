@@ -34,6 +34,7 @@
 #include "h9_main_beacon.h"
 #include "h9_main_gps_fix.h"
 #include "h9_main_rf_output.h"
+#include "h9_main_speaker_gate.h"
 #include "h9_main_rf_registers.h"
 #include "h9_main_boot_record.h"
 #include "h9_main_serial_profile.h"
@@ -517,6 +518,26 @@ static void test_main_rf_output_registers(void)
     assert(h9_main_rf_output_set_pwm(&output, false, 255u));
     assert(pwm[3] == 1020u && pwm[0] == 0xA5A50000u);
     assert(!h9_main_rf_output_set_pwm(NULL, true, 0u));
+}
+
+static void test_main_speaker_gate(void)
+{
+    volatile uint32_t gpio = 0xA5A50108u;
+    volatile uint32_t sync = 0x12345678u;
+    uint8_t state = 0xA6u;
+    H9MainSpeakerGate gate = { &gpio, &sync, &state };
+    H9MainSpeakerGate target = { 0 };
+    h9_main_speaker_gate_bind_target(&target);
+    assert((uintptr_t)target.gpio_data == 0x001E5000u);
+    assert((uintptr_t)target.sync_register == 0x001E0200u);
+    assert((uintptr_t)target.audio_state == 0x00011B4Du);
+    assert(h9_main_speaker_gate_set(&gate, false));
+    assert(gpio == 0xA5A50100u && state == 0xA6u);
+    assert(h9_main_speaker_gate_set(&gate, true));
+    assert(gpio == 0xA5A50108u && state == 0xA7u);
+    gate.audio_state = NULL;
+    assert(!h9_main_speaker_gate_set(&gate, false));
+    assert(gpio == 0xA5A50108u);
 }
 
 typedef struct {
@@ -2938,6 +2959,7 @@ int main(void)
     test_main_gps_sentence_frames();
     test_main_gps_fix_parser();
     test_main_rf_output_registers();
+    test_main_speaker_gate();
     test_main_rf_register_values();
     test_main_gpio_query_reply();
     test_main_control_frames();
