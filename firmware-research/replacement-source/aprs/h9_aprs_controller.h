@@ -14,6 +14,9 @@ typedef struct {
     void (*uart_write)(void *context, const uint8_t *data, size_t length);
     void (*set_radio_gpio)(void *context, bool high);
     bool (*read_radio_gpio)(void *context);
+    /* Called synchronously for serial command 0x00; copy packet if deferred. */
+    void (*transmit_aprs_packet)(void *context, const uint8_t *packet,
+                                 size_t length);
     void (*queue_packet_tx)(void *context, const uint8_t *packet, size_t length);
     bool (*read_status)(void *context, uint8_t output[48]);
     void (*demod_sample)(void *context, int16_t normalized_sample);

@@ -51,6 +51,10 @@ static void dispatch(H9AprsController *controller)
     size_t length = controller->wire.length;
     void *context = controller->hardware.context;
     switch (controller->wire.command) {
+    case 0x00u:
+        if (length != 0 && controller->hardware.transmit_aprs_packet != NULL)
+            controller->hardware.transmit_aprs_packet(context, data, length);
+        break;
     case 0x10u:
         if (length != 0) (void)send_frame(controller, 0x10u, data, length);
         break;

@@ -4,6 +4,7 @@
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_ring.h"
 #include "h9_aprs_tx.h"
+#include "h9_aprs_tx_packet.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
 #include "h9_main_beacon.h"
@@ -15,6 +16,8 @@ typedef struct {
     size_t uart_length;
     uint8_t packet[H9_APRS_MAX_RECEIVE];
     size_t packet_length;
+    uint8_t afsk_packet[H9_APRS_MAX_RECEIVE];
+    size_t afsk_packet_length;
     int demod_calls;
     int dac_calls;
     int16_t sample;
@@ -36,6 +39,15 @@ static void queue_packet(void *opaque, const uint8_t *data, size_t length)
     assert(length <= sizeof fake->packet);
     memcpy(fake->packet, data, length);
     fake->packet_length = length;
+}
+
+static void transmit_afsk_packet(void *opaque, const uint8_t *data,
+                                 size_t length)
+{
+    FakeHardware *fake = (FakeHardware *)opaque;
+    assert(length <= sizeof fake->afsk_packet);
+    memcpy(fake->afsk_packet, data, length);
+    fake->afsk_packet_length = length;
 }
 
 static uint16_t read_adc(void *opaque) { (void)opaque; return 0x200u; }
@@ -304,6 +316,54 @@ static void test_aprs_frame_fcs(void)
     assert(output.packets == 1);
 }
 
+static void test_aprs_tx_packet_encoder(void)
+{
+    static const uint8_t reserved[] = { 0x7Eu, 0x7Fu, 0x1Bu };
+    static const uint8_t expected[] = {
+        0x7Eu, 0x1Bu, 0x7Eu, 0x1Bu, 0x7Fu,
+        0x1Bu, 0x1Bu, 0x51u, 0x8Bu, 0x7Eu
+    };
+    H9AprsTxPacket encoder;
+    H9AprsTx tx;
+    H9AprsFrame frame;
+    PacketOutput output = { { 0 }, 0, 0 };
+    uint8_t packet[80];
+    uint8_t byte;
+    unsigned i;
+    assert(h9_aprs_tx_packet_init(&encoder, reserved, sizeof reserved));
+    for (i = 0; i < sizeof expected; ++i) {
+        assert(h9_aprs_tx_packet_next(&encoder, &byte));
+        assert(byte == expected[i]);
+    }
+    assert(h9_aprs_tx_packet_done(&encoder));
+    assert(encoder.crc == 0xF0B8u);
+    assert(!h9_aprs_tx_packet_next(&encoder, &byte));
+
+    h9_aprs_tx_init(&tx, 0, 0);
+    for (i = 0; i < 62; ++i) assert(h9_aprs_tx_enqueue(&tx, 0x55u));
+    assert(h9_aprs_tx_packet_init(&encoder, reserved, sizeof reserved));
+    assert(h9_aprs_tx_packet_pump(&encoder, &tx) == 1); /* opening flag */
+    assert(h9_aprs_ring_pop(&tx.queue, &byte));
+    assert(h9_aprs_tx_packet_pump(&encoder, &tx) == 0);
+    assert(encoder.index == 0 && encoder.pending_escape == 0);
+    assert(h9_aprs_ring_pop(&tx.queue, &byte));
+    assert(h9_aprs_tx_packet_pump(&encoder, &tx) == 2);
+    assert(encoder.index == 1 && encoder.pending_escape == 0);
+
+    for (i = 0; i < sizeof packet; ++i) packet[i] = (uint8_t)(0x30u + i);
+    h9_aprs_tx_init(&tx, 0, 0);
+    h9_aprs_frame_init(&frame);
+    assert(h9_aprs_tx_packet_init(&encoder, packet, sizeof packet));
+    for (i = 0; i < 10 && !h9_aprs_tx_packet_done(&encoder); ++i) {
+        assert(h9_aprs_tx_packet_pump(&encoder, &tx) != 0);
+        while (h9_aprs_ring_pop(&tx.queue, &byte))
+            (void)h9_aprs_frame_feed(&frame, byte, emit_packet, &output);
+    }
+    assert(h9_aprs_tx_packet_done(&encoder));
+    assert(output.packets == 1 && output.length == sizeof packet);
+    assert(memcmp(output.bytes, packet, sizeof packet) == 0);
+}
+
 static void feed_frame(H9AprsController *controller, uint8_t command,
                        const uint8_t *payload, size_t length)
 {
@@ -327,6 +387,7 @@ static void test_aprs_controller(void)
     hw.context = &fake;
     hw.uart_write = uart_write;
     hw.queue_packet_tx = queue_packet;
+    hw.transmit_aprs_packet = transmit_afsk_packet;
     hw.read_adc = read_adc;
     hw.demod_sample = demod;
     hw.read_dac_port = read_dac;
@@ -334,6 +395,10 @@ static void test_aprs_controller(void)
     hw.tx_wave_active = tx_active;
     hw.next_tx_wave_sample = next_tx_wave;
     h9_aprs_controller_init(&controller, &hw);
+    feed_frame(&controller, 0x00u, send_packet, sizeof send_packet);
+    assert(fake.afsk_packet_length == sizeof send_packet);
+    assert(memcmp(fake.afsk_packet, send_packet,
+                  sizeof send_packet) == 0);
     feed_frame(&controller, 0x11u, send_packet, sizeof send_packet);
     assert(fake.packet_length == 3);
     assert(memcmp(fake.packet, send_packet + 1, 3) == 0);
@@ -389,6 +454,7 @@ int main(void)
     test_stock_demod_delay();
     test_stock_tx_scheduler();
     test_aprs_frame_fcs();
+    test_aprs_tx_packet_encoder();
     test_aprs_controller();
     return 0;
 }
