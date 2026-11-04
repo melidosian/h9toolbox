@@ -19,7 +19,7 @@ This is the beginning of a source rewrite for the **main Pi32v2 firmware** and t
 - The same main APRS module ports the packet-path RX-channel comparison at app+`0x086166..0x08619C`. This comparison maps the working RX frequency to A or B before checking `APRS RX CH`; `Off` bypasses this local comparison, which does not establish that APRS reception is globally enabled in that setting.
 - `main/h9_main_beacon.*` ports the timed-beacon counter, interval threshold, and state/priority guard from main app+`0x082EB2`. The outer scheduler timing and receive/busy conditions remain to be ported.
 
-The framing and command source follows observed behavior where established. The mute and post-setup TX verification are **new desired behavior**, not claims that stock firmware already performs them. Unsupported commands are ignored in this first pass. The full main UI, channel store, RF driver, Bluetooth driver, boot setup, and APRS hardware integration are still absent. The receive chain has passed ideal software loopback but has not been validated with recorded packet audio. The APRS status command's 48-byte content remains a hardware callback because its fields have not been fully reconstructed. No Pi32 build toolchain or link map has been validated for the radio. The CMake test executable is host-only; the cross-compile script below creates target objects and archives, not linked firmware.
+The framing and command source follows observed behavior where established. The mute and post-setup TX verification are **new desired behavior**, not claims that stock firmware already performs them. Unsupported commands are ignored in this first pass. The full main UI, channel store, RF driver, Bluetooth driver, boot setup, and APRS hardware integration are still absent. The receive chain has passed ideal software loopback but has not been validated with recorded packet audio. The APRS status command's 48-byte content remains a hardware callback because its fields have not been fully reconstructed. No Pi32 build toolchain or production link map has been validated for the radio. The CMake test executable is host-only; the cross-compile script below creates target objects and archives, not linked firmware.
 
 ## Build and test on Windows
 
@@ -45,6 +45,16 @@ py -3 firmware-research/replacement-source/build_target_objects.py main --compil
 On Linux, use `python3` and omit `--compiler` if the respective compiler is at its documented path or on `PATH`. `H9_ARM_GCC` and `H9_PI32_CLANG` can also set explicit compiler paths. The resulting `.o` files and `.a` archive are under ignored `build/target-aprs` or `build/target-main`. The APRS archive was built and checked with Arm GNU Toolchain 15.3.1 on Windows. **Neither archive is a bootable or flashable image**: startup, linker memory map, peripheral drivers, and final image packaging are still missing. The Pi32 compilation path remains untested until that vendor compiler is available.
 
 To check the source constants against the private stock images, run `py -3 firmware-research/replacement-source/verify_source_inputs.py <path-to-stock-app.bin> <path-to-APRS-1.0.15.bin>` from the repository root. This reads both files and validates their pinned hashes, the main TX selector call/table, all 128 waveform-table bytes, and the APRS CRC table. It does not create or flash an image.
+
+## APRS diagnostic link check
+
+`link_aprs_check.py` compiles all APRS modules, forces every object into one ARM ELF, and writes a linker map and manifest under ignored `build/link-check-aprs/`. Its diagnostic linker script uses the stock image base `0x08002000`, stock image length 17,304 bytes, and stock initial stack pointer `0x20001A50` as conservative address bounds. The optional stock-image argument rechecks those values against the pinned private image hash. This is a **link check**, not a complete firmware build: its 16-entry vector table and inert reset handler do not initialize RAM, clocks, interrupts, UART, ADC, DAC, radio controls, or the APRS application. It creates no `.bin` update file.
+
+```powershell
+py -3 firmware-research/replacement-source/link_aprs_check.py --compiler 'C:\path\to\arm-none-eabi-gcc.exe' --stock-image 'C:\path\to\APRS-1.0.15.bin'
+```
+
+The Windows Arm GNU Toolchain 15.3.1 check linked 11 source objects into a 4,144-byte diagnostic ELF and confirmed its vector table. This establishes that the current modules have no unresolved link symbols within that diagnostic envelope; it does not establish that the radio can run them.
 
 ## Next source work
 

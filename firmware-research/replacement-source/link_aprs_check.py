@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Whole-archive APRS link check against the observed stock address envelope.
+
+This builds only an ELF and map file with a deliberately inert reset handler.
+It does not create an update image or run any radio hardware operation.
+"""
+
+from __future__ import annotations
+
+import argparse
+from hashlib import sha256
+import json
+from pathlib import Path
+import shutil
+import struct
+import sys
+
+from build_target_objects import ROOT, build, find_compiler, run, verify_arm_object
+
+
+IMAGE_BASE = 0x08002000
+STOCK_IMAGE_SIZE = 17_304
+STOCK_STACK_TOP = 0x20001A50
+STOCK_SHA256 = "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33"
+
+
+def sibling_tool(compiler: str, name: str) -> str:
+    suffix = ".exe" if sys.platform == "win32" else ""
+    candidate = Path(compiler).parent / (name + suffix)
+    found = shutil.which(str(candidate)) or shutil.which(name)
+    if found is None:
+        raise ValueError(f"Tool not found: {name}")
+    return found
+
+
+def verify_stock_envelope(path: Path) -> None:
+    data = path.read_bytes()
+    if sha256(data).hexdigest() != STOCK_SHA256 or len(data) != STOCK_IMAGE_SIZE:
+        raise ValueError("Stock APRS image hash or size differs from pinned evidence")
+    stack_pointer, reset_vector = struct.unpack_from("<II", data)
+    if stack_pointer != STOCK_STACK_TOP or reset_vector != 0x080020D5:
+        raise ValueError("Stock APRS vectors differ from pinned evidence")
+
+
+def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
+    if stock_image is not None:
+        verify_stock_envelope(stock_image)
+    output.mkdir(parents=True, exist_ok=True)
+    object_manifest = build("aprs", compiler, output / "objects")
+    source_dir = ROOT / "aprs"
+    compiler_flags = [
+        "-mcpu=cortex-m0", "-mthumb", "-Os", "-ffreestanding",
+        "-fno-builtin", "-Wall", "-Wextra", "-Werror",
+    ]
+    runtime = output / "link_check_runtime.o"
+    vectors = output / "link_check_startup.o"
+    run([compiler, *compiler_flags, "-std=c11", "-c",
+         str(source_dir / "link_check_runtime.c"), "-o", str(runtime)])
+    run([compiler, *compiler_flags, "-c",
+         str(source_dir / "link_check_startup.S"), "-o", str(vectors)])
+
+    elf = output / "h9_aprs_link_check.elf"
+    map_file = output / "h9_aprs_link_check.map"
+    script = source_dir / "link_check.ld"
+    archive = output / "objects" / object_manifest["archive"]
+    run([compiler, "-mcpu=cortex-m0", "-mthumb", "-nostdlib",
+         "-Wl,--build-id=none", f"-Wl,-Map={map_file}",
+         "-T", str(script), "-o", str(elf), str(vectors), str(runtime),
+         "-Wl,--whole-archive", str(archive), "-Wl,--no-whole-archive",
+         "-lgcc"])
+    elf_data = elf.read_bytes()
+    verify_arm_object(elf_data, elf.name)
+
+    vector_bytes = output / "vectors.bin"
+    objcopy = sibling_tool(compiler, "arm-none-eabi-objcopy")
+    run([objcopy, "--dump-section", f".isr_vector={vector_bytes}", str(elf)])
+    table = vector_bytes.read_bytes()
+    if len(table) < 64:
+        raise ValueError("Linked vector table has fewer than 16 entries")
+    stack_pointer, reset_vector = struct.unpack_from("<II", table)
+    if stack_pointer != STOCK_STACK_TOP:
+        raise ValueError(f"Linked stack pointer differs: 0x{stack_pointer:08X}")
+    if reset_vector & 1 == 0 or not (
+        IMAGE_BASE <= (reset_vector & ~1) < IMAGE_BASE + STOCK_IMAGE_SIZE
+    ):
+        raise ValueError(f"Linked reset vector is outside APRS image: 0x{reset_vector:08X}")
+
+    size_tool = sibling_tool(compiler, "arm-none-eabi-size")
+    size_output = run([size_tool, str(elf)])
+    manifest = {
+        "kind": "aprs_whole_archive_link_check",
+        "stock_envelope": {
+            "image_base": IMAGE_BASE,
+            "image_bytes": STOCK_IMAGE_SIZE,
+            "stack_top": STOCK_STACK_TOP,
+            "stock_sha256": STOCK_SHA256,
+            "private_stock_image_checked": stock_image is not None,
+        },
+        "compiler": compiler,
+        "source_objects": len(object_manifest["objects"]),
+        "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
+        "elf": elf.name,
+        "elf_sha256": sha256(elf_data).hexdigest(),
+        "map": map_file.name,
+        "map_sha256": sha256(map_file.read_bytes()).hexdigest(),
+        "stack_pointer": stack_pointer,
+        "reset_vector": reset_vector,
+        "size_output": size_output,
+        "firmware_image_created": False,
+        "flashable": False,
+    }
+    (output / "link-check-manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
+    return manifest
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--compiler", help="arm-none-eabi-gcc executable path")
+    parser.add_argument("--output", type=Path,
+                        default=ROOT / "build" / "link-check-aprs")
+    parser.add_argument("--stock-image", type=Path,
+                        help="optionally recheck the private pinned APRS-1.0.15.bin")
+    args = parser.parse_args()
+    try:
+        compiler = find_compiler("aprs", args.compiler)
+        manifest = link(compiler, args.output, args.stock_image)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"Link check failed: {error}", file=sys.stderr)
+        return 1
+    print(f"Linked {manifest['source_objects']} APRS source objects: "
+          f"{args.output / manifest['elf']}")
+    print(f"Vector: stack 0x{manifest['stack_pointer']:08X}, "
+          f"reset 0x{manifest['reset_vector']:08X}")
+    print(manifest["size_output"])
+    print("Diagnostic ELF only; no bootable or flashable update image was produced")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

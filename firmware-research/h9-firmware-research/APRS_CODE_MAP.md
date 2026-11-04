@@ -4,6 +4,8 @@ This is a map of **observed code in two shipped binaries**, not manufacturer sou
 
 The first compilable replacement core is in [replacement-source](../replacement-source/README.md). It separates observed serial and command behavior from the new APRS mute and TX verification policies. It is host tested and does not yet build either target firmware image.
 
+The APRS stock image is 17,304 bytes (SHA-256 `1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33`), with initial stack pointer `0x20001A50` and reset vector `0x080020D5`. `replacement-source/link_aprs_check.py` uses those observed values as a diagnostic link envelope for all 11 replacement APRS objects. The linked ELF has an inert reset handler and is not an update image; production startup, board drivers, and a validated memory map are still absent.
+
 ## Separate APRS-1.0.15 controller
 
 The Cortex-M image was imported into Ghidra as `ARM:LE:32:Cortex` at `0x08002000`. The following paths are supported by both caller references and decompilation:
