@@ -1,0 +1,11 @@
+# Private firmware, radio backups, generated patches, and logs.
+**/output/
+**/__pycache__/
+**/*.pyc
+**/*.fw
+**/*.bin
+**/*.img
+**/*.ips
+**/*.rgb565
+**/*.log
+!h9-flasher/vendor/data/br23loader.bin
