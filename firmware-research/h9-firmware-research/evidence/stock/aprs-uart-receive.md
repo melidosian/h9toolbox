@@ -21,5 +21,16 @@ and starts the UART/DMA receive operation through `0x08004598`.
 
 `replacement-source/aprs/h9_aprs_uart_receive.*` ports the buffer handoff,
 parser feed, and rearm callback. It rejects invalid lengths and overlapping
-completions. The actual DMA registers, IRQ callback, UART pin setup, and
-physical main-radio connection are still to be implemented and tested.
+completions.
+
+Cross-references to the pending length and ready flag locate the producer at
+`0x0800423C`, reached from the UART interrupt dispatcher at `0x08004094`.
+On the USART1 branch, it stops the active DMA receive, computes
+`512 - DMA_remaining`, and rearms immediately if zero bytes arrived or the
+consumer is processing. Otherwise it sets the ready flag. The replacement
+source now exposes `h9_aprs_uart_receive_idle()` for this count-to-length
+handoff. It conservatively refuses a completion while an earlier batch is
+pending or being processed; a board IRQ handler must supply the actual DMA
+counter and rearm callback. The actual DMA registers, IRQ vector binding,
+UART pin setup, and physical main-radio connection remain to be implemented
+and tested.

@@ -1028,11 +1028,23 @@ static void test_aprs_uart_receive_batches(void)
     assert(buffer == receive.buffers[0]);
     buffer[0] = 0xC0u;
     buffer[1] = 0x20u;
+    assert(!h9_aprs_uart_receive_idle(&receive, 513u,
+                                      capture_aprs_uart_rearm, &rearm));
+    assert(rearm.calls == 0u);
+    assert(!h9_aprs_uart_receive_idle(&receive, 512u,
+                                      capture_aprs_uart_rearm, &rearm));
+    assert(rearm.calls == 1u && rearm.buffer == receive.buffers[0]);
+    rearm.calls = 0;
     assert(!h9_aprs_uart_receive_complete(&receive, 0));
     assert(!h9_aprs_uart_receive_complete(&receive, 513));
-    assert(h9_aprs_uart_receive_complete(&receive, 2));
+    assert(h9_aprs_uart_receive_idle(&receive, 510u,
+                                     capture_aprs_uart_rearm, &rearm));
+    assert(rearm.calls == 0u);
     assert(h9_aprs_uart_receive_buffer(&receive) == NULL);
     assert(!h9_aprs_uart_receive_complete(&receive, 2));
+    assert(!h9_aprs_uart_receive_idle(&receive, 510u,
+                                      capture_aprs_uart_rearm, &rearm));
+    assert(rearm.calls == 0u);
     assert(h9_aprs_uart_receive_process(&receive, &controller,
                                         capture_aprs_uart_rearm, &rearm) == 2u);
     assert(fake.uart_length == 0 && rearm.calls == 1u);
@@ -1047,6 +1059,9 @@ static void test_aprs_uart_receive_batches(void)
            fake.uart[1] == 0x21u);
     assert(receive.current == 0u && rearm.calls == 2u &&
            rearm.buffer == receive.buffers[0]);
+    assert(h9_aprs_uart_receive_idle(&receive, 0u, NULL, NULL));
+    assert(receive.pending_length == 512u && receive.ready == 1u);
+    h9_aprs_uart_receive_init(&receive);
     assert(h9_aprs_uart_receive_process(&receive, &controller, NULL, NULL) == 0);
 }
 

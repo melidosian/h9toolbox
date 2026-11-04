@@ -25,6 +25,22 @@ bool h9_aprs_uart_receive_complete(H9AprsUartReceive *receive,
     return true;
 }
 
+bool h9_aprs_uart_receive_idle(H9AprsUartReceive *receive,
+                               size_t dma_remaining,
+                               H9AprsUartRearm rearm, void *context)
+{
+    size_t length;
+    if (receive == NULL || dma_remaining > H9_APRS_UART_BATCH_CAPACITY ||
+        receive->current > 1u || receive->ready || receive->processing)
+        return false;
+    length = H9_APRS_UART_BATCH_CAPACITY - dma_remaining;
+    if (length != 0u) return h9_aprs_uart_receive_complete(receive, length);
+    if (rearm != NULL)
+        rearm(context, receive->buffers[receive->current],
+              H9_APRS_UART_BATCH_CAPACITY);
+    return false;
+}
+
 size_t h9_aprs_uart_receive_process(H9AprsUartReceive *receive,
                                     H9AprsController *controller,
                                     H9AprsUartRearm rearm, void *context)
