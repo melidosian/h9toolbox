@@ -116,3 +116,34 @@ bool h9_main_clock_selector_run(H9MainClockSelector *selector)
     selector->clock_registers[0] |= flag_bits;
     return true;
 }
+
+void h9_main_clock_band_bind_target(H9MainClockBand *band)
+{
+    if (band == NULL) return;
+    band->threshold_words = (volatile uint32_t *)(uintptr_t)0x0000DA0Cu;
+    band->enabled_d9d0 = (volatile uint8_t *)(uintptr_t)0x0000D9D0u;
+    band->request_d9e0 = (volatile uint8_t *)(uintptr_t)0x0000D9E0u;
+    band->band_d9d4 = (volatile uint8_t *)(uintptr_t)0x0000D9D4u;
+}
+
+bool h9_main_clock_band_select(H9MainClockBand *band, uint32_t frequency_hz)
+{
+    uint8_t selected = 3u;
+    uint8_t index;
+    if (band == NULL || band->threshold_words == NULL ||
+        band->enabled_d9d0 == NULL || band->request_d9e0 == NULL ||
+        band->band_d9d4 == NULL) return false;
+
+    /* Stock caller writes this byte immediately before app+0x0C509C. */
+    *band->request_d9e0 = 1u;
+    if (*band->enabled_d9d0 != 0u) {
+        for (index = 0u; index < H9_MAIN_CLOCK_PROBE_CHANNELS; ++index) {
+            if (band->threshold_words[index * 5u] >= frequency_hz) {
+                selected = index;
+                break;
+            }
+        }
+    }
+    *band->band_d9d4 = selected;
+    return true;
+}

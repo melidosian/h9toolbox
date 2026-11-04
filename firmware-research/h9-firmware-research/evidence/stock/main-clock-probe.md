@@ -34,6 +34,17 @@ bytes to one. The independent decode is in ignored
 `output/main-clock-helpers-independent.asm`. No hardware clock-rate
 measurement has confirmed this interpretation.
 
+At app+`0x0C555E`, the stock caller writes one to RAM byte `0xD9E0`
+and calls app+`0x0C509C` with `240,000,000`. Ghidra and the independent
+decode agree that this callee writes band three to `0xD9D4` when the
+`0xD9D0` flag is zero. Otherwise it scans four 32-bit thresholds at
+`0xDA0C`, `0xDA20`, `0xDA34`, and `0xDA48`, advancing while a threshold
+is strictly below the requested frequency. It stores the first matching
+index, capped at three, in `0xD9D4`. This is a calibration-record selector;
+the subsequent app+`0x0C50D8` arithmetic has unresolved Pi32 operations
+in Ghidra and remains unported. Ghidra's selected-function export is in
+ignored `output/main-clock-calibration-ghidra.txt`.
+
 `replacement-source/main/h9_main_clock_probe.*` ports this first stage
 with injectable ROM and measurement callbacks. Its target binding uses the
 observed addresses. Unlike stock's unbounded poll, the replacement has a
@@ -41,7 +52,10 @@ caller-selected bound; on timeout it restores `0x4000` and stops before
 the ROM read/mask calls. Host tests verify four-channel order, calibration
 word boundaries, and timeout behavior. `h9_main_clock_selector_run` ports
 the next register sequence with a caller-supplied register and flag binding;
-host tests cover both flag bytes and the preserved bit. The diagnostic board
-entry invokes both stages and then stops before the 240 MHz calibration
-path. The Pi32 link check verifies key addresses, constants, and call
-placement. No radio has run it, and the linked image remains unflashable.
+host tests cover both flag bytes and the preserved bit.
+`h9_main_clock_band_select` ports the following 240 MHz band choice and
+caller request flag; host tests cover disabled mode, each boundary, and the
+index cap. The diagnostic board entry invokes these three stages and stops
+before calibration arithmetic. The Pi32 link check verifies key addresses,
+constants, and call placement. No radio has run it, and the linked image
+remains unflashable.

@@ -3957,6 +3957,40 @@ static void test_main_clock_selector(void)
     }
 }
 
+static void test_main_clock_band(void)
+{
+    uint32_t storage[22];
+    uint32_t *thresholds = storage + 1u;
+    uint8_t enabled = 1u;
+    uint8_t requested = 0u;
+    uint8_t selected = 0xA5u;
+    H9MainClockBand band = {
+        thresholds, &enabled, &requested, &selected
+    };
+    unsigned index;
+    for (index = 0u; index < 22u; ++index)
+        storage[index] = 0xA5A5A5A5u;
+    thresholds[0] = 100000000u;
+    thresholds[5] = 200000000u;
+    thresholds[10] = 240000000u;
+    thresholds[15] = 300000000u;
+    assert(!h9_main_clock_band_select(NULL, 240000000u));
+    assert(h9_main_clock_band_select(&band, 240000000u));
+    assert(requested == 1u && selected == 2u);
+    assert(h9_main_clock_band_select(&band, 50000000u));
+    assert(selected == 0u);
+    assert(h9_main_clock_band_select(&band, 250000000u));
+    assert(selected == 3u);
+    assert(h9_main_clock_band_select(&band, 350000000u));
+    assert(selected == 3u);
+    enabled = 0u;
+    requested = 0u;
+    assert(h9_main_clock_band_select(&band, 50000000u));
+    assert(requested == 1u && selected == 3u);
+    assert(storage[0] == 0xA5A5A5A5u &&
+           storage[21] == 0xA5A5A5A5u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -3989,6 +4023,7 @@ int main(void)
     test_main_board_markers();
     test_main_clock_probe();
     test_main_clock_selector();
+    test_main_clock_band();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

@@ -34,4 +34,15 @@ typedef struct {
 void h9_main_clock_selector_bind_target(H9MainClockSelector *selector);
 bool h9_main_clock_selector_run(H9MainClockSelector *selector);
 
+/* Stock app+0x0C509C chooses one of four 20-byte calibration records. */
+typedef struct {
+    volatile uint32_t *threshold_words;
+    volatile uint8_t *enabled_d9d0;
+    volatile uint8_t *request_d9e0;
+    volatile uint8_t *band_d9d4;
+} H9MainClockBand;
+
+void h9_main_clock_band_bind_target(H9MainClockBand *band);
+bool h9_main_clock_band_select(H9MainClockBand *band, uint32_t frequency_hz);
+
 #endif

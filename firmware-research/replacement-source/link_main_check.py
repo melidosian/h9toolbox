@@ -155,6 +155,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_probe_run",
         "h9_main_clock_selector_bind_target",
         "h9_main_clock_selector_run",
+        "h9_main_clock_band_bind_target",
+        "h9_main_clock_band_select",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -252,6 +254,24 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
                     ("857559629", "0x4000000", "4354",
                      "0xfff807ff", "20480", "0x50000")):
         raise ValueError("Linked early clock selector differs from stock constants")
+    band_bind_match = re.search(
+        r"(?ms)^h9_main_clock_band_bind_target:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    band_match = re.search(
+        r"(?ms)^h9_main_clock_band_select:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if band_bind_match is None or band_match is None:
+        raise ValueError("Linked main ELF lacks early clock band selector")
+    band_bind = band_bind_match.group(1).lower()
+    band_body = band_match.group(1).lower()
+    if not all(value in band_bind for value in
+               ("55820", "-60", "-44")) or \
+            not all(value in band_body for value in
+                    ("r3 = 3", "r6 >= r1", "r6 < 4", "r5++=20")) or \
+            "240000000" not in board_body:
+        raise ValueError("Linked clock band selector differs from stock flow")
 
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
@@ -371,6 +391,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_markers_path_verified": True,
         "early_board_clock_probe_path_verified": True,
         "early_board_clock_selector_path_verified": True,
+        "early_board_clock_band_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
