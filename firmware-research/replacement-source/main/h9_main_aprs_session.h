@@ -2,6 +2,7 @@
 #define H9_MAIN_APRS_SESSION_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "h9_main_aprs_control.h"
@@ -25,6 +26,7 @@ typedef struct {
     H9MainUartRing uart_ring;
     uint8_t serial_read_buffer[H9_MAIN_UART_DRAIN_LIMIT];
     uint32_t serial_read_faults;
+    bool py_ready;
     H9MainWireReceiver receiver;
     H9MainAprsVersions versions;
     H9MainGpsCollector gps;

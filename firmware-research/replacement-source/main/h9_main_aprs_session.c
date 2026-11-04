@@ -64,6 +64,29 @@ static void dispatch_frame(void *context, const H9MainWireReceiver *receiver)
     }
 }
 
+/* The stock read routine checks this six-byte control header before copying
+ * ordinary serial data into the APRS ring (app+0x078F2C..0x078F6E). */
+static bool consume_py_control(H9MainAprsSession *session,
+                               const uint8_t *bytes, size_t length)
+{
+    static const uint8_t thd_reply[] = {
+        'T', 'H', 'D', 0u, 1u, 19u, 20u
+    };
+    uint8_t checksum;
+    if (length < 6u || bytes[0] != 'P' || bytes[1] != 'Y' ||
+        bytes[2] != 2u || bytes[3] != 1u) return false;
+    checksum = (uint8_t)(bytes[1] + bytes[2] + bytes[3] + bytes[4]);
+    if (bytes[5] != checksum) return false;
+    if (bytes[4] == 0x55u) {
+        session->py_ready = true;
+    } else if (bytes[4] == 0x0Du &&
+               session->callbacks.serial_write != NULL) {
+        session->callbacks.serial_write(session->callback_context,
+                                        thd_reply, sizeof thd_reply);
+    }
+    return true;
+}
+
 size_t h9_main_aprs_session_poll(H9MainAprsSession *session)
 {
     size_t received;
@@ -74,7 +97,8 @@ size_t h9_main_aprs_session_poll(H9MainAprsSession *session)
                                                   sizeof session->serial_read_buffer);
         if (received > sizeof session->serial_read_buffer) {
             session->serial_read_faults++;
-        } else {
+        } else if (!consume_py_control(session, session->serial_read_buffer,
+                                       received)) {
             (void)h9_main_uart_ring_push_batch(&session->uart_ring,
                                                 session->serial_read_buffer,
                                                 received);

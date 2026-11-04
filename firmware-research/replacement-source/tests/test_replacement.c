@@ -730,6 +730,31 @@ static void test_main_aprs_session(void)
     capture.invalid_read_length = true;
     assert(h9_main_aprs_session_poll(&session) == 0u);
     assert(session.serial_read_faults == 1u && capture.version_count == 2u);
+
+    capture.invalid_read_length = false;
+    capture.incoming_offset = 0u;
+    capture.incoming_length = 6u;
+    capture.incoming_chunk = 6u;
+    {
+        static const uint8_t py_ready[] = {
+            'P', 'Y', 2u, 1u, 0x55u, 0xB1u
+        };
+        static const uint8_t py_query[] = {
+            'P', 'Y', 2u, 1u, 0x0Du, 0x69u
+        };
+        static const uint8_t thd_reply[] = {
+            'T', 'H', 'D', 0u, 1u, 19u, 20u
+        };
+        memcpy(capture.incoming, py_ready, sizeof py_ready);
+        assert(h9_main_aprs_session_poll(&session) == 0u);
+        assert(session.py_ready && capture.serial_count == 1u);
+        capture.incoming_offset = 0u;
+        memcpy(capture.incoming, py_query, sizeof py_query);
+        assert(h9_main_aprs_session_poll(&session) == 0u);
+        assert(capture.serial_count == 2u &&
+               capture.serial_length == sizeof thd_reply &&
+               memcmp(capture.serial, thd_reply, sizeof thd_reply) == 0);
+    }
 }
 
 static void test_main_policy(void)
