@@ -7,6 +7,7 @@ ENTRY(h9_main_reset)
 
 MEMORY {
     CODE (rx) : ORIGIN = 0x01E00100, LENGTH = 0xD3C2C
+    RAMCODE (rwx) : ORIGIN = 0x00000000, LENGTH = 0xDA78
     RAM (rw)  : ORIGIN = 0x0000E2E0, LENGTH = 0x101F4
 }
 
@@ -17,6 +18,14 @@ SECTIONS {
         *(.rodata .rodata.*)
         . = ALIGN(4);
     } > CODE
+
+    .ram_code : {
+        __ram_code_start = .;
+        *(.ram_code .ram_code.*)
+        . = ALIGN(4);
+        __ram_code_end = .;
+    } > RAMCODE AT> CODE
+    __ram_code_load_start = LOADADDR(.ram_code);
 
     .data : {
         __data_start = .;
@@ -33,6 +42,9 @@ SECTIONS {
         . = ALIGN(4);
         __bss_end = .;
     } > RAM
+
+    __stock_clear_start = ORIGIN(RAM);
+    __stock_clear_end = ORIGIN(RAM) + LENGTH(RAM);
 
     /DISCARD/ : { *(.comment) *(.note*) }
 }

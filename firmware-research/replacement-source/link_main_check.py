@@ -113,11 +113,23 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     bss_start = symbol_address("__bss_start")
     bss_end = symbol_address("__bss_end")
     data_load = symbol_address("__data_load_start")
+    ram_code_start = symbol_address("__ram_code_start")
+    ram_code_end = symbol_address("__ram_code_end")
+    ram_code_load = symbol_address("__ram_code_load_start")
+    if symbol_address("__stock_clear_start") != RAM_START or \
+            symbol_address("__stock_clear_end") != RAM_END:
+        raise ValueError("Linked RAM-clear interval differs from stock startup")
     if not (RAM_START <= data_start <= data_end <= bss_start <= bss_end <= RAM_END):
         raise ValueError("Linked C data/BSS exceed observed stock-cleared RAM interval")
+    if not (0 <= ram_code_start <= ram_code_end <= 0xDA78):
+        raise ValueError("Linked RAM code exceeds stock relocation interval")
     if not (IMAGE_BASE <= data_load and data_load + data_end - data_start <=
             IMAGE_BASE + STOCK_IMAGE_SIZE):
         raise ValueError("Linked C data load exceeds stock app address envelope")
+    if not (IMAGE_BASE <= ram_code_load and
+            ram_code_load + ram_code_end - ram_code_start <=
+            IMAGE_BASE + STOCK_IMAGE_SIZE):
+        raise ValueError("Linked RAM-code load exceeds stock app address envelope")
     undefined = run([sibling_tool(compiler, "llvm-nm"), "-u", str(elf)])
     if undefined:
         raise ValueError(f"Linked ELF has undefined symbols:\n{undefined}")
@@ -146,6 +158,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "boot_argument_copy_bytes_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
+        "ram_code_bytes": ram_code_end - ram_code_start,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
         "elf": elf.name,
         "elf_sha256": sha256(elf.read_bytes()).hexdigest(),
