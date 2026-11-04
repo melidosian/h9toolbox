@@ -26,7 +26,7 @@ The Cortex-M image was imported into Ghidra as `ARM:LE:32:Cortex` at `0x08002000
 | `0x08005180` / `0x08005830` | Valid-frame callback forwards to the main radio as command `0x00` with the last two FCS bytes removed. |
 | `0x08004894` | Sends a serial frame bounded by `0xC0`, escaping `0xC0` as `0xDB 0xDC` and `0xDB` as `0xDB 0xDD`. |
 | `0x08005B8C` | Parses incoming serial frames and dispatches command bytes. |
-| `0x08002A4C` | Accepts a packet for the TX path, then calls `0x08002C94`, which passes it to `0x0800476C`. |
+| `0x08002A4C` | Gates command `0x11/4` payload bytes on GPIOB bit 5, then sends them via `0x08002C94` and the raw USART2 writer `0x0800476C` at 9,600 baud. This is distinct from the AFSK path. |
 | `0x080029D0` / `0x080029E4` | Clear/set GPIO port at `0x50000400`, mask `0x20`; the circuit meaning of this pin is unverified. |
 
 The parser at `0x08005B8C` uses these command IDs (direction is **main radio to APRS controller**):
@@ -35,7 +35,7 @@ The parser at `0x08005B8C` uses these command IDs (direction is **main radio to 
 | --- | --- |
 | `0x00` | The dispatch jump table reaches `0x08005BCC`, which calls send gate `0x08005760` with the serial payload and length. The gate eventually invokes packet encoder `0x0800534C`. |
 | `0x10` | Sends the frame payload back through `0x080048F4` when nonempty. The caller's intended semantics need more study. |
-| `0x11` | Subcommand `1` calls `0x080029E4` (set GPIO mask `0x20`); `2` calls `0x080029D0` (clear); `3` calls `0x08002964` (read pin) and reports a byte; `4` passes the remainder to `0x08002A4C` (a separate GPIO-gated queue path, not the command-`0x00` AFSK send gate). |
+| `0x11` | Subcommand `1` calls `0x080029E4` (set GPIO mask `0x20`); `2` calls `0x080029D0` (clear); `3` calls `0x08002964` (read pin) and reports a byte; `4` passes the remainder to `0x08002A4C` for gated raw USART2 output. |
 | `0x13` | Calls `0x0800586C`, which returns a 48-byte status/configuration payload. |
 | `0x20` | Calls `0x08005AAC`, which returns version information (`V1.0.15` and `V1.0.0` strings). |
 

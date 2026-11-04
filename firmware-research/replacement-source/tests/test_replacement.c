@@ -45,6 +45,7 @@ typedef struct {
     int16_t sample;
     uint8_t dac;
     bool tx_active;
+    bool aux_gate;
 } FakeHardware;
 
 static void uart_write(void *opaque, const uint8_t *data, size_t length)
@@ -62,6 +63,11 @@ static void queue_packet(void *opaque, const uint8_t *data, size_t length)
     assert(length <= sizeof fake->packet);
     memcpy(fake->packet, data, length);
     fake->packet_length = length;
+}
+
+static bool read_aux_gate(void *opaque)
+{
+    return ((FakeHardware *)opaque)->aux_gate;
 }
 
 static void transmit_afsk_packet(void *opaque, const uint8_t *data,
@@ -1317,7 +1323,8 @@ static void test_aprs_controller(void)
     unsigned i;
     hw.context = &fake;
     hw.uart_write = uart_write;
-    hw.queue_packet_tx = queue_packet;
+    hw.aux_uart_write = queue_packet;
+    hw.read_radio_gpio = read_aux_gate;
     hw.transmit_aprs_packet = transmit_afsk_packet;
     hw.read_adc = read_adc;
     hw.demod_sample = demod;
@@ -1331,8 +1338,12 @@ static void test_aprs_controller(void)
     assert(memcmp(fake.afsk_packet, send_packet,
                   sizeof send_packet) == 0);
     feed_frame(&controller, 0x11u, send_packet, sizeof send_packet);
+    assert(fake.packet_length == 0u);
+    fake.aux_gate = true;
+    feed_frame(&controller, 0x11u, send_packet, sizeof send_packet);
     assert(fake.packet_length == 3);
     assert(memcmp(fake.packet, send_packet + 1, 3) == 0);
+    assert(fake.uart_length == 0u);
     feed_frame(&controller, 0x20u, &query, 1);
     assert(fake.uart_length == 12);
     assert(fake.uart[0] == 0xC0u && fake.uart[1] == 0x21u);

@@ -75,8 +75,10 @@ static void dispatch(H9AprsController *controller)
             }
             break;
         case 4:
-            if (length > 1 && controller->hardware.queue_packet_tx != NULL)
-                controller->hardware.queue_packet_tx(context, data + 1, length - 1);
+            if (length > 1 && controller->hardware.read_radio_gpio != NULL &&
+                controller->hardware.read_radio_gpio(context) &&
+                controller->hardware.aux_uart_write != NULL)
+                controller->hardware.aux_uart_write(context, data + 1, length - 1);
             break;
         default:
             break;
