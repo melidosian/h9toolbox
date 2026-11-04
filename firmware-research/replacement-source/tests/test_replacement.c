@@ -9,6 +9,7 @@
 #include "h9_aprs_tx_service.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
+#include "h9_main_aprs_receive.h"
 #include "h9_main_aprs_wire.h"
 #include "h9_main_ax25.h"
 #include "h9_main_beacon.h"
@@ -140,6 +141,44 @@ static void test_main_aprs_wire_envelope(void)
     assert(h9_main_aprs_wire_encode(0, max_payload, sizeof max_payload,
                                      output, sizeof output) == 2047u);
     assert(output[2046] == 0xC0u);
+}
+
+static void test_main_aprs_wire_receiver(void)
+{
+    static const uint8_t frame[] = {
+        0xC0u, 0xC0u, 0x00u, 0x41u, 0xDBu, 0xDCu,
+        0xDBu, 0xDDu, 0xC0u
+    };
+    static const uint8_t payload[] = { 0x41u, 0xC0u, 0xDBu };
+    H9MainWireReceiver receiver;
+    size_t i;
+    h9_main_wire_reset(&receiver);
+    assert(h9_main_wire_feed(&receiver, 0x44u) == H9_MAIN_WIRE_MORE);
+    for (i = 0; i < sizeof frame - 1; ++i)
+        assert(h9_main_wire_feed(&receiver, frame[i]) == H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&receiver, frame[i]) == H9_MAIN_WIRE_FRAME);
+    assert(receiver.command == 0 && receiver.length == sizeof payload);
+    assert(memcmp(receiver.payload, payload, sizeof payload) == 0);
+
+    assert(h9_main_wire_feed(&receiver, 0xC0u) == H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&receiver, 0x10u) == H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&receiver, 0xDBu) == H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&receiver, 0x01u) == H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&receiver, 0xC0u) == H9_MAIN_WIRE_FRAME);
+    assert(receiver.command == 0x10u && receiver.length == 1u);
+    assert(receiver.payload[0] == 0x01u);
+
+    assert(h9_main_wire_feed(&receiver, 0xC0u) == H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&receiver, 0x21u) == H9_MAIN_WIRE_MORE);
+    for (i = 0; i < H9_MAIN_APRS_RECEIVE_CAPACITY; ++i)
+        assert(h9_main_wire_feed(&receiver, 0x42u) == H9_MAIN_WIRE_MORE);
+    assert(receiver.length == H9_MAIN_APRS_RECEIVE_CAPACITY);
+    assert(h9_main_wire_feed(&receiver, 0x43u) == H9_MAIN_WIRE_REJECTED);
+    assert(receiver.state == 0 && receiver.length == 0);
+    assert(h9_main_wire_feed(&receiver, 0xC0u) == H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&receiver, 0x21u) == H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&receiver, 0xC0u) == H9_MAIN_WIRE_FRAME);
+    assert(receiver.command == 0x21u && receiver.length == 0u);
 }
 
 static void test_main_ax25_packet(void)
@@ -574,6 +613,7 @@ static void test_aprs_controller(void)
     FakeHardware fake = { 0 };
     H9AprsHardware hw = { 0 };
     H9AprsController controller;
+    H9MainWireReceiver main_receiver;
     uint8_t send_packet[] = { 4, 0x41, 0xC0, 0xDB };
     uint8_t query = 1;
     unsigned i;
@@ -599,6 +639,16 @@ static void test_aprs_controller(void)
     assert(fake.uart_length == 12);
     assert(fake.uart[0] == 0xC0u && fake.uart[1] == 0x21u);
     assert(fake.uart[2] == 1 && memcmp(fake.uart + 3, "V1.0.15", 7) == 0);
+    h9_main_wire_reset(&main_receiver);
+    for (i = 0; i < fake.uart_length - 1; ++i)
+        assert(h9_main_wire_feed(&main_receiver, fake.uart[i]) ==
+               H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&main_receiver, fake.uart[i]) ==
+           H9_MAIN_WIRE_FRAME);
+    assert(main_receiver.command == 0x21u && main_receiver.length == 9u);
+    assert(main_receiver.payload[0] == 1u);
+    assert(memcmp(main_receiver.payload + 1, "V1.0.15", 7) == 0);
+    assert(main_receiver.payload[8] == 0);
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.demod_calls == 1 && fake.sample == 0);
     assert(fake.dac_calls == 1 && fake.dac == 0x85u);
@@ -640,6 +690,7 @@ int main(void)
 {
     test_wire_vectors();
     test_main_aprs_wire_envelope();
+    test_main_aprs_wire_receiver();
     test_main_ax25_packet();
     test_main_policy();
     test_timed_beacon_scheduler();
