@@ -87,6 +87,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     h9_aprs_gpio_board_bind_target(&runtime.gpio_board);
     h9_aprs_wave_output_bind_target(&runtime.wave_output);
     h9_aprs_adc_board_bind_target(&runtime.adc_board);
+    h9_aprs_sample_timer_bind_target(&runtime.sample_timer);
     system_clock_hz = h9_aprs_clock_select_internal_target(100000u);
     if (system_clock_hz == 0u ||
         !h9_aprs_uart1_board_configure(&runtime.uart1_board,
@@ -94,6 +95,8 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
         !h9_aprs_uart1_dma_start(&runtime.uart1_dma))
         for (;;) { }
     h9_aprs_wave_output_configure(&runtime.wave_output);
+    if (!h9_aprs_sample_timer_start(&runtime.sample_timer))
+        for (;;) { }
     h9_aprs_adc_board_prepare_pin(&runtime.adc_board);
     h9_aprs_uart1_board_enable_irqs(&runtime.uart1_board);
     for (;;) {

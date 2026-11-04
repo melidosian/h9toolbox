@@ -30,6 +30,7 @@ SOURCES = {
         "aprs/h9_aprs_gpio_board.c",
         "aprs/h9_aprs_oscillator.c",
         "aprs/h9_aprs_ring.c",
+        "aprs/h9_aprs_sample_timer.c",
         "aprs/h9_aprs_tx.c",
         "aprs/h9_aprs_tx_gate.c",
         "aprs/h9_aprs_tx_packet.c",

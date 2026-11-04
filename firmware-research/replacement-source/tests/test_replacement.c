@@ -6,6 +6,7 @@
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_clock.h"
 #include "h9_aprs_ring.h"
+#include "h9_aprs_sample_timer.h"
 #include "h9_aprs_tx.h"
 #include "h9_aprs_tx_gate.h"
 #include "h9_aprs_tx_packet.h"
@@ -1360,6 +1361,23 @@ static void test_aprs_adc_board(void)
     assert(h9_aprs_adc_board_read(&board) == 0x1234u);
 }
 
+static void test_aprs_sample_timer(void)
+{
+    H9AprsSampleTimer sample_timer = { 0 };
+    uint32_t rcc[17] = { 0 };
+    uint32_t timer[13] = { 0 };
+    assert(!h9_aprs_sample_timer_start(&sample_timer));
+    timer[0] = 0xFFFu;
+    timer[1] = 0xFFu;
+    timer[2] = 0xFFu;
+    h9_aprs_sample_timer_bind(&sample_timer, rcc, timer);
+    assert(h9_aprs_sample_timer_start(&sample_timer));
+    assert(rcc[16] == 0x800u);
+    assert(timer[0] == 0xC8Fu && timer[1] == 0xAFu &&
+           timer[2] == 0x7Fu && timer[5] == 1u);
+    assert(timer[10] == 11u && timer[11] == 209u && timer[12] == 0u);
+}
+
 typedef struct {
     H9AprsAdcBoard adc;
     H9AprsWaveOutput wave;
@@ -1512,6 +1530,7 @@ int main(void)
     test_aprs_gpio_board();
     test_aprs_wave_output();
     test_aprs_adc_board();
+    test_aprs_sample_timer();
     test_aprs_adc_sample_irq();
     test_aprs_internal_clock_selection();
     test_aprs_uart1_reply_transmit();
