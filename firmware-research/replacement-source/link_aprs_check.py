@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Whole-archive APRS link check against the observed stock address envelope.
 
-This builds only an ELF and map file with a deliberately inert reset handler.
-It does not create an update image or run any radio hardware operation.
+This links first-pass memory/vector startup to an inert board entry. It emits
+only an ELF and map, not an update image or a functioning APRS controller.
 """
 
 from __future__ import annotations
@@ -53,9 +53,12 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "-fno-builtin", "-Wall", "-Wextra", "-Werror",
     ]
     runtime = output / "link_check_runtime.o"
+    startup_source = output / "h9_aprs_startup.o"
     vectors = output / "link_check_startup.o"
     run([compiler, *compiler_flags, "-std=c11", "-c",
          str(source_dir / "link_check_runtime.c"), "-o", str(runtime)])
+    run([compiler, *compiler_flags, "-std=c11", "-c",
+         str(source_dir / "h9_aprs_startup.c"), "-o", str(startup_source)])
     run([compiler, *compiler_flags, "-c",
          str(source_dir / "link_check_startup.S"), "-o", str(vectors)])
 
@@ -65,7 +68,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     archive = output / "objects" / object_manifest["archive"]
     run([compiler, "-mcpu=cortex-m0", "-mthumb", "-nostdlib",
          "-Wl,--build-id=none", f"-Wl,-Map={map_file}",
-         "-T", str(script), "-o", str(elf), str(vectors), str(runtime),
+         "-T", str(script), "-o", str(elf), str(vectors), str(startup_source),
+         str(runtime),
          "-Wl,--whole-archive", str(archive), "-Wl,--no-whole-archive",
          "-lgcc"])
     elf_data = elf.read_bytes()
@@ -75,8 +79,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     objcopy = sibling_tool(compiler, "arm-none-eabi-objcopy")
     run([objcopy, "--dump-section", f".isr_vector={vector_bytes}", str(elf)])
     table = vector_bytes.read_bytes()
-    if len(table) < 64:
-        raise ValueError("Linked vector table has fewer than 16 entries")
+    if len(table) != 192:
+        raise ValueError("Linked vector table must have exactly 48 entries")
     stack_pointer, reset_vector = struct.unpack_from("<II", table)
     if stack_pointer != STOCK_STACK_TOP:
         raise ValueError(f"Linked stack pointer differs: 0x{stack_pointer:08X}")
@@ -84,6 +88,12 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         IMAGE_BASE <= (reset_vector & ~1) < IMAGE_BASE + STOCK_IMAGE_SIZE
     ):
         raise ValueError(f"Linked reset vector is outside APRS image: 0x{reset_vector:08X}")
+    for index in range(1, 48):
+        vector = struct.unpack_from("<I", table, index * 4)[0]
+        if vector & 1 == 0 or not (
+            IMAGE_BASE <= (vector & ~1) < IMAGE_BASE + STOCK_IMAGE_SIZE
+        ):
+            raise ValueError(f"Vector {index} is not a Thumb code address")
 
     size_tool = sibling_tool(compiler, "arm-none-eabi-size")
     size_output = run([size_tool, str(elf)])
@@ -98,6 +108,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         },
         "compiler": compiler,
         "source_objects": len(object_manifest["objects"]),
+        "startup_source_object": startup_source.name,
+        "vector_entries": 48,
+        "board_initialization_implemented": False,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
         "elf": elf.name,
         "elf_sha256": sha256(elf_data).hexdigest(),

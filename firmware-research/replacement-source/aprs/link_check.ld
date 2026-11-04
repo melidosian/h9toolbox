@@ -25,12 +25,13 @@ SECTIONS {
         . = ALIGN(4);
     } > FLASH
 
-    .data : {
+    .data ORIGIN(RAM) + 0xC0 : {
         __data_start = .;
         *(.data .data.*)
         . = ALIGN(4);
         __data_end = .;
     } > RAM AT> FLASH
+    __data_load_start = LOADADDR(.data);
 
     .bss (NOLOAD) : {
         __bss_start = .;
@@ -42,7 +43,7 @@ SECTIONS {
     /DISCARD/ : { *(.comment) *(.note*) }
 }
 
-ASSERT(SIZEOF(.isr_vector) >= 64, "Cortex vector table is incomplete")
+ASSERT(SIZEOF(.isr_vector) == 192, "Expected 48 Cortex vectors")
 ASSERT(LOADADDR(.data) + SIZEOF(.data) <=
        ORIGIN(FLASH) + LENGTH(FLASH), "APRS source exceeds stock image length")
 ASSERT(__bss_end + 0x400 <= __stack_top,

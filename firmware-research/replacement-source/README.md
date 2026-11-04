@@ -6,6 +6,7 @@ This is the beginning of a source rewrite for the **main Pi32v2 firmware** and t
 
 - `common/h9_aprs_wire.*` encodes and decodes the `0xC0`-delimited, `0xDB`-escaped serial framing observed at APRS addresses `0x08004894` and `0x08005B8C`.
 - `aprs/h9_aprs_controller.*` implements the observed command dispatch for `0x00`, `0x10`, `0x11`, `0x13`, and `0x20`, packet forwarding, and the ADC callback ordering at `0x08002EF8`: demodulate every sample before an optional TX waveform update. Board-specific UART, GPIO, ADC, DAC, modem, and packet TX operations are explicit callbacks.
+- `aprs/h9_aprs_startup.c` and `link_check_startup.S` add first-pass Cortex-M memory initialization and a 48-entry vector table copied to RAM, following the stock startup shape. The clock setup and interrupt bodies remain unmapped. The diagnostic board entry still loops forever.
 - `aprs/h9_aprs_bitstream.*` ports the recovered-bit framing path at `0x080055C4`, including HDLC flag recognition, stuffed-zero removal, byte assembly, and the original `0x1B` escape convention.
 - `aprs/h9_aprs_ring.*` ports the receive-byte queue's full, empty, and wrap behavior from `0x080053E0..0x08005470`; the selected Ghidra report is in `../h9-firmware-research/evidence/aprs-bitstream-helpers.txt`.
 - `aprs/h9_aprs_demod.*` ports the five-sample delay line, correlation/filter, timing recovery, and NRZI bit extraction at `0x08002308`, using the initialization at `0x08002604`. The controller now runs this source on each ADC sample before updating the TX DAC.
@@ -56,13 +57,13 @@ To check the source constants against the private stock images, run `py -3 firmw
 
 ## APRS diagnostic link check
 
-`link_aprs_check.py` compiles all APRS modules, forces every object into one ARM ELF, and writes a linker map and manifest under ignored `build/link-check-aprs/`. Its diagnostic linker script uses the stock image base `0x08002000`, stock image length 17,304 bytes, and stock initial stack pointer `0x20001A50` as conservative address bounds. The optional stock-image argument rechecks those values against the pinned private image hash. This is a **link check**, not a complete firmware build: its 16-entry vector table and inert reset handler do not initialize RAM, clocks, interrupts, UART, ADC, DAC, radio controls, or the APRS application. It creates no `.bin` update file.
+`link_aprs_check.py` compiles all APRS modules, forces every object into one ARM ELF, and writes a linker map and manifest under ignored `build/link-check-aprs/`. Its diagnostic linker script uses the stock image base `0x08002000`, stock image length 17,304 bytes, and stock initial stack pointer `0x20001A50` as conservative address bounds. The optional stock-image argument rechecks those values against the pinned private image hash. This is a **link check**, not a complete firmware build: its 48-entry vector table and first-pass reset path initialize ordinary `.data`/`.bss` and relocate vectors, but do not initialize clocks, interrupts, UART, ADC, DAC, radio controls, or the APRS application. It creates no `.bin` update file.
 
 ```powershell
 py -3 firmware-research/replacement-source/link_aprs_check.py --compiler 'C:\path\to\arm-none-eabi-gcc.exe' --stock-image 'C:\path\to\APRS-1.0.15.bin'
 ```
 
-The Windows Arm GNU Toolchain 15.3.1 check linked 11 source objects into a 4,144-byte diagnostic ELF and confirmed its vector table. This establishes that the current modules have no unresolved link symbols within that diagnostic envelope; it does not establish that the radio can run them.
+The Windows Arm GNU Toolchain 15.3.1 check linked 11 core source objects plus the startup source into a 4,376-byte diagnostic ELF and confirmed all 48 vector entries. This establishes that the current modules have no unresolved link symbols within that diagnostic envelope; it does not establish that the radio can run them. See [the startup trace](../h9-firmware-research/evidence/stock/aprs-startup.md).
 
 `link_main_check.py` similarly compiles **all current main modules** into native Pi32v2 objects and uses JieLi's `pi32v2-ld` to produce an ELF, map, and manifest under ignored `build/link-check-main/`. JieLi clang's default link invocation selects `pi32-ld`, which rejects Pi32v2 objects, so the script explicitly selects the matching linker. It verifies that all archive objects were included, no symbols remain undefined, the ELF machine is Pi32v2, and its inert entry is at the inferred stock app base `0x01E00100`. The linker script's code length matches the extracted stock app; its RAM range is only provisional. This check does **not** create a `.bin` or `.fw` file.
 

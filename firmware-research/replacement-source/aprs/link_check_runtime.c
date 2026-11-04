@@ -1,7 +1,7 @@
 #include <stddef.h>
 
-/* Temporary freestanding shims for a whole-archive link. Actual startup and
-   board initialization remain to be implemented before any firmware build. */
+/* Temporary freestanding shims for a whole-archive link. The board entry is
+   intentionally inert until peripheral integration is source-backed. */
 void *memcpy(void *destination, const void *source, size_t length)
 {
     unsigned char *to = (unsigned char *)destination;
@@ -19,12 +19,7 @@ void *memset(void *destination, int value, size_t length)
     return destination;
 }
 
-__attribute__((noreturn)) void Reset_Handler(void)
-{
-    for (;;) { }
-}
-
-__attribute__((noreturn)) void Default_Handler(void)
+__attribute__((noreturn)) void h9_aprs_board_main(void)
 {
     for (;;) { }
 }
