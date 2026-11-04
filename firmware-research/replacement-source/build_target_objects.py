@@ -75,6 +75,7 @@ SOURCES = {
         "main/h9_main_irq_registration.c",
         "main/h9_main_memory_window.c",
         "main/h9_main_post_clock_rom.c",
+        "main/h9_main_post_map_gate.c",
         "main/h9_main_timer3_irq.c",
         "main/h9_main_rf_output.c",
         "main/h9_main_rf_state.c",

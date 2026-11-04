@@ -2,9 +2,12 @@
 
 #include <stddef.h>
 
-static bool wait_for_status(H9MainClockHandshake *handshake, bool set)
+bool h9_main_clock_wait(H9MainClockHandshake *handshake, bool set)
 {
     uint32_t poll;
+    if (handshake == NULL || handshake->status_101044 == NULL ||
+        handshake->read_status == NULL || handshake->poll_limit == 0u)
+        return false;
     /* Both stock helpers read first. Only a failed read writes 0xE7. */
     for (poll = 0u; poll < handshake->poll_limit; ++poll) {
         uint32_t status = handshake->read_status(handshake->context,
@@ -32,7 +35,7 @@ bool h9_main_clock_handshake_run(H9MainClockHandshake *handshake)
         handshake->read_status == NULL || handshake->poll_limit == 0u)
         return false;
     for (stage = 0u; stage < 10u; ++stage) {
-        if (!wait_for_status(handshake, true)) return false;
+        if (!h9_main_clock_wait(handshake, true)) return false;
         if (stage < 6u) {
             target = handshake->gates_101000;
             mask = gate_masks[stage];
@@ -44,7 +47,7 @@ bool h9_main_clock_handshake_run(H9MainClockHandshake *handshake)
             mask = 1u;
         }
         *target |= mask;
-        if (!wait_for_status(handshake, false)) return false;
+        if (!h9_main_clock_wait(handshake, false)) return false;
     }
     return true;
 }
@@ -57,7 +60,7 @@ bool h9_main_clock_map_sources(H9MainClockHandshake *handshake,
         handshake->window_words_101070 == NULL ||
         handshake->read_status == NULL || handshake->poll_limit == 0u ||
         app_entry == 0u || ram_code_source == 0u) return false;
-    if (!wait_for_status(handshake, true)) return false;
+    if (!h9_main_clock_wait(handshake, true)) return false;
     window = handshake->window_words_101070;
     window[1] = (uint32_t)app_entry;
     window[0] = (uint32_t)ram_code_source;

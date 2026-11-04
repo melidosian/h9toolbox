@@ -56,6 +56,7 @@
 #include "h9_main_irq_registration.h"
 #include "h9_main_memory_window.h"
 #include "h9_main_post_clock_rom.h"
+#include "h9_main_post_map_gate.h"
 #include "h9_main_timer3_irq.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_bus.h"
@@ -5293,6 +5294,105 @@ static void test_main_clock_handshake(void)
            window[1] == 0x2222u);
 }
 
+typedef struct {
+    uint32_t prefix[16];
+    uint32_t config;
+    uint32_t words[4];
+    unsigned fills;
+    unsigned reads;
+} PostMapCapture;
+
+static bool post_map_fill(void *context)
+{
+    PostMapCapture *capture = (PostMapCapture *)context;
+    unsigned index;
+    ++capture->fills;
+    for (index = 0u; index < 16u; ++index)
+        capture->prefix[index] = UINT32_MAX;
+    return true;
+}
+
+static bool post_map_fill_fail(void *context)
+{
+    PostMapCapture *capture = (PostMapCapture *)context;
+    ++capture->fills;
+    return false;
+}
+
+static uint32_t post_map_read(void *context, volatile uint32_t *status)
+{
+    PostMapCapture *capture = (PostMapCapture *)context;
+    unsigned phase = capture->reads++;
+    unsigned index;
+    (void)status;
+    assert(phase < 4u && capture->fills == 1u);
+    for (index = 0u; index < 16u; ++index)
+        assert(capture->prefix[index] == UINT32_MAX);
+    if (phase == 0u) {
+        assert(capture->config == 0x1001u &&
+               capture->words[0] == 0u);
+    } else if (phase < 3u) {
+        assert(capture->config == 0x1C01u &&
+               capture->words[0] == 0x66BFu && capture->words[1] == 0u);
+    } else {
+        assert(capture->config == 0x1F01u &&
+               capture->words[2] == 0x66BFu && capture->words[3] == 0u);
+    }
+    return (phase & 1u) == 0u ? 1u : 0u;
+}
+
+static uint32_t post_map_stuck(void *context, volatile uint32_t *status)
+{
+    PostMapCapture *capture = (PostMapCapture *)context;
+    (void)status;
+    ++capture->reads;
+    return 0u;
+}
+
+static void test_main_post_map_gate(void)
+{
+    PostMapCapture capture = { { 0u }, 0x1001u,
+                               { 0u, 0x1234u, 0u, 0x5678u }, 0u, 0u };
+    uint32_t status = 0u;
+    H9MainClockHandshake handshake = {
+        &capture, &status, NULL, NULL, NULL,
+        post_map_read, 2u, NULL
+    };
+    H9MainPostMapGate gate = {
+        &capture, &handshake, post_map_fill,
+        &capture.config, capture.words
+    };
+    H9MainPostMapGate target;
+    unsigned index;
+    h9_main_post_map_gate_bind_target(&target, &handshake);
+    assert((uintptr_t)target.config_101040 == 0x101040u &&
+           (uintptr_t)target.words_101050 == 0x101050u &&
+           target.handshake == &handshake);
+    assert(!h9_main_post_map_gate_run(NULL));
+    assert(h9_main_post_map_gate_run(&gate));
+    assert(capture.fills == 1u && capture.reads == 4u);
+    assert(capture.config == 0x1F01u &&
+           capture.words[0] == 0x66BFu && capture.words[1] == 0u &&
+           capture.words[2] == 0x66BFu && capture.words[3] == 0u);
+
+    capture.fills = capture.reads = 0u;
+    gate.fill_prefix_ones = post_map_fill_fail;
+    assert(!h9_main_post_map_gate_run(&gate));
+    assert(capture.fills == 1u && capture.reads == 0u);
+    gate.fill_prefix_ones = post_map_fill;
+    capture.fills = capture.reads = 0u;
+    capture.config = 0x1001u;
+    capture.words[0] = capture.words[2] = 0u;
+    for (index = 0u; index < 16u; ++index) capture.prefix[index] = 0u;
+    handshake.read_status = post_map_stuck;
+    assert(!h9_main_post_map_gate_run(&gate));
+    assert(capture.fills == 1u && capture.reads == 2u &&
+           capture.config == 0x1001u &&
+           capture.words[0] == 0u && capture.words[2] == 0u);
+    for (index = 0u; index < 16u; ++index)
+        assert(capture.prefix[index] == UINT32_MAX);
+}
+
 static void test_main_irq_registration(void)
 {
     IrqRegistrationCapture capture = { 0u };
@@ -5559,6 +5659,7 @@ int main(void)
     test_main_post_clock_timer_stage();
     test_main_irq_registration();
     test_main_clock_handshake();
+    test_main_post_map_gate();
     test_main_timer3_irq();
     test_main_exception_capture();
     test_main_serial_profile();

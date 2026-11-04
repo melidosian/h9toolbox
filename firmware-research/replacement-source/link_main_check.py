@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after the post-IRQ memory-source mapping.
+The board entry stops after the two post-map register handshakes.
 Optional raw output is for offline inspection only.
 """
 
@@ -137,6 +137,12 @@ STOCK_MEMORY_SOURCE_BOARD = bytes.fromhex(
     "c0ff0001e001c1ff8c62ec01bfea11f2"
     "02e1504020692068206b206a"
 )
+STOCK_POST_MAP_GATE = bytes.fromhex(
+    "c0ff00000000113f008f8105bfeaeff1d0ef804e"
+    "c3ff00000000a361c5ffbf660000a56010ef004e"
+    "10ef804ebfeae9f1bfeaddf1d0ef804fa363a562"
+    "10ef004f10ef804fbfeaddf1"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -188,6 +194,7 @@ def verify_stock_image(path: Path) -> None:
             data[0x5FEAE:0x5FF36] != STOCK_CLOCK_GATE_HANDSHAKE or \
             data[0x5E368:0x5E37C] != STOCK_MEMORY_SOURCE_HELPER or \
             data[0x5FF36:0x5FF52] != STOCK_MEMORY_SOURCE_BOARD or \
+            data[0x5FF52:0x5FF9A] != STOCK_POST_MAP_GATE or \
             data[0xBA:0xD2] != STOCK_DESCRIPTOR_LOOKUP or \
             data[0x554:0x564] != STOCK_DESCRIPTOR_TABLE or \
             data[0x482:0x48E] != STOCK_DESCRIPTOR_WORD5_HELPER or \
@@ -262,6 +269,10 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     irq_map_offset = symbol_address("irq_map") - IMAGE_BASE
     if text_data[irq_map_offset:irq_map_offset + 64] != STOCK_IRQ_MAP:
         raise ValueError("Linked IRQ mapping table differs from stock")
+    prefix_offset = symbol_address("h9_main_vector_prefix_ones") - IMAGE_BASE
+    if text_data[prefix_offset:prefix_offset + 10] != \
+            bytes.fromhex("4020113f008f81058000"):
+        raise ValueError("Linked RAM-prefix fill lost 16-word Pi32 rep")
     for name, masks in (
         ("h9_main_clock_handshake_run.gate_masks",
          (0x20000000, 0x10000000, 0x08000000,
@@ -350,6 +361,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_handshake_bind_target",
         "h9_main_clock_handshake_run",
         "h9_main_clock_map_sources",
+        "h9_main_post_map_gate_bind_target",
+        "h9_main_post_map_gate_run",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -380,7 +393,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
     )
     map_body = map_sources.group(1) if map_sources else ""
-    map_order = ("wait_for_status", "[r0+4] = r6", "[r0+0] = r5",
+    map_order = ("h9_main_clock_wait", "[r0+4] = r6", "[r0+0] = r5",
                  "[r0+4]", "[r0+0]", "[r0+12]", "[r0+8]")
     map_positions = []
     cursor = 0
@@ -397,8 +410,42 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             "__ram_code_load_start" not in \
             board_body[board_map_call - 260:board_map_call]:
         raise ValueError("Linked memory-source map lost image or RAM load address")
+    gate_binder = re.search(
+        r"(?ms)^h9_main_post_map_gate_bind_target:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    gate_binder_body = gate_binder.group(1) if gate_binder else ""
+    if "target_fill_prefix_ones" not in gate_binder_body or \
+            "101040" not in gate_binder_body or "r1 += 16" not in \
+            gate_binder_body or "[r0+16] = r1" not in gate_binder_body:
+        raise ValueError("Linked post-map gate lost control MMIO bases")
+    target_prefix = re.search(
+        r"(?ms)^target_fill_prefix_ones:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    if target_prefix is None or \
+            "h9_main_vector_prefix_ones" not in target_prefix.group(1):
+        raise ValueError("Linked post-map gate does not call RAM-prefix fill")
+    gate_run = re.search(
+        r"(?ms)^h9_main_post_map_gate_run:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    gate_body = gate_run.group(1) if gate_run else ""
+    gate_order = ("call r1", "h9_main_clock_wait",
+                  "0xFFFFFBFF", "26303", "[r7+4] = r4",
+                  "[r7+0] = r0", "0x800", "0x400",
+                  "h9_main_clock_wait", "h9_main_clock_wait",
+                  "0xFFFFFEFF", "r0 = 0", "26303",
+                  "[r7+12] = r0", "[r7+8] = r0", "0x200", "0x100",
+                  "h9_main_clock_wait")
+    cursor = 0
+    for item in gate_order:
+        position = gate_body.find(item, cursor)
+        if position < 0:
+            raise ValueError("Linked post-map gate lost stock register order")
+        cursor = position + len(item)
     handshake_wait = re.search(
-        r"(?ms)^wait_for_status:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        r"(?ms)^h9_main_clock_wait:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
         disassembly,
     )
     if handshake_wait is None or "= 0xE7" not in handshake_wait.group(1):
@@ -905,6 +952,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_default_irq_snapshot_link_verified": True,
         "early_board_clock_gate_handshake_link_verified": True,
         "early_board_memory_source_map_link_verified": True,
+        "early_board_post_map_gate_link_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

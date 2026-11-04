@@ -14,6 +14,7 @@
 #include "h9_main_irq_registration.h"
 #include "h9_main_memory_window.h"
 #include "h9_main_post_clock_rom.h"
+#include "h9_main_post_map_gate.h"
 
 #define H9_MAIN_RETAINED_BOOT_RECORD 0x0002FF88u
 #define H9_MAIN_BOOT_RESULT_WORD 0x00011C3Cu
@@ -81,6 +82,7 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainPostClockTimerStage post_clock_timer;
     H9MainIrqRegistration irq_registration;
     H9MainClockHandshake clock_handshake;
+    H9MainPostMapGate post_map_gate;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -171,6 +173,8 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
                                    (uintptr_t)h9_main_reset,
                                    (uintptr_t)__ram_code_load_start))
         for (;;) { }
+    h9_main_post_map_gate_bind_target(&post_map_gate, &clock_handshake);
+    if (!h9_main_post_map_gate_run(&post_map_gate)) for (;;) { }
 #endif
     for (;;) { }
 }

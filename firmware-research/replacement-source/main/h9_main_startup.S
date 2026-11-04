@@ -42,6 +42,19 @@ h9_main_interrupt_config:
     rts
     .size h9_main_interrupt_config, .-h9_main_interrupt_config
 
+/* Stock app+0x05FF52..0x05FF5E fills the reserved RAM-vector prefix with
+ * sixteen all-one words. Assembly avoids C's undefined null dereference. */
+    .globl h9_main_vector_prefix_ones
+    .type h9_main_vector_prefix_ones,@function
+h9_main_vector_prefix_ones:
+    r0 = 0
+    r1 = -1
+    rep 16 {
+        [r0++=4] = r1
+    }
+    rts
+    .size h9_main_vector_prefix_ones, .-h9_main_vector_prefix_ones
+
 /* Timer-3 ISR from stock app+0x03126C..0x0312D2. Direct ROM calls retain the
  * input registers left by the previous instruction, unlike a C callback. */
     .set h9_rom_timer_poll, 0x02001D2E

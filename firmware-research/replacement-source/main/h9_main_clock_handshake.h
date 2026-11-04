@@ -20,6 +20,7 @@ typedef struct {
 void h9_main_clock_handshake_bind_target(H9MainClockHandshake *handshake,
                                           uint32_t poll_limit);
 bool h9_main_clock_handshake_run(H9MainClockHandshake *handshake);
+bool h9_main_clock_wait(H9MainClockHandshake *handshake, bool set);
 bool h9_main_clock_map_sources(H9MainClockHandshake *handshake,
                                 uintptr_t app_entry, uintptr_t ram_code_source);
 

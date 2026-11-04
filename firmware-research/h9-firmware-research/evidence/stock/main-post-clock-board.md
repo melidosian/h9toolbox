@@ -204,3 +204,12 @@ second set-wait clears bit 8, writes `0` to `0x10105C` and `0x66BF` to
 app+`0x05FF5E`, `0x05FF7E`, `0x05FF82`, and `0x05FF96` resolve to the same
 status helpers. This sequence ends at app+`0x05FF9A`; its hardware purpose
 remains unknown.
+
+`main/h9_main_post_map_gate.*` now models the two handshakes and register
+writes. The target calls `h9_main_vector_prefix_ones` first, a Pi32 assembly
+routine whose `rep 2 16` fills the 64-byte prefix at RAM address zero. Host
+tests check that the prefix fill happens before any status poll, that both
+register phases occur in order, and that a failed poll stops later writes.
+The target link check pins the stock instruction range and checks the linked
+repeat opcode, control addresses, masks, and call order. No radio execution
+has validated these control writes; the linked image remains diagnostic.
