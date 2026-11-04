@@ -56,9 +56,22 @@ are app+`0x05E43E`, `0x048A46`, `0x0462F8`, `0x05F790`, `0x02D4D8`,
 `0x0252B8`, `0x0906E4`, `0x09053E`, `0x090332`, and `0x02C514`.
 The 40-byte table hashes to SHA-256
 `c13b0a8803bd74a2ca27375475e4fe76e96531a46231a5e2c70d0f01c4fac2bf`.
+`main/h9_main_core_init.*` reconstructs this ten-entry table and the observed
+call order: entries 3, 4, 5, 9; a direct call to app+`0x060AF8`; then
+entries 0, 1, 2, 6, 7, 8. The callback at app+`0x02C514` walks three
+28-byte records at app+`0x02DB5C..0x02DBB0`, calling each nonzero first
+word. The remaining record words are preserved in source but their roles
+remain unknown. The app-core initializer walk at app+`0x066648..0x0666BE`
+hashes to SHA-256
+`530ce23459d9869a4eb03038829e8200b22829908d454f6db73b3702432ac4fd`;
+the record walker app+`0x02C514..0x02C534` hashes to
+`be72ebaf1b56c66b3f642375cd4fc9b15d02123df46a83b52652417b8867905b`,
+and its 84-byte table hashes to
+`2fd81ab7968771d2ae8ae8e5e77c7646e0a4a648c9e17ea2aff1cea6983e618a`.
 After further setup, `app_core` sets RAM `0x11B35` to state 10 and loops over
 state handlers, including app+`0x0665B2` for state 10. The initializer
-functions, state handlers, and event scheduler are not yet ported.
+functions beyond the documented first-pass ports, state handlers, and event
+scheduler are not yet ported.
 
 The third pointer in the first initializer group targets app+`0x0462F8`.
 Its 14 bytes load RAM address `0x119EC`, store that address to
@@ -95,10 +108,10 @@ prelude through injectable hooks; it stops on allocation failure if the
 stock failure helper returns, rather than handing a null pointer to ROM.
 The app+`0x02D542..0x02D57C` task slice has SHA-256
 `e1015be090c561d330c99d7bcfa526a164fc0d32278060810b108c3754292301`.
-The initializer at app+`0x02C514` walks three 28-byte records at
-`0x01E2DC5C..0x01E2DCB0` and calls each nonzero first-word callback.
-Their first-word targets are app+`0x02C862`, `0x08C9D4`, and `0x02C54C`.
-Those callback bodies remain unported.
+The three first-word callback targets are app+`0x02C862`, `0x08C9D4`,
+and `0x02C54C`. Those callback bodies remain unported. The replacement
+dispatch callbacks must map stock addresses to replacement functions before
+this source can drive the real `app_core` task.
 
 Stock `my_app` at app+`0x088180` begins with delays, port/configuration
 calls, and radio-device writes. Later in its analyzed body it constructs the

@@ -53,6 +53,7 @@
 #include "h9_main_clock_rom_mode.h"
 #include "h9_main_clock_timing.h"
 #include "h9_main_core_list.h"
+#include "h9_main_core_init.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_exception.h"
 #include "h9_main_irq_registration.h"
@@ -5798,6 +5799,57 @@ static void test_main_core_list(void)
 }
 
 typedef struct {
+    uint32_t calls[11];
+    unsigned count;
+} CoreInitCapture;
+
+static void core_init_invoke(void *context, uint32_t stock_entry)
+{
+    CoreInitCapture *capture = (CoreInitCapture *)context;
+    assert(capture->count < 11u);
+    capture->calls[capture->count++] = stock_entry;
+}
+
+static void core_init_between(void *context)
+{
+    core_init_invoke(context, 0x01E60BF8u);
+}
+
+static void test_main_core_init_walkers(void)
+{
+    static const uint32_t expected[11] = {
+        0x01E5F890u, 0x01E2D5D8u, 0x01E253B8u,
+        0x01E2C614u, 0x01E60BF8u,
+        0x01E5E53Eu, 0x01E48B46u, 0x01E463F8u,
+        0x01E907E4u, 0x01E9063Eu, 0x01E90432u,
+    };
+    CoreInitCapture capture = { { 0u }, 0u };
+    H9MainCoreInitHooks core = {
+        &capture, core_init_invoke, core_init_between
+    };
+    H9MainEventRecordHooks records = { &capture, core_init_invoke };
+    unsigned index;
+    assert(h9_main_core_run_initializers(NULL) != 0);
+    assert(h9_main_core_run_initializers(&core) == 0);
+    assert(capture.count == 11u);
+    for (index = 0u; index < 11u; ++index)
+        assert(capture.calls[index] == expected[index]);
+    assert(h9_main_core_init_stock_entries[2] == 0x01E463F8u);
+    assert(h9_main_core_init_stock_entries[9] == 0x01E2C614u);
+
+    memset(&capture, 0, sizeof capture);
+    assert(h9_main_core_run_event_records(NULL) != 0);
+    assert(h9_main_core_run_event_records(&records) == 0);
+    assert(capture.count == 3u &&
+           capture.calls[0] == 0x01E2C962u &&
+           capture.calls[1] == 0x01E8CAD4u &&
+           capture.calls[2] == 0x01E2C64Cu);
+    assert(h9_main_event_records[1].word[4] == 0x01E8CDB4u &&
+           h9_main_event_records[2].word[5] == 0x01E2C83Au &&
+           h9_main_event_records[2].word[6] == 0x01E2C88Au);
+}
+
+typedef struct {
     TaskLaunchCapture task;
     uint8_t state[0x24];
     uint8_t nodes[0x38];
@@ -6042,6 +6094,7 @@ int main(void)
     test_main_post_map_window();
     test_main_task_registry();
     test_main_core_list();
+    test_main_core_init_walkers();
     test_main_sys_event_init();
     test_main_sys_event_task_prelude();
     test_main_timer3_irq();
