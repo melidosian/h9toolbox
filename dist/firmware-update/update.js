@@ -1,7 +1,9 @@
 import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, loadStockPackage, planUpdate, scanRadio, writeSector } from './firmware.mjs';
+import { createHidArchive, loadHidArchive, readAccessibleFlash } from './readback.mjs';
 
 const $ = id => document.getElementById(id);
 let target = null, backup = null, device = null, hid = null, plan = null, restorePlan = null, busy = false;
+let cancelBackup = false, backupRunning = false;
 const resumeKey = 'h9-hid-pending-v1';
 function status(message, error = false) {
   $('status').textContent = message;
@@ -16,6 +18,8 @@ function refresh() {
   $('connect').disabled = busy || !!device;
   $('disconnect').disabled = busy || !device;
   $('inspect').disabled = busy || !hid || !target || !backup;
+  $('createBackup').disabled = busy || !hid || !target;
+  $('cancelBackup').hidden = !backupRunning;
   $('acknowledge').disabled = busy || (!plan?.length && !restorePlan?.length);
   $('flash').disabled = busy || !plan?.length || !$('acknowledge').checked;
   $('restore').disabled = busy || !restorePlan?.length || !$('acknowledge').checked;
@@ -41,9 +45,12 @@ $('backupFile').addEventListener('change', async event => {
   const file = event.target.files[0]; if (!file) return;
   try {
     if (!target) throw new Error('Select the official firmware package first.');
-    backup = await loadBackup(new Uint8Array(await file.arrayBuffer()), target.image);
-    $('backupState').textContent = `${file.name} · boot region verified`;
-    status('Raw backup format and protected boot bytes verified locally.');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    backup = file.name.toLowerCase().endsWith('.h9hid')
+      ? await loadHidArchive(bytes, target.image)
+      : await loadBackup(bytes, target.image);
+    $('backupState').textContent = `${file.name} · ${backup.source === 'hid' ? 'HID archive verified' : 'boot region verified'}`;
+    status(backup.source === 'hid' ? 'HID recovery archive checksum verified locally.' : 'Raw backup format and protected boot bytes verified locally.');
   } catch (error) { $('backupState').textContent = 'Backup rejected'; fail(error); }
   refresh();
 });
@@ -67,6 +74,30 @@ $('disconnect').addEventListener('click', async () => {
   $('deviceState').textContent = 'Disconnected'; status('Disconnected.'); refresh();
 });
 $('acknowledge').addEventListener('change', refresh);
+$('cancelBackup').addEventListener('click', () => { cancelBackup = true; $('cancelBackup').disabled = true; status('Stopping after the current HID reply…'); });
+$('createBackup').addEventListener('click', async () => {
+  if (!hid || !target || busy) return;
+  busy = true; backupRunning = true; cancelBackup = false; $('cancelBackup').disabled = false; forgetPlan(); progress(0, 1); refresh();
+  try {
+    status('Scanning accessible flash sector CRCs. No erase or write will be sent.');
+    const current = await scanRadio(hid, progress);
+    status('Recovering accessible flash bytes using shifted CRC windows. This may take several minutes; keep USB connected.');
+    const recovered = await readAccessibleFlash(hid, current, target.image, progress, () => cancelBackup);
+    if (cancelBackup) throw new Error('HID backup cancelled. No radio write was sent.');
+    const archive = await createHidArchive(recovered.accessible, recovered.method);
+    const loaded = await loadHidArchive(archive, target.image);
+    const date = new Date().toISOString().slice(0, 10);
+    const name = `TD-H9-HID-recovery-${date}.h9hid`;
+    const url = URL.createObjectURL(new Blob([archive], { type: 'application/octet-stream' }));
+    const link = document.createElement('a'); link.href = url; link.download = name; document.body.append(link);
+    link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+    backup = loaded;
+    $('backupState').textContent = `${name} · download started · ${recovered.method === 'verified-official-image-seed' ? 'official image seed' : 'erased sector seed'}`;
+    status('HID recovery archive built and download started. Confirm it is saved before writing. Protected boot bytes are not in this archive.');
+    progress(1, 1);
+  } catch (error) { fail(error); }
+  busy = false; backupRunning = false; cancelBackup = false; refresh();
+});
 $('inspect').addEventListener('click', async () => {
   busy = true; forgetPlan(); refresh();
   try {

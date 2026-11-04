@@ -146,6 +146,16 @@ export class H9Hid {
     const view = new DataView(data.buffer);
     return Array.from({ length: count }, (_, index) => view.getUint16(index * 2, true));
   }
+  // Observed on the TD-H9: C4 uses 4 KiB CRC windows spaced 4 KiB apart,
+  // even when block_size is one. An unaligned address shifts every window.
+  // readback.mjs checks the behavior against known image or erased bytes.
+  async windowCrcs(relative, count) {
+    requireValue(Number.isInteger(relative) && relative >= 0 && count >= 1 && count <= 16 && relative + count * SECTOR_SIZE <= FLASH_SIZE - APP_START, 'Invalid sliding CRC request.');
+    const data = await this.exchange(0xc4, u32(relative, count, 1));
+    requireValue(data.length === count * 2, 'Invalid sliding CRC reply length.');
+    const view = new DataView(data.buffer);
+    return Array.from({ length: count }, (_, index) => view.getUint16(index * 2, true));
+  }
   async sectorCrc(physical) { return (await this.crcs(physical - APP_START, 1))[0]; }
   async erase(physical) { requireValue(physical >= APP_START && physical < IMAGE_SIZE && physical % SECTOR_SIZE === 0, 'Erase outside firmware area.'); await this.exchange(0xc2, u32(physical - APP_START, 2)); }
   async write(physical, offset, bytes) {

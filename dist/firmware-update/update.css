@@ -16,4 +16,6 @@
 .firmware-main .status-card{min-height:150px}
 .firmware-main .hint{white-space:normal}
 .firmware-main .log{max-height:220px}
+.firmware-main [hidden]{display:none!important}
+.backup-controls{margin-top:16px}
 @media(max-width:620px){.file-grid{grid-template-columns:1fr}.firmware-main .intro{padding:36px 0 12px}}

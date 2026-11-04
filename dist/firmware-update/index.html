@@ -26,29 +26,31 @@
       </section>
       <section class="note warning"><strong>Before you begin</strong>
         <p>This path has restored changed sectors on one TD-H9, but a complete browser firmware update has not yet been verified on hardware. A failed update can leave the radio unable to boot. Keep a reliable recovery method available.</p>
-        <p>HID cannot read a raw backup or access the first 0x5000 flash bytes. Obtain a raw 0xDA000-byte main-flash backup of this radio with the <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research/h9-flasher">USB-C command-line backup tool</a> before using this page. A Bluetooth channel .img is not that backup.</p>
+        <p>Before writing, create and save a recovery backup here or select a raw main-flash backup. The HID backup reconstructs the accessible flash using CRC queries; it can take several minutes. HID cannot read or write the protected first 0x5000 bytes. A Bluetooth channel .img is not a firmware recovery backup.</p>
         <p>Updating older firmware to v1.0.38 can overwrite old settings stored in the former VM area. Keep your backup and be prepared to recheck or reprogram channels and settings afterward.</p>
       </section>
       <section class="card" aria-labelledby="files-title">
         <div class="card-head"><div><span class="step">01</span><h2 id="files-title">Select local files</h2></div></div>
         <div class="file-grid">
           <label>Official TD-H9 v1.0.38 .fw package<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"><small id="firmwareState">No package selected</small></label>
-          <label>Raw main-flash backup from this radio (.bin)<input id="backupFile" type="file" accept=".bin,application/octet-stream"><small id="backupState">No backup selected</small></label>
+          <label>Existing recovery backup, optional (.h9hid or raw .bin)<input id="backupFile" type="file" accept=".h9hid,.bin,application/octet-stream"><small id="backupState">No backup selected. You can create one after connecting.</small></label>
         </div>
-        <p class="fine">The package hash, embedded image, protected boot bytes, and all accessible main-firmware sector CRCs are checked before writing. HID cannot validate the preserved settings area beyond 0xDA000.</p>
+        <p class="fine">The official package is checked against its known hash. A raw .bin backup also checks protected boot bytes. An HID archive contains accessible bytes from 0x5000 onward and an integrity hash; protected boot bytes are unavailable through HID.</p>
       </section>
       <section class="card" aria-labelledby="connect-title">
         <div class="card-head"><div><span class="step">02</span><h2 id="connect-title">Connect USB HID</h2></div><span class="chip" id="deviceState">Disconnected</span></div>
         <ol class="instructions"><li>Turn the radio off and connect a data-capable USB-C cable.</li><li>Hold <strong>PTT + 2</strong> while powering on. The screen stays blank and the top LED turns green.</li><li>Click Connect and select the JieLi HID device in the browser chooser.</li></ol>
         <div class="controls"><button class="button primary-button" id="connect">Connect HID radio</button><button class="button ghost" id="disconnect" disabled>Disconnect</button></div>
+        <div class="controls backup-controls"><button class="button ghost" id="createBackup" disabled>Create and download HID recovery backup</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button></div>
+        <p class="fine">The radio must stay in HID mode throughout backup. The page checks each reconstructed sector and rescans the radio before accepting the archive. Confirm the download is saved before proceeding.</p>
       </section>
       <section class="card" aria-labelledby="inspect-title">
         <div class="card-head"><div><span class="step">03</span><h2 id="inspect-title">Inspect and update</h2></div></div>
         <p class="subtext">Inspect reads sector CRCs only. No erase or write is sent until you explicitly start the update.</p>
-        <div class="controls"><button class="button ghost" id="inspect" disabled>Inspect radio</button><span id="planState" class="hint">Select both files and connect the radio.</span></div>
-        <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may damage my radio. I have a raw flash backup and a recovery method.</span></label>
+        <div class="controls"><button class="button ghost" id="inspect" disabled>Inspect radio</button><span id="planState" class="hint">Select the firmware package, save a recovery backup, and connect the radio.</span></div>
+        <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may damage my radio. I saved a recovery backup and have a recovery method.</span></label>
         <div class="controls"><button class="button write-button" id="flash" disabled>Write verified firmware</button><button class="button ghost" id="restore" disabled>Restore selected backup</button></div>
-        <p class="fine">Restore writes the saved application sectors back through HID and checks their CRCs. It cannot restore or inspect the protected boot bytes or settings beyond 0xDA000.</p>
+        <p class="fine">Restore writes the saved application sectors back through HID and checks their CRCs. The HID archive also preserves accessible settings bytes above 0xDA000, but this page does not write those settings or the protected boot region.</p>
         <div class="progress-wrap"><div class="progress-track"><div id="progress"></div></div><span id="progressText">0%</span></div>
       </section>
       <section class="card status-card" aria-live="polite" aria-labelledby="activity-title">

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, makePacket, parseReply, planUpdate, writeSector } from '../dist/firmware-update/firmware.mjs';
+import { createHidArchive, loadHidArchive, readAccessibleFlash, recoverNextSector, recoverPreviousSector } from '../dist/firmware-update/readback.mjs';
 
 test('HID init packet matches captured vendor request', () => {
   const body = new Uint8Array(17);
@@ -69,4 +70,51 @@ test('sector write erases, checks blank CRC, writes header last, and verifies fi
   await writeSector(hid, APP_START, target);
   assert.deepEqual(writes, [32, 72, 0]);
   assert.deepEqual(sector, target.slice(APP_START, APP_START + SECTOR_SIZE));
+});
+
+test('sliding CRCs recover every byte in both directions', () => {
+  const previous = Uint8Array.from({ length: SECTOR_SIZE }, (_, index) => (index * 31 + 17) & 0xff);
+  const next = Uint8Array.from({ length: SECTOR_SIZE }, (_, index) => (index * 47 + 93) & 0xff);
+  const joined = new Uint8Array(SECTOR_SIZE * 2);
+  joined.set(previous); joined.set(next, SECTOR_SIZE);
+  const windows = Uint16Array.from({ length: SECTOR_SIZE }, (_, shift) => crc16(joined.subarray(shift, shift + SECTOR_SIZE)));
+  assert.deepEqual(recoverNextSector(previous, windows, crc16(next)), next);
+  assert.deepEqual(recoverPreviousSector(next, windows, crc16(previous)), previous);
+  const corrupt = windows.slice(); corrupt[1024] ^= 1;
+  assert.throws(() => recoverNextSector(previous, corrupt, crc16(next)), /CRC recovery failed|CRC mismatch/);
+});
+
+test('HID backup archive is verified and supplies application bytes without claiming boot bytes', async () => {
+  const accessible = Uint8Array.from({ length: 0x100000 - APP_START }, (_, index) => index % 251);
+  const target = new Uint8Array(IMAGE_SIZE).fill(0xaa);
+  const archive = await createHidArchive(accessible, 'test-seed');
+  const parsed = await loadHidArchive(archive, target);
+  assert.deepEqual(parsed.image.subarray(0, APP_START), target.subarray(0, APP_START));
+  assert.deepEqual(parsed.image.subarray(APP_START), accessible.subarray(0, IMAGE_SIZE - APP_START));
+  assert.deepEqual(parsed.accessible, accessible);
+  const corrupt = archive.slice(); corrupt[corrupt.length - 1] ^= 1;
+  await assert.rejects(loadHidArchive(corrupt, target), /checksum mismatch/);
+});
+
+test('browser readback reconstructs and verifies accessible flash from a known application', async () => {
+  const target = new Uint8Array(IMAGE_SIZE).fill(0xff);
+  const accessible = new Uint8Array(0x100000 - APP_START).fill(0xff);
+  const appSectors = (IMAGE_SIZE - APP_START) / SECTOR_SIZE;
+  for (let offset = 0; offset < SECTOR_SIZE; offset++) accessible[appSectors * SECTOR_SIZE + offset] = (offset * 29 + 7) & 0xff;
+  const sectorCrcs = Array.from({ length: accessible.length / SECTOR_SIZE }, (_, index) => crc16(accessible.subarray(index * SECTOR_SIZE, (index + 1) * SECTOR_SIZE)));
+  const blankCrc = crc16(new Uint8Array(SECTOR_SIZE).fill(0xff));
+  const crossing = new Map();
+  for (const boundary of [appSectors - 1, appSectors]) {
+    crossing.set(boundary, Uint16Array.from({ length: SECTOR_SIZE }, (_, shift) => crc16(accessible.subarray(boundary * SECTOR_SIZE + shift, (boundary + 1) * SECTOR_SIZE + shift))));
+  }
+  const hid = {
+    async crcs(relative, count) { return sectorCrcs.slice(relative / SECTOR_SIZE, relative / SECTOR_SIZE + count); },
+    async windowCrcs(relative, count) {
+      const boundary = Math.floor(relative / SECTOR_SIZE), shift = relative % SECTOR_SIZE;
+      return Array.from({ length: count }, (_, index) => crossing.get(boundary + index)?.[shift] ?? blankCrc);
+    },
+  };
+  const result = await readAccessibleFlash(hid, sectorCrcs, target);
+  assert.equal(result.method, 'verified-official-image-seed');
+  assert.deepEqual(result.accessible, accessible);
 });
