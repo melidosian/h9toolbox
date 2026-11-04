@@ -16,6 +16,7 @@
 #include "h9_aprs_uart1_dma.h"
 #include "h9_aprs_uart1_board.h"
 #include "h9_aprs_uart1_tx.h"
+#include "h9_aprs_uart2_board.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_aprs_wave_output.h"
 #include "h9_main_aprs.h"
@@ -1568,15 +1569,60 @@ static void test_aprs_uart1_board_setup(void)
     assert(nvic_iser == ((1u << 9) | (1u << 27)));
 }
 
+static void test_aprs_uart2_board_setup_and_raw_write(void)
+{
+    H9AprsUart2Board board = { 0 };
+    uint32_t rcc[17] = { 0 };
+    uint32_t gpio[9] = { 0 };
+    uint32_t usart[6] = { 0 };
+    const uint8_t raw[] = { 0xC0u, 0xDBu };
+    assert(h9_aprs_uart_brr(48000000u, 9600u) == 5000u);
+    assert(h9_aprs_uart_brr(48000000u, 0u) == 0u);
+    h9_aprs_uart2_board_bind(&board, rcc, gpio, usart, 2u);
+    assert(!h9_aprs_uart2_board_configure(&board, 0u));
+    gpio[0] = gpio[1] = gpio[2] = gpio[3] = gpio[8] = ~0u;
+    usart[3] = usart[4] = usart[5] = ~0u;
+    assert(h9_aprs_uart2_board_configure(&board, 48000000u));
+    assert((rcc[13] & 0x20u) != 0u &&
+           (rcc[16] & 0x20000u) != 0u);
+    assert((gpio[0] & 0xFu) == 0xAu &&
+           (gpio[1] & 3u) == 0u &&
+           (gpio[2] & 0xFu) == 0xAu &&
+           (gpio[3] & 0xFu) == 0x5u &&
+           (gpio[8] & 0xFFu) == 0x44u);
+    assert(usart[2] == 5000u &&
+           (usart[3] & 0x200Cu) == 0x200Cu &&
+           (usart[4] & 0x2800u) == 0u &&
+           (usart[5] & 0xB08u) == 0u);
+    usart[0] = 0xC0u;
+    assert(h9_aprs_uart2_board_write(&board, raw, sizeof raw) == 2u);
+    assert(usart[1] == 0xDBu && board.bytes_completed == 2u);
+    usart[0] = 0u;
+    assert(h9_aprs_uart2_board_write(&board, raw, sizeof raw) == 0u);
+    assert(board.faulted && board.timeouts == 1u);
+    assert(h9_aprs_uart2_board_write(&board, raw, sizeof raw) == 0u);
+    assert(board.timeouts == 1u);
+}
+
 static void test_aprs_gpio_board(void)
 {
     H9AprsGpioBoard board = { 0 };
     uint32_t gpio[11] = { 0 };
+    uint32_t rcc[14] = { 0 };
     assert(!h9_aprs_gpio_board_read(&board));
+    assert(!h9_aprs_gpio_board_configure(&board));
     h9_aprs_gpio_board_write(&board, true);
-    h9_aprs_gpio_board_bind(&board, gpio);
+    h9_aprs_gpio_board_bind(&board, rcc, gpio);
+    gpio[0] = gpio[1] = gpio[2] = gpio[3] = ~0u;
+    assert(h9_aprs_gpio_board_configure(&board));
+    assert((rcc[13] & 2u) != 0u &&
+           ((gpio[0] >> 10) & 3u) == 1u &&
+           ((gpio[1] >> 5) & 1u) == 0u &&
+           ((gpio[2] >> 10) & 3u) == 0u &&
+           ((gpio[3] >> 10) & 3u) == 0u &&
+           gpio[10] == 0x20u);
     h9_aprs_gpio_board_write(&board, true);
-    assert(gpio[6] == 0x20u && gpio[10] == 0u);
+    assert(gpio[6] == 0x20u && gpio[10] == 0x20u);
     h9_aprs_gpio_board_write(&board, false);
     assert(gpio[10] == 0x20u);
     assert(!h9_aprs_gpio_board_read(&board));
@@ -1845,6 +1891,7 @@ int main(void)
     test_aprs_uart_receive_batches();
     test_aprs_uart1_dma_interrupts();
     test_aprs_uart1_board_setup();
+    test_aprs_uart2_board_setup_and_raw_write();
     test_aprs_gpio_board();
     test_aprs_wave_output();
     test_aprs_adc_board();

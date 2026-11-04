@@ -42,16 +42,16 @@ uint32_t h9_aprs_uart1_peripheral_clock(uint32_t system_clock_hz,
     return system_clock_hz >> shift[(rcc_prescaler >> 12) & 7u];
 }
 
-uint32_t h9_aprs_uart1_brr(uint32_t peripheral_clock_hz)
+uint32_t h9_aprs_uart_brr(uint32_t peripheral_clock_hz, uint32_t baud)
 {
     /* Stock 0x08004CE4 uses an x25 / (baud x4) intermediate, then
      * separates its decimal mantissa and fractional part. */
     uint64_t scaled;
     uint32_t mantissa;
     uint32_t fraction;
-    if (peripheral_clock_hz < H9_APRS_UART1_BAUD * 16u) return 0;
+    if (baud == 0u || peripheral_clock_hz / 16u < baud) return 0;
     scaled = (uint64_t)peripheral_clock_hz * 25u /
-             (H9_APRS_UART1_BAUD * 4u);
+             ((uint64_t)baud * 4u);
     mantissa = (uint32_t)(scaled / 100u);
     fraction = (uint32_t)(((scaled % 100u) * 16u + 50u) / 100u);
     if (fraction == 16u) {
@@ -60,6 +60,11 @@ uint32_t h9_aprs_uart1_brr(uint32_t peripheral_clock_hz)
     }
     if (mantissa > 0xFFFu) return 0;
     return (mantissa << 4) | fraction;
+}
+
+uint32_t h9_aprs_uart1_brr(uint32_t peripheral_clock_hz)
+{
+    return h9_aprs_uart_brr(peripheral_clock_hz, H9_APRS_UART1_BAUD);
 }
 
 bool h9_aprs_uart1_board_configure(H9AprsUart1Board *board,

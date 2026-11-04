@@ -22,6 +22,7 @@ void h9_aprs_uart1_board_bind(H9AprsUart1Board *board,
 void h9_aprs_uart1_board_bind_target(H9AprsUart1Board *board);
 uint32_t h9_aprs_uart1_peripheral_clock(uint32_t system_clock_hz,
                                         uint32_t rcc_prescaler);
+uint32_t h9_aprs_uart_brr(uint32_t peripheral_clock_hz, uint32_t baud);
 uint32_t h9_aprs_uart1_brr(uint32_t peripheral_clock_hz);
 /* Set clocks, pins 6/7, and 115200 8N1 USART1. Call before DMA start. */
 bool h9_aprs_uart1_board_configure(H9AprsUart1Board *board,

@@ -29,6 +29,13 @@ static bool board_read_radio_gpio(void *context)
     return h9_aprs_gpio_board_read(&state->gpio_board);
 }
 
+static void board_aux_uart_write(void *context, const uint8_t *data,
+                                 size_t length)
+{
+    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
+    (void)h9_aprs_uart2_board_write(&state->uart2_board, data, length);
+}
+
 static uint8_t board_read_wave_port(void *context)
 {
     H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
@@ -89,11 +96,13 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     uint32_t system_clock_hz;
     H9AprsHardware hardware = { 0 };
     h9_aprs_uart1_tx_bind_target(&runtime.uart1_tx, 240000u);
+    h9_aprs_uart2_board_bind_target(&runtime.uart2_board, 240000u);
     hardware.context = &runtime;
     hardware.uart_write = board_uart_write;
     hardware.uart_ok = board_uart_ok;
     hardware.set_radio_gpio = board_set_radio_gpio;
     hardware.read_radio_gpio = board_read_radio_gpio;
+    hardware.aux_uart_write = board_aux_uart_write;
     hardware.read_dac_port = board_read_wave_port;
     hardware.write_dac_port = board_write_wave_port;
     hardware.read_adc = board_read_adc;
@@ -113,6 +122,9 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     h9_aprs_sample_timer_bind_target(&runtime.sample_timer);
     system_clock_hz = h9_aprs_clock_select_internal_target(100000u);
     if (system_clock_hz == 0u ||
+        !h9_aprs_gpio_board_configure(&runtime.gpio_board) ||
+        !h9_aprs_uart2_board_configure(&runtime.uart2_board,
+                                       system_clock_hz) ||
         !h9_aprs_uart1_board_configure(&runtime.uart1_board,
                                         system_clock_hz) ||
         !h9_aprs_uart1_dma_start(&runtime.uart1_dma))

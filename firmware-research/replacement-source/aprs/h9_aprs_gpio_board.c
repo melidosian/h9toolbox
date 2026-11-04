@@ -9,15 +9,34 @@
 #define H9_APRS_GPIO_CLEAR_WORD (0x28u / 4u)
 
 void h9_aprs_gpio_board_bind(H9AprsGpioBoard *board,
+                             volatile uint32_t *rcc,
                              volatile uint32_t *gpio_b)
 {
-    if (board != NULL) board->gpio_b = gpio_b;
+    if (board == NULL) return;
+    board->rcc = rcc;
+    board->gpio_b = gpio_b;
 }
 
 void h9_aprs_gpio_board_bind_target(H9AprsGpioBoard *board)
 {
     h9_aprs_gpio_board_bind(board,
+        (volatile uint32_t *)(uintptr_t)0x40021000u,
         (volatile uint32_t *)(uintptr_t)H9_APRS_GPIO_B_BASE);
+}
+
+bool h9_aprs_gpio_board_configure(H9AprsGpioBoard *board)
+{
+    volatile uint32_t *gpio;
+    if (board == NULL || board->rcc == NULL || board->gpio_b == NULL)
+        return false;
+    gpio = board->gpio_b;
+    board->rcc[0x34u / 4u] |= 2u;
+    gpio[0] = (gpio[0] & ~(3u << 10)) | (1u << 10);
+    gpio[1] &= ~(1u << 5);
+    gpio[2] &= ~(3u << 10);
+    gpio[3] &= ~(3u << 10);
+    gpio[H9_APRS_GPIO_CLEAR_WORD] = H9_APRS_GPIO_BIT_5;
+    return true;
 }
 
 void h9_aprs_gpio_board_write(H9AprsGpioBoard *board, bool high)

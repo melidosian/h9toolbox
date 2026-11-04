@@ -33,6 +33,7 @@ add_library(h9_replacement_core STATIC
     aprs/h9_aprs_uart1_board.c
     aprs/h9_aprs_uart1_dma.c
     aprs/h9_aprs_uart1_tx.c
+    aprs/h9_aprs_uart2_board.c
     aprs/h9_aprs_uart_receive.c
     aprs/h9_aprs_wave_output.c
     aprs/h9_aprs_controller.c)
