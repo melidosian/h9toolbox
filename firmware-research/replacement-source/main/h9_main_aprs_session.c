@@ -1,4 +1,5 @@
 #include "h9_main_aprs_session.h"
+#include "h9_aprs_burst_protocol.h"
 
 #include <string.h>
 
@@ -64,6 +65,14 @@ static void dispatch_frame(void *context, const H9MainWireReceiver *receiver)
         if (h9_main_control_from_frame(receiver, &action) &&
             session->callbacks.control != NULL)
             session->callbacks.control(session->callback_context, action);
+        break;
+    case H9_APRS_BURST_COMMAND:
+        if (receiver->length == 2u &&
+            receiver->payload[0] == H9_APRS_BURST_VERSION &&
+            receiver->payload[1] <= H9_APRS_BURST_ACTIVE &&
+            session->callbacks.burst_activity != NULL)
+            session->callbacks.burst_activity(session->callback_context,
+                receiver->payload[1] == H9_APRS_BURST_ACTIVE);
         break;
     default:
         break;

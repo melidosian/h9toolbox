@@ -30,6 +30,7 @@
 #include "h9_main_aprs.h"
 #include "h9_main_aprs_control.h"
 #include "h9_main_aprs_metadata.h"
+#include "h9_main_aprs_mute.h"
 #include "h9_main_aprs_receive.h"
 #include "h9_main_aprs_session.h"
 #include "h9_main_aprs_uart1_link.h"
@@ -988,6 +989,9 @@ typedef struct {
     size_t incoming_chunk;
     unsigned serial_read_count;
     bool invalid_read_length;
+    H9MainAprsMuteLease mute_lease;
+    uint32_t now_ms;
+    unsigned burst_count;
 } MainSessionCapture;
 
 static void session_packet(void *context, const H9MainAx25Decoded *packet)
@@ -1020,6 +1024,13 @@ static void session_control(void *context, H9MainControlAction action)
     MainSessionCapture *capture = (MainSessionCapture *)context;
     capture->control_count++;
     capture->action = action;
+}
+
+static void session_burst_activity(void *context, bool active)
+{
+    MainSessionCapture *capture = (MainSessionCapture *)context;
+    capture->burst_count++;
+    h9_main_aprs_mute_event(&capture->mute_lease, active, capture->now_ms);
 }
 
 static void session_version(void *context, const H9MainAprsVersions *versions)
@@ -1219,6 +1230,70 @@ static void test_main_aprs_session(void)
                memcmp(capture.serial, thd_reply, sizeof thd_reply) == 0);
         assert(h9_main_aprs_session_take_ready(&session));
     }
+}
+
+static void test_aprs_burst_activity_link(void)
+{
+    FakeHardware fake = { 0 };
+    H9AprsHardware hardware = { 0 };
+    H9AprsController controller;
+    H9MainAprsSession session;
+    H9MainAprsSessionCallbacks callbacks = { 0 };
+    MainSessionCapture capture = { 0 };
+    uint8_t malformed[16];
+    const uint8_t bad_version[] = { 2u, 1u };
+    size_t malformed_length;
+
+    hardware.context = &fake;
+    hardware.uart_write = uart_write;
+    h9_aprs_controller_init(&controller, &hardware);
+    callbacks.burst_activity = session_burst_activity;
+    h9_main_aprs_session_init(&session, &callbacks, &capture);
+    assert(!h9_aprs_controller_report_burst_activity(&controller, 0u));
+    atomic_store_explicit(&controller.demod.gate_flags, 1u,
+                          memory_order_release);
+    capture.now_ms = 100u;
+    assert(h9_aprs_controller_report_burst_activity(&controller, 100u));
+    assert(fake.uart_length == 5u && fake.uart[0] == 0xC0u &&
+           fake.uart[1] == 0x52u && fake.uart[2] == 1u &&
+           fake.uart[3] == 1u && fake.uart[4] == 0xC0u);
+    queue_session_bytes(&session, fake.uart, fake.uart_length);
+    assert(h9_main_aprs_session_poll(&session) == fake.uart_length);
+    assert(capture.burst_count == 1u);
+    assert(h9_main_aprs_mute_should_silence(&capture.mute_lease,
+                                            true, true, 100u));
+    assert(!h9_main_aprs_mute_should_silence(&capture.mute_lease,
+                                             false, true, 100u));
+    assert(!h9_main_aprs_mute_should_silence(&capture.mute_lease,
+                                             true, false, 100u));
+    fake.uart_length = 0u;
+    assert(!h9_aprs_controller_report_burst_activity(&controller, 349u));
+    assert(h9_aprs_controller_report_burst_activity(&controller, 350u));
+    capture.now_ms = 350u;
+    queue_session_bytes(&session, fake.uart, fake.uart_length);
+    assert(h9_main_aprs_session_poll(&session) == fake.uart_length);
+    assert(capture.burst_count == 2u);
+    assert(h9_main_aprs_mute_should_silence(&capture.mute_lease,
+                                            true, true, 1099u));
+    assert(!h9_main_aprs_mute_should_silence(&capture.mute_lease,
+                                             true, true, 1100u));
+    fake.uart_length = 0u;
+    atomic_store_explicit(&controller.demod.gate_flags, 0u,
+                          memory_order_release);
+    assert(h9_aprs_controller_report_burst_activity(&controller, 351u));
+    capture.now_ms = 351u;
+    queue_session_bytes(&session, fake.uart, fake.uart_length);
+    assert(h9_main_aprs_session_poll(&session) == fake.uart_length);
+    assert(capture.burst_count == 3u &&
+           !h9_main_aprs_mute_should_silence(&capture.mute_lease,
+                                              true, true, 351u));
+    malformed_length = h9_wire_encode(0x52u, bad_version,
+                                      sizeof bad_version, malformed,
+                                      sizeof malformed);
+    assert(malformed_length != 0u);
+    queue_session_bytes(&session, malformed, malformed_length);
+    assert(h9_main_aprs_session_poll(&session) == malformed_length);
+    assert(capture.burst_count == 3u);
 }
 
 static void test_main_rf_live_route(void)
@@ -4805,6 +4880,7 @@ int main(void)
     test_main_control_07_timer();
     test_main_uart_ring();
     test_main_aprs_session();
+    test_aprs_burst_activity_link();
     test_main_policy();
     test_main_rf_live_route();
     test_main_tx_frequency_precheck();

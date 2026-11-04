@@ -48,6 +48,9 @@ typedef struct {
     H9AprsTxSettings tx_settings;
     H9AprsHardware hardware;
     bool tx_status_enabled;
+    bool burst_report_valid;
+    bool burst_reported_active;
+    uint32_t last_burst_report_ms;
     uint32_t valid_rx_frames;
     uint32_t forwarded_rx_frames;
     uint32_t receive_overflow_seen;
@@ -62,6 +65,10 @@ bool h9_aprs_controller_forward_aux(H9AprsController *controller,
 bool h9_aprs_controller_pop_received_byte(H9AprsController *controller,
                                           uint8_t *byte);
 void h9_aprs_controller_process_received(H9AprsController *controller);
+/* Call from the main loop, never from the ADC ISR. Announces transitions
+ * and renews active state so the main radio can time out a lost clear. */
+bool h9_aprs_controller_report_burst_activity(H9AprsController *controller,
+                                               uint32_t now_ms);
 /* Stock command 0x0F requests a one-byte status after a TX frame is encoded
  * into the waveform queue. It does not indicate that RF has finished. */
 bool h9_aprs_controller_report_tx_encoded(H9AprsController *controller);

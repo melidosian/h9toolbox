@@ -189,6 +189,8 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
                                     &runtime.controller))
             ++runtime.forwarded_uart2_batches;
         now = h9_aprs_systick_now(&runtime.systick);
+        (void)h9_aprs_controller_report_burst_activity(&runtime.controller,
+                                                         now);
         if (h9_aprs_uart2_maintenance_due(&runtime.uart2_maintenance, now,
                                             runtime.uart2_board.faulted,
                                             !runtime.uart2_rx.ready &&

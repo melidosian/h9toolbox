@@ -19,6 +19,8 @@ typedef struct {
     void (*gps_fix)(void *context, H9MainGpsSentenceType type,
                     const H9MainGpsFix *fix);
     void (*control)(void *context, H9MainControlAction action);
+    /* Replacement APRS-controller activity signal; does not gate audio. */
+    void (*burst_activity)(void *context, bool active);
     void (*version)(void *context, const H9MainAprsVersions *versions);
     void (*serial_write)(void *context, const uint8_t *bytes, size_t length);
     /* Returns bytes copied into destination, never more than capacity. */

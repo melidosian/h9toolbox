@@ -1,5 +1,6 @@
 #include "h9_aprs_controller.h"
 #include "h9_aprs_identity.h"
+#include "h9_aprs_burst_protocol.h"
 #include "h9_aprs_tx_defaults.h"
 #include <string.h>
 
@@ -197,6 +198,32 @@ void h9_aprs_controller_process_received(H9AprsController *controller)
         if (h9_aprs_frame_feed(&controller->frame, byte,
                                forward_valid_frame, controller))
             ++controller->valid_rx_frames;
+}
+
+bool h9_aprs_controller_report_burst_activity(H9AprsController *controller,
+                                               uint32_t now_ms)
+{
+    H9AprsDemodGateState gate;
+    bool active;
+    uint8_t payload[2];
+    if (controller == NULL) return false;
+    gate = h9_aprs_demod_gate_state(&controller->demod);
+    active = gate.in_frame || gate.preamble_seen;
+    if ((!controller->burst_report_valid && !active) ||
+        (controller->burst_report_valid &&
+         controller->burst_reported_active == active &&
+         (!active ||
+          (uint32_t)(now_ms - controller->last_burst_report_ms) <
+              H9_APRS_BURST_RENEW_MS)))
+        return false;
+    payload[0] = H9_APRS_BURST_VERSION;
+    payload[1] = active ? H9_APRS_BURST_ACTIVE : 0u;
+    if (!send_frame(controller, H9_APRS_BURST_COMMAND,
+                    payload, sizeof payload)) return false;
+    controller->burst_report_valid = true;
+    controller->burst_reported_active = active;
+    controller->last_burst_report_ms = now_ms;
+    return true;
 }
 
 bool h9_aprs_controller_report_tx_encoded(H9AprsController *controller)

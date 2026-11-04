@@ -55,6 +55,7 @@ SOURCES = {
         "main/h9_main_aprs.c",
         "main/h9_main_aprs_control.c",
         "main/h9_main_aprs_metadata.c",
+        "main/h9_main_aprs_mute.c",
         "main/h9_main_aprs_receive.c",
         "main/h9_main_aprs_session.c",
         "main/h9_main_aprs_uart1_link.c",
