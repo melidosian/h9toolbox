@@ -57,17 +57,19 @@ the APB clock and 115,200 baud; `0x08003B50` derives APB clock by shifting
 the system clock according to RCC offset `+8` bits 12–14, with stock shift
 table `{0,0,0,0,1,2,3,4}` at `0x08006084`.
 
-`replacement-source/aprs/h9_aprs_uart1_board.*` now ports these register
-values behind injectable pointers and takes the established system clock as
-an argument. The current diagnostic board entry binds its pointers but does
-not run the setup; the wider system clock initializer has not been ported.
-Actual board pinout and traffic remain untested.
+`replacement-source/aprs/h9_aprs_uart1_board.*` ports these register values
+behind injectable pointers and takes the established system clock as an
+argument. The diagnostic board entry now calls it after selecting the internal
+clock, then starts DMA and polls UART batches. Actual board pinout and traffic
+remain untested.
 
 The clock initializer called before APRS board setup at `0x080027B4` writes
 the factory trim to RCC offset `+4` with selector bits `0x8000`, then selects
 clock source 0 and zero prescalers. `0x08003B78` indexes its source table at
 `0x080060C4`; selector index 4 is `24,000,000`. This supports a 24 MHz
 nominal system/APB clock and USART1 BRR `208` (`0xD0`) in stock. The
-replacement board setup still receives the measured/initialized clock as
-an input rather than assuming that value before the global clock setup is
-ported and exercised.
+replacement `h9_aprs_clock_select_internal()` follows the trim write, ready
+bit, source selection, and table lookup; it uses bounded register polling
+instead of the stock millisecond timer. The diagnostic board entry passes
+its returned clock to the USART1 setup. Other stock clock/timebase side
+effects remain to be ported and validated.

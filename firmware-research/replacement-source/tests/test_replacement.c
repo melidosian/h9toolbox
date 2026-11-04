@@ -1147,7 +1147,32 @@ static void test_aprs_uart1_board_setup(void)
     assert(usart[2] == 417u && (usart[3] & 0x200Cu) == 0x200Cu &&
            (usart[4] & 0x2800u) == 0u &&
            (usart[5] & 0xB08u) == 0u);
+    assert(nvic_iser == 0u);
+    h9_aprs_uart1_board_enable_irqs(&board);
     assert(nvic_iser == ((1u << 9) | (1u << 27)));
+}
+
+static void test_aprs_internal_clock_selection(void)
+{
+    uint32_t rcc[3] = { 0 };
+    assert(h9_aprs_clock_system_hz(0, 0x8000u, 0) == 24000000u);
+    assert(h9_aprs_clock_system_hz(0x800u, 0x8000u, 0) == 12000000u);
+    assert(h9_aprs_clock_system_hz(0, 0, 0x08u) == 24000000u);
+    assert(h9_aprs_clock_system_hz(0, 0, 0x18u) == 32768u);
+    assert(h9_aprs_clock_system_hz(0, 0, 0x10u) == 0u);
+    assert(!h9_aprs_clock_select_internal(rcc, 0x1234u, 0));
+    assert(!h9_aprs_clock_select_internal(rcc, 0x1234u, 2));
+    assert(rcc[1] == 0x9234u && rcc[2] == 0u);
+    rcc[0] = 0x3C00u;
+    rcc[1] = 0xA5000000u;
+    rcc[2] = 0x7F07u;
+    assert(h9_aprs_clock_select_internal(rcc, 0x1234u, 2) == 24000000u);
+    assert(rcc[0] == 0x400u && rcc[1] == 0xA5009234u &&
+           rcc[2] == 0u);
+    assert(h9_aprs_uart1_brr(
+        h9_aprs_clock_system_hz(rcc[0], rcc[1], rcc[2])) == 208u);
+    rcc[2] = 0x8u;
+    assert(!h9_aprs_clock_select_internal(rcc, 0x1234u, 2));
 }
 
 int main(void)
@@ -1178,5 +1203,6 @@ int main(void)
     test_aprs_uart_receive_batches();
     test_aprs_uart1_dma_interrupts();
     test_aprs_uart1_board_setup();
+    test_aprs_internal_clock_selection();
     return 0;
 }

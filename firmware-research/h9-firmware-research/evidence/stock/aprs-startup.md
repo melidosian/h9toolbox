@@ -29,5 +29,7 @@ stack pointer is `0x20001A50`; reset vector is `0x080020D5`.
 linker reserves the first `0xC0` RAM bytes for those vectors. The linked
 diagnostic image now maps DMA channel 1 and USART1 slots to replacement
 receive handlers, while other interrupt slots retain default handlers. Its
-board entry remains inert: it does not run UART board configuration, ADC/DAC
-initialization, the wider clock setup, or the main application.
+board entry now selects the observed 24 MHz internal-clock path, configures
+USART1 and DMA channel 1, and polls received UART batches. This source path
+is untested on the board. ADC/DAC initialization, the rest of the timebase,
+other interrupts, and the full APRS application are still absent.

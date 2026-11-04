@@ -101,7 +101,12 @@ bool h9_aprs_uart1_board_configure(H9AprsUart1Board *board,
     board->usart[USART_CR3] &= ~0xB08u;
     board->usart[USART_BRR] = brr;
     board->usart[USART_CR1] |= 0x2000u;
+    return true;
+}
+
+void h9_aprs_uart1_board_enable_irqs(H9AprsUart1Board *board)
+{
+    if (board == NULL || board->nvic_iser == NULL) return;
     /* The stock updater sets both priorities to zero, then enables them. */
     *board->nvic_iser = (1u << 9) | (1u << 27);
-    return true;
 }

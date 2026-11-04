@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive APRS link check against the observed stock address envelope.
 
-This links first-pass memory/vector startup to an inert board entry. It emits
+This links first-pass memory/vector startup to a partial UART receive board entry. It emits
 only an ELF and map, not an update image or a functioning APRS controller.
 """
 
@@ -136,6 +136,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
             "usart1": 43,
         },
         "board_initialization_implemented": False,
+        "uart1_receive_initialization_included": True,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
         "elf": elf.name,
         "elf_sha256": sha256(elf_data).hexdigest(),
