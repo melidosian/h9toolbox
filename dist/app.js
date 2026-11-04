@@ -342,6 +342,14 @@ async function openBackup(event) {
   });
   event.target.value = '';
 }
+function openFile(event) {
+  const name = event.target.files?.[0]?.name.toLowerCase();
+  if (!name) return;
+  if (name.endsWith('.json')) return openJson(event);
+  if (name.endsWith('.img')) return openBackup(event);
+  status('Choose a TD-H9 .img backup or H9 Toolbox .json file.', true);
+  event.target.value = '';
+}
 function toneLabel(tone) {
   if (tone.type === 'off') return '—';
   if (tone.type === 'ctcss') return `${tone.value} Hz`;
@@ -614,9 +622,20 @@ $('exportJson').addEventListener('click', () => downloadJson(false));
 $('exportArchive').addEventListener('click', () => downloadJson(true));
 $('exportImg').addEventListener('click', exportImg);
 $('exportChannels').addEventListener('click', downloadChannels);
-$('open').addEventListener('change', openBackup);
-$('openJson').addEventListener('change', openJson);
+$('openFile').addEventListener('change', openFile);
 $('openChannels').addEventListener('change', openChannels);
+const infoButtons = [...document.querySelectorAll('.info-button')];
+function closeInfoTips() { for (const button of infoButtons) button.setAttribute('aria-expanded', 'false'); }
+for (const button of infoButtons) button.addEventListener('click', event => {
+  const wasOpen = button.getAttribute('aria-expanded') === 'true';
+  closeInfoTips();
+  button.setAttribute('aria-expanded', String(!wasOpen));
+  event.stopPropagation();
+});
+document.addEventListener('click', event => { if (!event.target.closest('.option-help')) closeInfoTips(); });
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') { closeInfoTips(); document.activeElement?.blur?.(); }
+});
 $('search').addEventListener('input', renderChannels);
 $('showAll').addEventListener('change', renderChannels);
 $('channelRows').addEventListener('click', event => {

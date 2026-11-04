@@ -22,7 +22,6 @@
         <h1>H9 Toolbox.<br><em>Your radio, your way.</em></h1>
         <p>Connect over Bluetooth, save a full backup, and edit channels and radio settings. Everything stays in this browser unless you download a file.</p>
         <div class="intro-actions"><a class="button ghost" href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">View GitHub repository ↗</a></div>
-        <p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; save an untouched backup and verify settings before writing to your radio.</p>
       </section>
 
       <div class="layout">
@@ -42,10 +41,18 @@
           <section class="card" aria-labelledby="backup-title">
             <div class="card-head"><div><span class="step">02</span><h2 id="backup-title">Read &amp; back up</h2></div><span id="radioMode" class="chip">No image</span></div>
             <p class="subtext">Read the radio before editing. Keep the untouched backup so you can recover your original configuration.</p>
-            <div class="controls"><button id="read" class="button primary-button" disabled>Read from radio</button><button id="save" class="button ghost" disabled>Save backup .img</button><label class="button ghost file-label">Open backup .img<input id="open" type="file" accept=".img,application/octet-stream"></label></div>
-            <div class="controls portable-controls"><button id="exportJson" class="button ghost" disabled>Download config JSON</button><label class="button ghost file-label">Open JSON<input id="openJson" type="file" accept=".json,application/json"></label><button id="exportImg" class="button ghost" disabled>Download working .img</button></div>
-            <p class="fine">Config JSON contains readable channels and settings only. To import it, first read the destination radio or open its .img backup. It includes stored callsigns and relay passwords.</p>
-            <details class="advanced"><summary>Lossless JSON archive</summary><p class="fine">A complete image needs its raw bytes. Use this only when you want one JSON file that can recreate the original .img without a separate backup. Older JSON exports with memoryBlocks still open.</p><div class="controls portable-controls"><button id="exportArchive" class="button ghost" disabled>Download archive JSON</button></div></details>
+            <div class="controls backup-actions">
+              <div class="option-help"><button id="read" class="button primary-button" type="button" disabled>Read from radio</button><button class="info-button" type="button" aria-label="About Read from radio" aria-describedby="help-read" aria-expanded="false">i</button><span class="tooltip-text" id="help-read" role="tooltip">Copies the complete radio image into this browser. Reading does not change the radio.</span></div>
+              <div class="option-help"><button id="save" class="button ghost" type="button" disabled>Save original .img</button><button class="info-button" type="button" aria-label="About Save original image" aria-describedby="help-save" aria-expanded="false">i</button><span class="tooltip-text" id="help-save" role="tooltip">Downloads the untouched radio image. Keep it safe; saving it unlocks the write confirmation.</span></div>
+              <div class="option-help"><label class="button ghost file-label">Open .img or JSON<input id="openFile" type="file" accept=".img,.json,application/octet-stream,application/json"></label><button class="info-button" type="button" aria-label="About Open image or JSON" aria-describedby="help-open" aria-expanded="false">i</button><span class="tooltip-text" id="help-open" role="tooltip">Open a full .img backup or an H9 Toolbox JSON file. A config JSON needs a radio read or .img loaded first; a lossless archive can open by itself.</span></div>
+            </div>
+            <details class="advanced file-options"><summary>More file options</summary>
+              <div class="controls backup-exports">
+                <div class="option-help"><button id="exportJson" class="button ghost" type="button" disabled>Config JSON</button><button class="info-button" type="button" aria-label="About Config JSON" aria-describedby="help-config" aria-expanded="false">i</button><span class="tooltip-text" id="help-config" role="tooltip">Readable channels and settings for sharing or editing. It includes stored callsigns and relay passwords, but not the full radio image.</span></div>
+                <div class="option-help"><button id="exportImg" class="button ghost" type="button" disabled>Working .img</button><button class="info-button" type="button" aria-label="About Working image" aria-describedby="help-working" aria-expanded="false">i</button><span class="tooltip-text" id="help-working" role="tooltip">Downloads the image with your current edits. Keep the original .img separately for recovery.</span></div>
+                <div class="option-help"><button id="exportArchive" class="button ghost" type="button" disabled>Lossless JSON</button><button class="info-button" type="button" aria-label="About Lossless JSON" aria-describedby="help-archive" aria-expanded="false">i</button><span class="tooltip-text" id="help-archive" role="tooltip">A complete JSON archive with raw memory bytes. It can recreate the original .img without a separate backup; older memoryBlocks files still open.</span></div>
+              </div>
+            </details>
             <div class="progress-wrap" id="progressWrap" hidden><div class="progress-track"><div id="progressBar"></div></div><span id="progressLabel">0%</span></div>
             <p class="fine" id="imageInfo">No radio image loaded.</p>
           </section>
@@ -115,7 +122,7 @@
         </aside>
       </div>
     </main>
-    <footer>H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></footer>
+    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; save an untouched backup and verify settings before writing to your radio.</p></footer>
   </div>
   <script type="module" src="./app.js"></script>
 </body>

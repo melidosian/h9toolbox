@@ -47,6 +47,19 @@
 .table-wrap{width:100%}
 .intro-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
 .intro-actions .button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:normal;text-align:center}
-.intro .ai-disclosure{max-width:680px;margin-top:22px;padding:13px 16px;border-left:3px solid #84d9b6;border-radius:0 8px 8px 0;background:#172d35;color:#bcd2d0;font-size:13px;line-height:1.55}
+.backup-actions{gap:12px 17px}
+.backup-exports{margin-top:14px;gap:11px 17px}
+.option-help{display:inline-flex;align-items:center;gap:6px;position:relative;min-width:0}
+.option-help .button{white-space:normal;text-align:center}
+.info-button{flex:none;display:grid;place-items:center;width:21px;height:21px;padding:0;border:1px solid #5d8b8a;border-radius:50%;background:#25434a;color:#c8ece3;font:700 12px Georgia,serif;line-height:1;cursor:pointer}
+.info-button:hover,.info-button:focus-visible,.info-button[aria-expanded="true"]{background:#8bdcb6;border-color:#8bdcb6;color:#11302b;outline:none}
+.tooltip-text{display:none;position:absolute;z-index:30;top:calc(100% + 10px);left:0;width:260px;max-width:calc(100vw - 48px);padding:11px 13px;border:1px solid #6bbd9d;border-radius:9px;background:#203b41;color:#e4f4ed;box-shadow:0 14px 32px #06131ccc;font-size:12px;font-weight:400;line-height:1.5;text-align:left;white-space:normal}
+.tooltip-text:before{content:"";position:absolute;left:6px;top:-6px;width:9px;height:9px;transform:rotate(45deg);background:#203b41;border-left:1px solid #6bbd9d;border-top:1px solid #6bbd9d}
+.info-button:hover + .tooltip-text,.info-button:focus-visible + .tooltip-text,.info-button[aria-expanded="true"] + .tooltip-text{display:block}
+.file-options summary{width:max-content}
+footer{display:block}
+.footer-links{display:flex;justify-content:space-between;gap:15px}
+footer .ai-disclosure{max-width:760px;margin:18px 0 0;padding:13px 16px;border-left:3px solid #84d9b6;border-radius:0 8px 8px 0;background:#172d35;color:#bcd2d0;font-size:12px;line-height:1.55}
 .ai-disclosure strong{color:#d7f4e6}
+@media(max-width:620px){.footer-links{flex-direction:column}.tooltip-text{position:fixed;left:16px;right:16px;top:auto;bottom:16px;width:auto;max-width:none}.tooltip-text:before{display:none}}
 @media(max-width:620px){.intro-actions .button{width:100%}}
