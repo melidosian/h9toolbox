@@ -100,12 +100,21 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     size_output = run([size_tool, str(elf)])
     symbols = run([sibling_tool(compiler, "arm-none-eabi-nm"), str(elf)])
     symbol_values = {}
+    required_symbols = {
+        "__bss_end", "__stack_top", "Default_Handler",
+        "h9_aprs_dma1_channel1_handler", "h9_aprs_usart1_handler",
+    }
     for line in symbols.splitlines():
         parts = line.split()
-        if len(parts) == 3 and parts[2] in {"__bss_end", "__stack_top"}:
+        if len(parts) == 3 and parts[2] in required_symbols:
             symbol_values[parts[2]] = int(parts[0], 16)
-    if set(symbol_values) != {"__bss_end", "__stack_top"}:
-        raise ValueError("Linked ELF lacks RAM-boundary symbols")
+    if set(symbol_values) != required_symbols:
+        raise ValueError("Linked ELF lacks RAM-boundary or IRQ symbols")
+    for slot, handler in ((25, "h9_aprs_dma1_channel1_handler"),
+                          (43, "h9_aprs_usart1_handler")):
+        vector = struct.unpack_from("<I", table, slot * 4)[0]
+        if vector != (symbol_values[handler] | 1):
+            raise ValueError(f"Vector {slot} does not point to {handler}")
     stack_headroom = symbol_values["__stack_top"] - symbol_values["__bss_end"]
     if stack_headroom < 1024:
         raise ValueError(f"APRS diagnostic stack headroom is only {stack_headroom} bytes")
@@ -122,6 +131,10 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "source_objects": len(object_manifest["objects"]),
         "startup_source_object": startup_source.name,
         "vector_entries": 48,
+        "irq_vectors": {
+            "dma1_channel1": 25,
+            "usart1": 43,
+        },
         "board_initialization_implemented": False,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
         "elf": elf.name,

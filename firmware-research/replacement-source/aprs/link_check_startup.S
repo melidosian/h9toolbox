@@ -1,5 +1,5 @@
 /* First-pass APRS reset and 48-entry vector table, matching the stock count.
- * Board interrupts are not mapped yet; all default to an inert handler. */
+ * Stock slots 25 and 43 dispatch DMA channel 1 and USART1 respectively. */
 .syntax unified
 .cpu cortex-m0
 .thumb
@@ -9,7 +9,15 @@
 h9_aprs_vectors:
     .word __stack_top
     .word Reset_Handler + 1
-    .rept 46
+    .rept 23
+    .word Default_Handler + 1
+    .endr
+    .word h9_aprs_dma1_channel1_handler + 1
+    .rept 17
+    .word Default_Handler + 1
+    .endr
+    .word h9_aprs_usart1_handler + 1
+    .rept 4
     .word Default_Handler + 1
     .endr
 

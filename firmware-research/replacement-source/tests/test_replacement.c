@@ -9,6 +9,7 @@
 #include "h9_aprs_tx_packet.h"
 #include "h9_aprs_tx_service.h"
 #include "h9_aprs_uart_receive.h"
+#include "h9_aprs_uart1_dma.h"
 #include "h9_aprs_oscillator.h"
 #include "h9_main_aprs.h"
 #include "h9_main_aprs_control.h"
@@ -1065,6 +1066,57 @@ static void test_aprs_uart_receive_batches(void)
     assert(h9_aprs_uart_receive_process(&receive, &controller, NULL, NULL) == 0);
 }
 
+static void test_aprs_uart1_dma_interrupts(void)
+{
+    H9AprsUartReceive receive;
+    H9AprsUart1Dma driver;
+    H9AprsController controller;
+    uint32_t usart[6] = { 0 };
+    uint32_t dma_controller[2] = { 0 };
+    uint32_t dma_channel[4] = { 0 };
+    h9_aprs_controller_init(&controller, NULL);
+    h9_aprs_uart_receive_init(&receive);
+    h9_aprs_uart1_dma_bind(&driver, usart, dma_controller, dma_channel,
+                           &receive);
+    assert(h9_aprs_uart1_dma_start(&driver));
+    assert(dma_channel[0] == 0x308Bu && dma_channel[1] == 512u &&
+           dma_channel[2] == (uint32_t)(uintptr_t)&usart[1] &&
+           dma_channel[3] ==
+               (uint32_t)(uintptr_t)receive.buffers[0]);
+    assert((usart[3] & 0x10u) != 0 && (usart[5] & 0x40u) != 0);
+
+    receive.buffers[0][0] = 0xC0u;
+    receive.buffers[0][1] = 0x20u;
+    dma_channel[1] = 510u;
+    usart[0] = 0x10u;
+    h9_aprs_uart1_irq(&driver);
+    assert(receive.ready == 1u && receive.pending_length == 2u &&
+           (dma_channel[0] & 1u) == 0 && (usart[5] & 0x40u) == 0);
+    assert(h9_aprs_uart_receive_process(&receive, &controller,
+            h9_aprs_uart1_dma_rearm, &driver) == 2u);
+    assert(receive.current == 1u && dma_channel[1] == 512u &&
+           dma_channel[3] ==
+               (uint32_t)(uintptr_t)receive.buffers[1]);
+
+    /* Empty UART IDLE immediately rearms the same buffer. */
+    h9_aprs_uart1_irq(&driver);
+    assert(receive.ready == 0u && receive.current == 1u &&
+           dma_channel[1] == 512u && (dma_channel[0] & 1u) != 0);
+
+    /* A full DMA buffer is published even without a following IDLE. */
+    dma_controller[0] = 0x02u;
+    h9_aprs_dma1_channel1_irq(&driver);
+    assert(receive.ready == 1u && receive.pending_length == 512u &&
+           dma_controller[1] == 0x0Fu);
+    assert(h9_aprs_uart_receive_process(&receive, &controller,
+            h9_aprs_uart1_dma_rearm, &driver) == 512u);
+
+    dma_controller[0] = 0x08u;
+    h9_aprs_dma1_channel1_irq(&driver);
+    assert(receive.ready == 0u && dma_channel[1] == 512u &&
+           (dma_channel[0] & 1u) != 0);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -1091,5 +1143,6 @@ int main(void)
     test_aprs_tx_service();
     test_aprs_controller();
     test_aprs_uart_receive_batches();
+    test_aprs_uart1_dma_interrupts();
     return 0;
 }

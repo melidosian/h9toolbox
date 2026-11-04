@@ -3,6 +3,7 @@
 
 #include "h9_aprs_controller.h"
 #include "h9_aprs_tx_service.h"
+#include "h9_aprs_uart1_dma.h"
 #include "h9_aprs_uart_receive.h"
 
 /* One instance is reserved in the diagnostic board entry so the linker
@@ -11,6 +12,7 @@ typedef struct {
     H9AprsController controller;
     H9AprsTxService tx_service;
     H9AprsUartReceive uart_receive;
+    H9AprsUart1Dma uart1_dma;
 } H9AprsRuntimeState;
 
 #endif

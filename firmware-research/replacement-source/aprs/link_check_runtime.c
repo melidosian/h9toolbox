@@ -28,5 +28,17 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     h9_aprs_controller_init(&runtime.controller, NULL);
     h9_aprs_tx_service_init(&runtime.tx_service, 0, 0, 0);
     h9_aprs_uart_receive_init(&runtime.uart_receive);
+    h9_aprs_uart1_dma_bind_target(&runtime.uart1_dma,
+                                  &runtime.uart_receive);
     for (;;) { }
+}
+
+void h9_aprs_dma1_channel1_handler(void)
+{
+    h9_aprs_dma1_channel1_irq(&runtime.uart1_dma);
+}
+
+void h9_aprs_usart1_handler(void)
+{
+    h9_aprs_uart1_irq(&runtime.uart1_dma);
 }

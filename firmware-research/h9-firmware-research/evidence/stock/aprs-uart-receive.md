@@ -30,7 +30,21 @@ On the USART1 branch, it stops the active DMA receive, computes
 consumer is processing. Otherwise it sets the ready flag. The replacement
 source now exposes `h9_aprs_uart_receive_idle()` for this count-to-length
 handoff. It conservatively refuses a completion while an earlier batch is
-pending or being processed; a board IRQ handler must supply the actual DMA
-counter and rearm callback. The actual DMA registers, IRQ vector binding,
-UART pin setup, and physical main-radio connection remain to be implemented
-and tested.
+pending or being processed.
+
+The stock vector table has DMA channel 1 in slot 25 (IRQ 9, handler
+`0x080028A0`) and USART1 in slot 43 (IRQ 27, handler `0x08004F64`).
+`0x08004A50` configures DMA channel registers at `0x40020008` with initial
+CCR `0x3080` and associates them with USART1 at `0x40013800`. Its receive
+start path `0x08004598`/`0x08003620` programs CNDTR, CPAR, and CMAR, then
+enables CCR. The USART1 handler reads status and data to clear IDLE and
+calls `0x0800423C`, which reads CNDTR from channel offset `+4`. The
+replacement `h9_aprs_uart1_dma.*` now binds these register blocks, arms
+DMA, handles the IDLE length path, and binds both IRQ vector slots in the
+diagnostic link. On full DMA completion it publishes 512 bytes directly;
+this is a replacement-side recovery behavior, not established stock behavior.
+
+USART clock/baud configuration, GPIO pin mapping, NVIC enablement, and the
+physical main-radio connection remain to be implemented and tested. Fake
+register tests and a diagnostic link establish compilation and register
+selection only; they do not establish working reception on the radio.
