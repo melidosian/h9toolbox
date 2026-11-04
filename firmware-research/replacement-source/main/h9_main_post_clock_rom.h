@@ -20,8 +20,8 @@ void h9_main_post_clock_rom_bind_target(H9MainPostClockRom *rom);
 bool h9_main_post_clock_rom_run(H9MainPostClockRom *rom,
                                 H9MainPostClockWords *words);
 
-/* Stock board entry app+0x05FC4C..0x05FCB2. A rejected strap index branches
- * to a different, still-unported board path. */
+/* Stock board entry app+0x05FC4C..0x05FCB2. Strap indices outside the two
+ * primary masks take a fallback that sets mode 1 and rejoins setup. */
 typedef struct {
     volatile uint32_t *boot_flags_100100;
     volatile uint32_t *channel_status_1e511c;
@@ -37,7 +37,6 @@ typedef struct {
     uint32_t secondary_status;
     uint8_t strap_index;
     uint8_t mode;
-    bool accepted;
 } H9MainPostClockClassification;
 
 void h9_main_post_clock_classifier_bind_target(

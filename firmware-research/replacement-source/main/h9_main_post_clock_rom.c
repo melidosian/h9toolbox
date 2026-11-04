@@ -81,16 +81,15 @@ bool h9_main_post_clock_classify(H9MainPostClockClassifier *classifier,
     selector = classifier->rom->read_selector(classifier->rom->context, 148u);
     strap = *classifier->strap_status_1f0200;
     index = (uint8_t)((strap >> 8u) & 0xFu);
-    result->accepted = false;
     result->strap_index = index;
     result->channel_flag = channel;
     result->selector_148_masked = 0u;
     result->secondary_status = 0u;
     result->mode = 0u;
-    if (index > 9u) return true;
-    if ((340u & (1u << index)) != 0u) mode = 2u;
-    else if ((680u & (1u << index)) != 0u) mode = 4u;
-    else return true;
+    if (index <= 9u && (340u & (1u << index)) != 0u) mode = 2u;
+    else if (index <= 9u && (680u & (1u << index)) != 0u)
+        mode = 4u;
+    else mode = 1u;
 
     selector &= 0xFFFFFF01u;
     *classifier->mode_11b43 = mode;
@@ -99,7 +98,6 @@ bool h9_main_post_clock_classify(H9MainPostClockClassifier *classifier,
     result->selector_148_masked = selector;
     result->secondary_status = *classifier->secondary_status_1f0500;
     result->mode = mode;
-    result->accepted = true;
     return true;
 }
 
@@ -110,7 +108,6 @@ H9MainPostClockBitmapBranch h9_main_post_clock_bitmap_step(
     uint32_t index;
     if (rom == NULL || words == NULL || classification == NULL ||
         rom->read_selector == NULL) return H9_MAIN_POST_CLOCK_BITMAP_ERROR;
-    if (!classification->accepted) return H9_MAIN_POST_CLOCK_BITMAP_ALTERNATE;
     if (classification->selector_148_masked == 0u)
         return H9_MAIN_POST_CLOCK_BITMAP_CONTINUE;
 

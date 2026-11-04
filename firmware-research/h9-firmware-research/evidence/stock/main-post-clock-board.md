@@ -17,19 +17,21 @@ app+`0x0C54B2`. The next instructions at app+`0x05FC24..0x05FC42` are:
 The path then reads MMIO `0x100100`. If its bit 0 is set, it extracts bits
 21–22 of `0x1E511C` into a local flag; otherwise that flag remains `-1`.
 It calls ROM `0x02000058` with selector `148`, then reads bits 8–11 of
-`0x1F0200`. Values above 9 branch to a later board path. For values 0–9,
-mask `340` selects indices 2, 4, 6, 8 and writes mode byte `2` to RAM
-`0x11B43`; mask `680` selects indices 3, 5, 7, 9 and writes mode byte `4`.
-Indices 0 and 1 also branch away without the mode write. For accepted
-indices, stock clears bits 1–7 of the selector-148 result, normalizes the
-local flag to either 1 or 0, and reads `0x1F0500`. The next branch tests
-the masked selector result and enters a larger board setup.
+`0x1F0200`. For values 0–9, mask `340` selects indices 2, 4, 6, 8 and
+writes mode byte `2` to RAM `0x11B43`; mask `680` selects indices 3, 5,
+7, 9 and writes mode byte `4`. Indices 0 and 1, and values above 9, branch
+to app+`0x05FFE8`, set mode `1`, and rejoin at app+`0x05FC9A`. This fallback
+was missed by the first source port. All three paths clear bits 1–7 of the
+selector-148 result, normalize the local flag to either 1 or 0, and read
+`0x1F0500`. The next branch tests the masked selector result and enters a
+larger board setup.
 
 `replacement-source/main/h9_main_post_clock_rom.*` ports the initial ROM
 block and this classifier through app+`0x05FCB2`, with injectable ROM and
-MMIO. Host tests cover all 16 index values and the flag normalization. The
-diagnostic board entry continues into the bitmap branch described below;
-the meaning of the modes has not been established on hardware.
+MMIO. Host tests cover all 16 index values, including fallback mode `1`,
+and the flag normalization. The diagnostic board entry continues into the
+bitmap branch described below; the meaning of the modes has not been
+established on hardware.
 
 At app+`0x05FCB2`, a zero masked selector-148 result skips the next ROM
 read. Otherwise, the board routine reads ROM selector `192`. Values above

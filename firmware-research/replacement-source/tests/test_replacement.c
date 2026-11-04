@@ -4718,29 +4718,24 @@ static void test_main_post_clock_classification(void)
 
     for (index = 0u; index < 16u; ++index) {
         uint8_t expected = (index >= 2u && index <= 9u) ?
-            ((index & 1u) == 0u ? 2u : 4u) : 0u;
+            ((index & 1u) == 0u ? 2u : 4u) : 1u;
         strap = index << 8u;
         mode = 0xEEu;
         capture.reads = 0u;
         assert(h9_main_post_clock_classify(&classifier, &result));
         assert(capture.reads == 1u && result.strap_index == index);
-        assert(result.accepted == (expected != 0u));
-        if (expected == 0u) {
-            assert(mode == 0xEEu && result.channel_flag == 3u);
-        } else {
-            assert(mode == expected && result.mode == expected);
-            assert(result.channel_flag == 0u);
-            assert(result.selector_148_masked == 0x12345600u);
-            assert(result.secondary_status == secondary);
-        }
+        assert(mode == expected && result.mode == expected);
+        assert(result.channel_flag == 0u);
+        assert(result.selector_148_masked == 0x12345600u);
+        assert(result.secondary_status == secondary);
     }
     channel = 1u << 21u;
     strap = 2u << 8u;
     assert(h9_main_post_clock_classify(&classifier, &result));
-    assert(result.accepted && result.channel_flag == 1u);
+    assert(result.channel_flag == 1u);
     flags = 0u;
     assert(h9_main_post_clock_classify(&classifier, &result));
-    assert(result.accepted && result.channel_flag == 0u);
+    assert(result.channel_flag == 0u);
 }
 
 typedef struct {
@@ -4769,10 +4764,7 @@ static void test_main_post_clock_bitmap(void)
            H9_MAIN_POST_CLOCK_BITMAP_ERROR);
     assert(h9_main_post_clock_bitmap_step(&rom, &words, NULL) ==
            H9_MAIN_POST_CLOCK_BITMAP_ERROR);
-    classification.accepted = false;
-    assert(h9_main_post_clock_bitmap_step(&rom, &words, &classification) ==
-           H9_MAIN_POST_CLOCK_BITMAP_ALTERNATE);
-    classification.accepted = true;
+    classification.mode = 1u;
     assert(h9_main_post_clock_bitmap_step(&rom, &words, &classification) ==
            H9_MAIN_POST_CLOCK_BITMAP_CONTINUE);
     assert(capture.reads == 0u && words.first_word == UINT32_MAX &&

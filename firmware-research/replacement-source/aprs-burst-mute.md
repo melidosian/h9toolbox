@@ -26,6 +26,8 @@ therefore does not silence the radio indefinitely. **Neither physical output
 gate is connected.** The APRS receive route, UI setting, persistence, and
 hardware audio taps still need to be implemented and measured. Even after
 those are connected, some preamble audio may precede decoder recognition.
+See [the receive-audio route trace](../h9-firmware-research/evidence/stock/main-aprs-receive-audio-route.md)
+for why the known Dual Watch and display-side bytes cannot verify this route.
 
 The host test sends actual framed activity from the APRS controller to the
 main session, checks renewal and inactive transitions, rejects an unknown

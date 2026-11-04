@@ -33,6 +33,7 @@ STOCK_ICFG_AFTER_RAM_COPY = bytes.fromhex("64 e0 00 2b 72 e1 40 2f 64 e0 80 2b")
 STOCK_POST_CLOCK_BITMAP_BRANCH = bytes.fromhex(
     "005070208dea4f01011681fc071e81fc053e81fc035e08ff37108f018880bfeab8fe"
 )
+STOCK_POST_CLOCK_FALLBACK_MODE = bytes.fromhex("42212797")
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -64,8 +65,9 @@ def verify_stock_image(path: Path) -> None:
     if data[0xC564E:0xC5652] != bytes((7, 8, 10, 14)):
         raise ValueError("Stock clock ROM mode band table differs")
     if data[0x5FCB2:0x5FCD4] != STOCK_POST_CLOCK_BITMAP_BRANCH or \
+            data[0x5FFE8:0x5FFEC] != STOCK_POST_CLOCK_FALLBACK_MODE or \
             data[0x5FA44:0x5FA5E] != STOCK_BITMAP_CLEAR_HELPER:
-        raise ValueError("Stock post-clock bitmap branch or clear helper differs")
+        raise ValueError("Stock post-clock branch, fallback, or clear helper differs")
     if data[0x5224C:0x522A6] != STOCK_AUDIO_GATE_GUARD:
         raise ValueError("Stock audio gate guard differs")
 
@@ -238,9 +240,10 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         r"(?ms)^h9_main_post_clock_bitmap_step:\n"
         r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
     )
-    if bitmap_step is None or "r1 = 192" not in bitmap_step.group(1) or \
-            "r0 > 55" not in bitmap_step.group(1) or \
-            "&= ~(1 << r0)" not in bitmap_step.group(1):
+    bitmap_body = bitmap_step.group(1) if bitmap_step is not None else ""
+    index_limit = re.search(r"r(\d+) > 55", bitmap_body)
+    if "r1 = 192" not in bitmap_body or index_limit is None or \
+            f"&= ~(1 << r{index_limit.group(1)})" not in bitmap_body:
         raise ValueError("Linked post-clock bitmap step lost selector or bit clear")
     bitmap_match = re.search(
         r"(?ms)^mark_blocks:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
