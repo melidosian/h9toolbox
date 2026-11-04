@@ -70,11 +70,19 @@ slice SHA-256 is
 The list's consumers and app-core integration are still unknown.
 
 The neighboring first-group initializer at app+`0x02D4D8` sets a guard byte
-at RAM `0xC070`, initializes a list head at `0xC08C`, allocates `0x38` bytes
-for two `0x1C`-byte entries, then requests the `sys_event` task through the
-same task-launch helper. Its allocation-failure branch returns `-12`; the
-task-launch return is ignored in this stock wrapper. Porting it will require
-an allocator contract and the event task entry at app+`0x02D642`.
+at RAM `0xC070`, initializes a list head at `0xC08C`, and allocates `0x38`
+bytes for two `0x1C`-byte linked entries. The first allocation failure returns
+`-12` and leaves the guard set, so a later call will not retry. If RAM word
+`0xC080` is zero, it next requests a `0x124`-byte buffer; success stores the
+pointer at `0xC080` and initializes 256 bytes starting 36 bytes into it.
+Failure of this second allocation is ignored. The initializer then requests
+the `sys_event` task through the same task-launch helper, using stock entry
+app+`0x02D642`; its task-launch return is ignored. `main/h9_main_sys_event.*`
+ports these writes and branches using injected allocation, buffer-init, and
+task hooks. The event task body, target allocator, and `app_core` caller are
+still unported. The pinned stock initializer slice app+`0x02D4D8..0x02D642`
+has SHA-256
+`10382fc8562ad0139706b7d38ca25dc5013bf69c3e666d61e4928a015142647e`.
 The initializer at app+`0x02C514` walks three 28-byte records at
 `0x01E2DC5C..0x01E2DCB0` and calls each nonzero first-word callback.
 Their first-word targets are app+`0x02C862`, `0x08C9D4`, and `0x02C54C`.

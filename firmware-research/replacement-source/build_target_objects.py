@@ -82,6 +82,7 @@ SOURCES = {
         "main/h9_main_rf_output.c",
         "main/h9_main_rf_state.c",
         "main/h9_main_speaker_gate.c",
+        "main/h9_main_sys_event.c",
         "main/h9_main_rf_registers.c",
         "main/h9_main_boot_record.c",
         "main/h9_main_boot_validator.c",

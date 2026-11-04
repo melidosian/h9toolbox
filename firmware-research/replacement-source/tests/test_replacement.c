@@ -42,6 +42,7 @@
 #include "h9_main_rf_output.h"
 #include "h9_main_rf_state.h"
 #include "h9_main_speaker_gate.h"
+#include "h9_main_sys_event.h"
 #include "h9_main_rf_registers.h"
 #include "h9_main_boot_record.h"
 #include "h9_main_boot_validator.h"
@@ -5796,6 +5797,106 @@ static void test_main_core_list(void)
            words[2] == 0xA5A5A5A5u);
 }
 
+typedef struct {
+    TaskLaunchCapture task;
+    uint8_t state[0x24];
+    uint8_t nodes[0x38];
+    uint8_t buffer[0x124];
+    unsigned allocations;
+    unsigned fail_allocation;
+    uint32_t initialized_address;
+    uint32_t initialized_length;
+} SysEventCapture;
+
+static bool sys_event_allocate(void *context, uint32_t size,
+                               H9MainSysEventBlock *block)
+{
+    SysEventCapture *capture = (SysEventCapture *)context;
+    ++capture->allocations;
+    if (capture->allocations == capture->fail_allocation) return false;
+    if (size == 0x38u) {
+        block->bytes = capture->nodes;
+        block->address = 0x20000u;
+    } else {
+        assert(size == 0x124u);
+        block->bytes = capture->buffer;
+        block->address = 0x30000u;
+    }
+    return true;
+}
+
+static void sys_event_init_buffer(void *context, uint32_t address,
+                                   uint32_t length)
+{
+    SysEventCapture *capture = (SysEventCapture *)context;
+    capture->initialized_address = address;
+    capture->initialized_length = length;
+}
+
+static uint32_t sys_event_word(const uint8_t *bytes, unsigned offset)
+{
+    return (uint32_t)bytes[offset] |
+           ((uint32_t)bytes[offset + 1u] << 8u) |
+           ((uint32_t)bytes[offset + 2u] << 16u) |
+           ((uint32_t)bytes[offset + 3u] << 24u);
+}
+
+static void test_main_sys_event_init(void)
+{
+    SysEventCapture capture = { 0 };
+    H9MainTaskHooks hooks = {
+        &capture.task, capture_task_create, capture_task_failure
+    };
+    H9MainSysEvent event = {
+        capture.state, &capture, sys_event_allocate,
+        sys_event_init_buffer, &hooks, 0x1234u
+    };
+    H9MainSysEvent target = { 0 };
+    h9_main_sys_event_bind_state(&target);
+    assert((uintptr_t)target.state_0xc070 == 0xC070u);
+    assert(h9_main_sys_event_init(NULL) == H9_MAIN_TASK_LAUNCH_ERROR);
+    assert(h9_main_sys_event_init(&event) == 0);
+    assert(capture.allocations == 2u && capture.state[0] == 1u &&
+           capture.state[5] == 0xFFu &&
+           sys_event_word(capture.state, 0x0Cu) == 0u &&
+           sys_event_word(capture.state, 0x10u) == 0x30000u &&
+           sys_event_word(capture.state, 0x18u) == 0u &&
+           sys_event_word(capture.state, 0x1Cu) == 0x20000u &&
+           sys_event_word(capture.state, 0x20u) == 0x2001Cu);
+    assert(sys_event_word(capture.nodes, 0u) == 0x2001Cu &&
+           sys_event_word(capture.nodes, 4u) == 0xC08Cu &&
+           sys_event_word(capture.nodes, 0x0Cu) == 0u &&
+           capture.nodes[0x14u] == 1u &&
+           sys_event_word(capture.nodes, 0x1Cu) == 0xC08Cu &&
+           sys_event_word(capture.nodes, 0x20u) == 0x20000u &&
+           sys_event_word(capture.nodes, 0x28u) == 0u &&
+           capture.nodes[0x30u] == 1u);
+    assert(capture.initialized_address == 0x30024u &&
+           capture.initialized_length == 0x100u &&
+           capture.task.calls == 1u && capture.task.entry == 0x1234u &&
+           capture.task.byte_4 == 6u &&
+           capture.task.halfword_6 == 0x100u &&
+           capture.task.halfword_8 == 0u &&
+           strcmp(capture.task.name, "sys_event") == 0);
+    assert(h9_main_sys_event_init(&event) == 0 &&
+           capture.allocations == 2u && capture.task.calls == 1u);
+
+    memset(&capture, 0, sizeof capture);
+    capture.fail_allocation = 1u;
+    assert(h9_main_sys_event_init(&event) == H9_MAIN_SYS_EVENT_ALLOC_ERROR);
+    assert(capture.state[0] == 1u && capture.task.calls == 0u);
+    assert(h9_main_sys_event_init(&event) == 0 &&
+           capture.allocations == 1u);
+
+    memset(&capture, 0, sizeof capture);
+    capture.fail_allocation = 2u;
+    assert(h9_main_sys_event_init(&event) == 0);
+    assert(capture.allocations == 2u &&
+           sys_event_word(capture.state, 0x10u) == 0u &&
+           capture.initialized_length == 0u &&
+           capture.task.calls == 1u);
+}
+
 int main(void)
 {
 #ifdef _MSC_VER
@@ -5858,6 +5959,7 @@ int main(void)
     test_main_post_map_window();
     test_main_task_registry();
     test_main_core_list();
+    test_main_sys_event_init();
     test_main_timer3_irq();
     test_main_exception_capture();
     test_main_serial_profile();
