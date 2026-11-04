@@ -41,6 +41,7 @@
 #include "h9_main_boot_record.h"
 #include "h9_main_boot_validator.h"
 #include "h9_main_heap_bitmap.h"
+#include "h9_main_memory_window.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_bus.h"
 #include "h9_main_serial_commands.h"
@@ -3747,11 +3748,45 @@ static void test_main_heap_bitmap(void)
     }
     assert(words[48] == 0xC0000000u);
     assert(words[49] == 0xEFFFu);
-    for (index = 50u; index < H9_MAIN_HEAP_BITMAP_WORDS; ++index)
-        assert(words[index] == 0u);
+    assert(words[50] == 0x0001E500u);
+    assert(words[51] == 0x0002FF80u);
+    assert(words[52] == 0x00010780u);
+    assert(words[53] == 0x05FF03CAu);
+    assert(words[54] == 0x020F0000u);
     words[0] = 0x12345678u;
     assert(h9_main_heap_bitmap_initialize(&bitmap));
     assert(words[0] == 0x12345678u);
+}
+
+static void test_main_memory_window(void)
+{
+    uint32_t controller[3] = { 0x80u, 0u, 0u };
+    uint8_t window_bytes[H9_MAIN_MEMORY_WINDOW_BYTES];
+    uint32_t state_words[H9_MAIN_MEMORY_STATE_BYTES / 4u];
+    uint8_t *state_bytes = (uint8_t *)state_words;
+    H9MainMemoryWindow window = { controller, window_bytes, state_bytes };
+    unsigned index;
+    memset(window_bytes, 0xA5, sizeof window_bytes);
+    memset(state_words, 0xA5, sizeof state_words);
+    assert(!h9_main_memory_window_initialize(NULL));
+    assert(h9_main_memory_window_initialize(&window));
+    assert(controller[0] == 0x81u && controller[1] == 0x2C000u &&
+           controller[2] == 0x2D1FFu);
+    for (index = 0u; index < sizeof window_bytes; ++index)
+        assert(window_bytes[index] == 0u);
+    assert(state_bytes[0] == 1u && state_bytes[1] == 0xA5u);
+    assert(state_words[1] == 0x2C000u && state_words[2] == 0x248000u);
+    for (index = 5u; index < 20u; ++index)
+        assert(state_words[index] == 0xFFFFFFFFu);
+    assert(state_words[20] == 0x200000u);
+    assert(state_words[21] == 0x20F000u);
+    assert(state_words[22] == 0xF000u);
+    assert(state_words[23] == 0x1E00000u);
+    assert(state_bytes[0x60] == 0xE0u && state_bytes[0x61] == 1u &&
+           state_bytes[0x62] == 0xA5u);
+    for (index = 0x64u; index < 0xDDu; ++index)
+        assert(state_bytes[index] == 0u);
+    assert(state_bytes[0xDDu] == 0xA5u);
 }
 
 int main(void)
@@ -3782,6 +3817,7 @@ int main(void)
     test_main_boot_record();
     test_main_boot_validator();
     test_main_heap_bitmap();
+    test_main_memory_window();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

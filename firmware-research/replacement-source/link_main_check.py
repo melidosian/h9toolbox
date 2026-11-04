@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after its first bitmap stage. Optional raw output is for
+The board entry stops after its first memory-window stage. Optional raw output is for
 offline inspection only.
 """
 
@@ -147,6 +147,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "20000a0", "r0 = 128", "call r2", "2003174", "call r0",
         "h9_main_heap_bitmap_bind_target",
         "h9_main_heap_bitmap_initialize",
+        "h9_main_memory_window_bind_target",
+        "h9_main_memory_window_initialize",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -169,6 +171,25 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         for last in (1406, 1535)
     ):
         raise ValueError("Linked bitmap stage lost stock block boundaries")
+    metadata_order = ("1e500", "2ff80", "10780", "5ff03ca", "20f0000")
+    metadata_positions = [heap_match.group(1).find(value)
+                          for value in metadata_order]
+    if -1 in metadata_positions or metadata_positions != \
+            sorted(metadata_positions):
+        raise ValueError("Linked bitmap stage lost stock metadata values")
+    window_match = re.search(
+        r"(?ms)^h9_main_memory_window_initialize:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if window_match is None:
+        raise ValueError("Linked main ELF lacks memory-window stage")
+    window_body = window_match.group(1).lower()
+    window_order = (r"0x2c000\b", r"184831\b", r"\|= 0x10\b",
+                    r"&= 0xffffffef\b", r"\|= 0x1\b", r"!= 480\b")
+    window_positions = [(match.start() if (match := re.search(item, window_body))
+                         else -1) for item in window_order]
+    if -1 in window_positions or window_positions != sorted(window_positions):
+        raise ValueError("Linked memory-window setup lost stock order")
 
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
@@ -283,6 +304,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "post_ram_copy_icfg_bytes_verified": True,
         "post_copy_boot_record_path_verified": True,
         "early_board_bitmap_path_verified": True,
+        "early_board_metadata_values_verified": True,
+        "early_board_memory_window_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

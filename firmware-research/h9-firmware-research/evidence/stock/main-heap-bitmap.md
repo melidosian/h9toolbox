@@ -1,9 +1,9 @@
-# Main early allocation bitmap
+# Main early allocation bitmap and metadata
 
 Source: pinned stock main v1.0.38 `app.bin`, SHA-256
 `11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3`.
-The stock code is at app+`0x05FA7C..0x05FB32` (virtual
-`0x01E5FB7C..0x01E5FC32`). The independent Pi32v2 decode is regenerated into
+The stock code is at app+`0x05FA7C..0x05FB64` (virtual
+`0x01E5FB7C..0x01E5FC64`). The independent Pi32v2 decode is regenerated into
 ignored `output/main-heap-start-independent.asm` and
 `output/main-heap-blocks-independent.asm` with `analyze_app.py disasm`.
 
@@ -19,12 +19,25 @@ is `0x2BF00 >> 7 = 0x57E`. The second starts at
 operations and corrects Ghidra's misleading `lsl` rendering of the second
 range start: the opcode is a right shift by seven.
 
+The next six stores at app+`0x05FB32..0x05FB62` fill metadata at
+`0x1D898`: word `+0 = 0x1E500`, word `+4 = 0x2FF80`, word
+`+8 = 0x10780`, halfword `+12 = 0x3CA`, halfword `+14 = 0x5FF`,
+and halfword `+18 = 0x20F`. The value at `+8` initially looks inconsistent
+in a linear reading: app+`0x05FB4E` shifts `r9` right by seven immediately
+before app+`0x05FB52` stores `r0`. The shift is the first half of a Pi32
+parallel-issue pair (`#` in the independent decode). The store reads the
+**old** `r0 = 0x10780`; the new `r0 = 0x3CA` is used by the later
+subtraction and halfword store. This resolves the apparent difference
+between the Ghidra pseudocode and a sequential reading of the opcode list.
+
 `replacement-source/main/h9_main_heap_bitmap.*` ports that bounded stage.
 It uses explicit 32-bit zero stores instead of the stock ROM clear call and
 retains the early `0xD5F0` guard. Host tests check every primary bit through
-block `0x5FF`, the second-level words, the gap, and the already-initialized
-path. `link_main_check.py` verifies that the Pi32 build reaches this stage
-after the two ROM calls, uses two Pi32 bitset instructions, and retains the
-four stock block boundaries. The later allocator metadata at app+`0x05FB32`
-onward, clock setup, interrupts, drivers, and application loop are still
-unported. No bootable image or hardware test follows from this stage.
+block `0x5FF`, the second-level words, the gap, all metadata fields, and the
+already-initialized path. `link_main_check.py` verifies that the Pi32 build
+reaches this stage after the two ROM calls, uses two Pi32 bitset instructions,
+and retains the four block boundaries and metadata values. The next bounded
+memory-window stage is now separately ported; see
+[main-memory-window.md](main-memory-window.md). Later stack guards, clock
+setup, interrupts, drivers, and application loop remain unported. No bootable
+image or hardware test follows from this stage.

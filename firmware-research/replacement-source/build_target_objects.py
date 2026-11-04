@@ -60,6 +60,7 @@ SOURCES = {
         "main/h9_main_beacon.c",
         "main/h9_main_gps_fix.c",
         "main/h9_main_heap_bitmap.c",
+        "main/h9_main_memory_window.c",
         "main/h9_main_rf_output.c",
         "main/h9_main_rf_state.c",
         "main/h9_main_speaker_gate.c",

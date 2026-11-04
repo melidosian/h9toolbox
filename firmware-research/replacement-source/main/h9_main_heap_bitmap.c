@@ -40,5 +40,13 @@ bool h9_main_heap_bitmap_initialize(H9MainHeapBitmap *bitmap)
     mark_blocks(bitmap->words,
                 0x0002D27Fu >> H9_MAIN_HEAP_BLOCK_SHIFT,
                 0x0002FF80u >> H9_MAIN_HEAP_BLOCK_SHIFT);
+    /* Stock app+0x05FB32..0x05FB62 writes these fields at 0x1D898.
+     * The parallel shift/store at app+0x05FB4E stores the old r0 value
+     * (0x10780) before r0 becomes the first block number (0x3CA). */
+    bitmap->words[50] = 0x0001E500u;
+    bitmap->words[51] = 0x0002FF80u;
+    bitmap->words[52] = 0x00010780u;
+    bitmap->words[53] = (0x05FFu << 16) | 0x03CAu;
+    bitmap->words[54] = 0x020Fu << 16;
     return true;
 }

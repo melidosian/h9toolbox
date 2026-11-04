@@ -6,9 +6,10 @@
 
 #define H9_MAIN_HEAP_BITMAP_WORDS 55u
 
-/* First one-time allocation bitmap step at stock app+0x05FA8A..0x05FB32.
+/* First one-time allocation bitmap and metadata stage at stock
+ * app+0x05FA8A..0x05FB64.
  * The two ranges are expressed as byte addresses and marked in 128-byte
- * units. This does not implement the later allocator metadata or clock setup. */
+ * units. The next memory-window stage is a separate module. */
 typedef struct {
     volatile uint8_t *initialized;
     volatile uint32_t *words;
