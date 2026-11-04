@@ -72,6 +72,7 @@ SOURCES = {
         "main/h9_main_clock_timing.c",
         "main/h9_main_core_list.c",
         "main/h9_main_core_init.c",
+        "main/h9_main_channel_defaults.c",
         "main/h9_main_heap_bitmap.c",
         "main/h9_main_exception.c",
         "main/h9_main_irq_registration.c",

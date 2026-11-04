@@ -82,6 +82,20 @@ slice SHA-256 is
 `495683945a63e4d89abee6ab3f394d7e7267fc2bd7f9f76059e013b47aef6583`.
 The list's consumers and app-core integration are still unknown.
 
+The second initializer in the later group, app+`0x048A46`, starts with two
+loops over RAM records at `0x143B0` and `0x144F8`, each with a stride of
+`0xA4` and two iterations. It writes a zero word, halfwords `10` and `300`,
+copies six words (24 bytes) from app+`0x0B094C` at record offset 8, and
+clears words at offsets `0x38` and `0x3C`. The loops also update bytes
+`0x11AD3..0x11AD6` at the same stride; the second loop replaces the first
+mode byte `0x20` with `0x68`. `main/h9_main_channel_defaults.*` ports this
+bounded prefix. The subsequent saved-configuration imports are not ported,
+and Ghidra encounters unresolved instructions in one branch of that path.
+The stock prefix app+`0x048A46..0x048ADE` hashes to SHA-256
+`00d56983f166c999eceff00959c4caa3e179d3e5c1545d141d7092f5db54d7d7`;
+the 24-byte template hashes to
+`0881704880ea4a0426a9ef38ae43c5390389f72a38fd2dcecfab562569908184`.
+
 The neighboring first-group initializer at app+`0x02D4D8` sets a guard byte
 at RAM `0xC070`, initializes a list head at `0xC08C`, and allocates `0x38`
 bytes for two `0x1C`-byte linked entries. The first allocation failure returns

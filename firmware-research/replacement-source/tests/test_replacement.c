@@ -54,6 +54,7 @@
 #include "h9_main_clock_timing.h"
 #include "h9_main_core_list.h"
 #include "h9_main_core_init.h"
+#include "h9_main_channel_defaults.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_exception.h"
 #include "h9_main_irq_registration.h"
@@ -5849,6 +5850,59 @@ static void test_main_core_init_walkers(void)
            h9_main_event_records[2].word[6] == 0x01E2C88Au);
 }
 
+static uint32_t channel_default_word(const uint8_t *bytes, unsigned offset)
+{
+    return (uint32_t)bytes[offset] |
+           ((uint32_t)bytes[offset + 1u] << 8u) |
+           ((uint32_t)bytes[offset + 2u] << 16u) |
+           ((uint32_t)bytes[offset + 3u] << 24u);
+}
+
+static void test_main_channel_default_prefix(void)
+{
+    uint8_t state[H9_MAIN_DEFAULT_RECORD_STRIDE + 7u];
+    uint8_t primary[H9_MAIN_DEFAULT_RECORD_STRIDE + 0x40u];
+    uint8_t secondary[H9_MAIN_DEFAULT_RECORD_STRIDE + 0x40u];
+    H9MainChannelDefaults defaults = { state, primary, secondary };
+    H9MainChannelDefaults target = { 0 };
+    unsigned index;
+    h9_main_channel_defaults_bind_target(&target);
+    assert((uintptr_t)target.state_11ad0 == 0x11AD0u &&
+           (uintptr_t)target.primary_143b0 == 0x143B0u &&
+           (uintptr_t)target.secondary_144f8 == 0x144F8u);
+    memset(state, 0xA5, sizeof state);
+    memset(primary, 0xA5, sizeof primary);
+    memset(secondary, 0xA5, sizeof secondary);
+    assert(h9_main_channel_defaults_init_prefix(NULL) != 0);
+    assert(h9_main_channel_defaults_init_prefix(&defaults) == 0);
+    for (index = 0u; index < 2u; ++index) {
+        unsigned offset = index * H9_MAIN_DEFAULT_RECORD_STRIDE;
+        assert(channel_default_word(primary, offset) == 0u &&
+               channel_default_word(secondary, offset) == 0u);
+        assert(primary[offset + 4u] == 10u &&
+               secondary[offset + 4u] == 10u &&
+               primary[offset + 6u] == 0x2Cu &&
+               primary[offset + 7u] == 0x01u &&
+               secondary[offset + 6u] == 0x2Cu &&
+               secondary[offset + 7u] == 0x01u);
+        assert(memcmp(primary + offset + 8u,
+                      h9_main_channel_default_template, 24u) == 0 &&
+               memcmp(secondary + offset + 8u,
+                      h9_main_channel_default_template, 24u) == 0);
+        assert(channel_default_word(primary, offset + 0x38u) == 0u &&
+               channel_default_word(primary, offset + 0x3Cu) == 0u &&
+               channel_default_word(secondary, offset + 0x38u) == 0u &&
+               channel_default_word(secondary, offset + 0x3Cu) == 0u);
+        assert(primary[offset + 0x20u] == 0xA5u &&
+               secondary[offset + 0x20u] == 0xA5u);
+        assert(state[offset + 3u] == 0x68u &&
+               state[offset + 4u] == 0x19u &&
+               state[offset + 5u] == 0u &&
+               state[offset + 6u] == 1u);
+    }
+    assert(state[0] == 0xA5u && state[1] == 0xA5u);
+}
+
 typedef struct {
     TaskLaunchCapture task;
     uint8_t state[0x24];
@@ -6095,6 +6149,7 @@ int main(void)
     test_main_task_registry();
     test_main_core_list();
     test_main_core_init_walkers();
+    test_main_channel_default_prefix();
     test_main_sys_event_init();
     test_main_sys_event_task_prelude();
     test_main_timer3_irq();
