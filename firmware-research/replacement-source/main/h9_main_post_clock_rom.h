@@ -85,4 +85,26 @@ bool h9_main_post_clock_handoff_run(
     H9MainPostClockHandoff *handoff, uint32_t secondary_status,
     H9MainPostClockHandoffResult *result);
 
+/* Stock app+0x05FCEA..0x05FD74 branches on the two handoff results and
+ * clears configuration bits in device descriptors 15/23 and 53. The
+ * descriptor table at app+0x554 is encoded by the target binder instead of
+ * called in place, because the stock app is replaced by this image. */
+typedef struct {
+    void *context;
+    volatile uint32_t *(*lookup_descriptor)(void *context, uint32_t index);
+} H9MainPostClockDescriptorRoute;
+
+typedef struct {
+    uint32_t filtered_mask;
+    uint32_t base_word;
+    uint32_t control_word;
+} H9MainPostClockDescriptorResult;
+
+void h9_main_post_clock_descriptor_route_bind_target(
+    H9MainPostClockDescriptorRoute *route);
+bool h9_main_post_clock_descriptor_route_run(
+    const H9MainPostClockDescriptorRoute *route,
+    const H9MainPostClockHandoffResult *handoff,
+    H9MainPostClockDescriptorResult *result);
+
 #endif

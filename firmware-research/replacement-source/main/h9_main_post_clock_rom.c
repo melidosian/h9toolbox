@@ -164,3 +164,66 @@ bool h9_main_post_clock_handoff_run(
     result->result_r1 = (uint32_t)(pair >> 32u);
     return true;
 }
+
+static volatile uint32_t *target_lookup_descriptor(void *context,
+                                                    uint32_t index)
+{
+    (void)context;
+    if (index > 56u) return NULL;
+    /* Stock app+0xBA indexes a table at app+0x554 containing 0x1E5000,
+     * 0x1E5040, 0x1E5080, and 0x1E50C0. */
+    return (volatile uint32_t *)(uintptr_t)
+        (0x001E5000u + ((index >> 4u) * 0x40u));
+}
+
+void h9_main_post_clock_descriptor_route_bind_target(
+    H9MainPostClockDescriptorRoute *route)
+{
+    if (route == NULL) return;
+    route->context = NULL;
+    route->lookup_descriptor = target_lookup_descriptor;
+}
+
+static void clear_descriptor_bits(
+    const H9MainPostClockDescriptorRoute *route, uint32_t index,
+    uint32_t mask)
+{
+    volatile uint32_t *first =
+        route->lookup_descriptor(route->context, index);
+    volatile uint32_t *second;
+    if (first != NULL) first[4] &= ~mask;
+    second = route->lookup_descriptor(route->context, 53u);
+    if (second != NULL) second[4] &= ~0x20u;
+    if (first != NULL) first[5] &= ~mask;
+    if (second != NULL) second[5] &= ~0x20u;
+}
+
+bool h9_main_post_clock_descriptor_route_run(
+    const H9MainPostClockDescriptorRoute *route,
+    const H9MainPostClockHandoffResult *handoff,
+    H9MainPostClockDescriptorResult *result)
+{
+    bool secondary_zero;
+    if (route == NULL || handoff == NULL || result == NULL ||
+        route->lookup_descriptor == NULL) return false;
+    secondary_zero = handoff->result_r1 == 0u;
+    result->filtered_mask = handoff->input_mask;
+    result->base_word = 0xFFFF0000u;
+    if (handoff->result_r0 == 4u) {
+        if (secondary_zero) {
+            result->base_word = 0xFFFF0080u;
+            result->control_word = 0xFFFF003Fu;
+        } else {
+            result->filtered_mask &= 0x1FFFu;
+            result->control_word = 0xFFFF0033u;
+        }
+    } else if (secondary_zero) {
+        clear_descriptor_bits(route, 23u, 0x80u);
+        result->control_word = 0xFFFF001Fu;
+    } else {
+        clear_descriptor_bits(route, 15u, 0x8000u);
+        result->filtered_mask &= 0x9FFFu;
+        result->control_word = 0xFFFF0013u;
+    }
+    return true;
+}

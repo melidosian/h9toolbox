@@ -4863,6 +4863,87 @@ static void test_main_post_clock_handoff(void)
 }
 
 typedef struct {
+    volatile uint32_t descriptor15[6];
+    volatile uint32_t descriptor23[6];
+    volatile uint32_t descriptor53[6];
+    uint32_t queried[2];
+    unsigned queries;
+    bool omit53;
+} PostClockDescriptorCapture;
+
+static volatile uint32_t *post_clock_lookup_descriptor(void *context,
+                                                        uint32_t index)
+{
+    PostClockDescriptorCapture *capture =
+        (PostClockDescriptorCapture *)context;
+    assert(capture->queries < 2u);
+    capture->queried[capture->queries++] = index;
+    if (index == 15u) return capture->descriptor15;
+    if (index == 23u) return capture->descriptor23;
+    if (index == 53u && !capture->omit53) return capture->descriptor53;
+    return NULL;
+}
+
+static void test_main_post_clock_descriptor_route(void)
+{
+    PostClockDescriptorCapture capture = { 0 };
+    H9MainPostClockDescriptorRoute route = {
+        &capture, post_clock_lookup_descriptor
+    };
+    H9MainPostClockDescriptorRoute target;
+    H9MainPostClockHandoffResult handoff = { 0 };
+    H9MainPostClockDescriptorResult result;
+    unsigned i;
+    h9_main_post_clock_descriptor_route_bind_target(&target);
+    assert((uintptr_t)target.lookup_descriptor(NULL, 15u) == 0x1E5000u);
+    assert((uintptr_t)target.lookup_descriptor(NULL, 23u) == 0x1E5040u);
+    assert((uintptr_t)target.lookup_descriptor(NULL, 53u) == 0x1E50C0u);
+    assert((uintptr_t)target.lookup_descriptor(NULL, 57u) == 0u);
+    assert(!h9_main_post_clock_descriptor_route_run(NULL, &handoff, &result));
+    assert(!h9_main_post_clock_descriptor_route_run(&route, NULL, &result));
+    handoff.input_mask = 0xFFFFFE3Bu;
+    handoff.result_r0 = 4u;
+    handoff.result_r1 = 1u;
+    assert(h9_main_post_clock_descriptor_route_run(&route, &handoff, &result));
+    assert(capture.queries == 0u && result.filtered_mask == 0x1E3Bu &&
+           result.base_word == 0xFFFF0000u &&
+           result.control_word == 0xFFFF0033u);
+    handoff.result_r1 = 0u;
+    assert(h9_main_post_clock_descriptor_route_run(&route, &handoff, &result));
+    assert(capture.queries == 0u &&
+           result.filtered_mask == handoff.input_mask &&
+           result.base_word == 0xFFFF0080u &&
+           result.control_word == 0xFFFF003Fu);
+    for (i = 0u; i < 6u; ++i) {
+        capture.descriptor15[i] = UINT32_MAX;
+        capture.descriptor23[i] = UINT32_MAX;
+        capture.descriptor53[i] = UINT32_MAX;
+    }
+    handoff.result_r0 = 3u;
+    handoff.result_r1 = 1u;
+    assert(h9_main_post_clock_descriptor_route_run(&route, &handoff, &result));
+    assert(capture.queries == 2u && capture.queried[0] == 15u &&
+           capture.queried[1] == 53u);
+    assert(capture.descriptor15[4] == (UINT32_MAX & ~0x8000u) &&
+           capture.descriptor15[5] == (UINT32_MAX & ~0x8000u));
+    assert(capture.descriptor53[4] == (UINT32_MAX & ~0x20u) &&
+           capture.descriptor53[5] == (UINT32_MAX & ~0x20u));
+    assert(result.filtered_mask == (handoff.input_mask & 0x9FFFu) &&
+           result.base_word == 0xFFFF0000u &&
+           result.control_word == 0xFFFF0013u);
+    capture.queries = 0u;
+    capture.omit53 = true;
+    handoff.result_r1 = 0u;
+    assert(h9_main_post_clock_descriptor_route_run(&route, &handoff, &result));
+    assert(capture.queries == 2u && capture.queried[0] == 23u &&
+           capture.queried[1] == 53u);
+    assert(capture.descriptor23[4] == (UINT32_MAX & ~0x80u) &&
+           capture.descriptor23[5] == (UINT32_MAX & ~0x80u));
+    assert(result.filtered_mask == handoff.input_mask &&
+           result.control_word == 0xFFFF001Fu);
+}
+
+typedef struct {
     uint8_t bytes[192];
     size_t length;
     unsigned calls;
@@ -4985,6 +5066,7 @@ int main(void)
     test_main_post_clock_classification();
     test_main_post_clock_bitmap();
     test_main_post_clock_handoff();
+    test_main_post_clock_descriptor_route();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

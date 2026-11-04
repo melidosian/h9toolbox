@@ -40,6 +40,20 @@ STOCK_POST_CLOCK_SPECIAL_SELECTOR = bytes.fromhex(
 STOCK_POST_CLOCK_ROM_HANDOFF = bytes.fromhex(
     "6916133f34ea010043e03bfe8dea4a0601168dea9707"
 )
+STOCK_POST_CLOCK_DESCRIPTOR_BRANCH = bytes.fromhex(
+    "014b80f8110840e0ff1f8319c5ff0000ffff04e133501499"
+    "80f82008c5ff8000ffff34e1bf5f1491402fbdead1010216"
+    "0242c4ef002c4835bdeaca010042c4ef2000c1ffff9f0000"
+    "0242c5ef002c9319c5ff0000ffff5c93805604974037bdea"
+    "b70102160242c4ef80204835bdeab0010042c4ef20000242"
+    "c5ef8020c5ff0000ffff5c9f0042c5ef2000"
+)
+STOCK_DESCRIPTOR_LOOKUP = bytes.fromhex(
+    "01164020b1ec38c090a400a2c1ff5406e001d8ec02018000"
+)
+STOCK_DESCRIPTOR_TABLE = bytes.fromhex(
+    "00501e0040501e0080501e00c0501e00"
+)
 STOCK_BITMAP_CLEAR_HELPER = bytes.fromhex(
     "71f80afe92a422a1d8ed003261e10f1094e13311d8ed01128000"
 )
@@ -74,6 +88,9 @@ def verify_stock_image(path: Path) -> None:
             data[0x5FFE8:0x5FFEC] != STOCK_POST_CLOCK_FALLBACK_MODE or \
             data[0x5FFEC:0x60002] != STOCK_POST_CLOCK_SPECIAL_SELECTOR or \
             data[0x5FCD4:0x5FCEA] != STOCK_POST_CLOCK_ROM_HANDOFF or \
+            data[0x5FCEA:0x5FD74] != STOCK_POST_CLOCK_DESCRIPTOR_BRANCH or \
+            data[0xBA:0xD2] != STOCK_DESCRIPTOR_LOOKUP or \
+            data[0x554:0x564] != STOCK_DESCRIPTOR_TABLE or \
             data[0x5FA44:0x5FA5E] != STOCK_BITMAP_CLEAR_HELPER:
         raise ValueError("Stock post-clock branch, selector, or clear helper differs")
     if data[0x5224C:0x522A6] != STOCK_AUDIO_GATE_GUARD:
@@ -206,6 +223,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_post_clock_bitmap_step",
         "h9_main_post_clock_handoff_bind_target",
         "h9_main_post_clock_handoff_run",
+        "h9_main_post_clock_descriptor_route_bind_target",
+        "h9_main_post_clock_descriptor_route_run",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -266,6 +285,22 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     if "= -453" not in handoff_body or "= -1" not in handoff_body or \
             re.search(r"d\[r\d+\+8\] = r1_r0", handoff_body) is None:
         raise ValueError("Linked post-clock ROM handoff lost mask or result pair")
+    descriptor_lookup = re.search(
+        r"(?ms)^target_lookup_descriptor:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    descriptor_body = descriptor_lookup.group(1) if descriptor_lookup else ""
+    if "<= 56" not in descriptor_body or "1e5000" not in descriptor_body:
+        raise ValueError("Linked descriptor lookup lost stock table bounds or base")
+    descriptor_route = re.search(
+        r"(?ms)^h9_main_post_clock_descriptor_route_run:\n"
+        r"(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
+    )
+    route_body = descriptor_route.group(1) if descriptor_route else ""
+    if "== 0" not in route_body or "!= 4" not in route_body or \
+            "= 8191" not in route_body or "= 40959" not in route_body or \
+            route_body.count("clear_descriptor_bits") != 2:
+        raise ValueError("Linked descriptor route lost ROM-result branches")
     bitmap_match = re.search(
         r"(?ms)^mark_blocks:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
         disassembly,
@@ -605,6 +640,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_post_clock_classifier_path_verified": True,
         "early_board_post_clock_bitmap_path_verified": True,
         "early_board_post_clock_handoff_path_verified": True,
+        "early_board_post_clock_descriptor_route_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

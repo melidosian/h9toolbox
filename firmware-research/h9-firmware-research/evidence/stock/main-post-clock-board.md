@@ -55,3 +55,20 @@ linked target wrapper passes the transformed word in both argument registers
 and captures the two result registers as a 64-bit return. The diagnostic
 board entry calls the handoff and stops before acting on the results. Their
 hardware meaning and the subsequent register changes remain unported.
+
+At app+`0x05FCEA..0x05FD74`, the returned `r0` and `r1` select four
+descriptor routes. If `r0 == 4`, nonzero `r1` narrows the input mask to
+`0x1FFF` and chooses control word `0xFFFF0033`; zero `r1` leaves the mask
+alone and chooses base/control words `0xFFFF0080`/`0xFFFF003F`. For other
+`r0` values, nonzero `r1` looks up descriptors 15 and 53, clears bits
+`0x8000` and `0x20` in each descriptor's words at offsets `+16` and `+20`,
+narrows the input mask to `0x9FFF`, and chooses `0xFFFF0013`. Zero `r1`
+instead uses descriptor 23, bit `0x80`, plus descriptor 53, bit `0x20`, and
+chooses `0xFFFF001F`. The lookup helper at app+`0xBA` accepts indices
+`0..56`; its table at app+`0x554` contains MMIO descriptor bases
+`0x1E5000`, `0x1E5040`, `0x1E5080`, and `0x1E50C0`. The replacement encodes
+that table as a bounded address calculation, since it cannot call a helper
+in the stock app after replacement. Host tests cover all four branches and
+missing descriptors; the target link verifies the lookup and board call
+order. The next common register setup beginning at app+`0x05FD74` remains
+unported and has not been exercised on hardware.
