@@ -14,3 +14,22 @@ RAM 0x56  80 00              return
 ```
 
 `main/h9_main_serial_bus.c` ports those register operations with a bounded poll. The target implementation is linked at RAM `0x40` and the diagnostic link check verifies the 64-byte zero prefix. The C function's arguments and return value differ from the stock routine's ABI, so it is **not** a drop-in target for unported callers. The connected peripheral and its role in the radio are unproven. No board code calls this routine yet, and the remaining RAM code, interrupt setup, and full boot path are missing. The diagnostic ELF is not a flashable firmware image.
+
+The next stock RAM routines at `0x58` and `0xA0` wrap that byte exchange in
+three-word command transactions. Both call a gate/refcount initializer at RAM
+`0x1634`, address MMIO `0x001E3E08`, set control bits `0x101`, and clear those
+bits before the refcount closer at RAM `0x1650`. The read form sends
+`((command >> 8) | 0x80) & 0x83`, then `command & 0xFFFF00FF`, then `0x5E`,
+returning the final received byte. The write form sends `(command >> 8) & 3`,
+then `command & 0xFFFF00FF`, then the caller's payload. Each conditionally
+clears control bit `0x100` before setting `0x101` when the command's low
+halfword is nonnegative. These operations come from the independent Pi32v2
+decode of RAM `0x58..0xE2`; the connected peripheral remains unidentified.
+
+`main/h9_main_serial_commands.*` now provides both transactions with explicit
+begin/end and exchange callbacks. It clears control bits and calls `end` on a
+failed exchange. The byte-transfer adapter and both commands link into the
+relocated RAM section; the diagnostic link verifies their addresses. Their
+new C ABI and linked offsets differ from the stock routines. The gate/refcount
+callbacks, other RAM callers, and the external device are not wired to a
+production board entry.

@@ -40,3 +40,13 @@ bool h9_main_serial_bus_transfer(H9MainSerialBus *bus,
     }
     return false;
 }
+
+#if defined(__PI32V2__)
+__attribute__((section(".ram_code.serial_bus_adapter"), noinline))
+#endif
+bool h9_main_serial_bus_exchange(void *context, uint32_t transmit_word,
+                                  uint8_t *received_byte)
+{
+    return h9_main_serial_bus_transfer((H9MainSerialBus *)context,
+                                       transmit_word, received_byte);
+}

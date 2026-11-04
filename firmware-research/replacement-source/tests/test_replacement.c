@@ -41,6 +41,7 @@
 #include "h9_main_boot_record.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_bus.h"
+#include "h9_main_serial_commands.h"
 #include "h9_main_serial_dma.h"
 #include "h9_main_uart1_irq.h"
 #include "h9_main_uart1_board.h"
@@ -3113,6 +3114,74 @@ static void test_main_serial_bus(void)
     assert(!h9_main_serial_bus_transfer(&bus, 0u, NULL));
 }
 
+typedef struct {
+    volatile uint32_t control;
+    uint32_t words[3];
+    unsigned calls;
+    unsigned begins;
+    unsigned ends;
+    unsigned fail_call;
+    bool refuse_begin;
+} FakeMainSerialCommands;
+
+static bool main_serial_begin(void *context)
+{
+    FakeMainSerialCommands *fake = (FakeMainSerialCommands *)context;
+    ++fake->begins;
+    return !fake->refuse_begin;
+}
+
+static void main_serial_end(void *context)
+{
+    FakeMainSerialCommands *fake = (FakeMainSerialCommands *)context;
+    assert((fake->control & 0x101u) == 0u);
+    ++fake->ends;
+}
+
+static bool main_serial_exchange(void *context, uint32_t word,
+                                  uint8_t *received)
+{
+    FakeMainSerialCommands *fake = (FakeMainSerialCommands *)context;
+    assert((fake->control & 0x101u) == 0x101u);
+    assert(fake->calls < 3u && received != NULL);
+    fake->words[fake->calls++] = word;
+    *received = 0xA5u;
+    return fake->calls != fake->fail_call;
+}
+
+static void test_main_serial_commands(void)
+{
+    FakeMainSerialCommands fake = { 0 };
+    H9MainSerialCommands commands = {
+        &fake.control, main_serial_begin, main_serial_end,
+        main_serial_exchange, &fake
+    };
+    uint8_t received = 0u;
+    fake.control = 0x900u;
+    assert(h9_main_serial_command_read(&commands, 0x1234u, &received));
+    assert(fake.begins == 1u && fake.ends == 1u && fake.calls == 3u);
+    assert(fake.words[0] == 0x82u && fake.words[1] == 0x34u &&
+           fake.words[2] == 0x5Eu && received == 0xA5u);
+    assert(fake.control == 0x800u);
+
+    fake.calls = 0u;
+    fake.control = 0x800u;
+    assert(h9_main_serial_command_write(&commands, 0x8234u, 0x5Au));
+    assert(fake.begins == 2u && fake.ends == 2u && fake.calls == 3u);
+    assert(fake.words[0] == 2u && fake.words[1] == 0x34u &&
+           fake.words[2] == 0x5Au && fake.control == 0x800u);
+
+    fake.calls = 0u;
+    fake.fail_call = 2u;
+    assert(!h9_main_serial_command_read(&commands, 0x1234u, &received));
+    assert(fake.calls == 2u && fake.ends == 3u && fake.control == 0x800u);
+    fake.refuse_begin = true;
+    assert(!h9_main_serial_command_write(&commands, 0x1234u, 0u));
+    assert(fake.ends == 3u && fake.calls == 2u);
+    assert(!h9_main_serial_command_read(&commands, 0u, NULL));
+    assert(!h9_main_serial_command_read(NULL, 0u, &received));
+}
+
 static void test_main_serial_dma_read(void)
 {
     uint8_t storage[2048] = { 0 };
@@ -3566,6 +3635,7 @@ int main(void)
     test_main_boot_record();
     test_main_serial_profile();
     test_main_serial_bus();
+    test_main_serial_commands();
     test_main_serial_dma_read();
     test_main_uart1_irq();
     test_main_uart1_tx();

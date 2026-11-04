@@ -125,6 +125,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
     ram_code_end = symbol_address("__ram_code_end")
     ram_code_load = symbol_address("__ram_code_load_start")
     serial_bus_entry = symbol_address("h9_main_serial_bus_transfer")
+    serial_read_entry = symbol_address("h9_main_serial_command_read")
+    serial_write_entry = symbol_address("h9_main_serial_command_write")
     if symbol_address("__stock_clear_start") != RAM_START or \
             symbol_address("__stock_clear_end") != RAM_END:
         raise ValueError("Linked RAM-clear interval differs from stock startup")
@@ -134,6 +136,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         raise ValueError("Linked RAM code exceeds stock relocation interval")
     if ram_code_start != 0 or serial_bus_entry != 0x40 or ram_code_end <= 0x40:
         raise ValueError("Linked RAM serial-bus routine is not at stock RAM address 0x40")
+    if not (serial_bus_entry < serial_read_entry < ram_code_end and
+            serial_bus_entry < serial_write_entry < ram_code_end):
+        raise ValueError("Linked serial command handlers are not relocated RAM code")
     ram_code_section = output / "main-ram-code.bin"
     run([sibling_tool(compiler, "llvm-objcopy"), "-O", "binary",
          "-j=.ram_code", str(elf), str(ram_code_section)])
@@ -179,6 +184,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None) -> dict:
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
         "ram_serial_bus_entry": serial_bus_entry,
+        "ram_serial_read_entry": serial_read_entry,
+        "ram_serial_write_entry": serial_write_entry,
         "ram_code_zero_prefix_verified": True,
         "linker_script_sha256": sha256(script.read_bytes()).hexdigest(),
         "elf": elf.name,

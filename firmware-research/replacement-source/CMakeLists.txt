@@ -25,6 +25,7 @@ add_library(h9_replacement_core STATIC
     main/h9_main_rf_registers.c
     main/h9_main_boot_record.c
     main/h9_main_serial_profile.c
+    main/h9_main_serial_commands.c
     main/h9_main_serial_bus.c
     main/h9_main_serial_dma.c
     main/h9_main_uart1_irq.c

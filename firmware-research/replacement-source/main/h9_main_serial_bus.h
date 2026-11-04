@@ -21,5 +21,8 @@ void h9_main_serial_bus_bind_target(H9MainSerialBus *bus,
 bool h9_main_serial_bus_transfer(H9MainSerialBus *bus,
                                   uint32_t transmit_word,
                                   uint8_t *received_byte);
+/* Adapter for H9MainSerialCommands.exchange. */
+bool h9_main_serial_bus_exchange(void *context, uint32_t transmit_word,
+                                  uint8_t *received_byte);
 
 #endif
