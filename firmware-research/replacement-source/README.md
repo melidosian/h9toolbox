@@ -119,6 +119,8 @@ The Windows JieLi toolchain check linked all 34 current main objects with no unr
 
 The source also includes the next stock clock source register writer and latch helper, with injectable MMIO bindings and Pi32 instruction checks. They are linked for inspection but are not yet called from board startup; the intervening ROM and timing sequence needs to be reconstructed first.
 
+The following auxiliary clock helper writes three fields of `0x1E0008`, calling ROM `0x02000110` between the first and second writes. Its ROM callback and register are injectable for host tests. The Pi32 link check verifies the emitted field order and ROM target. It also remains unconnected to board startup.
+
 ## Next source work
 
 1. Trace and implement command `0x51` side effects, the `PY` ready flag consumer, and the remaining UART board hooks; connect parsed GPS and packet processing to the UI and data model.

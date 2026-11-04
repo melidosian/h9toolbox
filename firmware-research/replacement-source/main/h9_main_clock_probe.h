@@ -6,8 +6,8 @@
 
 #define H9_MAIN_CLOCK_PROBE_CHANNELS 4u
 
-/* First part of stock clock helper app+0x0C54B2..0x0C5544. Later
- * 240 MHz calibration remains unported. */
+/* First measurement stage of stock clock helper
+ * app+0x0C54B2..0x0C5544. */
 typedef struct {
     volatile uint32_t *fuse_word;
     volatile uint32_t *calibration_words;
@@ -79,5 +79,21 @@ typedef struct {
 void h9_main_clock_registers_bind_target(H9MainClockRegisters *registers);
 bool h9_main_clock_program_source(H9MainClockRegisters *registers);
 bool h9_main_clock_latch_source(H9MainClockRegisters *registers);
+
+/* Stock app+0x0C5330 writes three fields at 0x1E0008 and calls ROM
+ * 0x02000110 between the first and second register writes. */
+typedef struct {
+    volatile uint32_t *control_1e0008;
+    volatile uint8_t *field_d9e8;
+    volatile uint8_t *rom_arg_d9f0;
+    volatile uint8_t *rom_arg_d9ec;
+    volatile uint16_t *field_d9f4;
+    volatile uint8_t *field_d9f8;
+    void *context;
+    void (*rom_apply_pair)(void *context, uint32_t first, uint32_t second);
+} H9MainClockAuxFields;
+
+void h9_main_clock_aux_bind_target(H9MainClockAuxFields *fields);
+bool h9_main_clock_aux_program(H9MainClockAuxFields *fields);
 
 #endif

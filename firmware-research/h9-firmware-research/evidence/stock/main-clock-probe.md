@@ -107,3 +107,16 @@ their emitted instructions. These helpers are linked but are **not** called
 by the diagnostic board entry: the intervening stock ROM, timing, and gate
 sequence is still under study. No hardware behavior is inferred from the
 host tests or link check.
+
+Stock app+`0x0C5330` then updates `0x1E0008` in three stages. It inserts
+the low three bits of RAM byte `0xD9E8` into register bits 12–14 and writes
+the word. It passes RAM byte `0xD9EC` as the first argument and RAM byte
+`0xD9F0` as the second argument to ROM `0x02000110`. It then inserts the
+low eight bits of RAM halfword `0xD9F4` into register bits 0–7 and writes
+again. Finally, it inserts the low three bits of RAM byte `0xD9F8` into
+register bits 8–10 and writes a third time. The direct Pi32 decode shows
+that call target because `0x01EC5460 + 0x0013ACB0 = 0x02000110`.
+`h9_main_clock_aux_program` ports these writes and the call order with an
+injectable ROM callback. Its target binder uses those observed addresses;
+the ROM routine's internal effect is still unknown. This helper remains
+unconnected to diagnostic board startup pending the surrounding sequence.

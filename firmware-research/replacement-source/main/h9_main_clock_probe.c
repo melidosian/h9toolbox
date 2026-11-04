@@ -265,3 +265,53 @@ bool h9_main_clock_latch_source(H9MainClockRegisters *registers)
         registers->control_1e0014[12] |= 1u << bit;
     return true;
 }
+
+static void target_rom_apply_pair(void *context, uint32_t first,
+                                  uint32_t second)
+{
+    typedef void (*RomApplyPair)(uint32_t, uint32_t);
+    (void)context;
+    ((RomApplyPair)(uintptr_t)0x02000110u)(first, second);
+}
+
+void h9_main_clock_aux_bind_target(H9MainClockAuxFields *fields)
+{
+    if (fields == NULL) return;
+    fields->control_1e0008 =
+        (volatile uint32_t *)(uintptr_t)0x001E0008u;
+    fields->field_d9e8 = (volatile uint8_t *)(uintptr_t)0x0000D9E8u;
+    fields->rom_arg_d9f0 = (volatile uint8_t *)(uintptr_t)0x0000D9F0u;
+    fields->rom_arg_d9ec = (volatile uint8_t *)(uintptr_t)0x0000D9ECu;
+    fields->field_d9f4 = (volatile uint16_t *)(uintptr_t)0x0000D9F4u;
+    fields->field_d9f8 = (volatile uint8_t *)(uintptr_t)0x0000D9F8u;
+    fields->context = NULL;
+    fields->rom_apply_pair = target_rom_apply_pair;
+}
+
+bool h9_main_clock_aux_program(H9MainClockAuxFields *fields)
+{
+    uint32_t control;
+    if (fields == NULL || fields->control_1e0008 == NULL ||
+        fields->field_d9e8 == NULL || fields->rom_arg_d9f0 == NULL ||
+        fields->rom_arg_d9ec == NULL || fields->field_d9f4 == NULL ||
+        fields->field_d9f8 == NULL || fields->rom_apply_pair == NULL)
+        return false;
+
+    control = fields->control_1e0008[0];
+    control = (control & ~0x7000u) |
+              (((uint32_t)*fields->field_d9e8 & 7u) << 12);
+    fields->control_1e0008[0] = control;
+
+    fields->rom_apply_pair(fields->context, *fields->rom_arg_d9ec,
+                           *fields->rom_arg_d9f0);
+
+    control = fields->control_1e0008[0];
+    control = (control & ~0xFFu) | ((uint32_t)*fields->field_d9f4 & 0xFFu);
+    fields->control_1e0008[0] = control;
+
+    control = fields->control_1e0008[0];
+    control = (control & ~0x700u) |
+              (((uint32_t)*fields->field_d9f8 & 7u) << 8);
+    fields->control_1e0008[0] = control;
+    return true;
+}

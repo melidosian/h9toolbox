@@ -4078,6 +4078,47 @@ static void test_main_clock_source_registers(void)
            storage[14] == 0xA5A5A5A5u);
 }
 
+typedef struct {
+    volatile uint32_t *control;
+    uint32_t first;
+    uint32_t second;
+    unsigned calls;
+} ClockAuxRomCall;
+
+static void clock_aux_rom_pair(void *context, uint32_t first,
+                               uint32_t second)
+{
+    ClockAuxRomCall *call = (ClockAuxRomCall *)context;
+    assert(*call->control == ((0xA5A5A5A5u & ~0x7000u) | 0x6000u));
+    call->first = first;
+    call->second = second;
+    call->calls++;
+}
+
+static void test_main_clock_aux_fields(void)
+{
+    uint32_t control = 0xA5A5A5A5u;
+    uint8_t first = 0x12u;
+    uint8_t second = 0x34u;
+    uint8_t high = 0xFEu;
+    uint16_t low = 0x1234u;
+    uint8_t middle = 0xFDu;
+    ClockAuxRomCall call = { &control, 0u, 0u, 0u };
+    H9MainClockAuxFields fields = {
+        &control, &high, &second, &first, &low, &middle,
+        &call, clock_aux_rom_pair
+    };
+    assert(!h9_main_clock_aux_program(NULL));
+    fields.rom_apply_pair = NULL;
+    assert(!h9_main_clock_aux_program(&fields));
+    assert(control == 0xA5A5A5A5u);
+    fields.rom_apply_pair = clock_aux_rom_pair;
+    assert(h9_main_clock_aux_program(&fields));
+    assert(call.calls == 1u && call.first == 0x12u && call.second == 0x34u);
+    assert(control == ((0xA5A5A5A5u & ~0x77FFu) |
+                       0x6000u | 0x500u | 0x34u));
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -4114,6 +4155,7 @@ int main(void)
     test_main_clock_calculation();
     test_main_clock_match();
     test_main_clock_source_registers();
+    test_main_clock_aux_fields();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

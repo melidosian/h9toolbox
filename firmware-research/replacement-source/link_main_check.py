@@ -349,6 +349,32 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
                      "[r0+0] |= 1 << r1", "r1 > 23")):
         raise ValueError("Linked clock source helpers differ from stock register flow")
 
+    aux_bind_match = re.search(
+        r"(?ms)^h9_main_clock_aux_bind_target:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    aux_rom_match = re.search(
+        r"(?ms)^target_rom_apply_pair:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    aux_program_match = re.search(
+        r"(?ms)^h9_main_clock_aux_program:\n(.*?)(?=^\S[^\n]*:\n|\Z)",
+        disassembly,
+    )
+    if any(item is None for item in
+           (aux_bind_match, aux_rom_match, aux_program_match)):
+        raise ValueError("Linked main ELF lacks auxiliary clock fields")
+    aux_bind = aux_bind_match.group(1).lower()
+    aux_rom = aux_rom_match.group(1).lower()
+    aux_program = aux_program_match.group(1).lower()
+    aux_order = ("insert(r3, p:12, l:3)", "call r6",
+                 "insert(r2, p:0, l:8)", "insert(r2, p:8, l:3)")
+    aux_positions = [aux_program.find(value) for value in aux_order]
+    if not all(value in aux_bind for value in ("1966088", "55784")) or \
+            "33554704" not in aux_rom or \
+            -1 in aux_positions or aux_positions != sorted(aux_positions):
+        raise ValueError("Linked auxiliary clock field order differs from stock")
+
     data_start = symbol_address("__data_start")
     data_end = symbol_address("__data_end")
     bss_start = symbol_address("__bss_start")
@@ -472,6 +498,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "early_board_clock_match_path_verified": True,
         "clock_source_register_writer_link_verified": True,
         "clock_source_latch_link_verified": True,
+        "clock_aux_field_writer_link_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,
