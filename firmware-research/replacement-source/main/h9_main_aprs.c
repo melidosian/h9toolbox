@@ -5,6 +5,23 @@ static bool valid_side(H9Side side)
     return side == H9_SIDE_A || side == H9_SIDE_B;
 }
 
+uint8_t h9_main_track_side_bit(uint8_t side_state, bool compare_working,
+                                uint32_t working_frequency,
+                                uint32_t a_frequency, uint32_t b_frequency)
+{
+    if (!compare_working) return side_state;
+    if (working_frequency == a_frequency)
+        return (uint8_t)(side_state & 0x7Fu);
+    if (working_frequency == b_frequency)
+        return (uint8_t)(side_state | 0x80u);
+    return side_state;
+}
+
+H9Side h9_main_side_from_state(uint8_t side_state)
+{
+    return (side_state & 0x80u) != 0 ? H9_SIDE_B : H9_SIDE_A;
+}
+
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,
                                H9Side received_side)
 {
@@ -38,7 +55,7 @@ bool h9_main_rx_channel_matches(H9RxChoice choice, uint32_t working_rx_hz,
 H9TxPlan h9_main_tx_plan(const H9MainAprsConfig *config, H9Side current_side,
                          uint32_t a_tx_hz, uint32_t b_tx_hz)
 {
-    H9TxPlan result = { false, H9_SIDE_A, 0 };
+    H9TxPlan result = { false, H9_SIDE_A, 0, false };
     H9Side chosen;
     if (config == NULL || !config->aprs_enabled || !valid_side(current_side))
         return result;
@@ -67,6 +84,9 @@ H9TxPlan h9_main_tx_plan(const H9MainAprsConfig *config, H9Side current_side,
     if (result.expected_tx_hz == 0) return result;
     result.side = chosen;
     result.allowed = true;
+    result.restore_side_after_send = chosen != current_side &&
+        (config->tx_choice == H9_TX_A_AUTO ||
+         config->tx_choice == H9_TX_B_AUTO);
     return result;
 }
 

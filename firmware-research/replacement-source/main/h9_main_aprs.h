@@ -32,7 +32,17 @@ typedef struct {
     bool allowed;
     H9Side side;
     uint32_t expected_tx_hz;
+    /* Stock auto modes temporarily change the side bit and restore it. */
+    bool restore_side_after_send;
 } H9TxPlan;
+
+/* Stock app+0x05A538..0x05A676 updates bit 7 of RAM 0x00011B50 when
+   the working frequency matches A or B. The caller must supply frequencies
+   in the same units and the condition represented by RAM 0x00011B20. */
+uint8_t h9_main_track_side_bit(uint8_t side_state, bool compare_working,
+                                uint32_t working_frequency,
+                                uint32_t a_frequency, uint32_t b_frequency);
+H9Side h9_main_side_from_state(uint8_t side_state);
 
 /* Policy only: actual audio gates and decoder tap have not been located. */
 H9AudioPlan h9_main_audio_plan(const H9MainAprsConfig *config,

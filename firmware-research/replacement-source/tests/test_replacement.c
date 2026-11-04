@@ -109,6 +109,21 @@ static void test_main_policy(void)
     H9MainAprsConfig cfg = { true, true, H9_RX_B, H9_TX_B_LOCK };
     H9AudioPlan audio;
     H9TxPlan tx;
+    uint8_t side_state = 0x2Du;
+    assert(h9_main_side_from_state(side_state) == H9_SIDE_A);
+    side_state = h9_main_track_side_bit(side_state, true, 144390000u,
+                                         445390000u, 144390000u);
+    assert(side_state == 0xADu);
+    assert(h9_main_side_from_state(side_state) == H9_SIDE_B);
+    assert(h9_main_track_side_bit(side_state, false, 445390000u,
+                                  445390000u, 144390000u) == side_state);
+    assert(h9_main_track_side_bit(side_state, true, 145000000u,
+                                  445390000u, 144390000u) == side_state);
+    assert(h9_main_track_side_bit(side_state, true, 445390000u,
+                                  445390000u, 144390000u) == 0x2Du);
+    /* The stock branch tests A first when both channel values match. */
+    assert(h9_main_track_side_bit(side_state, true, 144390000u,
+                                  144390000u, 144390000u) == 0x2Du);
     audio = h9_main_audio_plan(&cfg, H9_SIDE_B);
     assert(audio.decoder_feed && !audio.speaker_audio && !audio.bluetooth_audio);
     audio = h9_main_audio_plan(&cfg, H9_SIDE_A);
@@ -117,12 +132,19 @@ static void test_main_policy(void)
     assert(!tx.allowed); /* Lock never silently follows A. */
     tx = h9_main_tx_plan(&cfg, H9_SIDE_B, 445390000u, 144390000u);
     assert(tx.allowed && tx.side == H9_SIDE_B && tx.expected_tx_hz == 144390000u);
+    assert(!tx.restore_side_after_send);
+    tx = h9_main_tx_plan(&cfg, h9_main_side_from_state(side_state),
+                         445390000u, 144390000u);
+    assert(tx.allowed && tx.side == H9_SIDE_B);
+    assert(!tx.restore_side_after_send);
     assert(!h9_main_tx_prepared(&tx, H9_SIDE_A, 445390000u));
     assert(!h9_main_tx_prepared(&tx, H9_SIDE_B, 445390000u));
     assert(h9_main_tx_prepared(&tx, H9_SIDE_B, 144390000u));
     cfg.tx_choice = H9_TX_B_AUTO;
     tx = h9_main_tx_plan(&cfg, H9_SIDE_A, 445390000u, 144390000u);
-    assert(tx.allowed && tx.side == H9_SIDE_B);
+    assert(tx.allowed && tx.side == H9_SIDE_B && tx.restore_side_after_send);
+    tx = h9_main_tx_plan(&cfg, H9_SIDE_B, 445390000u, 144390000u);
+    assert(tx.allowed && !tx.restore_side_after_send);
     assert(h9_main_rx_channel_matches(H9_RX_B, 144390000u,
                                       445390000u, 144390000u));
     assert(!h9_main_rx_channel_matches(H9_RX_B, 445390000u,
