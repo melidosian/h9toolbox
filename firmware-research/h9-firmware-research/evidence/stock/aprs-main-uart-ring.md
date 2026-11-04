@@ -15,8 +15,9 @@ are pending, it copies only `1024` into a stack batch. Each copied byte uses
 before it processes the batch at app+`0x087340`.
 
 `replacement-source/main/h9_main_uart_ring.*` ports that batch drain and
-passes completed frames to a callback. Host tests cover wraparound, the
-`1024`-byte poll limit, and frame handoff. UART/DMA producer behavior, ring
-overrun signaling, interrupt setup, and the board's serial peripheral remain
-unmapped. The source expects a board driver to fill the storage and update
-the producer index; it does not invent those hardware details.
+passes completed frames to a callback. It also provides a single-producer
+byte push for a future UART interrupt. Host tests cover wraparound, the
+`1024`-byte poll limit, frame handoff, and a full-ring drop. Refusing a byte
+when full and counting drops are replacement policies, not recovered stock
+overrun behavior. UART/DMA register setup, interrupt wiring, and the board's
+serial peripheral remain unmapped.

@@ -517,6 +517,14 @@ static void test_main_uart_ring(void)
     assert(ring.read_index == 1500u);
     ring.write_index = 2048u;
     assert(h9_main_uart_ring_drain(&ring, &receiver, NULL, NULL) == 0u);
+    h9_main_uart_ring_init(&ring);
+    for (size_t i = 0; i < H9_MAIN_UART_RING_CAPACITY - 1u; ++i)
+        assert(h9_main_uart_ring_push(&ring, (uint8_t)i));
+    assert(!h9_main_uart_ring_push(&ring, 0x42u));
+    assert(ring.dropped_bytes == 1u && ring.write_index == 2047u);
+    assert(h9_main_uart_ring_drain(&ring, &receiver, NULL, NULL) == 1024u);
+    assert(h9_main_uart_ring_push(&ring, 0x42u));
+    assert(ring.write_index == 0u && ring.dropped_bytes == 1u);
 }
 
 typedef struct {
@@ -577,11 +585,7 @@ static void queue_session_bytes(H9MainAprsSession *session,
 {
     size_t index;
     for (index = 0; index < length; ++index) {
-        uint16_t next = (uint16_t)((session->uart_ring.write_index + 1u) &
-                                    (H9_MAIN_UART_RING_CAPACITY - 1u));
-        assert(next != session->uart_ring.read_index);
-        session->uart_ring.storage[session->uart_ring.write_index] = bytes[index];
-        session->uart_ring.write_index = next;
+        assert(h9_main_uart_ring_push(&session->uart_ring, bytes[index]));
     }
 }
 
