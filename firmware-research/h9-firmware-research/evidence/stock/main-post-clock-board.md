@@ -213,3 +213,13 @@ register phases occur in order, and that a failed poll stops later writes.
 The target link check pins the stock instruction range and checks the linked
 repeat opcode, control addresses, masks, and call order. No radio execution
 has validated these control writes; the linked image remains diagnostic.
+
+The next board block at app+`0x05FF9A..0x05FFE4` calls local helper
+app+`0x05E37E` with `(r0,r1,r2)=(1,0xDA90,0xE290)`, then ROM
+`0x0200391A` and `0x02002CAE`. It calls app+`0x02CF22` twice with different
+app pointers, then ROM `0x02003180` and `0x02001650`, before entering an
+`idle` loop. The local helper waits for status bit 0 and writes control
+words near `0x10F0D8`; app+`0x02CF22` walks a descriptor table beginning
+at app address `0x01EA2B64` and calls further helpers. Their effects and
+required replacement resources are not yet traced, so the diagnostic board
+entry stops before this block.
