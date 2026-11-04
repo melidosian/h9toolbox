@@ -33,8 +33,8 @@ stack pointer is `0x20001A50`; reset vector is `0x080020D5`.
 `link_check_startup.S` now implement the reset-register writes, ordinary
 `.data` copy, `.bss` zeroing, 48-vector RAM relocation, and VTOR setup. The
 linker reserves the first `0xC0` RAM bytes for those vectors. The linked
-diagnostic image now maps DMA channel 1 and USART1 slots to replacement
-receive handlers, while other interrupt slots retain default handlers. Its
+diagnostic image now maps SysTick, DMA channel 1, ADC1, and USART1 slots to
+replacement handlers, while other interrupt slots retain default handlers. Its
 board entry now selects the observed 24 MHz internal-clock path, configures
 USART1 and DMA channel 1, polls received UART batches, and sends serial
 replies through USART1. This source path
