@@ -21,7 +21,9 @@ from typing import Callable, TextIO
 
 
 STOCK_SHA256 = "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33"
-IMAGE_SIZE = 17_304
+STOCK_IMAGE_SIZE = 17_304
+# Input guard for this tool, not a measured APRS MCU flash capacity.
+MAX_IMAGE_BYTES = 1_048_576
 IMAGE_BASE = 0x08002000
 FRAME_PREFIX = b"TID\x00"
 BLOCK_SIZE = 128
@@ -131,9 +133,15 @@ class FlashJournal:
 
 
 def inspect_image(path: Path) -> Image:
+    size = path.stat().st_size
+    if not 192 <= size <= MAX_IMAGE_BYTES:
+        raise AprsFlashError(
+            f"APRS image must contain a vector table and be at most "
+            f"{MAX_IMAGE_BYTES:,} bytes; got {size:,}"
+        )
     data = path.read_bytes()
-    if len(data) != IMAGE_SIZE:
-        raise AprsFlashError(f"Expected {IMAGE_SIZE} APRS image bytes, got {len(data)}")
+    if len(data) != size:
+        raise AprsFlashError("APRS image changed while reading it")
     stack, reset = struct.unpack_from("<II", data)
     if not 0x20000000 <= stack < 0x20010000:
         raise AprsFlashError(f"Implausible Cortex-M stack pointer 0x{stack:08X}")
@@ -271,6 +279,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"First frame: {write_frame(0, image.data[:BLOCK_SIZE])[:10].hex(' ')} ...")
             print("No device was opened or written.")
         elif args.command == "flash":
+            if len(image.data) > STOCK_IMAGE_SIZE:
+                raise AprsFlashError(
+                    "Image exceeds the observed stock APRS length; target flash "
+                    "capacity has not been verified. Offline inspect/plan remain available."
+                )
             if image.digest != STOCK_SHA256 and not args.allow_modified:
                 raise AprsFlashError("Modified image requires --allow-modified")
             if image.digest != STOCK_SHA256:

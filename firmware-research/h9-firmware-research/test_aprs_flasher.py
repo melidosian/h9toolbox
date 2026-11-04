@@ -51,6 +51,19 @@ class FakePort:
 
 
 class AprsFlasherTests(unittest.TestCase):
+    def test_inspect_accepts_replacement_length_and_rejects_truncated_vector(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "replacement.bin"
+            data = bytearray(aprs.STOCK_IMAGE_SIZE + 256)
+            struct.pack_into("<II", data, 0, 0x20001A50, 0x080020D5)
+            path.write_bytes(data)
+            image = aprs.inspect_image(path)
+            self.assertEqual(len(image.data), len(data))
+            self.assertEqual(len(list(aprs.frames(image))), 138)
+            path.write_bytes(data[:100])
+            with self.assertRaises(aprs.AprsFlashError):
+                aprs.inspect_image(path)
+
     def test_ports_command_is_read_only_and_needs_no_image(self):
         ports = [
             aprs.SerialPortInfo("COM7", "USB Serial", 0x1A86, 0x7523),
@@ -78,7 +91,7 @@ class AprsFlasherTests(unittest.TestCase):
         aprs.check_reply(b"\x55\x66\x77\x88\x99\x10\x00", 0x10)
 
     def test_entire_stock_shape_in_simulated_serial_transfer(self):
-        data = bytearray(aprs.IMAGE_SIZE)
+        data = bytearray(aprs.STOCK_IMAGE_SIZE)
         struct.pack_into("<II", data, 0, 0x20001A50, 0x080020D5)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "aprs.bin"
@@ -149,9 +162,10 @@ class AprsFlasherTests(unittest.TestCase):
             self.assertEqual(rows[-1]["acknowledged_end"], 128)
 
     def test_flash_cli_writes_new_journal_with_simulated_port(self):
-        data = bytearray(aprs.IMAGE_SIZE)
+        data = bytearray(aprs.STOCK_IMAGE_SIZE - 128)
         struct.pack_into("<II", data, 0, 0x20001A50, 0x080020D5)
-        port = FakePort([ack(0x13)] * 136 + [ack(0x10)])
+        block_count = (len(data) + aprs.BLOCK_SIZE - 1) // aprs.BLOCK_SIZE
+        port = FakePort([ack(0x13)] * block_count + [ack(0x10)])
         with tempfile.TemporaryDirectory() as directory:
             image_path = Path(directory) / "test.bin"
             manifest_path = Path(directory) / "release.json"
@@ -160,7 +174,7 @@ class AprsFlasherTests(unittest.TestCase):
             manifest_path.write_text(json.dumps({
                 "kind": "aprs_release_image", "flashable": True,
                 "image_sha256": aprs.inspect_image(image_path).digest,
-                "image_bytes": aprs.IMAGE_SIZE, "image_base": aprs.IMAGE_BASE,
+                "image_bytes": len(data), "image_base": aprs.IMAGE_BASE,
             }))
             output = io.StringIO()
             serial_module = SimpleNamespace(Serial=lambda *args, **kwargs: port)
@@ -175,12 +189,12 @@ class AprsFlasherTests(unittest.TestCase):
             self.assertIn(str(journal_path), output.getvalue())
             self.assertEqual(port.writes[-1], aprs.EXIT_FRAME)
             rows = [json.loads(line) for line in journal_path.read_text().splitlines()]
-            self.assertEqual(len(rows), 139)
+            self.assertEqual(len(rows), block_count + 3)
             self.assertEqual(rows[-1]["event"], "transfer_acknowledged")
-            self.assertEqual(rows[-1]["acknowledged_end"], aprs.IMAGE_SIZE)
+            self.assertEqual(rows[-1]["acknowledged_end"], len(data))
 
     def test_diagnostic_or_mismatched_manifest_cannot_open_serial_port(self):
-        data = bytearray(aprs.IMAGE_SIZE)
+        data = bytearray(aprs.STOCK_IMAGE_SIZE)
         struct.pack_into("<II", data, 0, 0x20001A50, 0x080020D5)
         with tempfile.TemporaryDirectory() as directory:
             image_path = Path(directory) / "h9_aprs_diagnostic_NOT_FOR_FLASH.raw"
@@ -195,7 +209,7 @@ class AprsFlasherTests(unittest.TestCase):
 
             manifest = {"kind": "aprs_whole_archive_link_check",
                         "flashable": False, "image_sha256": image.digest,
-                        "image_bytes": aprs.IMAGE_SIZE,
+                        "image_bytes": aprs.STOCK_IMAGE_SIZE,
                         "image_base": aprs.IMAGE_BASE}
             manifest_path.write_text(json.dumps(manifest))
             with contextlib.redirect_stderr(io.StringIO()):
@@ -209,6 +223,27 @@ class AprsFlasherTests(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(aprs.main(base_args + [
                     "--release-manifest", str(manifest_path)]), 1)
+
+    def test_flash_rejects_image_beyond_observed_stock_length(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image_path = Path(directory) / "larger.bin"
+            data = bytearray(aprs.STOCK_IMAGE_SIZE + 256)
+            struct.pack_into("<II", data, 0, 0x20001A50, 0x080020D5)
+            image_path.write_bytes(data)
+            manifest_path = Path(directory) / "release.json"
+            manifest_path.write_text(json.dumps({
+                "kind": "aprs_release_image", "flashable": True,
+                "image_sha256": aprs.inspect_image(image_path).digest,
+                "image_bytes": len(data), "image_base": aprs.IMAGE_BASE,
+            }))
+            with patch.dict(sys.modules, {"serial": SimpleNamespace(
+                    Serial=lambda *args, **kwargs: self.fail("opened serial"))}):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(aprs.main([
+                        "flash", str(image_path), "--port", "COM7", "--yes",
+                        "--allow-modified", "--release-manifest",
+                        str(manifest_path),
+                    ]), 1)
 
 
 if __name__ == "__main__":
