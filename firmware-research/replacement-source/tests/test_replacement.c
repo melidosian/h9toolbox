@@ -80,6 +80,7 @@
 #include "h9_main_uart1_tx.h"
 #include "h9_main_uart1_tx_queue.h"
 #include "h9_main_tx_service.h"
+#include "h9_main_tx_adapter.h"
 #include "h9_main_tx_frequency.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
@@ -4549,6 +4550,245 @@ static void test_main_aprs_uart1_tx_transaction(void)
 }
 
 typedef struct {
+    H9MainAprsUart1Link *link;
+    uint8_t dual_watch;
+    uint8_t route_side;
+    uint8_t side_state;
+    uint32_t working_rx;
+    uint32_t working_tx;
+    uint32_t a_rx;
+    uint32_t a_tx;
+    uint32_t b_rx;
+    uint32_t b_tx;
+    uint32_t now_ms;
+    unsigned key_calls;
+    unsigned stop_calls;
+    bool reserved;
+    bool keyed;
+    bool ack_sent;
+    bool drain_sent;
+    bool drop_ack;
+    bool fail_unkey;
+} MainTxAdapterFixture;
+
+static bool adapter_route_acquire(void *context)
+{
+    MainTxAdapterFixture *fixture = (MainTxAdapterFixture *)context;
+    assert(!fixture->reserved);
+    fixture->reserved = true;
+    return true;
+}
+
+static bool adapter_route_release(void *context)
+{
+    MainTxAdapterFixture *fixture = (MainTxAdapterFixture *)context;
+    assert(fixture->reserved && !fixture->keyed);
+    fixture->reserved = false;
+    return true;
+}
+
+static bool adapter_read_position(void *context,
+                                   H9BeaconPositionStatus *status)
+{
+    assert(((MainTxAdapterFixture *)context)->reserved);
+    memset(status, 0, sizeof *status);
+    return true;
+}
+
+static bool adapter_frequency_allowed(void *context, uint32_t tx_hz)
+{
+    assert(((MainTxAdapterFixture *)context)->reserved);
+    return tx_hz == 144390000u;
+}
+
+static bool adapter_prepare_unkeyed(void *context, const H9TxPlan *plan)
+{
+    MainTxAdapterFixture *fixture = (MainTxAdapterFixture *)context;
+    H9Side setup = h9_main_rf_setup_side(fixture->dual_watch != 0u,
+                                           fixture->route_side,
+                                           fixture->side_state);
+    assert(fixture->reserved && !fixture->keyed &&
+           plan->side == H9_SIDE_B && setup == H9_SIDE_B);
+    fixture->working_rx = fixture->b_rx;
+    fixture->working_tx = fixture->b_tx;
+    return true;
+}
+
+static bool adapter_read_synth(void *context, H9Side *side, uint32_t *tx_hz)
+{
+    MainTxAdapterFixture *fixture = (MainTxAdapterFixture *)context;
+    assert(fixture->reserved && !fixture->keyed);
+    *side = h9_main_rf_setup_side(fixture->dual_watch != 0u,
+                                    fixture->route_side, fixture->side_state);
+    *tx_hz = fixture->working_tx * 10u;
+    return true;
+}
+
+static bool adapter_key_rf(void *context)
+{
+    MainTxAdapterFixture *fixture = (MainTxAdapterFixture *)context;
+    assert(fixture->reserved && fixture->route_side == 1u &&
+           fixture->link->tx_permit_acknowledged);
+    fixture->key_calls++;
+    fixture->keyed = true;
+    return true;
+}
+
+static bool adapter_unkey_rf(void *context)
+{
+    MainTxAdapterFixture *fixture = (MainTxAdapterFixture *)context;
+    fixture->stop_calls++;
+    if (fixture->fail_unkey) return false;
+    fixture->keyed = false;
+    return true;
+}
+
+static bool adapter_restore_receive(void *context, H9Side previous_side)
+{
+    MainTxAdapterFixture *fixture = (MainTxAdapterFixture *)context;
+    assert(fixture->reserved && !fixture->keyed &&
+           previous_side == H9_SIDE_B);
+    return true;
+}
+
+static uint32_t adapter_now(void *context)
+{
+    return ((MainTxAdapterFixture *)context)->now_ms;
+}
+
+static bool adapter_yield(void *context)
+{
+    MainTxAdapterFixture *fixture = (MainTxAdapterFixture *)context;
+    uint8_t frame[16];
+    uint8_t payload[4];
+    size_t length;
+    uint16_t token = fixture->link->tx_active_token;
+    fixture->now_ms++;
+    if (!fixture->drop_ack && !fixture->ack_sent && token != 0u) {
+        payload[0] = H9_APRS_TX_PERMIT_ACK_VERSION;
+        payload[1] = H9_APRS_TX_PERMIT_ENABLE;
+        payload[2] = (uint8_t)token;
+        payload[3] = (uint8_t)(token >> 8);
+        length = h9_wire_encode(H9_APRS_TX_PERMIT_ACK_COMMAND, payload,
+                                 4u, frame, sizeof frame);
+        queue_session_bytes(&fixture->link->session, frame, length);
+        fixture->ack_sent = true;
+    } else if (fixture->link->tx_packet_queued && !fixture->drain_sent) {
+        payload[0] = H9_APRS_TX_DRAINED_VERSION;
+        payload[1] = (uint8_t)token;
+        payload[2] = (uint8_t)(token >> 8);
+        length = h9_wire_encode(H9_APRS_TX_DRAINED_COMMAND, payload,
+                                 3u, frame, sizeof frame);
+        queue_session_bytes(&fixture->link->session, frame, length);
+        fixture->drain_sent = true;
+    }
+    return true;
+}
+
+static void test_main_tx_adapter_transaction(void)
+{
+    uint32_t registers[11] = { 0 };
+    uint8_t receive[32] = { 0 };
+    uint8_t outgoing[3][64] = { { 0 } };
+    H9MainUart1TxSlot slots[3] = {
+        { outgoing[0], 0x12000u, sizeof outgoing[0], 0u },
+        { outgoing[1], 0x12100u, sizeof outgoing[1], 0u },
+        { outgoing[2], 0x12200u, sizeof outgoing[2], 0u }
+    };
+    MainUartLinkCapture dma_capture = { registers, 0u, 0u, 0u, 0u };
+    H9MainAprsUart1DmaHooks dma = {
+        main_uart_link_prepare, main_uart_link_enable,
+        main_uart_link_tx_ack, main_uart_link_rx_ack, &dma_capture
+    };
+    H9MainAprsUart1Link link;
+    H9MainTxAdapter adapter = { 0 };
+    MainTxAdapterFixture fixture = { 0 };
+    H9MainAprsConfig config = { true, false, H9_RX_B, H9_TX_B_LOCK };
+    const uint8_t packet[] = { 0x82u };
+
+    fixture.link = &link;
+    fixture.dual_watch = 1u;
+    fixture.side_state = 0x80u;
+    fixture.a_rx = fixture.a_tx = 44539000u;
+    fixture.b_rx = fixture.b_tx = 14439000u;
+    adapter.uart = &link;
+    adapter.route.dual_watch = &fixture.dual_watch;
+    adapter.route.route_side = &fixture.route_side;
+    adapter.route.channel_side_state = &fixture.side_state;
+    adapter.route.working_rx_10hz = &fixture.working_rx;
+    adapter.route.working_tx_10hz = &fixture.working_tx;
+    adapter.route.a_rx_10hz = &fixture.a_rx;
+    adapter.route.a_tx_10hz = &fixture.a_tx;
+    adapter.route.b_rx_10hz = &fixture.b_rx;
+    adapter.route.b_tx_10hz = &fixture.b_tx;
+    adapter.board.route_acquire = adapter_route_acquire;
+    adapter.board.route_release = adapter_route_release;
+    adapter.board.read_position = adapter_read_position;
+    adapter.board.frequency_allowed = adapter_frequency_allowed;
+    adapter.board.prepare_unkeyed = adapter_prepare_unkeyed;
+    adapter.board.read_synth = adapter_read_synth;
+    adapter.board.key_rf = adapter_key_rf;
+    adapter.board.unkey_rf = adapter_unkey_rf;
+    adapter.board.restore_rf_receive = adapter_restore_receive;
+    adapter.board.now_ms = adapter_now;
+    adapter.board.yield = adapter_yield;
+    adapter.board.context = &fixture;
+    adapter.timeout_ms = 100u;
+    adapter.max_poll_steps = 10u;
+
+    assert(h9_main_aprs_uart1_link_init(&link, registers, receive,
+                                        sizeof receive, 16u, slots, 3u,
+                                        &dma, NULL, NULL));
+    memcpy(link.session.versions.module, "H9R0.01", sizeof "H9R0.01");
+    memcpy(link.session.versions.protocol, "V1.0.0", sizeof "V1.0.0");
+    link.session.versions.has_module = 1u;
+    link.session.versions.has_protocol = 1u;
+    assert(h9_main_tx_adapter_send(&adapter, &config, 445390000u,
+                                    144390000u, packet, sizeof packet) ==
+           H9_MAIN_TX_SENT);
+    assert(fixture.ack_sent && fixture.drain_sent &&
+           fixture.key_calls == 1u && fixture.stop_calls == 1u &&
+           !fixture.keyed && !fixture.reserved && fixture.route_side == 0u &&
+           fixture.side_state == 0x80u);
+
+    fixture.ack_sent = fixture.drain_sent = false;
+    fixture.drop_ack = true;
+    fixture.key_calls = fixture.stop_calls = 0u;
+    fixture.now_ms = 1000u;
+    assert(h9_main_aprs_uart1_link_init(&link, registers, receive,
+                                        sizeof receive, 16u, slots, 3u,
+                                        &dma, NULL, NULL));
+    memcpy(link.session.versions.module, "H9R0.01", sizeof "H9R0.01");
+    memcpy(link.session.versions.protocol, "V1.0.0", sizeof "V1.0.0");
+    link.session.versions.has_module = 1u;
+    link.session.versions.has_protocol = 1u;
+    assert(h9_main_tx_adapter_send(&adapter, &config, 445390000u,
+                                    144390000u, packet, sizeof packet) ==
+           H9_MAIN_TX_PERMIT_FAILED);
+    assert(fixture.key_calls == 0u && fixture.stop_calls == 1u &&
+           !fixture.reserved && fixture.route_side == 0u);
+
+    fixture.ack_sent = fixture.drain_sent = false;
+    fixture.drop_ack = false;
+    fixture.fail_unkey = true;
+    fixture.key_calls = fixture.stop_calls = 0u;
+    fixture.now_ms = 2000u;
+    assert(h9_main_aprs_uart1_link_init(&link, registers, receive,
+                                        sizeof receive, 16u, slots, 3u,
+                                        &dma, NULL, NULL));
+    memcpy(link.session.versions.module, "H9R0.01", sizeof "H9R0.01");
+    memcpy(link.session.versions.protocol, "V1.0.0", sizeof "V1.0.0");
+    link.session.versions.has_module = 1u;
+    link.session.versions.has_protocol = 1u;
+    assert(h9_main_tx_adapter_send(&adapter, &config, 445390000u,
+                                    144390000u, packet, sizeof packet) ==
+           H9_MAIN_TX_CLEANUP_FAILED);
+    assert(fixture.key_calls == 1u && fixture.stop_calls == 1u &&
+           fixture.reserved && fixture.keyed && fixture.route_side == 1u &&
+           adapter.saved_route.active);
+}
+
+typedef struct {
     uint32_t *registers;
     unsigned steps[5];
     unsigned count;
@@ -6743,6 +6983,7 @@ int main(void)
     test_main_aprs_uart1_link();
     test_main_aprs_uart1_link_forwards_gps_fix();
     test_main_aprs_uart1_tx_transaction();
+    test_main_tx_adapter_transaction();
     test_main_uart1_board_open();
     test_main_uart1_baud();
     test_timed_beacon_scheduler();

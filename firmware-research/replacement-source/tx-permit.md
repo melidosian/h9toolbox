@@ -51,6 +51,15 @@ the packet, poll for the matching `0x54` event, and time out before reporting
 success. A failed clear makes the transaction
 report cleanup failure; the APRS lease is a second bound on that condition.
 
+`h9_main_tx_adapter` now binds those callbacks to the UART1 link and the
+ported logical-side and Dual Watch route snapshot. It asks board hooks for
+the live region policy, unkeyed RF setup, synthesizer readback, actual PTT
+control, and a reservation that excludes concurrent route changes. It waits
+for the matching permit acknowledgment before the key hook, then for the
+matching drained event before stop. Both waits have a clock deadline and
+an iteration cap. If the PTT stop hook cannot confirm deassertion, the
+adapter does not restore the receive route or release the reservation.
+
 This is replacement protocol and source-level transaction code, not observed
 stock behavior. The main radio board adapter still has to prove the actual
 programmed frequency, assert/deassert PTT, send both permit frames with
