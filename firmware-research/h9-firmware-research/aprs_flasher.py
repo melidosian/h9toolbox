@@ -10,10 +10,14 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from hashlib import sha256
+import json
+import os
 from pathlib import Path
 import struct
 import sys
+from typing import Callable, TextIO
 
 
 STOCK_SHA256 = "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33"
@@ -34,6 +38,77 @@ class Image:
     digest: str
     stack_pointer: int
     reset_vector: int
+
+
+def default_journal_path(image_path: Path) -> Path:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    return image_path.with_name(
+        f"{image_path.stem}.aprs-flash-{stamp}-{os.getpid()}.jsonl"
+    )
+
+
+class FlashJournal:
+    """Append-only record of acknowledged blocks; no firmware bytes are saved."""
+
+    def __init__(self, path: Path, image: Image, port: str, baud: int):
+        self.path = path
+        self.image = image
+        self.port = port
+        self.baud = baud
+        self.output: TextIO | None = None
+        self.acknowledged_end = 0
+        self.exit_acked = False
+
+    def _record(self, event: str, **fields: object) -> None:
+        if self.output is None:
+            raise RuntimeError("Flash journal is not open")
+        row = {
+            "event": event,
+            "utc": datetime.now(timezone.utc).isoformat(),
+            **fields,
+        }
+        self.output.write(json.dumps(row, sort_keys=True) + "\n")
+        self.output.flush()
+        os.fsync(self.output.fileno())
+
+    def __enter__(self) -> FlashJournal:
+        self.output = self.path.open("x", encoding="utf-8")
+        try:
+            self._record("attempt_started", image_sha256=self.image.digest,
+                         image_bytes=len(self.image.data), port=self.port,
+                         baud=self.baud)
+        except OSError:
+            self.output.close()
+            self.output = None
+            raise
+        return self
+
+    def block_acknowledged(self, offset: int, length: int) -> None:
+        acknowledged_end = offset + length
+        self._record("block_acknowledged", offset=offset, length=length,
+                     acknowledged_end=acknowledged_end)
+        self.acknowledged_end = acknowledged_end
+
+    def exit_acknowledged(self) -> None:
+        self._record("exit_acknowledged",
+                     acknowledged_end=self.acknowledged_end)
+        self.exit_acked = True
+
+    def __exit__(self, exception_type, exception, traceback) -> None:
+        if self.output is None:
+            return
+        try:
+            self._record("attempt_failed" if exception_type else
+                         ("transfer_acknowledged" if self.exit_acked else
+                          "attempt_incomplete"),
+                         acknowledged_end=self.acknowledged_end,
+                         error=str(exception) if exception_type else None)
+        except OSError:
+            if exception_type is None:
+                raise
+        finally:
+            self.output.close()
+            self.output = None
 
 
 def inspect_image(path: Path) -> Image:
@@ -95,17 +170,28 @@ def read_exact(port, size: int) -> bytes:
     return bytes(result)
 
 
-def transfer(port, image: Image, progress=print) -> None:
+def transfer(port, image: Image, progress=print,
+             on_block_ack: Callable[[int, int], None] | None = None,
+             on_exit_ack: Callable[[], None] | None = None) -> None:
     """Write every block once; stop on any unexpected reply and leave IAP active."""
     for address, packet in frames(image):
         if port.write(packet) != len(packet):
             raise AprsFlashError(f"Short serial write at image offset 0x{address:X}")
         reply = read_exact(port, 7)
-        check_reply(reply, 0x13)
+        try:
+            check_reply(reply, 0x13)
+        except AprsFlashError as error:
+            raise AprsFlashError(
+                f"At image offset 0x{address:X}: {error}"
+            ) from error
+        if on_block_ack is not None:
+            on_block_ack(address, min(BLOCK_SIZE, len(image.data) - address))
         progress(f"Written {min(address + BLOCK_SIZE, len(image.data)):,}/{len(image.data):,} bytes")
     if port.write(EXIT_FRAME) != len(EXIT_FRAME):
         raise AprsFlashError("Short serial write while exiting APRS update mode")
     check_reply(read_exact(port, 7), 0x10)
+    if on_exit_ack is not None:
+        on_exit_ack()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -119,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
             option.add_argument("--baud", type=int, default=38400)
             option.add_argument("--allow-modified", action="store_true")
             option.add_argument("--yes", action="store_true", help="Authorize writing the APRS controller")
+            option.add_argument("--journal", type=Path,
+                                help="New JSONL transfer journal (default: beside image)")
     args = parser.parse_args(argv)
     try:
         image = inspect_image(args.image)
@@ -137,14 +225,18 @@ def main(argv: list[str] | None = None) -> int:
                 import serial  # type: ignore[import-not-found]
             except ImportError as error:
                 raise AprsFlashError("Install pyserial for the flash command") from error
-            with serial.Serial(
-                args.port, baudrate=args.baud, bytesize=8, parity="N", stopbits=1,
-                timeout=3, write_timeout=3, dsrdtr=False, rtscts=False,
-            ) as port:
-                port.dtr = True
-                port.rts = True
-                port.reset_input_buffer()
-                transfer(port, image)
+            journal_path = args.journal or default_journal_path(args.image)
+            print(f"Transfer journal: {journal_path}")
+            with FlashJournal(journal_path, image, args.port, args.baud) as journal:
+                with serial.Serial(
+                    args.port, baudrate=args.baud, bytesize=8, parity="N", stopbits=1,
+                    timeout=3, write_timeout=3, dsrdtr=False, rtscts=False,
+                ) as port:
+                    port.dtr = True
+                    port.rts = True
+                    port.reset_input_buffer()
+                    transfer(port, image, on_block_ack=journal.block_acknowledged,
+                             on_exit_ack=journal.exit_acknowledged)
             print("APRS transfer acknowledged. Power-cycle and verify module version/behavior.")
         return 0
     except (AprsFlashError, OSError) as error:
