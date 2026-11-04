@@ -2622,12 +2622,17 @@ static void test_aprs_wave_output(void)
 {
     H9AprsWaveOutput output = { 0 };
     uint32_t rcc[14] = { 0 };
-    uint32_t gpio[6] = { 0 };
+    uint32_t gpio[11] = { 0 };
     assert(h9_aprs_wave_output_read(&output) == 0u);
     h9_aprs_wave_output_bind(&output, rcc, gpio);
     gpio[0] = gpio[1] = gpio[2] = gpio[3] = ~0u;
     h9_aprs_wave_output_configure(&output);
     assert(rcc[13] == 1u);
+    assert((gpio[0] & 3u) == 1u);
+    assert((gpio[1] & 1u) == 0u);
+    assert((gpio[2] & 3u) == 0u);
+    assert((gpio[3] & 3u) == 0u);
+    assert(gpio[10] == 1u);
     assert(((gpio[0] >> 8) & 0xFFu) == 0x55u);
     assert((gpio[1] & 0xF0u) == 0u);
     assert(((gpio[2] >> 8) & 0xFFu) == 0xFFu);

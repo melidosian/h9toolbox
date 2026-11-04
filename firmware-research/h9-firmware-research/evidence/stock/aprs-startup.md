@@ -34,6 +34,16 @@ stack pointer is `0x20001A50`; reset vector is `0x080020D5`.
   to `0x20000000`, writes that RAM address to SCB VTOR at `0xE000ED08`, then
   calls the application's later initialization at `0x08005DE8`.
 
+The `0x08005DE8` initializer calls `0x080038B4` (SysTick setup),
+`0x080027B4` (24 MHz internal-clock selection), `0x080056EC` (APRS state and
+GPIO setup), `0x08004FFC` (debug text output), and `0x08005E34` (version text)
+before its application loop. Read-only Ghidra decompilation of `0x080056EC`
+shows a GPIOA configuration call at `0x080036BC` for pin mask `1`, mode `1`,
+no pull, and low speed, followed by a clear through `0x08003882`. The
+replacement waveform-board setup now performs these PA0 register writes as
+well as the previously ported PA4..7 setup. The external role of PA0 is not
+identified, and this observation does not authorize RF transmit.
+
 `replacement-source/aprs/h9_aprs_clock.*`, `h9_aprs_startup.c`, and
 `link_check_startup.S` now implement the reset-register writes, ordinary
 `.data` copy, `.bss` zeroing, 48-vector RAM relocation, and VTOR setup. The

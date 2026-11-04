@@ -10,6 +10,7 @@
 #define H9_APRS_GPIO_OTYPER_WORD 1u
 #define H9_APRS_GPIO_OSPEEDR_WORD 2u
 #define H9_APRS_GPIO_PUPDR_WORD 3u
+#define H9_APRS_GPIO_CLEAR_WORD (0x28u / 4u)
 
 void h9_aprs_wave_output_bind(H9AprsWaveOutput *output,
                                volatile uint32_t *rcc,
@@ -33,6 +34,14 @@ void h9_aprs_wave_output_configure(H9AprsWaveOutput *output)
     if (output == NULL || output->rcc == NULL || output->gpio_a == NULL)
         return;
     output->rcc[H9_APRS_RCC_GPIO_ENABLE_WORD] |= 1u;
+    /* Stock 0x080056EC also configures PA0 as a low-speed push-pull
+     * output with no pull, then clears it. Its external role is unknown. */
+    output->gpio_a[H9_APRS_GPIO_MODER_WORD] =
+        (output->gpio_a[H9_APRS_GPIO_MODER_WORD] & ~3u) | 1u;
+    output->gpio_a[H9_APRS_GPIO_OTYPER_WORD] &= ~1u;
+    output->gpio_a[H9_APRS_GPIO_OSPEEDR_WORD] &= ~3u;
+    output->gpio_a[H9_APRS_GPIO_PUPDR_WORD] &= ~3u;
+    output->gpio_a[H9_APRS_GPIO_CLEAR_WORD] = 1u;
     for (pin = 4u; pin <= 7u; ++pin) {
         uint32_t pair_mask = 3u << (pin * 2u);
         output->gpio_a[H9_APRS_GPIO_MODER_WORD] =

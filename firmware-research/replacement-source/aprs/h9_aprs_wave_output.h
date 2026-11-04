@@ -14,7 +14,8 @@ void h9_aprs_wave_output_bind(H9AprsWaveOutput *output,
                                volatile uint32_t *rcc,
                                volatile uint32_t *gpio_a);
 void h9_aprs_wave_output_bind_target(H9AprsWaveOutput *output);
-/* Stock 0x080022C0 configures GPIOA pins 4..7 for the waveform nibble. */
+/* Stock 0x080022C0 configures PA4..7 for the waveform nibble; 0x080056EC
+ * configures PA0 as an output and initially clears it. */
 void h9_aprs_wave_output_configure(H9AprsWaveOutput *output);
 uint8_t h9_aprs_wave_output_read(void *context);
 void h9_aprs_wave_output_write(void *context, uint8_t value);
