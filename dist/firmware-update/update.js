@@ -1,5 +1,5 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, loadStockPackage, planUpdate, scanRadio, writeSector } from './firmware.mjs';
-import { createHidArchive, loadHidArchive, readAccessibleFlash } from './readback.mjs';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, loadStockPackage, planUpdate, scanRadio, writeSector } from './firmware.mjs?v=20261104b';
+import { createHidArchive, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261104b';
 
 const $ = id => document.getElementById(id);
 let target = null, backup = null, device = null, hid = null, plan = null, restorePlan = null, busy = false;
@@ -19,6 +19,10 @@ function refresh() {
   $('disconnect').disabled = busy || !device;
   $('inspect').disabled = busy || !hid || !target || !backup;
   $('createBackup').disabled = busy || !hid || !target;
+  $('backupHint').textContent = busy && backupRunning ? 'Reading the radio. Keep USB connected.'
+    : !hid ? 'Connect the HID radio to enable backup.'
+      : !target ? 'Select TD-H9-V1.0.38.fw from the Type-C download in step 01 to enable backup.'
+        : 'Ready to create a local HID recovery backup.';
   $('cancelBackup').hidden = !backupRunning;
   $('acknowledge').disabled = busy || (!plan?.length && !restorePlan?.length);
   $('flash').disabled = busy || !plan?.length || !$('acknowledge').checked;

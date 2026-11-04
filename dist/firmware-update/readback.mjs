@@ -1,4 +1,4 @@
-import { APP_START, FLASH_SIZE, IMAGE_SIZE, SECTOR_SIZE, crc16, scanRadio, sha256 } from './firmware.mjs';
+import { APP_START, FLASH_SIZE, IMAGE_SIZE, SECTOR_SIZE, crc16, scanRadio, sha256 } from './firmware.mjs?v=20261104b';
 
 const SECTORS = (FLASH_SIZE - APP_START) / SECTOR_SIZE;
 const BOUNDARIES = SECTORS - 1;

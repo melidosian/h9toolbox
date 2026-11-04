@@ -41,7 +41,7 @@
         <div class="card-head"><div><span class="step">02</span><h2 id="connect-title">Connect USB HID</h2></div><span class="chip" id="deviceState">Disconnected</span></div>
         <ol class="instructions"><li>Turn the radio off and connect a data-capable USB-C cable.</li><li>Hold <strong>PTT + 2</strong> while powering on. The screen stays blank and the top LED turns green.</li><li>Click Connect and select the JieLi HID device in the browser chooser.</li></ol>
         <div class="controls"><button class="button primary-button" id="connect">Connect HID radio</button><button class="button ghost" id="disconnect" disabled>Disconnect</button></div>
-        <div class="controls backup-controls"><button class="button ghost" id="createBackup" disabled>Create and download HID recovery backup</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button></div>
+        <div class="controls backup-controls"><button class="button ghost" id="createBackup" disabled>Create and download HID recovery backup</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button><span id="backupHint" class="hint" aria-live="polite">Select the Type-C .fw package and connect the radio first.</span></div>
         <p class="fine">The radio must stay in HID mode throughout backup. The page checks each reconstructed sector and rescans the radio before accepting the archive. Confirm the download is saved before proceeding.</p>
       </section>
       <section class="card" aria-labelledby="inspect-title">
@@ -61,6 +61,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The HID sector recovery procedure has been tested on a physical TD-H9; this full browser update flow is awaiting hardware validation.</p></footer>
   </div>
-  <script type="module" src="./update.js"></script>
+  <script type="module" src="./update.js?v=20261104b"></script>
 </body>
 </html>
