@@ -23,6 +23,7 @@ typedef struct {
     uint8_t packet[H9_APRS_MAX_RECEIVE];
     size_t packet_length;
     H9AprsTxPhase phase;
+    bool encoded_event_pending;
 } H9AprsTxService;
 
 void h9_aprs_tx_service_init(H9AprsTxService *service,
@@ -37,5 +38,7 @@ H9AprsTxPhase h9_aprs_tx_service_step(H9AprsTxService *service,
                                        uint8_t persistence);
 bool h9_aprs_tx_service_next_sample(H9AprsTxService *service,
                                      uint8_t *sample);
+/* One event when the closing flag has entered the waveform queue. */
+bool h9_aprs_tx_service_take_encoded_event(H9AprsTxService *service);
 
 #endif

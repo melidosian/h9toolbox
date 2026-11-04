@@ -157,6 +157,8 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
          * entry accepts packets but never authorizes waveform output. */
         (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime, false,
                                       true, false, false, 0u);
+        if (h9_aprs_tx_service_take_encoded_event(&runtime.tx_service))
+            (void)h9_aprs_controller_report_tx_encoded(&runtime.controller);
     }
 }
 

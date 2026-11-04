@@ -50,6 +50,10 @@ static void dispatch(H9AprsController *controller)
     size_t length = controller->wire.length;
     void *context = controller->hardware.context;
     switch (controller->wire.command) {
+    case 0x0Fu:
+        if (length != 0u)
+            controller->tx_status_enabled = data[length - 1u] != 0u;
+        break;
     case 0x00u:
         if (length != 0 && controller->hardware.transmit_aprs_packet != NULL)
             controller->hardware.transmit_aprs_packet(context, data, length);
@@ -143,6 +147,13 @@ void h9_aprs_controller_process_received(H9AprsController *controller)
     while (h9_aprs_demod_pop_byte(&controller->demod, &byte))
         (void)h9_aprs_frame_feed(&controller->frame, byte,
                                  forward_valid_frame, controller);
+}
+
+bool h9_aprs_controller_report_tx_encoded(H9AprsController *controller)
+{
+    static const uint8_t accepted = 1u;
+    return controller != NULL && controller->tx_status_enabled &&
+           send_frame(controller, 0x0Fu, &accepted, 1u);
 }
 
 bool h9_aprs_controller_configure_tx(H9AprsController *controller,

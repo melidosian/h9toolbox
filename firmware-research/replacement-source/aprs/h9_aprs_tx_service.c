@@ -5,8 +5,10 @@ static void refill(H9AprsTxService *service)
 {
     if (service->phase != H9_APRS_TX_ENCODING) return;
     (void)h9_aprs_tx_packet_pump(&service->encoder, &service->wave);
-    if (h9_aprs_tx_packet_done(&service->encoder))
+    if (h9_aprs_tx_packet_done(&service->encoder)) {
         service->phase = H9_APRS_TX_DRAINING;
+        service->encoded_event_pending = true;
+    }
 }
 
 void h9_aprs_tx_service_init(H9AprsTxService *service,
@@ -79,4 +81,13 @@ bool h9_aprs_tx_service_next_sample(H9AprsTxService *service,
         service->phase = H9_APRS_TX_IDLE;
     }
     return false;
+}
+
+bool h9_aprs_tx_service_take_encoded_event(H9AprsTxService *service)
+{
+    bool pending;
+    if (service == NULL) return false;
+    pending = service->encoded_event_pending;
+    service->encoded_event_pending = false;
+    return pending;
 }

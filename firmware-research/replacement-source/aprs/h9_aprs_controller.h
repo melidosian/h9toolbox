@@ -37,6 +37,7 @@ typedef struct {
     H9AprsFrame frame;
     H9AprsTx tx;
     H9AprsHardware hardware;
+    bool tx_status_enabled;
 } H9AprsController;
 
 void h9_aprs_controller_init(H9AprsController *controller,
@@ -48,6 +49,9 @@ bool h9_aprs_controller_forward_aux(H9AprsController *controller,
 bool h9_aprs_controller_pop_received_byte(H9AprsController *controller,
                                           uint8_t *byte);
 void h9_aprs_controller_process_received(H9AprsController *controller);
+/* Stock command 0x0F requests a one-byte status after a TX frame is encoded
+ * into the waveform queue. It does not indicate that RF has finished. */
+bool h9_aprs_controller_report_tx_encoded(H9AprsController *controller);
 bool h9_aprs_controller_configure_tx(H9AprsController *controller,
                                      uint16_t lead_ms, uint16_t tail_ms);
 bool h9_aprs_controller_queue_tx_byte(H9AprsController *controller,

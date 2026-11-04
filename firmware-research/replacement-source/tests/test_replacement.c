@@ -1625,12 +1625,15 @@ static void test_aprs_tx_service(void)
     }
     assert(samples >= 5376 && samples < 20000);
     assert(service.phase == H9_APRS_TX_IDLE);
+    assert(h9_aprs_tx_service_take_encoded_event(&service));
+    assert(!h9_aprs_tx_service_take_encoded_event(&service));
     assert(decoded.packets == 1 && decoded.length == packet_length);
     assert(memcmp(decoded.bytes, expected, packet_length) == 0);
     assert(h9_aprs_tx_service_submit(&service, packet, packet_length));
     assert(h9_aprs_tx_service_step(&service, true, true, true, 255) ==
            H9_APRS_TX_IDLE);
     assert(!h9_aprs_tx_service_next_sample(&service, &sample));
+    assert(!h9_aprs_tx_service_take_encoded_event(&service));
 }
 
 typedef struct {
@@ -1743,6 +1746,22 @@ static void test_aprs_controller(void)
     hw.tx_wave_active = tx_active;
     hw.next_tx_wave_sample = next_tx_wave;
     h9_aprs_controller_init(&controller, &hw);
+    assert(!h9_aprs_controller_report_tx_encoded(&controller));
+    query = 1u;
+    feed_frame(&controller, 0x0Fu, &query, 1u);
+    assert(controller.tx_status_enabled);
+    assert(h9_aprs_controller_report_tx_encoded(&controller));
+    h9_main_wire_reset(&main_receiver);
+    for (i = 0; i < fake.uart_length; ++i)
+        (void)h9_main_wire_feed(&main_receiver, fake.uart[i]);
+    assert(main_receiver.frame_ready && main_receiver.command == 0x0Fu &&
+           main_receiver.length == 1u && main_receiver.payload[0] == 1u);
+    fake.uart_length = 0u;
+    query = 0u;
+    feed_frame(&controller, 0x0Fu, &query, 1u);
+    assert(!controller.tx_status_enabled &&
+           !h9_aprs_controller_report_tx_encoded(&controller) &&
+           fake.uart_length == 0u);
     feed_frame(&controller, 0x00u, send_packet, sizeof send_packet);
     assert(fake.afsk_packet_length == sizeof send_packet);
     assert(memcmp(fake.afsk_packet, send_packet,
@@ -1754,6 +1773,7 @@ static void test_aprs_controller(void)
     assert(fake.packet_length == 3);
     assert(memcmp(fake.packet, send_packet + 1, 3) == 0);
     assert(fake.uart_length == 0u);
+    query = 1u;
     feed_frame(&controller, 0x20u, &query, 1);
     assert(fake.uart_length == 12);
     assert(fake.uart[0] == 0xC0u && fake.uart[1] == 0x21u);
