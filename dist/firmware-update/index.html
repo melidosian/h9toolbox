@@ -35,7 +35,7 @@
           <label>Official TD-H9 v1.0.38 .fw package<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"><small id="firmwareState">No package selected</small></label>
           <label>Raw main-flash backup from this radio (.bin)<input id="backupFile" type="file" accept=".bin,application/octet-stream"><small id="backupState">No backup selected</small></label>
         </div>
-        <p class="fine">The package hash, embedded image, protected boot bytes, and all accessible radio sector CRCs are checked before writing.</p>
+        <p class="fine">The package hash, embedded image, protected boot bytes, and all accessible main-firmware sector CRCs are checked before writing. HID cannot validate the preserved settings area beyond 0xDA000.</p>
       </section>
       <section class="card" aria-labelledby="connect-title">
         <div class="card-head"><div><span class="step">02</span><h2 id="connect-title">Connect USB HID</h2></div><span class="chip" id="deviceState">Disconnected</span></div>
