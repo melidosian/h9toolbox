@@ -20,6 +20,7 @@ tests cover all four table entries, disabled mode, and the invalid-band
 guard. The target binding points at the observed RAM bytes and ROM entry.
 
 Stock next re-runs app+`0x0C5492`, the already ported clock selector.
-The diagnostic board entry now follows that order and stops before the
-subsequent MMIO changes starting at app+`0x0C55AA`. No physical clock
-behavior has been measured with replacement code.
+The diagnostic board entry follows that order and then runs the MMIO,
+source/latch, delay, auxiliary, and final ROM sequence through the helper's
+return, described in [the apply trace](main-clock-apply.md). No physical
+clock behavior has been measured with replacement code.

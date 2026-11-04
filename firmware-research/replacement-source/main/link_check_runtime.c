@@ -58,6 +58,9 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainClockTiming clock_timing;
     H9MainClockApply clock_apply;
     H9MainClockRomMode clock_rom_mode;
+    H9MainClockRegisters clock_registers;
+    H9MainClockAuxFields clock_auxiliary;
+    H9MainClockFinish clock_finish;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -99,6 +102,11 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     h9_main_clock_rom_mode_bind_target(&clock_rom_mode);
     if (!h9_main_clock_rom_mode_apply(&clock_rom_mode)) for (;;) { }
     if (!h9_main_clock_selector_run(&clock_selector)) for (;;) { }
+    h9_main_clock_registers_bind_target(&clock_registers);
+    h9_main_clock_aux_bind_target(&clock_auxiliary);
+    h9_main_clock_finish_bind_target(&clock_finish, &clock_registers,
+                                     &clock_auxiliary);
+    if (!h9_main_clock_finish_run(&clock_finish)) for (;;) { }
 #endif
     for (;;) { }
 }

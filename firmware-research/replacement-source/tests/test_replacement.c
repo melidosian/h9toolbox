@@ -4381,6 +4381,83 @@ static void test_main_clock_aux_fields(void)
                        0x6000u | 0x500u | 0x34u));
 }
 
+typedef struct {
+    volatile uint32_t *control;
+    volatile uint32_t *aux_control;
+    unsigned calls;
+} ClockFinishCapture;
+
+static void clock_finish_delay(void *context, uint32_t count)
+{
+    ClockFinishCapture *capture = (ClockFinishCapture *)context;
+    assert(capture->control[2] == 0x53u);
+    assert(capture->control[14] == 0x1FB03026u);
+    if (capture->calls == 0u) {
+        assert(count == 10u && capture->control[13] == 0xD57CFE01u);
+    } else {
+        assert(capture->calls == 1u && count == 20u &&
+               capture->control[13] == 0xD57CFE03u);
+    }
+    capture->calls++;
+}
+
+static void clock_finish_aux_rom(void *context, uint32_t first,
+                                 uint32_t second)
+{
+    ClockFinishCapture *capture = (ClockFinishCapture *)context;
+    assert(capture->calls == 2u && first == 3u && second == 2u);
+    assert(*capture->aux_control ==
+           ((0xFFFFFFFFu & ~0x7000u) | 0x1000u));
+    capture->calls++;
+}
+
+static void clock_finish_rom(void *context)
+{
+    ClockFinishCapture *capture = (ClockFinishCapture *)context;
+    assert(capture->calls == 3u && capture->control[0] == 0x1C0u);
+    assert((*capture->aux_control & 0x77FFu) == 0x1534u);
+    capture->calls++;
+}
+
+static void test_main_clock_finish(void)
+{
+    uint32_t storage[16] = { 0 };
+    uint32_t *control = storage + 1u;
+    uint8_t source = 3u, divider = 4u;
+    uint32_t result = 240000000u;
+    uint8_t e8 = 1u, f0 = 2u, ec = 3u, f8 = 5u;
+    uint16_t f4 = 0x1234u;
+    ClockFinishCapture capture = { control, storage, 0u };
+    H9MainClockRegisters registers = {
+        control + 2u, &source, &divider, &result
+    };
+    H9MainClockAuxFields aux = {
+        storage, &e8, &f0, &ec, &f4, &f8,
+        &capture, clock_finish_aux_rom
+    };
+    H9MainClockFinish finish = {
+        control, &registers, &aux, &capture,
+        clock_finish_delay, clock_finish_rom
+    };
+    storage[0] = 0xFFFFFFFFu;
+    control[0] = 0u;
+    control[1] = 0xFFFFFFFFu;
+    control[2] = 0xFFu;
+    control[13] = 0xFFFFFFFFu;
+    control[14] = 0u;
+    assert(!h9_main_clock_finish_run(NULL));
+    aux.rom_apply_pair = NULL;
+    assert(!h9_main_clock_finish_run(&finish));
+    assert(control[13] == 0xFFFFFFFFu && capture.calls == 0u);
+    aux.rom_apply_pair = clock_finish_aux_rom;
+    assert(h9_main_clock_finish_run(&finish));
+    assert(capture.calls == 4u);
+    assert(control[0] == 0x1C0u && control[1] == 0xFFFFF3F3u);
+    assert(control[2] == 0x53u && control[13] == 0xD57CFE03u &&
+           control[14] == 0x1FB03026u);
+    assert((*storage & 0x77FFu) == 0x1534u);
+}
+
 int main(void)
 {
 #ifdef _MSC_VER
@@ -4425,6 +4502,7 @@ int main(void)
     test_main_clock_rom_mode();
     test_main_clock_source_registers();
     test_main_clock_aux_fields();
+    test_main_clock_finish();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();

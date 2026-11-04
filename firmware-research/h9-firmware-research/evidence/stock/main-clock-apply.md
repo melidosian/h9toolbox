@@ -20,11 +20,23 @@ The next call at app+`0x0C55A2` targets `0x01EC5388`, now mapped in
 app+`0x0C55A6` re-runs the already mapped register selector at
 app+`0x0C5492`.
 
-`replacement-source/main/h9_main_clock_apply.*` implements the first four
-steps with injected ROM, sync, delay, and MMIO operations. Its target binding
-uses the observed ROM and MMIO addresses and Pi32 `csync`/`nop`
-instructions. Host tests verify callback and register-write order. The
-diagnostic board entry now calls this stage after the timing calculation,
-then calls the ROM mode helper and repeats the selector. The ROM routines'
-internal behavior and electrical clock state have not been measured; the
-linked image remains nonflashable.
+After the ROM mode helper and repeated selector, stock continues in the
+same clock helper at app+`0x0C55AA..0x0C563E`. Independent Pi32 decoding
+shows this order:
+
+1. Write the observed masks and values to MMIO `0x1E0040` and `0x1E0044`,
+   including the final `0x26` low-field value.
+2. Call the source writer at app+`0x0C52D4`; set bit 6 and clear bit 7 of
+   `0x1E0014`; call the latch helper at app+`0x0C5308`.
+3. Set bit 0 of `0x1E0040`, delay 10 NOPs, set bit 1, then delay 20 NOPs.
+4. Call the auxiliary helper at app+`0x0C5330`, set bits 6–8 of
+   `0x1E000C`, and call ROM `0x02001650`.
+5. Clear bits 10–11 and then bits 2–3 of `0x1E0010`, and return.
+
+`replacement-source/main/h9_main_clock_apply.*` implements both the first
+transition and this final sequence. It uses the separately ported source,
+latch, and auxiliary helpers. Injected register and ROM callbacks allow host
+tests to check the intermediate write/call order; the Pi32 link check
+verifies the ROM target. The diagnostic board entry now runs through the
+helper's return. The ROM routines' internal behavior and electrical clock
+state have not been measured; the linked image remains nonflashable.

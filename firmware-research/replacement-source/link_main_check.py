@@ -169,6 +169,10 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_apply_first",
         "h9_main_clock_rom_mode_bind_target",
         "h9_main_clock_rom_mode_apply",
+        "h9_main_clock_registers_bind_target",
+        "h9_main_clock_aux_bind_target",
+        "h9_main_clock_finish_bind_target",
+        "h9_main_clock_finish_run",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -182,6 +186,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         ("target_synchronize", "csync"),
         ("target_delay_nops", "nop"),
         ("target_rom_mode", "20000e2"),
+        ("target_rom_finish", "2001650"),
     ):
         helper = re.search(
             rf"(?ms)^{name}:\n(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
@@ -522,6 +527,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "clock_source_register_writer_link_verified": True,
         "clock_source_latch_link_verified": True,
         "clock_aux_field_writer_link_verified": True,
+        "early_board_clock_finish_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

@@ -22,7 +22,7 @@ writes one to `0x1E0400`. Stock polls bit 15 of that first word until set,
 restores `0x4000`, calls ROM `0x02000058(0xB2)`, and calls ROM
 `0x02000A28(0xB1, 0xFD)`. The first loop ends at app+`0x0C5544`.
 The rest of the helper configures clocks and calibrates a 240 MHz path;
-the calibration path remains unported.
+the diagnostic entry now ports the observed sequence through its return.
 
 The next call at app+`0x0C5544` targets app+`0x0C5492`. Its independent
 decode reads register `0x1E1920`, replaces it with `0x331D524D`, preserves
@@ -90,8 +90,8 @@ and `0xFFFFFFFF` result; host tests cover valid multiples, clamping, and
 invalid records. `h9_main_clock_match` ports the source/divider search,
 including match and exhaustion outputs. The diagnostic board entry invokes
 these stages, the following timing calculation, the first clock-apply
-transition, the ROM mode helper, and a repeated selector. It stops before
-the next MMIO field sequence. The Pi32 link
+transition, the ROM mode helper, a repeated selector, and the remaining
+MMIO/source/latch/auxiliary sequence through the helper's return. The Pi32 link
 check verifies key addresses, constants, table bytes, and call placement.
 No radio has run it, and the linked image remains unflashable.
 
@@ -105,10 +105,9 @@ RAM word `0xD9E4` is `0xFFFFFFFF`. Otherwise it reads and writes
 `0x1E0044` in five separate writes. The replacement exposes injectable
 register pointers and a target-address binder, with host tests for the
 bitfields, failure sentinel, and latch bits. The Pi32 link check inspects
-their emitted instructions. These helpers are linked but are **not** called
-by the diagnostic board entry: the subsequent MMIO field sequence and the
-remaining clock transitions are still under study. No hardware behavior is inferred from the
-host tests or link check.
+their emitted instructions. The diagnostic board entry calls both in the
+observed order. No hardware behavior is inferred from the host tests or
+link check.
 
 Stock app+`0x0C5330` then updates `0x1E0008` in three stages. It inserts
 the low three bits of RAM byte `0xD9E8` into register bits 12–14 and writes
@@ -120,5 +119,5 @@ register bits 8–10 and writes a third time. The direct Pi32 decode shows
 that call target because `0x01EC5460 + 0x0013ACB0 = 0x02000110`.
 `h9_main_clock_aux_program` ports these writes and the call order with an
 injectable ROM callback. Its target binder uses those observed addresses;
-the ROM routine's internal effect is still unknown. This helper remains
-unconnected to diagnostic board startup pending the surrounding sequence.
+the ROM routine's internal effect is still unknown. The diagnostic board
+entry calls it before the final ROM `0x02001650` transition.
