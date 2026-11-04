@@ -25,7 +25,7 @@
 .channel-tool-actions input[type=number]{width:94px;background:#0e1c26;border:1px solid #37535d;color:#e8f4ef;border-radius:7px;padding:9px 8px;font-size:12px}
 .channel-actions{white-space:nowrap}
 .channel-import-actions{margin:-3px 0 14px}
-.channel-import-actions .fine{margin:0}
+.channel-import-actions .fine{margin:9px 0 0}
 .danger-text{color:#efaba5}
 .tx-assist{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px}
 .tx-assist .fine{margin:0}

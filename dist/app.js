@@ -4,6 +4,7 @@ import { SETTING_HELP } from './settings-help.mjs';
 import { exportPortable, importPortable } from './portable.mjs';
 import { parseMHz, standardOffset, planTransmit } from './channel-plan.mjs';
 import { exportChannels, inspectChannelImport, importChannels } from './channels-file.mjs';
+import { serializeChannelsCsv, parseChannelsCsv } from './channels-csv.mjs';
 import { readBlockReply } from './protocol.mjs';
 
 const $ = id => document.getElementById(id);
@@ -280,8 +281,8 @@ function downloadChannels() {
   if (!edited) return;
   try {
     const document = exportChannels(edited);
-    saveFile(JSON.stringify(document, null, 2) + '\n', `TD-H9-${modeName(edited)}-channels-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
-    status(`${document.channels.length} channels exported as JSON. Radio settings and raw memory are not included.`);
+    saveFile(serializeChannelsCsv(document), `TD-H9-${modeName(edited)}-channels-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8');
+    status(`${document.channels.length} channel${document.channels.length === 1 ? '' : 's'} exported as CSV. Radio settings and raw memory are not included.`);
   } catch (error) { status(error.message, true); }
 }
 async function openChannels(event) {
@@ -290,18 +291,22 @@ async function openChannels(event) {
     if (!edited) throw new Error('Read the radio or open a backup before importing channels.');
     if (file.size > 2_000_000) throw new Error('Channels file is too large.');
     let document;
-    try { document = JSON.parse(await file.text()); }
-    catch { throw new Error('Could not parse the channels JSON file.'); }
+    if (file.name.toLowerCase().endsWith('.json')) {
+      try { document = JSON.parse(await file.text()); }
+      catch { throw new Error('Could not parse the older channels JSON file.'); }
+    } else document = parseChannelsCsv(await file.text(), edited);
+    document = {...document, replaceAll: document?.replaceAll === true || $('replaceChannels').checked};
     const plan = inspectChannelImport(edited, document);
-    if ((plan.conflicts.length || plan.removals.length) && !window.confirm(`Import will replace ${plan.conflicts.length} occupied channel${plan.conflicts.length === 1 ? '' : 's'} and remove ${plan.removals.length} channel${plan.removals.length === 1 ? '' : 's'}${document.replaceAll === true ? ' because replaceAll is enabled' : ''}. Continue?`)) return;
+    if ((plan.conflicts.length || plan.removals.length) && !window.confirm(`Import will replace ${plan.conflicts.length} occupied channel${plan.conflicts.length === 1 ? '' : 's'} and remove ${plan.removals.length} channel${plan.removals.length === 1 ? '' : 's'}${document.replaceAll === true ? ' because Replace all channels is selected' : ''}. Continue?`)) return;
     const result = importChannels(edited, document);
     edited = result.image;
+    $('replaceChannels').checked = false;
     selectedChannel = null;
     $('editPanel').hidden = true;
     $('backupConfirmed').checked = false;
     $('search').value = '';
     renderChannels();
-    status(`Imported ${document.channels.length} channel entries: ${result.additions.length} added, ${result.conflicts.length} replaced, ${result.removals.length} removed, ${result.unchanged.length} unchanged. Radio has not been changed.`);
+    status(`Imported ${document.channels.length} channel entr${document.channels.length === 1 ? 'y' : 'ies'}: ${result.additions.length} added, ${result.conflicts.length} replaced, ${result.removals.length} removed, ${result.unchanged.length} unchanged. Radio has not been changed.`);
   });
   event.target.value = '';
 }

@@ -27,11 +27,11 @@ export function exportChannels(image) {
 export function inspectChannelImport(image, document) {
   checkImage(image);
   if (!document || document.format !== CHANNELS_FORMAT || document.formatVersion !== CHANNELS_VERSION || document.model !== 'TD-H9' || document.mode !== modeNames[image[7]] || !Array.isArray(document.channels)) {
-    throw new Error('Expected a TD-H9 channels JSON file for the same radio mode.');
+    throw new Error('Expected TD-H9 channel data for the same radio mode.');
   }
   const seen = new Set(), conflicts = [], additions = [], removals = [], unchanged = [];
   for (const entry of document.channels) {
-    if (!entry || !Number.isInteger(entry.n) || entry.n < 1 || entry.n > CHANNEL_COUNT || seen.has(entry.n)) throw new Error('Channels JSON has an invalid or duplicate channel number.');
+    if (!entry || !Number.isInteger(entry.n) || entry.n < 1 || entry.n > CHANNEL_COUNT || seen.has(entry.n)) throw new Error('Channels file has an invalid or duplicate channel number.');
     seen.add(entry.n);
     const current = readChannel(image,entry.n);
     if (entry.clear === true) {

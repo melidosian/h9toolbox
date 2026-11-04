@@ -24,9 +24,12 @@ The channel editor covers RX/TX frequency, name, offset direction, FM/AM and wid
 
 The radio settings editor maps basic radio behavior, VFO/scan, display/buttons, Bluetooth, SMS/Morse, DTMF controls, GNSS, APRS identity/beacon/relay/routing. Unknown values and unrelated bytes are preserved. Fixed GNSS coordinates are displayed but not edited. Stored DTMF codes, FM broadcast presets, and undocumented firmware bytes are not edited. If another H9 uses a nonstandard service, enter its service UUID in Bluetooth options and reconnect.
 
-## Portable JSON
+## Channel CSV and portable JSON
 
-`Export channels JSON` saves only populated channels and their editable channel options, without radio settings or raw memory blocks. `Import channels JSON` applies such a file to a loaded image. By default it merges by channel number; `"replaceAll": true` also clears every occupied slot omitted from the file. The app lists the counts and asks before replacing or removing occupied channels. Import only changes the working image until Write changes is used. Save the original `.img` before writing to the radio.
+`Export channels CSV` saves populated channels and every editable channel option in a spreadsheet-friendly file, without radio settings or raw memory blocks. `Import channels CSV` applies it to a loaded image. It merges by channel number unless **Replace all channels** is selected; that option also clears occupied slots omitted from the CSV. To clear one channel, set its `action` column to `clear`. The app lists counts and asks before replacing or removing occupied channels. Older channels JSON exports are still accepted on import. Import only changes the working image until Write changes is used. Save the original `.img` before writing to the radio.
+
+The CSV has columns for radio mode, channel number, action, name, RX/TX frequency, modulation, TX/RX tones and DCS polarity, power, scan and enabled flags, offset direction, PTT ID, scramble, busy lock, and hopping. Keep `radio_mode` equal to the loaded image mode. Boolean columns accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`. Tone types are `off`, `ctcss`, `dcs`, or `raw`; raw tones can only be preserved on their original channel.
+Channel names starting with spreadsheet formula characters get a leading apostrophe in the CSV; the importer removes it on round trip.
 
 `Download config JSON` exports a pretty-printed text file with populated channel objects and named settings. It has no raw memory blocks. To import it on another computer, first read the destination radio or open its `.img` backup, then use `Open JSON`. The importer merges listed channels and settings into that image; omitted channels remain unchanged. An explicit `{ "n": 1, "clear": true }` entry clears channel 1. Settings use display labels for option values and numbers for numeric fields. The destination image supplies any unknown bytes.
 
