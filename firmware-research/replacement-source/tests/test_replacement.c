@@ -33,6 +33,7 @@
 #include "h9_main_boot_record.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_dma.h"
+#include "h9_main_uart1_irq.h"
 #include "h9_main_tx_service.h"
 #include "h9_main_uart_ring.h"
 #include <assert.h>
@@ -2187,6 +2188,58 @@ static void test_main_serial_dma_read(void)
     assert(ring.consumed == ring.produced);
 }
 
+typedef struct {
+    unsigned events[3];
+    unsigned event_count;
+    unsigned tx_acks;
+    unsigned rx_acks;
+} MainUartIrqCapture;
+
+static void main_uart_tx_ack(void *context)
+{
+    ((MainUartIrqCapture *)context)->tx_acks++;
+}
+
+static void main_uart_rx_ack(void *context)
+{
+    ((MainUartIrqCapture *)context)->rx_acks++;
+}
+
+static void main_uart_event(void *context, unsigned number)
+{
+    MainUartIrqCapture *capture = (MainUartIrqCapture *)context;
+    assert(capture->event_count < 3u);
+    capture->events[capture->event_count++] = number;
+}
+
+static void test_main_uart1_irq(void)
+{
+    uint32_t registers[11] = { 0 };
+    uint8_t storage[2048] = { 0 };
+    H9MainSerialDmaRing ring = { storage, sizeof storage, 100u, 0u };
+    MainUartIrqCapture capture = { { 0 }, 0u, 0u, 0u };
+    H9MainUart1Irq irq = { registers, &ring, 1024u,
+                          main_uart_tx_ack, main_uart_rx_ack,
+                          main_uart_event, &capture };
+
+    registers[0] = 0x8004u | 0x4008u | 0x0820u;
+    registers[1] = 1u;
+    registers[10] = 5u;
+    h9_main_uart1_irq(&irq);
+    assert(capture.event_count == 3u && capture.events[0] == 1u &&
+           capture.events[1] == 2u && capture.events[2] == 3u);
+    assert(capture.tx_acks == 1u && capture.rx_acks == 2u);
+    assert(ring.produced == 1129u);
+    assert((registers[0] & 0x3480u) == 0x3480u);
+    assert((registers[1] & 0x2000u) != 0u);
+
+    registers[0] = 0x0820u;
+    registers[10] = 0u;
+    h9_main_uart1_irq(&irq);
+    assert(capture.event_count == 3u && capture.rx_acks == 2u &&
+           ring.produced == 1129u);
+}
+
 int main(void)
 {
     assert(h9_aprs_clock_cfgr_value(0xABCDFFFFu, 0xE123u) == 0xABCD2123u);
@@ -2207,6 +2260,7 @@ int main(void)
     test_main_boot_record();
     test_main_serial_profile();
     test_main_serial_dma_read();
+    test_main_uart1_irq();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();
     test_aprs_byte_queue();

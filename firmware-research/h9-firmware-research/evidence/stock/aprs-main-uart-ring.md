@@ -86,7 +86,17 @@ session and decodes a framed version reply across a physical buffer wrap.
 The UART1 bulk writer at `0x01EC5F94` places DMA address and length in
 registers `0x001E2114` and `0x001E2118`; the interrupt routine at
 `0x01EC5FC8` dispatches event numbers 1, 2, and 3 through the object callback.
-Its conditions and DMA acknowledgement involve ROM calls and still require
-independent instruction-level validation before an interrupt handler is
-ported. The producer counter update, DMA setup, cache/synchronization rule,
-and TX path are not yet connected to the replacement board entry.
+The independent decode at app+`0x0C5EC8..0x0C5F7A` resolves the conditions:
+control bits `0x0004` and `0x8000` signal TX event 1; bits `0x0008` and
+`0x4000` signal a full RX chunk and event 2; bits `0x0020` and `0x0800`
+signal a partial RX chunk and event 3 when register `+0x28` is nonzero.
+For RX events, stock sets control bits `0x1480`, adds the configured chunk
+or partial count to the DMA ring producer at `0x1E358`, conditionally sets
+status bit `0x2000`, calls a ROM DMA acknowledgement routine with `0x1E360`,
+then calls the application event callback. TX event 1 sets control bit
+`0x2000`, acknowledges `0x1E3B0`, and calls the callback. The replacement
+`h9_main_uart1_irq.*` ports that ordering with injected acknowledgement and
+event callbacks; fake-register tests cover all three events and zero-length
+partial RX. The ROM acknowledgement behavior, DMA setup,
+cache/synchronization rule, actual interrupt-vector binding, and TX path are
+not yet connected to the replacement board entry.
