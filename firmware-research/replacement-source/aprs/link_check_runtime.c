@@ -3,6 +3,7 @@
 
 #include "h9_aprs_clock.h"
 #include "h9_aprs_runtime_state.h"
+#include "h9_aprs_runtime_status.h"
 #include "h9_aprs_status.h"
 #include "h9_aprs_tx_defaults.h"
 
@@ -20,34 +21,9 @@ static bool board_uart_ok(void *context)
     return h9_aprs_uart1_tx_ok(&state->uart1_tx);
 }
 
-/* A live replacement diagnostic snapshot. The stock byte layout is retained;
- * words 4/5 stay zero until the stock DMA retry path is reconstructed. */
 static bool board_read_status(void *context, uint8_t output[48])
 {
-    H9AprsRuntimeState *state = (H9AprsRuntimeState *)context;
-    H9AprsStatusSnapshot snapshot;
-    if (state == NULL || output == NULL) return false;
-    memset(&snapshot, 0, sizeof snapshot);
-    snapshot.words[0] = state->uart1_dma.completed_batches;
-    snapshot.words[1] = state->controller.valid_rx_frames;
-    snapshot.words[2] = state->controller.forwarded_rx_frames;
-    snapshot.words[3] = state->uart1_dma.rejected_batches +
-                        state->uart2_rx.overrun_count +
-                        state->uart2_rx.dropped_count;
-    snapshot.words[6] = state->forwarded_uart2_batches;
-    snapshot.words[7] = state->uart1_dma.last_batch_length;
-    snapshot.words[8] = state->last_uart1_batch_tick;
-    snapshot.words[9] = state->uart1_dma.transfer_errors +
-                        state->uart2_dma.transfer_errors +
-                        state->uart2_dma.invalid_counts +
-                        state->uart1_tx.timeouts;
-    snapshot.current_tick = h9_aprs_systick_now(&state->systick);
-    snapshot.serial_halfword = state->uart_receive.pending_length;
-    snapshot.word_10_low = state->uart_receive.current;
-    snapshot.serial_byte_a = state->uart_receive.ready;
-    snapshot.serial_byte_b = state->uart_receive.processing;
-    h9_aprs_status_encode(&snapshot, output);
-    return true;
+    return h9_aprs_runtime_status_read((H9AprsRuntimeState *)context, output);
 }
 
 static void board_set_radio_gpio(void *context, bool high)

@@ -16,6 +16,8 @@ typedef struct {
     uint32_t poll_limit;
     uint32_t bytes_completed;
     uint32_t timeouts;
+    uint32_t recovery_failures;
+    uint32_t recovery_successes;
     bool faulted;
 } H9AprsUart2Board;
 

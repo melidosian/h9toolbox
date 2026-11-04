@@ -6,6 +6,7 @@
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_clock.h"
 #include "h9_aprs_ring.h"
+#include "h9_aprs_runtime_status.h"
 #include "h9_aprs_sample_timer.h"
 #include "h9_aprs_status.h"
 #include "h9_aprs_systick.h"
@@ -2518,8 +2519,14 @@ static void test_aprs_uart2_recover_after_raw_timeout(void)
     dma.spill_active = false;
     assert(!h9_aprs_uart2_board_recover(&board, &dma, 0u));
     assert(board.faulted && (channel[0] & 1u) != 0u);
+    assert(board.recovery_failures == 0u && board.recovery_successes == 0u);
+    dma.dma_controller = NULL;
+    assert(!h9_aprs_uart2_board_recover(&board, &dma, 24000000u));
+    assert(board.recovery_failures == 1u && board.recovery_successes == 0u);
+    dma.dma_controller = dma_controller;
     assert(h9_aprs_uart2_board_recover(&board, &dma, 24000000u));
     assert(!board.faulted && board.timeouts == 1u &&
+           board.recovery_failures == 1u && board.recovery_successes == 1u &&
            (channel[0] & 1u) != 0u &&
            channel[1] == H9_APRS_UART2_BATCH_CAPACITY &&
            (usart[3] & 0x10u) != 0u);
@@ -2527,6 +2534,27 @@ static void test_aprs_uart2_recover_after_raw_timeout(void)
     assert(h9_aprs_uart2_board_write(&board, &byte, 1u) == 1u);
     assert(usart[1] == byte && board.bytes_completed == 1u);
     assert(!h9_aprs_uart2_board_recover(&board, &dma, 24000000u));
+    assert(board.recovery_failures == 1u && board.recovery_successes == 1u);
+}
+
+static void test_aprs_runtime_status_recovery_counters(void)
+{
+    H9AprsRuntimeState state = { 0 };
+    uint8_t output[H9_APRS_STATUS_BYTES];
+    state.uart1_dma.completed_batches = 7u;
+    state.uart2_board.recovery_failures = 0x12345678u;
+    state.uart2_board.recovery_successes = 0x9ABCDEF0u;
+    state.last_uart1_batch_tick = 900u;
+    state.systick.ticks = 1000u;
+    assert(!h9_aprs_runtime_status_read(NULL, output));
+    assert(!h9_aprs_runtime_status_read(&state, NULL));
+    assert(h9_aprs_runtime_status_read(&state, output));
+    assert(output[0] == 7u && output[1] == 0u);
+    assert(output[16] == 0x78u && output[17] == 0x56u &&
+           output[18] == 0x34u && output[19] == 0x12u);
+    assert(output[20] == 0xF0u && output[21] == 0xDEu &&
+           output[22] == 0xBCu && output[23] == 0x9Au);
+    assert(output[46] == 100u && output[47] == 0u);
 }
 
 static void test_aprs_uart2_irq_forward(void)
@@ -3873,6 +3901,7 @@ int main(void)
     test_aprs_uart1_board_setup();
     test_aprs_uart2_board_setup_and_raw_write();
     test_aprs_uart2_recover_after_raw_timeout();
+    test_aprs_runtime_status_recovery_counters();
     test_aprs_uart2_irq_forward();
     test_aprs_uart2_dma_forward();
     test_aprs_gpio_board();

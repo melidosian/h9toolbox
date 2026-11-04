@@ -22,6 +22,8 @@ void h9_aprs_uart2_board_bind(H9AprsUart2Board *board,
     board->poll_limit = poll_limit;
     board->bytes_completed = 0;
     board->timeouts = 0;
+    board->recovery_failures = 0;
+    board->recovery_successes = 0;
     board->faulted = false;
 }
 
@@ -94,12 +96,16 @@ bool h9_aprs_uart2_board_recover(H9AprsUart2Board *board,
         system_clock_hz, board->rcc[RCC_PRESCALER]);
     if (h9_aprs_uart_brr(peripheral_hz, 9600u) == 0u) return false;
     if (!h9_aprs_uart2_dma_stop(receive_dma) ||
-        !h9_aprs_uart2_board_configure(board, system_clock_hz))
-        return false;
-    if (!h9_aprs_uart2_dma_start(receive_dma)) {
-        board->faulted = true;
+        !h9_aprs_uart2_board_configure(board, system_clock_hz)) {
+        ++board->recovery_failures;
         return false;
     }
+    if (!h9_aprs_uart2_dma_start(receive_dma)) {
+        board->faulted = true;
+        ++board->recovery_failures;
+        return false;
+    }
+    ++board->recovery_successes;
     return true;
 }
 

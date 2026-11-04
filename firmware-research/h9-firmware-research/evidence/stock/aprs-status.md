@@ -45,8 +45,11 @@ families. The full generated reference report is in ignored
 The diagnostic replacement entry now supplies a live reply with the same
 48-byte envelope. It counts completed/rejected UART1 batches and valid/forwarded
 APRS frames, tracks the last UART1 length and tick, and reports observed
-USART2 batches and errors. Words 4 and 5 remain zero because the stock retry
-driver is unported. Some other counters are **replacement diagnostics**, not
+USART2 batches and errors. Words 4 and 5 now count failed and successful
+replacement USART2 recovery operations. The stock routine increments those
+words after each receive-DMA start attempt, possibly several per recovery;
+the counts are therefore not directly comparable. See
+[the recovery trace](aprs-uart2-recovery.md). Some other counters are **replacement diagnostics**, not
 exact reproductions of the stock branches: for example, replacement word 1
 counts CRC-valid frames while stock increments on frame-ready, and word 6
 counts forwarded USART2 batches while stock increments when chunks are staged.
