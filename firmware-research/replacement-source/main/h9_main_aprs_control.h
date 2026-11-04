@@ -34,13 +34,24 @@ int h9_main_control_from_frame(const H9MainWireReceiver *receiver,
  * touched by this reducer. */
 typedef struct {
     uint8_t level;
+    /* Stock keeps the saved setting at 0xC0F9 separately from RAM 0x11B16. */
+    uint8_t saved_level;
     uint8_t held_adjustment;
     bool timer_armed;
     bool volume_display_pending;
+    /* Mirrors the gate at RAM 0x11AE8; its physical meaning is unmapped. */
+    bool defer_output_updates;
+    bool fm_inside_enabled;
 } H9MainControlVolumeState;
 
 typedef struct {
     bool level_changed;
+    bool setting_written;
+    bool reconfigure_5050a;
+    bool apply_audio_60eda;
+    bool notify_level_71b58;
+    bool refresh_ui_70758;
+    bool bracket_fm_inside_65fa6;
     bool boundary_feedback;
     bool cancel_timer;
     uint16_t start_timer_units;

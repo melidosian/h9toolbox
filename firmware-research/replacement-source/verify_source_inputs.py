@@ -112,6 +112,17 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "02 17 32 E9 1E 00 40 3E 00 17 81 E8 08 00"
     ):
         raise ValueError("main volume adjustment/clamp differs")
+    if main_app[0x078D96:0x078DB8] != bytes.fromhex(
+        "77 04 C7 FF F0 C0 00 00 04 D5 7A 49 04 E8 50 20 "
+        "FC 49 C6 FF D0 1A 01 00 52 EE 66 44 40 20 BE EA 29 BB"
+    ):
+        raise ValueError("main volume saved/live setting path differs")
+    if main_app[0x078E16:0x078E46] != bytes.fromhex(
+        "50 EE 6E 02 00 43 40 21 BF EA 42 68 40 E0 68 0B D8 "
+        "EE 60 00 49 17 BF EA D5 3F 50 EE 6E 02 00 43 40 20 "
+        "BF EA 35 68 40 16 BF EA 0B C6 BF EA 09 BC"
+    ):
+        raise ValueError("main volume audio/UI dispatch differs")
     if struct.unpack_from("<4I", main_app, 0x554) != (
         0x001E5000, 0x001E5040, 0x001E5080, 0x001E50C0
     ):

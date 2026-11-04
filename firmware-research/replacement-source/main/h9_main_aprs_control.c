@@ -57,6 +57,7 @@ bool h9_main_control_volume_init(H9MainControlVolumeState *state,
     if (state == NULL || initial_level > 30u) return false;
     memset(state, 0, sizeof *state);
     state->level = initial_level;
+    state->saved_level = initial_level;
     return true;
 }
 
@@ -67,6 +68,7 @@ bool h9_main_control_volume_apply(H9MainControlVolumeState *state,
     int adjustment = 0;
     int next;
     bool held = false;
+    bool unchanged_at_boundary;
     if (state == NULL || effects == NULL || state->level > 30u) return false;
     memset(effects, 0, sizeof *effects);
     switch (action) {
@@ -94,16 +96,30 @@ bool h9_main_control_volume_apply(H9MainControlVolumeState *state,
     next = (int)state->level + adjustment;
     if (next < 0) next = 0;
     if (next > 30) next = 30;
-    effects->level_changed = (uint8_t)next != state->level;
-    effects->boundary_feedback = !effects->level_changed &&
-                                 !state->timer_armed;
-    state->level = (uint8_t)next;
+    unchanged_at_boundary = (uint8_t)next == state->level;
+    if (unchanged_at_boundary) {
+        effects->boundary_feedback = !state->timer_armed;
+    } else if ((uint8_t)next != state->saved_level) {
+        /* app+0x078E96 writes both 0xC0F9 and 0x11B16, then calls
+         * app+0x05040A(0). The later audio/UI calls require 0x11AE8=0. */
+        state->saved_level = (uint8_t)next;
+        state->level = (uint8_t)next;
+        effects->level_changed = true;
+        effects->setting_written = true;
+        effects->reconfigure_5050a = true;
+        if (!state->defer_output_updates) {
+            effects->apply_audio_60eda = true;
+            effects->notify_level_71b58 = true;
+            effects->refresh_ui_70758 = true;
+            effects->bracket_fm_inside_65fa6 = state->fm_inside_enabled;
+        }
+    }
     state->volume_display_pending = true;
     if (held) {
         effects->cancel_timer = state->timer_armed;
         effects->start_timer_units = 200u;
         state->timer_armed = true;
-    } else if (!effects->level_changed && state->timer_armed) {
+    } else if (unchanged_at_boundary && state->timer_armed) {
         effects->start_timer_units = 150u;
     }
     return true;

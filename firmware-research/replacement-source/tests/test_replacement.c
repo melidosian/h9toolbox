@@ -842,7 +842,11 @@ static void test_main_control_volume(void)
     assert(state.level == 30u && state.held_adjustment == 1u &&
            state.timer_armed && state.volume_display_pending);
     assert(effects.level_changed && !effects.cancel_timer &&
-           effects.start_timer_units == 200u);
+           effects.start_timer_units == 200u &&
+           state.saved_level == 30u && effects.setting_written &&
+           effects.reconfigure_5050a && effects.apply_audio_60eda &&
+           effects.notify_level_71b58 && effects.refresh_ui_70758 &&
+           !effects.bracket_fm_inside_65fa6);
     assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_01,
                                          &effects));
     assert(state.level == 30u && !effects.level_changed &&
@@ -878,6 +882,30 @@ static void test_main_control_volume(void)
     assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_03,
                                          &effects));
     assert(state.level == 0u && effects.boundary_feedback);
+    assert(h9_main_control_volume_init(&state, 10u));
+    state.fm_inside_enabled = true;
+    state.defer_output_updates = true;
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_01,
+                                         &effects));
+    assert(state.level == 11u && state.saved_level == 11u &&
+           effects.setting_written && effects.reconfigure_5050a &&
+           !effects.apply_audio_60eda && !effects.notify_level_71b58 &&
+           !effects.refresh_ui_70758 &&
+           !effects.bracket_fm_inside_65fa6);
+    state.defer_output_updates = false;
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_03,
+                                         &effects));
+    assert(state.level == 10u && effects.apply_audio_60eda &&
+           effects.notify_level_71b58 && effects.refresh_ui_70758 &&
+           effects.bracket_fm_inside_65fa6);
+    /* The stock setter returns early if the saved value already equals the
+     * request, even when the live RAM byte has diverged. */
+    state.saved_level = 11u;
+    assert(h9_main_control_volume_apply(&state, H9_MAIN_CONTROL_06_01,
+                                         &effects));
+    assert(state.level == 10u && state.saved_level == 11u &&
+           !effects.level_changed && !effects.setting_written &&
+           !effects.reconfigure_5050a && !effects.apply_audio_60eda);
 }
 
 static void test_main_control_07_timer(void)

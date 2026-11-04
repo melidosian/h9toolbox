@@ -57,8 +57,18 @@ The replacement source validates the CRC and returns the recognized pair.
 It also supplies a pure `0..30` volume/held-state reducer with timer and
 boundary-feedback effects, plus the `07 03` state and timer transition,
 for a future board adapter. It does not model the
-separate saved-setting comparison or downstream audio/UI calls. No hardware
-is invoked by this reducer, and the session still only emits the
+electrical meaning of the downstream audio/UI calls. The volume reducer now
+tracks setting `0xC0F9` separately from RAM level `0x11B16`: on a change,
+app+`0x078D96` updates both only if the saved setting differs, then calls
+app+`0x05040A(0)`. When RAM `0x11AE8` is zero, app+`0x078E16` proceeds
+through virtual addresses `0x01E60EDA`, `0x01E71B58`, and `0x01E70758`,
+bracketing the first call with `0x01E65FA6` if `0x11AFE` is set. The reducer
+exposes these calls as effects for a future board/UI adapter. Its saved/live
+mismatch behavior matches the stock early return, even though that mismatch is not expected
+during normal operation. The exact stock instruction slices for the saved
+setting write and common dispatch are pinned by `verify_source_inputs.py`.
+No hardware is invoked by this reducer, and the session still only emits the
 raw action. Host tests cover CRC, all eight pairs, escaped serial payload,
-corruption, the unsupported `0A 01` pair, and volume/timer transitions at
-both boundaries. This is offline source analysis, not runtime validation.
+corruption, the unsupported `0A 01` pair, volume/timer transitions at both
+boundaries, saved-setting divergence, and the `0x11AE8` output gate. This is
+offline source analysis, not runtime validation.
