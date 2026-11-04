@@ -1,0 +1,140 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x055bc0 address=01e55cc0 function=FUN_01e55b0e@01e55b0e
+caller_reference=01e672a4 UNCONDITIONAL_CALL
+caller_reference=01e55b04 UNCONDITIONAL_CALL
+caller_reference=01e55d0c UNCONDITIONAL_CALL
+
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+
+void FUN_01e55b0e(int param_1)
+
+{
+  ushort uVar1;
+  char cVar2;
+  ushort uVar3;
+
+  if (DAT_0000c12b == '\0') {
+    return;
+  }
+  if (param_1 != 1) {
+    return;
+  }
+  if (DAT_00011ab0 != '\x01') {
+    return;
+  }
+  DAT_0000c12a = 0;
+  if (DAT_00011d28 == '\0') {
+    if (DAT_00011af6 != '\0') goto LAB_01e55b52;
+    _DAT_00011b80 = FUN_01e4eccc();
+  }
+  else {
+    DAT_00011af6 = 'd';
+LAB_01e55b52:
+    DAT_00011af6 = DAT_00011af6 + -1;
+  }
+  uVar3 = _DAT_00011e07;
+  uVar1 = _DAT_00011e08;
+  cVar2 = DAT_0000c0f5;
+  switch(DAT_0000c0f5) {
+  case '\0':
+    cVar2 = '\0';
+    if (_DAT_00011b80 < uVar3) goto switchD_01e55b5e_default;
+LAB_01e55bcc:
+    DAT_0000c0f5 = '\x01';
+    break;
+  case '\x01':
+    if (_DAT_00011b80 < uVar1) {
+      cVar2 = '\x01';
+      if ((int)(uint)_DAT_00011b80 < (int)((_DAT_00011e07 & 0xffff) - 0x14)) {
+        cVar2 = '\0';
+        DAT_0000c0f5 = '\0';
+        DAT_0000c129 = 0x32;
+      }
+      goto switchD_01e55b5e_default;
+    }
+    goto LAB_01e55be6;
+  case '\x02':
+    if (_DAT_00011b80 < _DAT_00011e09) {
+      cVar2 = '\x02';
+      if ((int)(uVar1 - 0x14) <= (int)(uint)_DAT_00011b80) goto switchD_01e55b5e_default;
+      goto LAB_01e55bcc;
+    }
+    DAT_0000c0f5 = '\x03';
+    break;
+  case '\x03':
+    cVar2 = '\x03';
+    if ((int)(_DAT_00011e09 - 0x14) <= (int)(uint)_DAT_00011b80) goto switchD_01e55b5e_default;
+LAB_01e55be6:
+    DAT_0000c0f5 = '\x02';
+    break;
+  default:
+    goto switchD_01e55b5e_default;
+  }
+  DAT_0000c129 = 10;
+  cVar2 = DAT_0000c0f5;
+switchD_01e55b5e_default:
+  FUN_01e5158a(cVar2);
+  if ((_DAT_00011e05 == 0xffff) || (_DAT_00011e05 < _DAT_00011b80)) {
+    if ((DAT_0000c0f5 == '\0') && (((DAT_00011d18 ^ 1) & 1) == 0)) {
+      if (DAT_0000c128 != '\0') {
+        return;
+      }
+      FUN_01e4ed04(5,0);
+      FUN_01e52c90(0x30,100,0);
+    }
+    if (DAT_0000c0f5 != '\0') {
+      if (DAT_00011ac6 == '\x05') {
+        FUN_01e4ed04(3,0);
+      }
+      return;
+    }
+  }
+  else {
+    FUN_01e5158a(0);
+    if ((DAT_00011d18 != 0) && (DAT_00011cb8 == '\0')) {
+      FUN_01e891e4(1);
+      uVar3 = 0;
+      while( true ) {
+        if (3999 < uVar3) {
+          FUN_01e516c6(100);
+          _DAT_00011b60 = 0;
+          FUN_01e5170a();
+          FUN_01e4ed8a(0x28);
+          FUN_01e5175e();
+          func_0x02000b74();
+          do {
+                    /* WARNING: Do nothing block with infinite loop */
+          } while( true );
+        }
+        FUN_01e515ac();
+        if ((DAT_0000c3af == '\x0f') && (399 < _DAT_0000c251)) break;
+        uVar3 = uVar3 + 1;
+        func_0x02000a00(1);
+      }
+      DAT_00011cb8 = 1;
+      FUN_01e55d44();
+      return;
+    }
+  }
+  return;
+}
+
+
+
+app+0x053a82 address=01e53b82 function=FUN_01e53b44@01e53b44
+caller_reference=01e53e00 UNCONDITIONAL_CALL
+caller_reference=01e556aa UNCONDITIONAL_CALL
+caller_reference=01e556b4 UNCONDITIONAL_CALL
+
+void FUN_01e53b44(short param_1,uint param_2)
+
+{
+  FUN_01e52d34(*(undefined4 *)
+                (((int)&PTR_s_gImage_compass0_01eaa3d8 + ((param_2 % 0x168 + 0xf) / 0x1e) % 0xc) * 4
+                ),param_1 + -0x16,0x19,0x2d,0x2d);
+  return;
+}

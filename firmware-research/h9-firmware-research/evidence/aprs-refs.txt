@@ -1,0 +1,12 @@
+target=080057fc
+target=0800582c
+  source=08005816 type=READ function=08005800 instruction=ldr r1,[0x0800582c]
+target=080026c8
+target=080026d0
+target=08005de4
+  source=08005db2 type=READ function=08005b8c instruction=ldr r1,[0x08005de4]
+target=2000010e
+  source=08005818 type=WRITE function=08005800 instruction=strb r0,[r1,#0x0]
+  source=08005816 type=PARAM function=08005800 instruction=ldr r1,[0x0800582c]
+  source=08005db4 type=WRITE function=08005b8c instruction=strb r0,[r1,#0x0]
+  source=08005db2 type=PARAM function=08005b8c instruction=ldr r1,[0x08005de4]

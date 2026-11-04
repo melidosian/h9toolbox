@@ -1,0 +1,7 @@
+target=00011e82
+  source=01e52cbe type=READ function=01e52cb2 instruction=lh.z r7,[r9 + r4]
+  source=01e50136 type=READ function=01e50128 instruction=lh.z r7,[r8 + r4]
+target=01eb5358
+target=01eb53f4
+  source=01e52cfa type=DATA function=01e52cb2 instruction=ldw r0,r0,#0x84
+  source=01e50180 type=DATA function=01e50128 instruction=ldw r0,r0,#0x84

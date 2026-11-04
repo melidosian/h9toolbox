@@ -1,0 +1,5 @@
+target=001e2000
+  source=01e51de0 type=READ function=01e51dd8 instruction=lw r0,[r1 + 0x0]
+  source=01e51de6 type=READ_WRITE function=01e51dd8 instruction=or [r1+0x0],#0x2000
+target=001e2100
+target=001e2200

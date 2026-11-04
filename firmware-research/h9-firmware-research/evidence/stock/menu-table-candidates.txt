@@ -1,0 +1,16 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x088e38 address=01e88f38 function=none
+instruction=null
+
+app+0x07e204 address=01e7e304 function=none
+instruction=null
+
+app+0x06c914 address=01e6ca14 function=none
+instruction=null
+
+app+0x044964 address=01e44a64 function=none
+instruction=null

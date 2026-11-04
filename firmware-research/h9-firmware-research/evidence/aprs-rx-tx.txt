@@ -1,0 +1,118 @@
+program=aprs-1.0.15.bin
+language=ARM:LE:32:Cortex
+
+address=080057fc function=none
+instruction=null
+
+address=0800582c function=none
+instruction=null
+
+address=080026c8 function=none
+instruction=null
+
+address=080026d0 function=none
+instruction=null
+
+address=08002a4c function=FUN_08002a4c@08002a4c
+caller_reference=08005aa2 UNCONDITIONAL_CALL
+
+undefined4 FUN_08002a4c(int param_1,int param_2)
+
+{
+  undefined4 uVar1;
+  int iVar2;
+
+  if ((param_1 == 0) || (param_2 == 0)) {
+    uVar1 = 1;
+  }
+  else {
+    iVar2 = FUN_08002964();
+    if (iVar2 == 1) {
+      uVar1 = FUN_08002c94(param_1,param_2);
+    }
+    else {
+      FUN_08004ffc(&DAT_08002a7c);
+      uVar1 = 1;
+    }
+  }
+  return uVar1;
+}
+
+
+
+address=08003882 function=FUN_08003882@08003882
+caller_reference=08005742 UNCONDITIONAL_CALL
+caller_reference=08002a3c UNCONDITIONAL_CALL
+caller_reference=080029d8 UNCONDITIONAL_CALL
+caller_reference=080029ec UNCONDITIONAL_CALL
+
+void FUN_08003882(int param_1,undefined4 param_2,int param_3)
+
+{
+  if (param_3 == 0) {
+    *(undefined4 *)(param_1 + 0x28) = param_2;
+  }
+  else {
+    *(undefined4 *)(param_1 + 0x18) = param_2;
+  }
+  return;
+}
+
+
+
+address=0800558a function=FUN_0800555c@0800555c
+caller_reference=080054ea UNCONDITIONAL_CALL
+
+void FUN_0800555c(void)
+
+{
+  ushort uVar1;
+
+  if ((*DAT_080055b0 != 0) && (*DAT_080055b4 != 0)) {
+    uVar1 = 0x3fc;
+    if (*DAT_080055b4 < 0x3fd) {
+      uVar1 = *DAT_080055b4;
+    }
+    FUN_080048f4(*DAT_080055b0,uVar1);
+    *(int *)(DAT_080055b8 + 8) = *(int *)(DAT_080055b8 + 8) + 1;
+  }
+  *DAT_080055b0 = 0;
+  *DAT_080055b4 = 0;
+  *DAT_080055bc = 0;
+  *DAT_080055c0 = 0;
+  return;
+}
+
+
+
+address=08004894 function=FUN_08004894@08004894
+caller_reference=08005a7c UNCONDITIONAL_CALL
+caller_reference=08004900 UNCONDITIONAL_CALL
+caller_reference=08005b3c UNCONDITIONAL_CALL
+caller_reference=08005850 UNCONDITIONAL_CALL
+
+void FUN_08004894(undefined4 param_1,int param_2,int param_3)
+
+{
+  char cVar1;
+  uint uVar2;
+
+  FUN_08004870(0xc0);
+  FUN_08004870(param_1);
+  for (uVar2 = 0; (int)uVar2 < param_3; uVar2 = uVar2 + 1 & 0xffff) {
+    cVar1 = *(char *)(param_2 + uVar2);
+    if (cVar1 == -0x40) {
+      FUN_08004870(0xdb);
+      FUN_08004870(0xdc);
+    }
+    else if (cVar1 == -0x25) {
+      FUN_08004870(0xdb);
+      FUN_08004870(0xdd);
+    }
+    else {
+      FUN_08004870(cVar1);
+    }
+  }
+  FUN_08004870(0xc0);
+  return;
+}

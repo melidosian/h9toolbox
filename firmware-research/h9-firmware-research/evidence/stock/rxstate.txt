@@ -1,0 +1,59 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x01677c address=01e1687c function=FUN_01e1687c@01e1687c
+caller_reference=01e17a00 UNCONDITIONAL_CALL
+caller_reference=01e17b28 UNCONDITIONAL_CALL
+caller_reference=01e16e16 UNCONDITIONAL_CALL
+caller_reference=01e17edc UNCONDITIONAL_CALL
+caller_reference=01e16930 UNCONDITIONAL_CALL
+caller_reference=01e17cce UNCONDITIONAL_CALL
+caller_reference=01e17c16 UNCONDITIONAL_CALL
+caller_reference=01e223e8 UNCONDITIONAL_CALL
+
+undefined1 * FUN_01e1687c(int param_1)
+
+{
+  undefined1 *puVar1;
+  undefined1 *puVar2;
+  undefined1 *puVar3;
+  int iVar4;
+
+  if (param_1 == 1) {
+    puVar1 = (undefined1 *)0x1d3dc;
+    while( true ) {
+      if ((undefined1 *)0x1d413 < puVar1) {
+        return (undefined1 *)0x0;
+      }
+      if ((((puVar1[0x12] & 0x20) != 0) && (*(short *)(puVar1 + 6) != 0)) &&
+         ((*(ushort *)(puVar1 + 8) & 0x2080) != 0)) break;
+      puVar1 = puVar1 + 0x1c;
+    }
+  }
+  else {
+    if (param_1 == 0) {
+      iVar4 = 0;
+      puVar1 = (undefined1 *)0x0;
+      for (puVar2 = (undefined1 *)0x1d3dc; puVar2 < &DAT_0001d414; puVar2 = puVar2 + 0x1c) {
+        if (((puVar2[0x12] & 0x20) != 0) && (*(short *)(puVar2 + 6) != 0)) {
+          puVar3 = puVar2;
+          if ((*(ushort *)(puVar2 + 8) & 0x2080) != 0) {
+            puVar3 = puVar1;
+          }
+          iVar4 = iVar4 + (uint)((*(ushort *)(puVar2 + 8) & 0x2080) == 0);
+          puVar1 = puVar3;
+        }
+      }
+      if (iVar4 == 0) {
+        return (undefined1 *)0x0;
+      }
+      if (iVar4 == 1) {
+        return puVar1;
+      }
+    }
+    puVar1 = (undefined1 *)FUN_01e16828(&DAT_0001d43c);
+  }
+  return puVar1;
+}

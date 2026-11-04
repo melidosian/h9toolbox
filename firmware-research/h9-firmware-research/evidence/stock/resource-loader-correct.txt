@@ -1,0 +1,106 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x04fe22 address=01e4ff22 function=FUN_01e4ff22@01e4ff22
+caller_reference=01e52d1a UNCONDITIONAL_CALL
+
+void FUN_01e4ff22(void)
+
+{
+  func_0x02001634();
+  return;
+}
+
+
+
+app+0x04fdcc address=01e4fecc function=FUN_01e4fecc@01e4fecc
+caller_reference=01e52cd8 UNCONDITIONAL_CALL
+caller_reference=01e50150 UNCONDITIONAL_CALL
+
+undefined4 FUN_01e4fecc(uint param_1,uint param_2,int param_3)
+
+{
+  undefined4 uVar1;
+
+  uVar1 = 0xffffffff;
+  if (param_1 < 7) {
+    uVar1 = 0xfffffffe;
+    if ((param_2 < *(uint *)(&DAT_01eb53f8 + param_1 * 0x14)) &&
+       (param_2 + param_3 <= *(uint *)(&DAT_01eb53f8 + param_1 * 0x14))) {
+      uVar1 = 0;
+    }
+  }
+  return uVar1;
+}
+
+
+
+app+0x052bb2 address=01e52cb2 function=FUN_01e52cb2@01e52cb2
+caller_reference=01e5a4b4 UNCONDITIONAL_CALL
+caller_reference=01e5a57c UNCONDITIONAL_CALL
+caller_reference=01e52db8 UNCONDITIONAL_CALL
+caller_reference=01e52f18 CONDITIONAL_CALL
+caller_reference=01e59a50 UNCONDITIONAL_CALL
+caller_reference=01e59abe UNCONDITIONAL_CALL
+caller_reference=01e53666 UNCONDITIONAL_CALL
+caller_reference=01e64bf8 UNCONDITIONAL_CALL
+caller_reference=01e57398 UNCONDITIONAL_CALL
+caller_reference=01e573b8 UNCONDITIONAL_CALL
+caller_reference=01e573d4 UNCONDITIONAL_CALL
+caller_reference=01e574a6 UNCONDITIONAL_CALL
+caller_reference=01e574c6 UNCONDITIONAL_CALL
+caller_reference=01e574e2 UNCONDITIONAL_CALL
+caller_reference=01e57576 UNCONDITIONAL_CALL
+caller_reference=01e57596 UNCONDITIONAL_CALL
+caller_reference=01e575b2 UNCONDITIONAL_CALL
+caller_reference=01e57684 UNCONDITIONAL_CALL
+caller_reference=01e576a4 UNCONDITIONAL_CALL
+caller_reference=01e576c0 UNCONDITIONAL_CALL
+caller_reference=01e57754 UNCONDITIONAL_CALL
+caller_reference=01e57774 UNCONDITIONAL_CALL
+caller_reference=01e57790 UNCONDITIONAL_CALL
+caller_reference=01e579b4 UNCONDITIONAL_CALL
+caller_reference=01e579d4 UNCONDITIONAL_CALL
+caller_reference=01e579f0 UNCONDITIONAL_CALL
+caller_reference=01e57afc UNCONDITIONAL_CALL
+caller_reference=01e57b1c UNCONDITIONAL_CALL
+caller_reference=01e57b38 UNCONDITIONAL_CALL
+caller_reference=01e57bcc UNCONDITIONAL_CALL
+caller_reference=01e57bec UNCONDITIONAL_CALL
+caller_reference=01e57c08 UNCONDITIONAL_CALL
+
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+
+int FUN_01e52cb2(int param_1,int param_2,int param_3,uint param_4)
+
+{
+  int iVar1;
+  int iVar2;
+  int iVar3;
+  uint uVar4;
+
+  iVar3 = -1;
+  iVar2 = iVar3;
+  iVar1 = _DAT_000472a0;
+  if ((((_DAT_00011e82 == 0x5aa5) &&
+       (iVar2 = FUN_01e4fecc(param_1,param_4), iVar1 = iVar2, iVar2 == 0)) &&
+      (iVar2 = iVar3, iVar1 = _DAT_000472a0, param_3 != 0)) && (param_4 != 0)) {
+    param_2 = *(int *)(&DAT_01eb53f4 + param_1 * 0x14) + param_2;
+    for (; param_4 != 0; param_4 = param_4 - uVar4) {
+      uVar4 = 0xffff;
+      if (param_4 >> 0x10 == 0) {
+        uVar4 = param_4 & 0xffff;
+      }
+      FUN_01e4ff22(param_3,param_2,uVar4);
+      param_2 = param_2 + uVar4;
+      param_3 = param_3 + uVar4;
+    }
+    _DAT_00012224 = _DAT_00012224 + 1;
+    iVar2 = 0;
+    iVar1 = _DAT_000472a0;
+  }
+  _DAT_000472a0 = iVar1;
+  return iVar2;
+}

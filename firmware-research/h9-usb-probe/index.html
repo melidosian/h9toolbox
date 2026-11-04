@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TD-H9 USB mode probe</title>
+<style>
+  body { max-width: 780px; margin: 3rem auto; padding: 0 1rem; font: 16px/1.5 system-ui, sans-serif; color: #172033; }
+  h1 { line-height: 1.2; }
+  button { padding: .7rem 1rem; margin: .3rem .4rem .3rem 0; font: inherit; cursor: pointer; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 1rem; background: #f2f4f8; border-radius: 8px; }
+  .note { padding: .8rem 1rem; border-left: 4px solid #b98d00; background: #fff8dc; }
+</style>
+<h1>TD-H9 USB mode probe</h1>
+<p class="note">Read-only test. This page does not load firmware, transfer data, or issue update commands. Select only the radio in Chrome's USB chooser.</p>
+<p>Choose the BR23 UBOOT1.00 radio bootloader (USB ID 4C4A:2342). This probe is restricted to that ID.</p>
+<button id="choose">Choose USB device</button>
+<button id="open" disabled>Test open and claim</button>
+<button id="forget" disabled>Forget selection</button>
+<pre id="result" role="status">Checking browser support…</pre>
+<script>
+  const result = document.querySelector('#result');
+  const openButton = document.querySelector('#open');
+  const forgetButton = document.querySelector('#forget');
+  let device = null;
+
+  function hex(value, width = 4) {
+    return `0x${value.toString(16).toUpperCase().padStart(width, '0')}`;
+  }
+
+  function describe(d) {
+    const lines = [
+      `Device: ${d.productName || '(unnamed)'}`,
+      `Vendor: ${d.manufacturerName || '(unnamed)'}`,
+      `USB ID: ${hex(d.vendorId)}:${hex(d.productId)}`,
+      `Serial: ${d.serialNumber || '(none)'}`,
+      `Configurations: ${d.configurations.length}`,
+    ];
+    for (const config of d.configurations) {
+      lines.push(`Configuration ${config.configurationValue}`);
+      for (const iface of config.interfaces) {
+        for (const alt of iface.alternates) {
+          const blocked = [0x01, 0x03, 0x08, 0x09, 0x0B, 0x0E, 0x10, 0xE0].includes(alt.interfaceClass);
+          lines.push(`  Interface ${iface.interfaceNumber}, alternate ${alt.alternateSetting}: class ${hex(alt.interfaceClass, 2)}, subclass ${hex(alt.interfaceSubclass, 2)}, protocol ${hex(alt.interfaceProtocol, 2)}${blocked ? ' — protected by WebUSB' : ''}`);
+          for (const ep of alt.endpoints) lines.push(`    ${ep.direction} ${ep.type} endpoint ${ep.endpointNumber}`);
+        }
+      }
+    }
+    return lines.join('\n');
+  }
+
+  if (!navigator.usb) {
+    result.textContent = 'WebUSB is unavailable. Open this page in desktop Chrome on localhost or HTTPS.';
+    document.querySelector('#choose').disabled = true;
+  } else {
+    result.textContent = 'WebUSB is available. Waiting for the radio.';
+    document.querySelector('#choose').addEventListener('click', async () => {
+      try {
+        device = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x4C4A, productId: 0x2342 }] });
+        result.textContent = describe(device);
+        openButton.disabled = false;
+        forgetButton.disabled = false;
+      } catch (error) {
+        result.textContent = `No device selected: ${error.name}: ${error.message}`;
+      }
+    });
+
+    openButton.addEventListener('click', async () => {
+      if (!device) return;
+      const details = [describe(device)];
+      try {
+        await device.open();
+        details.push('Open: succeeded');
+        if (!device.configuration && device.configurations.length) {
+          await device.selectConfiguration(device.configurations[0].configurationValue);
+        }
+        for (const iface of device.configuration?.interfaces || []) {
+          try {
+            await device.claimInterface(iface.interfaceNumber);
+            details.push(`Claim interface ${iface.interfaceNumber}: succeeded`);
+            await device.releaseInterface(iface.interfaceNumber);
+          } catch (error) {
+            details.push(`Claim interface ${iface.interfaceNumber}: ${error.name}: ${error.message}`);
+          }
+        }
+      } catch (error) {
+        details.push(`Open: ${error.name}: ${error.message}`);
+      } finally {
+        try { if (device.opened) await device.close(); } catch (error) { details.push(`Close: ${error.name}: ${error.message}`); }
+        result.textContent = details.join('\n');
+      }
+    });
+
+    forgetButton.addEventListener('click', async () => {
+      if (device) await device.forget();
+      device = null;
+      openButton.disabled = true;
+      forgetButton.disabled = true;
+      result.textContent = 'Selection forgotten.';
+    });
+  }
+</script>
+</html>

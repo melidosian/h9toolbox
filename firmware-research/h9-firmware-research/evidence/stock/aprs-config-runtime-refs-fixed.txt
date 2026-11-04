@@ -1,0 +1,18 @@
+target=0000c532
+target=0000c533
+  source=01e5c410 type=READ function=01e5c3d4 instruction=lb.z r2,[r0 + r1]
+target=0000c534
+  source=01e5ce26 type=READ function=01e5cdec instruction=lb.z r0,[r6 + r0]
+  source=01e5c522 type=READ function=01e5c506 instruction=lb.z r1,[r0 + r1]
+target=0000c512
+  source=01e5ce32 type=READ function=01e5cdec instruction=lb.z r0,[r6 + r0]
+  source=01e5c4f0 type=READ function=01e5c4e4 instruction=lb.z r0,[r1 + r0]
+  source=01e5c52e type=READ function=01e5c506 instruction=lb.z r0,[r0 + r1]
+target=0000c511
+  source=01e5c3ae type=READ function=01e5c36c instruction=lb.z r2,[r0 + 0x3]
+  source=01e5c002 type=READ function=01e5bf2c instruction=_lb.z r1,[r1 + 0x2]
+  source=01e5c08a type=READ function=01e5bf2c instruction=lb.z r0,[r6 + r0]
+target=0000c510
+  source=01e5c3a6 type=READ function=01e5c36c instruction=lb.z r3,[r0 + 0x2]
+  source=01e5bffe type=READ function=01e5bf2c instruction=lb.z r2,[r1 + 0x1]
+  source=01e5c052 type=READ function=01e5bf2c instruction=lb.z r0,[r6 + r0]

@@ -1,0 +1,14 @@
+target=0000c4a0
+  source=01e5ce3e type=READ function=01e5cdec instruction=lb.z r0,[r6 + r0]
+  source=01e5c516 type=READ function=01e5c506 instruction=lb.z r1,[r0 + r1]
+target=0000c513
+target=0000c514
+target=0000c515
+target=0000c516
+target=0000c517
+target=0000c532
+target=0000c533
+  source=01e5c410 type=READ function=01e5c3d4 instruction=lb.z r2,[r0 + r1]
+target=0000c534
+  source=01e5ce26 type=READ function=01e5cdec instruction=lb.z r0,[r6 + r0]
+  source=01e5c522 type=READ function=01e5c506 instruction=lb.z r1,[r0 + r1]

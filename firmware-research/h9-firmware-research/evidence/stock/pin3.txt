@@ -1,0 +1,61 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x0000d2 address=01e001d2 function=FUN_01e001d2@01e001d2
+caller_reference=01e4c4d2 UNCONDITIONAL_CALL
+caller_reference=01e4c4e0 UNCONDITIONAL_CALL
+caller_reference=01e4c506 UNCONDITIONAL_CALL
+caller_reference=01e4c56a UNCONDITIONAL_CALL
+caller_reference=01e4c580 UNCONDITIONAL_CALL
+caller_reference=01e4c3e0 UNCONDITIONAL_CALL
+caller_reference=01e4c45e UNCONDITIONAL_CALL
+caller_reference=01e4bea0 UNCONDITIONAL_CALL
+caller_reference=01e4bebc UNCONDITIONAL_CALL
+caller_reference=01e4be30 UNCONDITIONAL_CALL
+caller_reference=01e4be48 UNCONDITIONAL_CALL
+caller_reference=01e4bd92 UNCONDITIONAL_CALL
+caller_reference=01e4bf04 UNCONDITIONAL_CALL
+caller_reference=01e4bf34 UNCONDITIONAL_CALL
+caller_reference=01e4bf52 UNCONDITIONAL_CALL
+caller_reference=01e4bf80 UNCONDITIONAL_CALL
+caller_reference=01e4bda4 UNCONDITIONAL_CALL
+caller_reference=01e52330 UNCONDITIONAL_CALL
+
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+
+void FUN_01e001d2(uint param_1,int param_2)
+
+{
+  uint *puVar1;
+  uint uVar2;
+
+  if (0x40 < param_1) {
+    if (param_1 < 0x38) {
+      puVar1 = (uint *)FUN_01e001ba();
+      if (puVar1 != (uint *)0x0) {
+        uVar2 = 1 << (param_1 & 0xf);
+        if ((param_1 == 0x26) && ((_DAT_001e0200 & 0xf) < 3)) {
+          FUN_01e44d84(1);
+          puVar1[2] = puVar1[2] & 0xffffffbf;
+        }
+        if (param_2 == 0) {
+          *puVar1 = *puVar1 & ~uVar2;
+        }
+        else if (param_2 == 1) {
+          *puVar1 = *puVar1 | uVar2;
+        }
+        if ((param_2 == 0) && ((_DAT_001e0200 & 0xf) < 3 && param_1 == 0x26)) {
+          FUN_01e44d84(0);
+          return;
+        }
+      }
+    }
+    else if (0x3c < param_1) {
+      FUN_01e0019c(param_1 - 0x38);
+      return;
+    }
+  }
+  return;
+}

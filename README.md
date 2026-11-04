@@ -1,5 +1,7 @@
 # H9 Toolbox
 
+Firmware reverse-engineering notes, offline analysis, the Windows/Linux USB-C flasher, and the HID recovery tools are collected in [firmware-research](firmware-research/README.md). They are separate from the Bluetooth web programmer below.
+
 A small, buildless Web Bluetooth programmer for the TIDRADIO TD-H9. Open the HTTPS site in Chrome or Edge on a computer with Bluetooth. No account or cloud storage is used by the page itself; the radio image stays in browser memory until you download a backup.
 
 **AI disclosure:** H9 Toolbox was entirely and responsibly AI generated under human direction. It is experimental software; save an untouched backup and verify settings before writing to your radio.

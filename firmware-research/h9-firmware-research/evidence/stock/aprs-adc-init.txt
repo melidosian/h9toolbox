@@ -1,0 +1,42 @@
+program=aprs-1.0.15.bin
+language=ARM:LE:32:Cortex
+
+address=08002ef8 function=FUN_08002ef8@08002ef8
+caller_reference=08003028 UNCONDITIONAL_CALL
+
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+
+void FUN_08002ef8(undefined4 param_1)
+
+{
+  ushort *puVar1;
+  ushort uVar2;
+  undefined4 uVar3;
+  uint uVar4;
+
+  uVar2 = FUN_08002f82(param_1);
+  puVar1 = DAT_08002f70;
+  *DAT_08002f70 = uVar2;
+  FUN_08002308(*DAT_08002f74,(int)(char)((char)((int)(uint)*puVar1 >> 2) + -0x80));
+  if (*DAT_08002f78 == '\0') {
+    _DAT_50000014 = _DAT_50000014 & 0xf | 0x80;
+  }
+  else {
+    uVar3 = FUN_08002468(*DAT_08002f74);
+    uVar4 = FUN_08005ef8(uVar3);
+    _DAT_50000014 = uVar4 | _DAT_50000014 & 0xf;
+  }
+  *DAT_08002f7c = *DAT_08002f7c + 1;
+  return;
+}
+
+
+
+address=08002f82 function=FUN_08002f82@08002f82
+caller_reference=08002efe UNCONDITIONAL_CALL
+
+undefined4 FUN_08002f82(int *param_1)
+
+{
+  return *(undefined4 *)(*param_1 + 0x40);
+}

@@ -1,0 +1,411 @@
+{
+  "app_sha256": "31e6ef16c7ac3b0e3146ec062d994c7df2b5362c6d0948d5612490cc7499e0ec",
+  "address_mapping_status": "inferred from JLFS metadata",
+  "aprs_strings": [
+    {
+      "match_app_offset": "0x961AA",
+      "inferred_virtual_address": "0x1E962AA",
+      "label_app_offset": "0x961AA",
+      "label": "APRS\ufffd\ufffd\u03e2",
+      "raw_label_hex": "41505253d0c5cfa2",
+      "literal_pointer_references": [
+        "0xBC2BC"
+      ]
+    },
+    {
+      "match_app_offset": "0x96484",
+      "inferred_virtual_address": "0x1E96584",
+      "label_app_offset": "0x96484",
+      "label": "APRS Switch",
+      "raw_label_hex": "4150525320537769746368",
+      "literal_pointer_references": [
+        "0xBC4D8"
+      ]
+    },
+    {
+      "match_app_offset": "0x964BF",
+      "inferred_virtual_address": "0x1E965BF",
+      "label_app_offset": "0x964BF",
+      "label": "APRS\ufffd\ufffd\ufffd\ufffd",
+      "raw_label_hex": "41505253bfaab9d8",
+      "literal_pointer_references": [
+        "0xBC4F4"
+      ]
+    },
+    {
+      "match_app_offset": "0x964F5",
+      "inferred_virtual_address": "0x1E965F5",
+      "label_app_offset": "0x964F5",
+      "label": "APRS\ufffd\u05b8\ufffd\ufffd\ufffd\ufffd\ufffd",
+      "raw_label_hex": "41505253bbd6b8b4b3f6b3a7",
+      "literal_pointer_references": [
+        "0xBC50C"
+      ]
+    },
+    {
+      "match_app_offset": "0x969F8",
+      "inferred_virtual_address": "0x1E96AF8",
+      "label_app_offset": "0x969F8",
+      "label": "APRS\ufffd\ufffd\ufffd\ufffd:",
+      "raw_label_hex": "41505253baf4bac53a",
+      "literal_pointer_references": [
+        "0xBC9F0"
+      ]
+    },
+    {
+      "match_app_offset": "0x96A02",
+      "inferred_virtual_address": "0x1E96B02",
+      "label_app_offset": "0x96A02",
+      "label": "APRS Call:",
+      "raw_label_hex": "415052532043616c6c3a",
+      "literal_pointer_references": [
+        "0xBC9FC"
+      ]
+    },
+    {
+      "match_app_offset": "0x96FFF",
+      "inferred_virtual_address": "0x1E970FF",
+      "label_app_offset": "0x96FFF",
+      "label": "APRS\ufffd\ufffd\ufffd\ufffd\ufffd\u0175\ufffd",
+      "raw_label_hex": "41505253bdd3cad5d0c5b5c0",
+      "literal_pointer_references": [
+        "0xBCE30"
+      ]
+    },
+    {
+      "match_app_offset": "0x9700C",
+      "inferred_virtual_address": "0x1E9710C",
+      "label_app_offset": "0x9700C",
+      "label": "APRS\ufffd\ufffd\ufffd\ufffd\ufffd\u0175\ufffd",
+      "raw_label_hex": "41505253b7a2c9e4d0c5b5c0",
+      "literal_pointer_references": [
+        "0xBCE34"
+      ]
+    },
+    {
+      "match_app_offset": "0x97A0C",
+      "inferred_virtual_address": "0x1E97B0C",
+      "label_app_offset": "0x97A08",
+      "label": "x X-Aprs",
+      "raw_label_hex": "7820582d41707273",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x997B7",
+      "inferred_virtual_address": "0x1E998B7",
+      "label_app_offset": "0x997B7",
+      "label": "APRS Bilgisi",
+      "raw_label_hex": "415052532042696c67697369",
+      "literal_pointer_references": [
+        "0xBDDEC"
+      ]
+    },
+    {
+      "match_app_offset": "0x997E1",
+      "inferred_virtual_address": "0x1E998E1",
+      "label_app_offset": "0x997D8",
+      "label": "\u0418\u043d\u0444\u043e APRS",
+      "raw_label_hex": "d098d0bdd184d0be2041505253",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x997F1",
+      "inferred_virtual_address": "0x1E998F1",
+      "label_app_offset": "0x997F1",
+      "label": "APRS Info",
+      "raw_label_hex": "4150525320496e666f",
+      "literal_pointer_references": [
+        "0xBC2B4",
+        "0xBDDFC"
+      ]
+    },
+    {
+      "match_app_offset": "0x99800",
+      "inferred_virtual_address": "0x1E99900",
+      "label_app_offset": "0x997FB",
+      "label": "Info APRS",
+      "raw_label_hex": "496e666f2041505253",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x99F5B",
+      "inferred_virtual_address": "0x1E9A05B",
+      "label_app_offset": "0x99F5B",
+      "label": "APRS Anahtar",
+      "raw_label_hex": "4150525320416e6168746172",
+      "literal_pointer_references": [
+        "0xBE0A0"
+      ]
+    },
+    {
+      "match_app_offset": "0x99FB3",
+      "inferred_virtual_address": "0x1E9A0B3",
+      "label_app_offset": "0x99FB3",
+      "label": "APRS S\u0131f\u0131r",
+      "raw_label_hex": "415052532053c4b166c4b172",
+      "literal_pointer_references": [
+        "0xBE0B8"
+      ]
+    },
+    {
+      "match_app_offset": "0x99FC0",
+      "inferred_virtual_address": "0x1E9A0C0",
+      "label_app_offset": "0x99FC0",
+      "label": "APRS \u0432\u043a\u043b/\u0432\u044b\u043a\u043b",
+      "raw_label_hex": "4150525320d0b2d0bad0bb2fd0b2d18bd0bad0bb",
+      "literal_pointer_references": [
+        "0xBE0BC"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A04D",
+      "inferred_virtual_address": "0x1E9A14D",
+      "label_app_offset": "0x9A042",
+      "label": "\u0421\u0431\u0440\u043e\u0441 APRS",
+      "raw_label_hex": "d0a1d0b1d180d0bed1812041505253",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x9A052",
+      "inferred_virtual_address": "0x1E9A152",
+      "label_app_offset": "0x9A052",
+      "label": "APRS Schalter",
+      "raw_label_hex": "4150525320536368616c746572",
+      "literal_pointer_references": [
+        "0xBE0D8"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A0A0",
+      "inferred_virtual_address": "0x1E9A1A0",
+      "label_app_offset": "0x9A0A0",
+      "label": "APRS Reset",
+      "raw_label_hex": "41505253205265736574",
+      "literal_pointer_references": [
+        "0xBC4F0",
+        "0xBE0F0"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A0AB",
+      "inferred_virtual_address": "0x1E9A1AB",
+      "label_app_offset": "0x9A0AB",
+      "label": "APRS On/Off",
+      "raw_label_hex": "41505253204f6e2f4f6666",
+      "literal_pointer_references": [
+        "0xBE0F4",
+        "0xBE110",
+        "0xBE12C"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A0FF",
+      "inferred_virtual_address": "0x1E9A1FF",
+      "label_app_offset": "0x9A0F9",
+      "label": "Reset APRS",
+      "raw_label_hex": "52657365742041505253",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x9A18C",
+      "inferred_virtual_address": "0x1E9A28C",
+      "label_app_offset": "0x9A18C",
+      "label": "APRS RX Kanal",
+      "raw_label_hex": "41505253205258204b616e616c",
+      "literal_pointer_references": [
+        "0xBE148"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A19A",
+      "inferred_virtual_address": "0x1E9A29A",
+      "label_app_offset": "0x9A19A",
+      "label": "APRS TX Kanal",
+      "raw_label_hex": "41505253205458204b616e616c",
+      "literal_pointer_references": [
+        "0xBE14C"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A1C2",
+      "inferred_virtual_address": "0x1E9A2C2",
+      "label_app_offset": "0x9A1C2",
+      "label": "APRS RX \u043a\u0430\u043d\u0430\u043b",
+      "raw_label_hex": "4150525320525820d0bad0b0d0bdd0b0d0bb",
+      "literal_pointer_references": [
+        "0xBE158"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A1D5",
+      "inferred_virtual_address": "0x1E9A2D5",
+      "label_app_offset": "0x9A1D5",
+      "label": "APRS TX \u043a\u0430\u043d\u0430\u043b",
+      "raw_label_hex": "4150525320545820d0bad0b0d0bdd0b0d0bb",
+      "literal_pointer_references": [
+        "0xBE15C"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A216",
+      "inferred_virtual_address": "0x1E9A316",
+      "label_app_offset": "0x9A216",
+      "label": "APRS RX CH",
+      "raw_label_hex": "41505253205258204348",
+      "literal_pointer_references": [
+        "0xBCE20",
+        "0xBE168"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A221",
+      "inferred_virtual_address": "0x1E9A321",
+      "label_app_offset": "0x9A221",
+      "label": "APRS TX CH",
+      "raw_label_hex": "41505253205458204348",
+      "literal_pointer_references": [
+        "0xBCE24",
+        "0xBE16C"
+      ]
+    },
+    {
+      "match_app_offset": "0x9A256",
+      "inferred_virtual_address": "0x1E9A356",
+      "label_app_offset": "0x9A24D",
+      "label": "Canal RX APRS",
+      "raw_label_hex": "43616e616c2052582041505253",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x9A264",
+      "inferred_virtual_address": "0x1E9A364",
+      "label_app_offset": "0x9A25B",
+      "label": "Canal TX APRS",
+      "raw_label_hex": "43616e616c2054582041505253",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x9A28D",
+      "inferred_virtual_address": "0x1E9A38D",
+      "label_app_offset": "0x9A283",
+      "label": "Canale RX APRS",
+      "raw_label_hex": "43616e616c652052582041505253",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x9A29C",
+      "inferred_virtual_address": "0x1E9A39C",
+      "label_app_offset": "0x9A292",
+      "label": "Canale TX APRS",
+      "raw_label_hex": "43616e616c652054582041505253",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x9B050",
+      "inferred_virtual_address": "0x1E9B150",
+      "label_app_offset": "0x9B050",
+      "label": "APRS \u00c7a\u011fr\u0131:",
+      "raw_label_hex": "4150525320c38761c49f72c4b13a",
+      "literal_pointer_references": [
+        "0xBEB68"
+      ]
+    },
+    {
+      "match_app_offset": "0x9B05F",
+      "inferred_virtual_address": "0x1E9B15F",
+      "label_app_offset": "0x9B05F",
+      "label": "APRS \u043f\u043e\u0437\u044b\u0432.:",
+      "raw_label_hex": "4150525320d0bfd0bed0b7d18bd0b22e3a",
+      "literal_pointer_references": [
+        "0xBEB74"
+      ]
+    },
+    {
+      "match_app_offset": "0x9B071",
+      "inferred_virtual_address": "0x1E9B171",
+      "label_app_offset": "0x9B071",
+      "label": "APRS Rufz.:",
+      "raw_label_hex": "41505253205275667a2e3a",
+      "literal_pointer_references": [
+        "0xBEB80"
+      ]
+    },
+    {
+      "match_app_offset": "0x9B09B",
+      "inferred_virtual_address": "0x1E9B19B",
+      "label_app_offset": "0x9B095",
+      "label": "Indic APRS:",
+      "raw_label_hex": "496e64696320415052533a",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x9B0A7",
+      "inferred_virtual_address": "0x1E9B1A7",
+      "label_app_offset": "0x9B0A1",
+      "label": "Chiam APRS:",
+      "raw_label_hex": "436869616d20415052533a",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0x9E018",
+      "inferred_virtual_address": "0x1E9E118",
+      "label_app_offset": "0x9E018",
+      "label": "aprs_beacon",
+      "raw_label_hex": "617072735f626561636f6e",
+      "literal_pointer_references": [
+        "0x9FA30"
+      ]
+    },
+    {
+      "match_app_offset": "0xA5C28",
+      "inferred_virtual_address": "0x1EA5D28",
+      "label_app_offset": "0xA5C28",
+      "label": "APRS",
+      "raw_label_hex": "41505253",
+      "literal_pointer_references": [
+        "0x5BBD2",
+        "0x7628C",
+        "0xBC060",
+        "0xBC08C",
+        "0xBCC4C",
+        "0xBCC54",
+        "0xBCE9C",
+        "0xBCEA4",
+        "0xBD4B0",
+        "0xBD4DC",
+        "0xBD508",
+        "0xBD534",
+        "0xBD560",
+        "0xBD58C",
+        "0xBF46C",
+        "0xBF474",
+        "0xBF47C",
+        "0xBF484",
+        "0xBF48C",
+        "0xBF494",
+        "0xC05C4",
+        "0xC05CC",
+        "0xC05D4",
+        "0xC05DC",
+        "0xC05E4",
+        "0xC05EC"
+      ]
+    },
+    {
+      "match_app_offset": "0xA6369",
+      "inferred_virtual_address": "0x1EA6469",
+      "label_app_offset": "0xA6369",
+      "label": "APRS MSG",
+      "raw_label_hex": "41505253204d5347",
+      "literal_pointer_references": []
+    },
+    {
+      "match_app_offset": "0xA6CAD",
+      "inferred_virtual_address": "0x1EA6DAD",
+      "label_app_offset": "0xA6CAD",
+      "label": "APRS Firmware",
+      "raw_label_hex": "41505253204669726d77617265",
+      "literal_pointer_references": []
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+program=aprs-1.0.15.bin
+language=ARM:LE:32:Cortex
+
+address=08002238 function=FUN_08002234@08002234
+
+void FUN_08002234(void)
+
+{
+  FUN_08002f8a(DAT_08002240);
+  return;
+}

@@ -1,0 +1,79 @@
+program=aprs-1.0.15.bin
+language=ARM:LE:32:Cortex
+
+address=08002c94 function=FUN_08002c94@08002c94
+caller_reference=08002a74 UNCONDITIONAL_CALL
+
+void FUN_08002c94(undefined4 param_1,undefined4 param_2)
+
+{
+  FUN_0800476c(DAT_08002ca8,param_1,param_2,100);
+  return;
+}
+
+
+
+address=08002964 function=FUN_08002964@08002964
+caller_reference=08005c1c UNCONDITIONAL_CALL
+caller_reference=08002a5e UNCONDITIONAL_CALL
+
+void FUN_08002964(void)
+
+{
+  FUN_08003870(DAT_08002970,0x20);
+  return;
+}
+
+
+
+address=08005704 function=FUN_080056ec@080056ec
+caller_reference=08005df0 UNCONDITIONAL_CALL
+
+void FUN_080056ec(void)
+
+{
+  undefined4 local_18;
+  undefined4 local_14;
+  undefined4 local_10;
+  undefined4 local_c;
+
+  FUN_08002604(DAT_0800574c);
+  FUN_080051ac(DAT_08005754,DAT_0800574c,0,DAT_08005750);
+  FUN_08005f20(DAT_08005758);
+  FUN_08005800(DAT_08005754,DAT_0800574c,DAT_08005758);
+  FUN_080048e8(DAT_0800575c);
+  FUN_08002974();
+  FUN_08002172(&local_18,0x14);
+  local_18 = 1;
+  local_14 = 1;
+  local_10 = 0;
+  local_c = 0;
+  FUN_080036bc(0x50000000,&local_18);
+  FUN_08003882(0x50000000,1,0);
+  return;
+}
+
+
+
+address=0800555c function=FUN_0800555c@0800555c
+caller_reference=080054ea UNCONDITIONAL_CALL
+
+void FUN_0800555c(void)
+
+{
+  ushort uVar1;
+
+  if ((*DAT_080055b0 != 0) && (*DAT_080055b4 != 0)) {
+    uVar1 = 0x3fc;
+    if (*DAT_080055b4 < 0x3fd) {
+      uVar1 = *DAT_080055b4;
+    }
+    FUN_080048f4(*DAT_080055b0,uVar1);
+    *(int *)(DAT_080055b8 + 8) = *(int *)(DAT_080055b8 + 8) + 1;
+  }
+  *DAT_080055b0 = 0;
+  *DAT_080055b4 = 0;
+  *DAT_080055bc = 0;
+  *DAT_080055c0 = 0;
+  return;
+}

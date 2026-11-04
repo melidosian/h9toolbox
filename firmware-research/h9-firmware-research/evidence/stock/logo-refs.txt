@@ -1,0 +1,5 @@
+target=01eb20e4
+  source=01e52d5a type=PARAM function=01e52d34 instruction=_lw r0,[r6 + 0x0]
+  source=01eaa2d0 type=DATA function=none instruction=null
+target=01e994bd
+  source=01ecf2b0 type=DATA function=none instruction=null

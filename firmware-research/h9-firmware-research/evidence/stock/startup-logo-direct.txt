@@ -1,0 +1,35 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x055c20 address=01e55d20 function=FUN_01e55ce0@01e55ce0
+caller_reference=01e55eee UNCONDITIONAL_CALL
+
+void FUN_01e55ce0(void)
+
+{
+  BADSPACEBASE *in_sp;
+  undefined4 *puVar1;
+  undefined4 local_c;
+
+  puVar1 = &local_c;
+  if (DAT_00012bad < 2) {
+    local_c = 0;
+    FUN_01e50bbe(0,0xa0,0x80);
+    FUN_01e5139c(0);
+    FUN_01e55b0e(1);
+    *puVar1 = 0x30;
+    FUN_01e52d34(s_gImage_weather_01e9e6a8,0xf,0x3b);
+  }
+  else {
+    if (DAT_00012bad != 2) {
+      return;
+    }
+    local_c = 0;
+    FUN_01e50bbe(0,0xa0,0x80);
+    FUN_01e559ce();
+  }
+  FUN_01e52e30();
+  return;
+}

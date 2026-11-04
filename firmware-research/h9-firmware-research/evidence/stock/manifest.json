@@ -1,0 +1,78 @@
+{
+  "package_sha256": "c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6",
+  "flash_sha256": "74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f214d322894d26ce4e648",
+  "chip_key": "0xF181",
+  "app_area": {
+    "name": "app_area_head",
+    "header_offset": "0x5000",
+    "data_offset": "0x5020",
+    "size": 867596,
+    "flags": "0x83",
+    "sha256": "1d8a8813fd599738f327ab72d5f29729dd8c4854650f281da144019fddaaa0bd"
+  },
+  "app": {
+    "name": "app.bin",
+    "header_offset": "0x5020",
+    "data_offset": "0x5100",
+    "size": 867372,
+    "flags": "0x82",
+    "sha256": "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3"
+  },
+  "resources": [
+    {
+      "name": "cfg_tool.bin",
+      "header_offset": "0xD8D2C",
+      "data_offset": "0xD8D4C",
+      "size": 969,
+      "flags": "0x82",
+      "sha256": "a4935e3536def16900dd1aea98e820a84fc6dc96666df1f4c03a4cd6ec8898ea"
+    },
+    {
+      "name": "eq_cfg_hw.bin",
+      "header_offset": "0xD9115",
+      "data_offset": "0xD9135",
+      "size": 1149,
+      "flags": "0x82",
+      "sha256": "ce0050f235f2c7b790306c14470af07e4c1053594bf2ce199da826cb8c1f0e69"
+    },
+    {
+      "name": "config.dat",
+      "header_offset": "0xD95B2",
+      "data_offset": "0xD95D2",
+      "size": 336,
+      "flags": "0x82",
+      "sha256": "2b3cca2c6114100f4d6a2fd7863e5a6e7171b7d6b9d409ad7c86da4c1cf0fc04"
+    },
+    {
+      "name": "md5.bin",
+      "header_offset": "0xD9722",
+      "data_offset": "0xD9742",
+      "size": 32,
+      "flags": "0x82",
+      "sha256": "b29fbce4670d8e175d82d2a5873e49b88c3e0087258f64043fa27a8b0d233e1e"
+    }
+  ],
+  "top_level": [
+    {
+      "name": "uboot.boot",
+      "header_offset": "0x20",
+      "data_offset": "0xA0",
+      "size": 17680,
+      "flags": "0x00",
+      "sha256": "b39d9328e8d34024b69d1b2471a94ef5d3d56b2a7a149d2c0df1a219e40f11e9"
+    },
+    {
+      "name": "isd_config.ini",
+      "header_offset": "0x40",
+      "data_offset": "0x45B0",
+      "size": 113,
+      "flags": "0x02",
+      "sha256": "d165b7d4a3315c5b09ca1fa9ece163d5685e7a5dd20e395b4126779969b38bd5"
+    }
+  ],
+  "entry_point_metadata": "0x1E00100",
+  "notes": [
+    "app.bin is decrypted machine code and data, not original C source",
+    "Reserved VM starts at 0xDA000 and is outside the .fw flash.bin payload"
+  ]
+}

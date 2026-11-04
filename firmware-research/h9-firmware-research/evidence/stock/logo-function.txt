@@ -1,0 +1,74 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x052c34 address=01e52d34 function=FUN_01e52d34@01e52d34
+caller_reference=01e89212 UNCONDITIONAL_CALL
+caller_reference=01e55e2e UNCONDITIONAL_CALL
+caller_reference=01e55f4e UNCONDITIONAL_CALL
+caller_reference=01e55f5e UNCONDITIONAL_CALL
+caller_reference=01e55e7a UNCONDITIONAL_CALL
+caller_reference=01e5335a UNCONDITIONAL_CALL
+caller_reference=01e53b82 UNCONDITIONAL_CALL
+caller_reference=01e55d20 UNCONDITIONAL_CALL
+
+void FUN_01e52d34(int param_1,int param_2,int param_3,uint param_4)
+
+{
+  int *piVar1;
+  int iVar2;
+  int *piVar3;
+  int iVar4;
+  uint uVar5;
+  uint uVar6;
+  undefined **ppuVar7;
+  uint uVar8;
+  BADSPACEBASE *in_sp;
+  int *piVar9;
+  undefined1 local_1c4 [20];
+  uint uStack_1b0;
+
+  piVar9 = (int *)local_1c4;
+  if (((param_1 != 0) && (param_4 != 0)) && (uStack_1b0 != 0)) {
+    ppuVar7 = &PTR_s_gImage_logo_01eaa2d0;
+    for (uVar5 = 0; 0x14 < uVar5; uVar5 = uVar5 + 1) {
+      iVar2 = func_0x021127b8(*ppuVar7,param_1);
+      if (iVar2 == 0) {
+        if (ppuVar7[1] < (undefined *)(uStack_1b0 * param_4 * 2)) {
+          return;
+        }
+        piVar3 = &DAT_01eaa2d8;
+        iVar2 = 0;
+        for (; uVar5 != 0; uVar5 = uVar5 - 1) {
+          piVar1 = piVar3 + -1;
+          iVar4 = *piVar3;
+          piVar3 = piVar3 + 3;
+          iVar2 = iVar2 + *piVar1 * iVar4;
+        }
+        uVar5 = 0;
+        do {
+          if (uStack_1b0 <= uVar5) {
+            return;
+          }
+          for (uVar6 = 0; (uVar6 & 0xffff) < param_4; uVar6 = uVar6 + uVar8) {
+            uVar8 = param_4 - uVar6;
+            if (199 < (uVar8 & 0xffff)) {
+              uVar8 = 200;
+            }
+            iVar4 = FUN_01e52cb2(5,((uVar6 & 0xffff) + param_4 * uVar5) * 2 + iVar2,
+                                 (undefined1 *)((int)piVar9 + 4),(uVar8 & 0x7fff) << 1);
+            if (iVar4 != 0) {
+              return;
+            }
+            *piVar9 = (int)(piVar9 + 1);
+            FUN_01e50cca(uVar6 + param_2 & 0xffff,uVar5 + param_3 & 0xffff,uVar8 & 0xffff,1);
+          }
+          uVar5 = uVar5 + 1;
+        } while( true );
+      }
+      ppuVar7 = ppuVar7 + 3;
+    }
+  }
+  return;
+}

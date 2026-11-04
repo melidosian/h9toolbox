@@ -1,0 +1,54 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x050050 address=01e50150 function=FUN_01e50128@01e50128
+caller_reference=01e52f44 CONDITIONAL_CALL
+caller_reference=01e564b4 UNCONDITIONAL_CALL
+caller_reference=01e56562 UNCONDITIONAL_CALL
+caller_reference=01e5615a UNCONDITIONAL_CALL
+caller_reference=01e67e26 UNCONDITIONAL_CALL
+
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+
+int FUN_01e50128(undefined4 param_1,int param_2,int param_3)
+
+{
+  int iVar1;
+  int iVar2;
+  int iVar3;
+  BADSPACEBASE *in_sp;
+  undefined1 *puVar4;
+  int in_cres;
+
+  if (in_cres == 1) {
+    in_sp = (BADSPACEBASE *)&stack0xffffffcc;
+  }
+  puVar4 = (undefined1 *)((int)in_sp + -0x10);
+  iVar3 = -1;
+  iVar2 = iVar3;
+  iVar1 = _DAT_000472a0;
+  if ((((_DAT_00011e82 == 0x5aa5) &&
+       (iVar2 = FUN_01e4fecc(param_1,param_3), iVar1 = iVar2, iVar2 == 0)) &&
+      (iVar2 = FUN_01e4fef4(param_1), iVar1 = iVar2, iVar2 == 0)) &&
+     ((iVar2 = iVar3, iVar1 = _DAT_000472a0, param_2 != 0 && (param_3 != 0)))) {
+    if (param_3 != 0) {
+      *(int *)(puVar4 + 0xc) = param_3;
+      iVar2 = func_0x02001634();
+      return iVar2;
+    }
+    _DAT_00012228 = _DAT_00012228 + 1;
+    iVar2 = 0;
+  }
+  _DAT_000472a0 = iVar1;
+  return iVar2;
+}
+
+
+
+app+0x050000 address=01e50100 function=none
+instruction=null
+
+app+0x04ff00 address=01e50000 function=none
+instruction=null

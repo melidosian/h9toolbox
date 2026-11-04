@@ -1,0 +1,24 @@
+target=00011ed6
+  source=01e52bd8 type=READ function=01e52bd0 instruction=lb.z r3,[r8 + 0x406]
+  source=01e5220a type=READ function=01e52202 instruction=lb.z r1,[r5 + 0x406]
+target=00012bf4
+  source=01e55da6 type=READ function=01e55d44 instruction=lb.z r0,[r5 + r0]
+  source=01e52216 type=READ function=01e52202 instruction=lb.z r0,[r5 + r0]
+target=00011fd4
+  source=01e50a88 type=WRITE function=01e50b7c instruction=sw r3,[r7 + 0x1c]
+  source=01e5231c type=READ function=01e52202 instruction=lb.z r1,[r5 + 0x504]
+target=000121dd
+  source=01e52354 type=READ function=01e5234c instruction=lb.z r2,[r5 + 0x70d]
+  source=01e5233a type=READ function=01e52328 instruction=lb.z r1,[r0 + 0x70d]
+  source=01e5230e type=READ function=01e52202 instruction=lb.z r0,[r5 + 0x70d]
+  source=01e522a4 type=READ function=01e52202 instruction=lb.z r1,[r5 + 0x70d]
+  source=01e63876 type=READ function=01e6386a instruction=lb.z r1,[r0 + 0x70d]
+target=0000ccf2
+  source=01e70f1a type=READ function=01e70f12 instruction=lb.z r2,[r1 + 0xc02]
+  source=01e60f0a type=READ function=01e60eda instruction=lb.z r1,[r0 + 0xc02]
+  source=01e52bf2 type=READ function=01e52bd0 instruction=lb.z r0,[r7 + 0xc02]
+  source=01e531e8 type=READ function=01e531a4 instruction=lb.z r0,[r0 + 0xc02]
+  source=01e523b0 type=READ function=01e5234c instruction=lb.z r0,[r0 + 0xc02]
+  source=01e52222 type=READ function=01e52202 instruction=lb.z r1,[r0 + 0xc02]
+  source=01e5af38 type=READ function=01e5ad68 instruction=lb.z r0,[r8 + 0xc02]
+  source=01e5b16e type=READ function=01e5b144 instruction=lb.z r0,[r4 + 0xc02]

@@ -1,0 +1,43 @@
+target=00012bba
+  source=01e5ad76 type=READ function=01e5ad68 instruction=lb.z r2,[r9 + r1]
+  source=01e5af62 type=READ function=01e5ad68 instruction=lb.z r0,[r9 + r0]
+target=00011c8c
+  source=01e511fa type=READ function=01e511e4 instruction=ldw r2,r0,#0x1bc
+  source=01e677a0 type=READ function=none instruction=ldw r1,r12,#0x1bc
+  source=01e5a644 type=READ function=01e5a616 instruction=ldw r1,r5,#0x1bc
+  source=01e5ceaa type=READ function=01e5cdec instruction=ldw r0,r5,#0x1bc
+  source=01e569fc type=WRITE function=01e569d2 instruction=_sw r0,[r5 + 0x0]
+  source=01e56ab0 type=WRITE function=01e569d2 instruction=sw r1,[r0 + 0x0]
+  source=01e5c46c type=READ function=01e5c3d4 instruction=ldw r0,r5,#0x1bc
+  source=01e595c0 type=READ function=01e595b6 instruction=ldw r1,r0,#0x1bc
+  source=01e5719a type=READ function=01e57190 instruction=ldw r1,r0,#0x1bc
+  source=01e567b2 type=READ function=01e56796 instruction=ldw r1,r4,#0x1bc
+  source=01e567b8 type=READ function=01e56796 instruction=ldw r3,r4,#0x1bc
+  source=01e5ad94 type=READ function=01e5ad68 instruction=ldw r0,r9,#0x1bc
+  source=01e56b20 type=READ function=01e56b08 instruction=lw r0,[r1 + 0x0]
+  source=01e56b26 type=WRITE function=01e56b08 instruction=sw r2,[r1 + 0x0]
+  source=01e56b42 type=WRITE function=01e56b08 instruction=sw r0,[r4 + 0x1bc]
+  source=01e5cb5e type=READ function=01e5cae8 instruction=ldw r1,r5,#0x1bc
+  source=01e568ec type=WRITE function=01e568c2 instruction=_sw r0,[r5 + 0x0]
+  source=01e569a0 type=WRITE function=01e568c2 instruction=sw r1,[r0 + 0x0]
+  source=01e5945e type=READ function=01e5942e instruction=ldw r9,r0,#0x0
+  source=01e5b256 type=READ function=01e5b144 instruction=ldw r1,r5,#0x1bc
+target=00011c9c
+  source=01e56a04 type=WRITE function=01e569d2 instruction=sw r0,[r5 + 0x10]
+  source=01e56abc type=WRITE function=01e569d2 instruction=_sw r1,[r0 + 0x10]
+  source=01e5c470 type=READ function=01e5c3d4 instruction=ldw r1,r5,#0x1cc
+  source=01e56b78 type=READ function=01e56b70 instruction=ldw r1,r0,#0x1cc
+  source=01e5ada2 type=READ function=01e5ad68 instruction=ldw r0,r9,#0x1cc
+  source=01e56b24 type=READ function=01e56b08 instruction=lw r2,[r1 + 0x10]
+  source=01e56b28 type=WRITE function=01e56b08 instruction=sw r0,[r1 + 0x10]
+  source=01e568f4 type=WRITE function=01e568c2 instruction=sw r0,[r5 + 0x10]
+  source=01e569ac type=WRITE function=01e568c2 instruction=_sw r1,[r0 + 0x10]
+  source=01e5b252 type=READ function=01e5b144 instruction=ldw r0,r5,#0x1cc
+target=00011aec
+  source=01e5ce06 type=WRITE function=01e5cdec instruction=sb r0,[r5 + 0x1c]
+  source=01e5c45c type=WRITE function=01e5c3d4 instruction=sb r0,[r5 + 0x1c]
+  source=01e5c4d4 type=WRITE function=01e5c3d4 instruction=sb r0,[r5 + 0x1c]
+target=00011b1d
+  source=01e5264a type=WRITE function=01e525a0 instruction=sb r0,[r9 + 0x4d]
+  source=01e5c460 type=WRITE function=01e5c3d4 instruction=sb r0,[r5 + 0x4d]
+  source=01e5c598 type=WRITE function=01e5c54c instruction=sb r0,[r4 + 0x4d]

@@ -1,0 +1,393 @@
+{
+  "image_bytes": 17304,
+  "sha256": "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33",
+  "inferred_flash_base": "0x08002000",
+  "initial_stack_pointer": "0x20001a50",
+  "reset_handler": "0x080020d5",
+  "vectors": [
+    {
+      "offset": "0x00",
+      "value": "0x20001a50"
+    },
+    {
+      "offset": "0x04",
+      "value": "0x080020d5"
+    },
+    {
+      "offset": "0x08",
+      "value": "0x08004907"
+    },
+    {
+      "offset": "0x0c",
+      "value": "0x0800486d"
+    },
+    {
+      "offset": "0x10",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x14",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x18",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x1c",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x20",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x24",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x28",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x2c",
+      "value": "0x08004983"
+    },
+    {
+      "offset": "0x30",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x34",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x38",
+      "value": "0x08004981"
+    },
+    {
+      "offset": "0x3c",
+      "value": "0x08004985"
+    },
+    {
+      "offset": "0x40",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x44",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x48",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x4c",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x50",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x54",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x58",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x5c",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x60",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x64",
+      "value": "0x080028a1"
+    },
+    {
+      "offset": "0x68",
+      "value": "0x080028b1"
+    },
+    {
+      "offset": "0x6c",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x70",
+      "value": "0x08002235"
+    },
+    {
+      "offset": "0x74",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x78",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x7c",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x80",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x84",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x88",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x8c",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x90",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0x94",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x98",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0x9c",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0xa0",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0xa4",
+      "value": "0x080020e7"
+    },
+    {
+      "offset": "0xa8",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0xac",
+      "value": "0x08004f65"
+    },
+    {
+      "offset": "0xb0",
+      "value": "0x08004fb1"
+    },
+    {
+      "offset": "0xb4",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0xb8",
+      "value": "0x00000000"
+    },
+    {
+      "offset": "0xbc",
+      "value": "0x00000000"
+    }
+  ],
+  "peripheral_literals": [
+    {
+      "offset": "0x0304",
+      "address": "0x08002304",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x07a0",
+      "address": "0x080027a0",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x07a4",
+      "address": "0x080027a4",
+      "value": "0x40012400",
+      "inferred_register_family": "ADC1-like register base"
+    },
+    {
+      "offset": "0x0894",
+      "address": "0x08002894",
+      "value": "0x40012c00",
+      "inferred_register_family": "TIM1-like register base"
+    },
+    {
+      "offset": "0x0954",
+      "address": "0x08002954",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x09c4",
+      "address": "0x080029c4",
+      "value": "0x40004400",
+      "inferred_register_family": "USART2-like register base"
+    },
+    {
+      "offset": "0x0a44",
+      "address": "0x08002a44",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x0c90",
+      "address": "0x08002c90",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x12bc",
+      "address": "0x080032bc",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x1b34",
+      "address": "0x08003b34",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x1b70",
+      "address": "0x08003b70",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x1bf0",
+      "address": "0x08003bf0",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x1ed8",
+      "address": "0x08003ed8",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x1f90",
+      "address": "0x08003f90",
+      "value": "0x40012c00",
+      "inferred_register_family": "TIM1-like register base"
+    },
+    {
+      "offset": "0x208c",
+      "address": "0x0800408c",
+      "value": "0x40013800",
+      "inferred_register_family": "USART1-like register base"
+    },
+    {
+      "offset": "0x2090",
+      "address": "0x08004090",
+      "value": "0x40004400",
+      "inferred_register_family": "USART2-like register base"
+    },
+    {
+      "offset": "0x23c0",
+      "address": "0x080043c0",
+      "value": "0x40013800",
+      "inferred_register_family": "USART1-like register base"
+    },
+    {
+      "offset": "0x23d0",
+      "address": "0x080043d0",
+      "value": "0x40004400",
+      "inferred_register_family": "USART2-like register base"
+    },
+    {
+      "offset": "0x2584",
+      "address": "0x08004584",
+      "value": "0x40013800",
+      "inferred_register_family": "USART1-like register base"
+    },
+    {
+      "offset": "0x2590",
+      "address": "0x08004590",
+      "value": "0x40004400",
+      "inferred_register_family": "USART2-like register base"
+    },
+    {
+      "offset": "0x2730",
+      "address": "0x08004730",
+      "value": "0x40013800",
+      "inferred_register_family": "USART1-like register base"
+    },
+    {
+      "offset": "0x2734",
+      "address": "0x08004734",
+      "value": "0x40004400",
+      "inferred_register_family": "USART2-like register base"
+    },
+    {
+      "offset": "0x2768",
+      "address": "0x08004768",
+      "value": "0x40013800",
+      "inferred_register_family": "USART1-like register base"
+    },
+    {
+      "offset": "0x29b0",
+      "address": "0x080049b0",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x2a3c",
+      "address": "0x08004a3c",
+      "value": "0x40012c00",
+      "inferred_register_family": "TIM1-like register base"
+    },
+    {
+      "offset": "0x2ab8",
+      "address": "0x08004ab8",
+      "value": "0x40021000",
+      "inferred_register_family": "RCC-like register base"
+    },
+    {
+      "offset": "0x3f90",
+      "address": "0x08005f90",
+      "value": "0x40013800",
+      "inferred_register_family": "USART1-like register base"
+    }
+  ],
+  "selected_strings": [
+    {
+      "offset": "0x3b44",
+      "text": "V1.0.15"
+    },
+    {
+      "offset": "0x3e56",
+      "text": "========== APRS Module Version Info =========="
+    },
+    {
+      "offset": "0x3e88",
+      "text": "V1.0.15"
+    },
+    {
+      "offset": "0x3e90",
+      "text": "Software Version: %s"
+    },
+    {
+      "offset": "0x3eb0",
+      "text": "Hardware Version: %s"
+    }
+  ],
+  "limitations": [
+    "The base address is inferred from vector targets; no device or linker map was supplied.",
+    "Peripheral names are inferences from STM32-style address layout, not confirmed device identification.",
+    "Literal occurrence is not proof that a peripheral is active or that a specific function uses it.",
+    "Neither decoder behavior nor speaker-audio routing is established by this structural map."
+  ]
+}

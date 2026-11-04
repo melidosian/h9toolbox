@@ -1,0 +1,107 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x050e58 address=01e50f58 function=FUN_01e50f58@01e50f58
+caller_reference=01e51280 UNCONDITIONAL_CALL
+caller_reference=01e51002 UNCONDITIONAL_CALL
+caller_reference=01e5a24c UNCONDITIONAL_CALL
+
+byte FUN_01e50f58(void)
+
+{
+  byte bVar1;
+
+  bVar1 = DAT_00011b1d;
+  if (DAT_00011b1e == '\0') {
+    bVar1 = DAT_00011b50 >> 7;
+  }
+  return bVar1;
+}
+
+
+
+app+0x05cbca address=01e5ccca function=FUN_01e5ccca@01e5ccca
+caller_reference=01e5cec2 UNCONDITIONAL_CALL
+
+void FUN_01e5ccca(void)
+
+{
+  int iVar1;
+  undefined4 uVar2;
+  BADSPACEBASE *in_sp;
+  undefined1 *puVar3;
+  undefined1 *puVar4;
+  undefined1 auStack_10 [4];
+
+  puVar4 = auStack_10;
+  puVar3 = auStack_10;
+  if (DAT_00011ae8 != '\0') goto LAB_01e5cd8c;
+  if (DAT_00011b1d == '\0') {
+    puVar4 = auStack_10;
+    if (DAT_00011ae9 != '\0') {
+      iVar1 = 0x5fe;
+      goto LAB_01e5ccf6;
+    }
+  }
+  else {
+    puVar4 = auStack_10;
+    if (DAT_00011aea != '\0') {
+      iVar1 = 0x60e;
+LAB_01e5ccf6:
+      puVar4 = auStack_10;
+      if ((char)(&LAB_00011ad0)[iVar1] < 0x1ff) {
+        FUN_01e5ac14(0);
+        puVar4 = puVar3;
+      }
+    }
+  }
+  if (DAT_00012ba3 != '\0') {
+    FUN_01e593e4(3);
+    FUN_01e5070a(0x70,0xc000);
+    FUN_01e5aa30();
+    if (DAT_00012ba3 == '\x02') {
+      FUN_01e58fd4();
+      FUN_01e5070a(0x71,0x4970);
+      func_0x02000a00(5);
+      FUN_01e5aa30();
+      func_0x02000a00(0x14);
+      FUN_01e58fd4();
+      FUN_01e5070a(0x71,0x4909);
+      func_0x02000a00(5);
+      FUN_01e5aa30();
+      func_0x02000a00(0xf);
+      FUN_01e58fd4();
+    }
+    else if (DAT_00012ba3 == '\x01') {
+      FUN_01e5070a(0x71,0x448f);
+      FUN_01e58fd4();
+      FUN_01e516c6(200);
+    }
+    FUN_01e5cc2c();
+  }
+  FUN_01e5aa30();
+LAB_01e5cd8c:
+  *(undefined2 *)(puVar4 + 2) = 0;
+  if (DAT_00012bb8 != '\0') {
+    if (DAT_0001224a == '\0') {
+      uVar2 = 0x52d6;
+    }
+    else {
+      uVar2 = 0x52d7;
+    }
+    FUN_01e52cb2(4,uVar2,1);
+    FUN_01e5070a(0x51,*(uint *)(puVar4 + 2) | 0x9000);
+    if (DAT_00011b1a == '\x02') {
+      uVar2 = 0;
+    }
+    else {
+      uVar2 = 4;
+    }
+    FUN_01e5cc70(uVar2);
+    func_0x02000a00(300);
+    FUN_01e58fd4();
+  }
+  return;
+}

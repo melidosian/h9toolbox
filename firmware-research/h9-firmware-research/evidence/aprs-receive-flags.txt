@@ -1,0 +1,46 @@
+program=aprs-1.0.15.bin
+language=ARM:LE:32:Cortex
+
+address=08005800 function=FUN_08005800@08005800
+caller_reference=0800570e UNCONDITIONAL_CALL
+
+void FUN_08005800(undefined4 param_1,undefined4 param_2,undefined4 param_3)
+
+{
+  *DAT_08005820 = param_1;
+  *DAT_08005824 = param_3;
+  *DAT_08005828 = param_2;
+  *DAT_0800582c = 0;
+  FUN_08005b54();
+  return;
+}
+
+
+
+address=08002696 function=none
+instruction=null
+
+address=08002a4c function=FUN_08002a4c@08002a4c
+caller_reference=08005aa2 UNCONDITIONAL_CALL
+
+undefined4 FUN_08002a4c(int param_1,int param_2)
+
+{
+  undefined4 uVar1;
+  int iVar2;
+
+  if ((param_1 == 0) || (param_2 == 0)) {
+    uVar1 = 1;
+  }
+  else {
+    iVar2 = FUN_08002964();
+    if (iVar2 == 1) {
+      uVar1 = FUN_08002c94(param_1,param_2);
+    }
+    else {
+      FUN_08004ffc(&DAT_08002a7c);
+      uVar1 = 1;
+    }
+  }
+  return uVar1;
+}

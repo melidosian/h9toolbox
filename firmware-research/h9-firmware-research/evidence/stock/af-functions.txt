@@ -1,0 +1,62 @@
+program=app.bin
+language=pi32v2:LE:32:default
+image_base=00000000
+function_count=1918
+
+app+0x0592e4 address=01e593e4 function=FUN_01e593e4@01e593e4
+caller_reference=01e595a8 UNCONDITIONAL_CALL
+caller_reference=01e5cd10 UNCONDITIONAL_CALL
+caller_reference=01e5ab3a UNCONDITIONAL_CALL
+caller_reference=01e5aaac UNCONDITIONAL_CALL
+caller_reference=01e5cc54 UNCONDITIONAL_CALL
+caller_reference=01e5966e UNCONDITIONAL_CALL
+
+void FUN_01e593e4(int param_1)
+
+{
+  FUN_01e5070a(0x47,param_1 << 8 | 0x6040);
+  return;
+}
+
+
+
+app+0x05060a address=01e5070a function=FUN_01e5070a@01e5070a
+caller_reference=01e5079a UNCONDITIONAL_CALL
+caller_reference=01e50800 UNCONDITIONAL_CALL
+caller_reference=01e57388 UNCONDITIONAL_CALL
+caller_reference=01e573aa UNCONDITIONAL_CALL
+caller_reference=01e573c6 UNCONDITIONAL_CALL
+caller_reference=01e57496 UNCONDITIONAL_CALL
+caller_reference=01e574b8 UNCONDITIONAL_CALL
+caller_reference=01e574d4 UNCONDITIONAL_CALL
+caller_reference=01e57566 UNCONDITIONAL_CALL
+caller_reference=01e57588 UNCONDITIONAL_CALL
+caller_reference=01e575a4 UNCONDITIONAL_CALL
+caller_reference=01e57674 UNCONDITIONAL_CALL
+caller_reference=01e57696 UNCONDITIONAL_CALL
+caller_reference=01e576b2 UNCONDITIONAL_CALL
+caller_reference=01e57744 UNCONDITIONAL_CALL
+caller_reference=01e57766 UNCONDITIONAL_CALL
+caller_reference=01e57782 UNCONDITIONAL_CALL
+caller_reference=01e5779e UNCONDITIONAL_CALL
+caller_reference=01e579a4 UNCONDITIONAL_CALL
+caller_reference=01e579c6 UNCONDITIONAL_CALL
+caller_reference=01e579e2 UNCONDITIONAL_CALL
+caller_reference=01e57aec UNCONDITIONAL_CALL
+caller_reference=01e57b0e UNCONDITIONAL_CALL
+caller_reference=01e57b2a UNCONDITIONAL_CALL
+caller_reference=01e57bbc UNCONDITIONAL_CALL
+caller_reference=01e57bde UNCONDITIONAL_CALL
+caller_reference=01e57bfa UNCONDITIONAL_CALL
+caller_reference=01e57d04 UNCONDITIONAL_CALL
+caller_reference=01e57d26 UNCONDITIONAL_CALL
+caller_reference=01e57d42 UNCONDITIONAL_CALL
+caller_reference=01e57dd4 UNCONDITIONAL_CALL
+caller_reference=01e57df6 UNCONDITIONAL_CALL
+
+void FUN_01e5070a(undefined4 param_1)
+
+{
+  func_0x02001634(param_1);
+  return;
+}

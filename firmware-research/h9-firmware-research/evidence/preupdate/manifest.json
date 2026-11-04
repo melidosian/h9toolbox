@@ -1,0 +1,80 @@
+{
+  "source_kind": "pre-update-radio-backup",
+  "source_sha256": "975bf7f3ea6ec76139a8e1b48b402594b2ea34b43a6083532ece543c47ac53ee",
+  "chip_key": "0xF181",
+  "reserved_vm_start": "0xC8000",
+  "limitation": "Only flash offsets 0x00000..0xD9FFF were captured",
+  "flash_sha256": "975bf7f3ea6ec76139a8e1b48b402594b2ea34b43a6083532ece543c47ac53ee",
+  "app_area": {
+    "name": "app_area_head",
+    "header_offset": "0x5000",
+    "data_offset": "0x5020",
+    "size": 795468,
+    "flags": "0x83",
+    "sha256": "b98f9acea1c8da808e294b61679305d943478b4a483fb2a5ec556021ce22cade"
+  },
+  "app": {
+    "name": "app.bin",
+    "header_offset": "0x5020",
+    "data_offset": "0x5100",
+    "size": 795244,
+    "flags": "0x82",
+    "sha256": "31e6ef16c7ac3b0e3146ec062d994c7df2b5362c6d0948d5612490cc7499e0ec"
+  },
+  "resources": [
+    {
+      "name": "cfg_tool.bin",
+      "header_offset": "0xC736C",
+      "data_offset": "0xC738C",
+      "size": 969,
+      "flags": "0x82",
+      "sha256": "a4935e3536def16900dd1aea98e820a84fc6dc96666df1f4c03a4cd6ec8898ea"
+    },
+    {
+      "name": "eq_cfg_hw.bin",
+      "header_offset": "0xC7755",
+      "data_offset": "0xC7775",
+      "size": 1149,
+      "flags": "0x82",
+      "sha256": "ce0050f235f2c7b790306c14470af07e4c1053594bf2ce199da826cb8c1f0e69"
+    },
+    {
+      "name": "config.dat",
+      "header_offset": "0xC7BF2",
+      "data_offset": "0xC7C12",
+      "size": 336,
+      "flags": "0x82",
+      "sha256": "2b3cca2c6114100f4d6a2fd7863e5a6e7171b7d6b9d409ad7c86da4c1cf0fc04"
+    },
+    {
+      "name": "md5.bin",
+      "header_offset": "0xC7D62",
+      "data_offset": "0xC7D82",
+      "size": 32,
+      "flags": "0x82",
+      "sha256": "7b856ebfa4ace844ed0d5bd91c3db48aeb889a365a7217f060df38dea9834560"
+    }
+  ],
+  "top_level": [
+    {
+      "name": "uboot.boot",
+      "header_offset": "0x20",
+      "data_offset": "0xA0",
+      "size": 17680,
+      "flags": "0x00",
+      "sha256": "b39d9328e8d34024b69d1b2471a94ef5d3d56b2a7a149d2c0df1a219e40f11e9"
+    },
+    {
+      "name": "isd_config.ini",
+      "header_offset": "0x40",
+      "data_offset": "0x45B0",
+      "size": 113,
+      "flags": "0x02",
+      "sha256": "d165b7d4a3315c5b09ca1fa9ece163d5685e7a5dd20e395b4126779969b38bd5"
+    }
+  ],
+  "entry_point_metadata": "0x1E00100",
+  "notes": [
+    "app.bin is decrypted machine code and data, not original C source"
+  ]
+}

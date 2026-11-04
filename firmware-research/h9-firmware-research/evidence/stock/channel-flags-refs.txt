@@ -1,0 +1,52 @@
+target=00011edd
+  source=01e50f66 type=READ function=01e50f58 instruction=lb.z r0,[r0 + 0x40d]
+  source=01e5ccda type=READ function=01e5ccca instruction=lb.z r0,[r4 + 0x40d]
+  source=01e5a8c2 type=READ function=01e5a82e instruction=lb.z r0,[r5 + 0x40d]
+  source=01e5b218 type=READ function=01e5b144 instruction=lb.z r0,[r5 + 0x40d]
+target=00011ede
+  source=01e50f5e type=READ function=01e50f58 instruction=lb.z r1,[r0 + 0x40e]
+  source=01e5a8b0 type=READ function=01e5a82e instruction=lb.z r0,[r5 + 0x40e]
+  source=01e5c57a type=READ function=01e5c54c instruction=lb.z r0,[r4 + 0x40e]
+target=00012bad
+  source=01e55cee type=READ function=01e55ce0 instruction=lb.z r0,[r1 + r0]
+  source=01e5c7fa type=READ function=01e5c7be instruction=lb.z r0,[r8 + r4]
+  source=01e5c820 type=READ function=01e5c7be instruction=lb.z r0,[r8 + r4]
+  source=01e5c912 type=READ function=01e5c7be instruction=lb.z r0,[r8 + r0]
+  source=01e5a7ba type=READ function=01e5a7ac instruction=lb.z r1,[r2 + r1]
+  source=01e513a8 type=READ function=01e5139c instruction=lb.z r1,[r2 + r1]
+  source=01e515a2 type=READ function=01e5158a instruction=lb.z r1,[r2 + r1]
+  source=01e5a772 type=READ function=01e5a764 instruction=lb.z r1,[r2 + r1]
+  source=01e50566 type=READ function=01e50556 instruction=lb.z r2,[r1 + r2]
+  source=01e674e8 type=READ function=none instruction=lb.z r0,[r4 + r0]
+  source=01e5c5b4 type=READ function=01e5c5a6 instruction=lb.z r0,[r1 + r0]
+  source=01e5c9ca type=READ function=01e5c9a4 instruction=lb.z r1,[r0 + r1]
+  source=01e5caf6 type=READ function=01e5cae8 instruction=lb.z r0,[r5 + r0]
+  source=01e5a85c type=READ function=01e5a82e instruction=lb.z r1,[r5 + r1]
+  source=01e5a878 type=READ function=01e5a82e instruction=lb.z r1,[r5 + r0]
+target=00012ba3
+  source=01e5cd08 type=READ function=01e5ccca instruction=lb.z r0,[r4 + r5]
+  source=01e5cd22 type=READ function=01e5ccca instruction=lb.z r0,[r4 + r5]
+target=00010cdd
+  source=01e5a978 type=READ function=01e5a82e instruction=lb.z r0,[r8 + 0x1]
+  source=01e5a3a8 type=READ function=01e5a22c instruction=lb.z r0,[r0 + 0x1]
+  source=01e5645c type=PARAM function=01e56424 instruction=add r1,r5,#0x1
+target=00010ce5
+  source=01e5a998 type=READ function=01e5a82e instruction=lb.z r0,[r9 + 0x1]
+  source=01e5a37a type=READ function=01e5a22c instruction=lb.z r0,[r0 + 0x1]
+  source=01e5645c type=PARAM function=01e56424 instruction=add r1,r5,#0x1
+target=00011d28
+  source=01e60f54 type=READ function=01e60eda instruction=lb.z r2,[r8 + r2]
+  source=01e5c7a6 type=READ function=01e5c6b2 instruction=ldw r2,r8,#0x1d8
+  source=01e66fba type=READ function=01e66d6a instruction=ldw r3,r5,#0x1d8
+  source=01e55b3e type=READ function=01e55b0e instruction=lb.z r0,[r5 + r0]
+  source=01e674c6 type=READ function=none instruction=}  movz r1, #0x10d7
+  source=01e5ce14 type=READ function=01e5cdec instruction=lb.z r0,[r5 + r0]
+  source=01e5ce4e type=READ function=01e5cdec instruction=lb.z r0,[r5 + r0]
+  source=01e5cecc type=WRITE function=01e5cdec instruction=sb r4,[r5 + r0]
+  source=01e5c47a type=WRITE function=01e5c3d4 instruction=sb r4,[r5 + r2]
+  source=01e5ae90 type=WRITE function=01e5ad68 instruction=sb r4,[r9 + r0]
+  source=01e5cc38 type=READ function=01e5cc2c instruction=lb.z r0,[r4 + r0]
+  source=01e5b238 type=READ function=01e5b144 instruction=lb.z r1,[r5 + r0]
+  source=01e5b240 type=WRITE function=01e5b144 instruction=sb r6,[r5 + r0]
+  source=01e5c540 type=READ function=01e5c506 instruction=lb.z r0,[r1 + r0]
+  source=01e56140 type=READ function=01e56090 instruction=ldw r1,r5,#0x1d8
