@@ -1344,19 +1344,72 @@ static void test_aprs_wave_output(void)
     assert(gpio[5] == 0xA5u);
 }
 
+typedef struct {
+    uint32_t *adc;
+    unsigned polls;
+} FakeAdcCalibration;
+
+static void adc_calibration_poll(void *context)
+{
+    FakeAdcCalibration *fake = (FakeAdcCalibration *)context;
+    assert((fake->adc[3] & 3u) == 0u);
+    fake->polls++;
+    if (fake->polls == 2u) fake->adc[2] &= ~0x80000000u;
+}
+
+static void adc_ready_poll(void *context)
+{
+    FakeAdcCalibration *fake = (FakeAdcCalibration *)context;
+    fake->polls++;
+    if (fake->polls == 2u) fake->adc[0] |= 1u;
+}
+
 static void test_aprs_adc_board(void)
 {
     H9AprsAdcBoard board = { 0 };
+    FakeAdcCalibration fake;
     uint32_t rcc[17] = { 0 };
     uint32_t gpio[4] = { 0 };
     uint32_t adc[17] = { 0 };
+    uint32_t nvic_iser = 0u;
     assert(h9_aprs_adc_board_read(&board) == 0u);
-    h9_aprs_adc_board_bind(&board, rcc, gpio, adc);
+    h9_aprs_adc_board_bind(&board, rcc, gpio, adc, &nvic_iser);
+    assert(h9_aprs_adc_board_reset_enable(&board));
+    assert((rcc[12] & (1u << 20)) == 0u &&
+           (rcc[16] & (1u << 20)) != 0u);
+    adc[3] = 0xA5u;
+    fake.adc = adc;
+    fake.polls = 0u;
+    assert(h9_aprs_adc_board_calibrate(&board, 4u,
+                                       adc_calibration_poll, &fake));
+    assert(fake.polls == 2u && adc[3] == 0xA5u);
+    adc[2] = 0u;
+    assert(!h9_aprs_adc_board_calibrate(&board, 2u, NULL, NULL));
+    assert(adc[3] == 0xA5u);
+    adc[2] = 1u;
+    assert(!h9_aprs_adc_board_calibrate(&board, 2u,
+                                        adc_calibration_poll, &fake));
     gpio[0] = gpio[3] = ~0u;
     h9_aprs_adc_board_prepare_pin(&board);
     assert(rcc[13] == 1u && rcc[16] == (1u << 20));
     assert(((gpio[0] >> 2) & 3u) == 3u);
     assert(((gpio[3] >> 2) & 3u) == 0u);
+    adc[2] = 4u;
+    assert(!h9_aprs_adc_board_configure(&board));
+    adc[2] = 0u;
+    adc[3] = adc[4] = adc[5] = adc[10] = 0u;
+    assert(h9_aprs_adc_board_configure(&board));
+    assert(adc[3] == 0x5C0Cu && adc[4] == 0x10000000u);
+    assert(adc[5] == 7u && adc[10] == 2u);
+    adc[0] = 0u;
+    assert(!h9_aprs_adc_board_start(&board, 2u, NULL, NULL));
+    assert(adc[2] == 1u && adc[1] == 0u && nvic_iser == 0u);
+    adc[2] = 0u;
+    fake.polls = 0u;
+    assert(h9_aprs_adc_board_start(&board, 4u, adc_ready_poll, &fake));
+    assert(fake.polls == 2u && adc[0] == 0x1Cu && adc[1] == 0x1Cu);
+    assert(adc[2] == 5u && nvic_iser == (1u << 12));
+    assert(!h9_aprs_adc_board_start(&board, 4u, adc_ready_poll, &fake));
     adc[16] = 0xABCD1234u;
     assert(h9_aprs_adc_board_read(&board) == 0x1234u);
 }
@@ -1418,7 +1471,8 @@ static void test_aprs_adc_sample_irq(void)
     uint32_t adc[17] = { 0 };
     uint32_t rcc[17] = { 0 };
     uint32_t gpio[6] = { 0 };
-    h9_aprs_adc_board_bind(&fake.adc, rcc, gpio, adc);
+    uint32_t nvic_iser = 0u;
+    h9_aprs_adc_board_bind(&fake.adc, rcc, gpio, adc, &nvic_iser);
     h9_aprs_wave_output_bind(&fake.wave, rcc, gpio);
     hardware.context = &fake;
     hardware.read_adc = sample_irq_read_adc;

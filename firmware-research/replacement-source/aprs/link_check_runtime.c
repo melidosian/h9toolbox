@@ -97,7 +97,12 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
     h9_aprs_wave_output_configure(&runtime.wave_output);
     if (!h9_aprs_sample_timer_start(&runtime.sample_timer))
         for (;;) { }
-    h9_aprs_adc_board_prepare_pin(&runtime.adc_board);
+    if (!h9_aprs_adc_board_reset_enable(&runtime.adc_board) ||
+        !h9_aprs_adc_board_calibrate(&runtime.adc_board, 100000u, NULL, NULL))
+        for (;;) { }
+    if (!h9_aprs_adc_board_configure(&runtime.adc_board) ||
+        !h9_aprs_adc_board_start(&runtime.adc_board, 100000u, NULL, NULL))
+        for (;;) { }
     h9_aprs_uart1_board_enable_irqs(&runtime.uart1_board);
     for (;;) {
         (void)h9_aprs_uart_receive_process(&runtime.uart_receive,
