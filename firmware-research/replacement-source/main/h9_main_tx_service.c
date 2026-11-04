@@ -12,6 +12,7 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
     uint32_t prepared_hz;
     H9TxPlan plan;
     H9MainRfSnapshot rf_snapshot;
+    H9BeaconPositionStatus position;
     H9MainTxResult result;
     bool stopped;
     bool restored;
@@ -20,6 +21,7 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
         length > H9_MAIN_AX25_MAX_PACKET || hardware == NULL ||
         hardware->begin_route == NULL || hardware->end_route == NULL ||
         hardware->read_current_side == NULL ||
+        hardware->read_position_status == NULL ||
         hardware->validate_frequency == NULL ||
         hardware->prepare_tx == NULL ||
         hardware->read_prepared_tx == NULL ||
@@ -30,6 +32,9 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
     if (!hardware->begin_route(opaque)) return H9_MAIN_TX_ROUTE_BUSY;
     result = H9_MAIN_TX_REJECTED;
     if (!hardware->read_current_side(opaque, &previous_side)) goto release;
+
+    if (!hardware->read_position_status(opaque, &position) ||
+        !h9_main_beacon_position_ready(&position)) goto release;
 
     plan = h9_main_tx_plan(config, previous_side, a_tx_hz, b_tx_hz);
     if (!plan.allowed) goto release;

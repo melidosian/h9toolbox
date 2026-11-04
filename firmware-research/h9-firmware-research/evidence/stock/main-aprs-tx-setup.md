@@ -4,6 +4,16 @@ Source: captured main v1.0.38 `app.bin`, SHA-256 `11a07bc0b7f23ba809451256004f26
 
 The selector at app+`0x05C2D4` chooses the side, calls RF side setup `FUN_01E58E3E`, then calls `FUN_01E5AD68` and packet builder `FUN_01E5BF2C`. `FUN_01E5AD68` validates the TX frequency, enters the TX configuration path, writes RF register values through `FUN_01E5070A`, and calls `FUN_01E59094(1, ...)` and `FUN_01E5924C(1, 2)`. The latter writes RF register `0x74`. `FUN_01E5070A` delegates to a ROM routine at `0x02001634`; its peripheral transport is not reconstructed here.
 
+Before side selection, the selector checks the source byte at RAM `0xC1CA`.
+When it equals `1`, it rejects the beacon if GPS-valid byte `0x12550` is
+zero or if both coordinate words `0x475C8` and `0x475D0` are zero. Other
+source-byte values bypass this position check. The independent source-input
+verifier pins the instruction slice at app+`0x05C2D8..0x05C30C`.
+`h9_main_beacon_position_ready` ports this gate, and `h9_main_tx_send`
+requires a board snapshot of these fields under its route reservation before
+frequency validation or RF preparation. The coordinate units and physical
+RF readiness remain unverified.
+
 The independent Pi32v2 decode of RF side setup at app+`0x058D4C..0x058D76`
 shows a two-input side decision. It reads Dual Watch from RAM `0x12BA7`.
 When Dual Watch is on, it reads route byte `0x11AEC` and calls B setup at

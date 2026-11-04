@@ -1,6 +1,14 @@
 #include "h9_main_beacon.h"
 #include <stddef.h>
 
+bool h9_main_beacon_position_ready(const H9BeaconPositionStatus *status)
+{
+    if (status == NULL) return false;
+    return status->position_source != 1u ||
+           (status->gps_fix_valid &&
+            (status->latitude_raw != 0u || status->longitude_raw != 0u));
+}
+
 H9BeaconDecision h9_main_beacon_tick(H9BeaconScheduler *scheduler,
                                      uint8_t timed_beacon_setting,
                                      uint16_t interval_setting,

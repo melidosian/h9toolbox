@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "h9_main_aprs.h"
+#include "h9_main_beacon.h"
 #include "h9_main_rf_state.h"
 
 typedef enum {
@@ -27,6 +28,8 @@ typedef enum {
  * h9_main_rf_route_prepare/restore implements the selector writes. The
  * begin_route/end_route must reserve the side and channel state against
  * Dual Watch or menu updates for the entire transaction, including cleanup.
+ * read_position_status captures the GPS-source, fix-valid, and coordinate
+ * fields under the same reservation before RF preparation.
  * This is a state reservation, not a request to mask interrupts for the
  * packet duration. A failed begin_route must not retain the reservation.
  * end_route returns false if release or its final state check fails.
@@ -41,6 +44,7 @@ typedef struct {
     bool (*begin_route)(void *opaque);
     bool (*end_route)(void *opaque);
     bool (*read_current_side)(void *opaque, H9Side *side);
+    bool (*read_position_status)(void *opaque, H9BeaconPositionStatus *status);
     bool (*validate_frequency)(void *opaque, uint32_t tx_hz);
     /* Receives the complete plan so a board adapter can distinguish an
      * Auto side switch from a Lock/Current guard during route preparation. */
@@ -53,7 +57,8 @@ typedef struct {
 } H9MainTxHardware;
 
 /* The packet is an already assembled AX.25 frame. This transaction rejects
- * Lock requests on the wrong active side, requires a frequency precheck,
+ * a missing required GPS position and Lock requests on the wrong active
+ * side, requires a frequency precheck,
  * and verifies RF configuration before any callback may key. It always
  * requests TX stop and RX restore after a prepare attempt, including failed
  * preparation or readback. */

@@ -55,6 +55,13 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
             raise ValueError(f"APRS stock TX {name.lower()} default differs")
     if main_app[0x05C324:0x05C329] != bytes.fromhex("03 05 09 08 18"):
         raise ValueError("main APRS TX mode table differs")
+    if main_app[0x05C2D8:0x05C30C] != bytes.fromhex(
+        "C0 FF F0 C0 00 00 50 EE 0A 1D C5 FF D0 1A 01 00 "
+        "81 F8 10 02 41 E0 80 0A D8 EE 50 11 44 20 31 53 "
+        "41 E0 A2 02 D8 EC 5A 11 42 E0 A4 02 D8 EC 5A 22 "
+        "21 19 31 49"
+    ):
+        raise ValueError("main APRS GPS-position TX preflight differs")
     if main_app[0x082F0E:0x082F12] != bytes.fromhex("BE EA E1 C9"):
         raise ValueError("timed beacon no longer calls the known selector")
     if main_app[0x087130:0x087138] != bytes.fromhex(

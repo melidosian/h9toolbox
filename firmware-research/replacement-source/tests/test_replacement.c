@@ -1616,6 +1616,10 @@ static void test_main_tx_frequency_precheck(void)
 
 typedef struct {
     H9Side current_side;
+    uint8_t position_source;
+    bool gps_fix_valid;
+    uint32_t latitude_raw;
+    uint32_t longitude_raw;
     H9Side prepared_side;
     uint32_t prepared_hz;
     bool prepared_restore_side;
@@ -1639,6 +1643,7 @@ typedef struct {
     unsigned begin_calls;
     unsigned end_calls;
     unsigned validate_calls;
+    unsigned position_reads;
     unsigned prepare_calls;
     unsigned readback_calls;
     unsigned snapshot_calls;
@@ -1672,6 +1677,19 @@ static bool main_read_side(void *opaque, H9Side *side)
     FakeMainTx *fake = (FakeMainTx *)opaque;
     assert(fake->route_reserved);
     *side = fake->current_side;
+    return true;
+}
+
+static bool main_read_position_status(void *opaque,
+                                      H9BeaconPositionStatus *status)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    assert(fake->route_reserved && status != NULL);
+    fake->position_reads++;
+    status->position_source = fake->position_source;
+    status->gps_fix_valid = fake->gps_fix_valid;
+    status->latitude_raw = fake->latitude_raw;
+    status->longitude_raw = fake->longitude_raw;
     return true;
 }
 
@@ -1786,10 +1804,17 @@ static void test_main_tx_service(void)
 {
     const uint8_t packet[] = { 0x82u };
     const H9MainTxHardware hardware = {
-        main_begin_route, main_end_route,
-        main_read_side, main_validate_frequency, main_prepare, main_read_prepared,
-        main_read_rf_snapshot, main_send_packet, main_stop_tx,
-        main_restore_receive
+        .begin_route = main_begin_route,
+        .end_route = main_end_route,
+        .read_current_side = main_read_side,
+        .read_position_status = main_read_position_status,
+        .validate_frequency = main_validate_frequency,
+        .prepare_tx = main_prepare,
+        .read_prepared_tx = main_read_prepared,
+        .read_rf_snapshot = main_read_rf_snapshot,
+        .send_packet = main_send_packet,
+        .stop_tx = main_stop_tx,
+        .restore_receive = main_restore_receive,
     };
     H9MainAprsConfig cfg = { true, false, H9_RX_B, H9_TX_B_LOCK };
     FakeMainTx fake = { 0 };
@@ -1808,6 +1833,26 @@ static void test_main_tx_service(void)
                              packet, sizeof packet, &hardware, &fake);
     assert(result == H9_MAIN_TX_ROUTE_BUSY && fake.begin_calls == 1u &&
            fake.end_calls == 0u && fake.prepare_calls == 0u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.position_source = 1u;
+    fake.gps_fix_valid = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_REJECTED && fake.position_reads == 1u &&
+           fake.validate_calls == 0u && fake.prepare_calls == 0u &&
+           fake.send_calls == 0u && fake.end_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.position_source = 1u;
+    fake.gps_fix_valid = true;
+    fake.latitude_raw = 1u;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_SENT && fake.position_reads == 1u &&
+           fake.send_calls == 1u);
 
     memset(&fake, 0, sizeof fake);
     fake.current_side = H9_SIDE_B;
@@ -1925,6 +1970,15 @@ static void test_timed_beacon_scheduler(void)
 {
     H9BeaconScheduler scheduler = { 5999u };
     H9BeaconDecision decision;
+    H9BeaconPositionStatus position = { 1u, false, 1u, 0u };
+    assert(!h9_main_beacon_position_ready(NULL));
+    assert(!h9_main_beacon_position_ready(&position));
+    position.gps_fix_valid = true;
+    assert(h9_main_beacon_position_ready(&position));
+    position.latitude_raw = 0u;
+    assert(!h9_main_beacon_position_ready(&position));
+    position.position_source = 0u;
+    assert(h9_main_beacon_position_ready(&position));
     decision = h9_main_beacon_tick(&scheduler, 1, 60, 0, 0);
     assert(decision.call_tx_selector);
     assert(decision.restore_receive_if_selector_succeeds);
