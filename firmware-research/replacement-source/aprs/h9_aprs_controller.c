@@ -183,7 +183,15 @@ bool h9_aprs_controller_pop_received_byte(H9AprsController *controller,
 void h9_aprs_controller_process_received(H9AprsController *controller)
 {
     uint8_t byte;
+    uint32_t overflow_count;
     if (controller == NULL) return;
+    overflow_count = atomic_load_explicit(&controller->demod.queue_overflow,
+                                           memory_order_acquire);
+    if (overflow_count != controller->receive_overflow_seen) {
+        controller->receive_overflow_seen = overflow_count;
+        h9_aprs_ring_clear_consumer(&controller->demod.receive);
+        h9_aprs_frame_init(&controller->frame);
+    }
     while (h9_aprs_demod_pop_byte(&controller->demod, &byte))
         if (h9_aprs_frame_feed(&controller->frame, byte,
                                forward_valid_frame, controller))

@@ -34,6 +34,7 @@ void h9_aprs_demod_init(H9AprsDemod *demod)
                             sizeof demod->receive_bytes);
     for (index = 0; index < 4; ++index)
         (void)h9_aprs_ring_push(&demod->delay, 0);
+    atomic_init(&demod->queue_overflow, 0u);
     h9_aprs_bitstream_reset(&demod->bitstream);
 }
 
@@ -73,11 +74,10 @@ bool h9_aprs_demod_sample(H9AprsDemod *demod, int16_t normalized_sample)
                            (demod->bit_history >> 1)) & 1u) ^ 1u));
         if (!h9_aprs_bitstream_feed(&demod->bitstream, bit,
                                     emit_received_byte, demod)) {
-            demod->queue_overflow = 1;
-            if (h9_aprs_ring_full(&demod->receive)) {
-                demod->receive.head = demod->receive.tail;
-                demod->queue_overflow = 0;
-            }
+            uint32_t previous = atomic_load_explicit(&demod->queue_overflow,
+                                                       memory_order_relaxed);
+            atomic_store_explicit(&demod->queue_overflow, previous + 1u,
+                                  memory_order_release);
         }
     }
     if (demod->no_transition_count > 0x60u) {

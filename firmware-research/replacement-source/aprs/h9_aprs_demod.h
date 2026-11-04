@@ -22,7 +22,8 @@ typedef struct {
     uint8_t symbol_history;
     uint8_t bit_history;
     uint8_t no_transition_count;
-    uint8_t queue_overflow;
+    /* ISR-only writer; main loop observes a monotonic generation. */
+    _Atomic uint32_t queue_overflow;
     int16_t timing;
 } H9AprsDemod;
 

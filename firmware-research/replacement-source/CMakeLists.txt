@@ -3,6 +3,9 @@ project(h9_replacement_source C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+if(MSVC)
+    add_compile_options(/experimental:c11atomics)
+endif()
 
 add_library(h9_replacement_core STATIC
     common/h9_aprs_wire.c

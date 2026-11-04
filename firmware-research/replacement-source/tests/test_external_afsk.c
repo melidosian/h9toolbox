@@ -6,10 +6,14 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define CHECK(condition) do { if (!(condition)) abort(); } while (0)
+#define CHECK(condition) do { if (!(condition)) { \
+    fprintf(stderr, "AFSK check failed at line %d: %s\n", \
+            __LINE__, #condition); abort(); \
+} } while (0)
 
 typedef struct {
     H9AprsController controller;
@@ -20,6 +24,7 @@ typedef struct {
     unsigned packets;
     uint16_t adc_value;
     unsigned samples_since_poll;
+    unsigned poll_every;
     double phase;
     double tone_hz;
     double sample_rate;
@@ -66,7 +71,8 @@ static void send_bit(AfskFixture *fixture, unsigned bit)
         fixture->sample_time += 1.0 / fixture->sample_rate;
         fixture->adc_value = (uint16_t)((sample + 128) << 2);
         h9_aprs_controller_adc_tick(&fixture->controller);
-        if (++fixture->samples_since_poll == 32u) {
+        if (fixture->poll_every != 0u &&
+            ++fixture->samples_since_poll == fixture->poll_every) {
             h9_aprs_controller_process_received(&fixture->controller);
             fixture->samples_since_poll = 0u;
         }
@@ -94,7 +100,7 @@ static void send_data_byte(AfskFixture *fixture, uint8_t byte)
     }
 }
 
-static void test_at_sample_rate(double sample_rate)
+static void test_at_sample_rate(double sample_rate, bool force_overflow)
 {
     /* AX.25 UI frame: APRS-0 > KD9CRQ-0, >TEST. Its independent X.25
      * FCS is 0x9BFA, transmitted low byte first. */
@@ -114,7 +120,20 @@ static void test_at_sample_rate(double sample_rate)
     h9_main_wire_reset(&fixture.main_receiver);
     fixture.tone_hz = 1200.0;
     fixture.sample_rate = sample_rate;
-    for (index = 0; index < 50u; ++index) send_flag(&fixture);
+    if (force_overflow) {
+        /* The 64-byte ISR queue fills when main-loop polling is withheld.
+         * Recovery must discard the partial stream on the consumer side. */
+        for (index = 0; index < 100u; ++index) send_flag(&fixture);
+        CHECK(atomic_load(&fixture.controller.demod.queue_overflow) > 0u);
+        h9_aprs_controller_process_received(&fixture.controller);
+        CHECK(h9_aprs_ring_empty(&fixture.controller.demod.receive));
+        CHECK(fixture.controller.receive_overflow_seen ==
+              atomic_load(&fixture.controller.demod.queue_overflow));
+    }
+    fixture.poll_every = 32u;
+    fixture.samples_since_poll = 0u;
+    for (index = 0; index < (force_overflow ? 100u : 50u); ++index)
+        send_flag(&fixture);
     for (index = 0; index < sizeof packet; ++index)
         send_data_byte(&fixture, packet[index]);
     for (index = 0; index < sizeof fcs; ++index)
@@ -135,8 +154,10 @@ static void test_at_sample_rate(double sample_rate)
 
 int main(void)
 {
-    test_at_sample_rate(9600.0);
+    test_at_sample_rate(9600.0, false);
+    test_at_sample_rate(9600.0, true);
     /* 24 MHz / (11+1) / (209+1) from the recovered timer registers. */
-    test_at_sample_rate(24000000.0 / 12.0 / 210.0);
+    test_at_sample_rate(24000000.0 / 12.0 / 210.0, false);
+    test_at_sample_rate(24000000.0 / 12.0 / 210.0, true);
     return 0;
 }
