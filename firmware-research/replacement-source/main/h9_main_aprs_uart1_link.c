@@ -1,4 +1,7 @@
 #include "h9_main_aprs_uart1_link.h"
+#include "h9_main_aprs_tx_permit.h"
+#include "h9_main_aprs_wire.h"
+#include "h9_aprs_tx_permit_protocol.h"
 
 #include <string.h>
 
@@ -86,6 +89,22 @@ static void version(void *context, const H9MainAprsVersions *value)
         link->application.version(link->application_context, value);
 }
 
+static void burst_activity(void *context, bool active)
+{
+    H9MainAprsUart1Link *link = as_link(context);
+    if (link->application.burst_activity != NULL)
+        link->application.burst_activity(link->application_context, active);
+}
+
+static void tx_drained(void *context, uint16_t token)
+{
+    H9MainAprsUart1Link *link = as_link(context);
+    if (link->tx_active_token == token && link->tx_packet_queued)
+        link->tx_drained = true;
+    if (link->application.tx_drained != NULL)
+        link->application.tx_drained(link->application_context, token);
+}
+
 int h9_main_aprs_uart1_link_init(
     H9MainAprsUart1Link *link, volatile uint32_t *uart_registers,
     const uint8_t *receive_storage, uint32_t receive_capacity,
@@ -129,6 +148,8 @@ int h9_main_aprs_uart1_link_init(
     callbacks.gps_fix = gps_fix;
     callbacks.control = control;
     callbacks.version = version;
+    callbacks.burst_activity = burst_activity;
+    callbacks.tx_drained = tx_drained;
     callbacks.serial_read = serial_read;
     callbacks.serial_write = serial_write;
     h9_main_aprs_session_init(&link->session, &callbacks, link);
@@ -148,4 +169,79 @@ size_t h9_main_aprs_uart1_link_poll(H9MainAprsUart1Link *link)
 void h9_main_aprs_uart1_link_irq(H9MainAprsUart1Link *link)
 {
     if (link != NULL) h9_main_uart1_irq(&link->irq);
+}
+
+uint16_t h9_main_aprs_uart1_link_tx_arm(H9MainAprsUart1Link *link,
+                                         uint32_t now_ms,
+                                         uint32_t timeout_ms)
+{
+    uint16_t token;
+    uint8_t frame[18];
+    size_t length;
+    if (link == NULL || link->tx_active_token != 0u || timeout_ms == 0u ||
+        timeout_ms > H9_APRS_TX_PERMIT_LEASE_MS) return 0u;
+    token = (uint16_t)(link->tx_next_token + 1u);
+    if (token == 0u) token = 1u;
+    length = h9_main_aprs_tx_permit_encode(&link->session.versions,
+                                            true, token, frame,
+                                            sizeof frame);
+    if (length == 0u ||
+        !h9_main_uart1_tx_queue_enqueue(&link->transmit_queue,
+                                         frame, length)) return 0u;
+    link->tx_next_token = token;
+    link->tx_active_token = token;
+    link->tx_started_ms = now_ms;
+    link->tx_timeout_ms = timeout_ms;
+    link->tx_packet_queued = false;
+    link->tx_drained = false;
+    return token;
+}
+
+bool h9_main_aprs_uart1_link_tx_send(H9MainAprsUart1Link *link,
+                                      const uint8_t *packet, size_t length,
+                                      uint32_t now_ms)
+{
+    size_t frame_length;
+    if (link == NULL || link->tx_active_token == 0u ||
+        link->tx_packet_queued ||
+        (uint32_t)(now_ms - link->tx_started_ms) >= link->tx_timeout_ms ||
+        packet == NULL || length == 0u ||
+        length > H9_MAIN_AX25_MAX_PACKET) return false;
+    frame_length = h9_main_aprs_wire_encode(0x00u, packet, length,
+                                              link->tx_frame,
+                                              sizeof link->tx_frame);
+    if (frame_length == 0u ||
+        !h9_main_uart1_tx_queue_enqueue(&link->transmit_queue,
+                                         link->tx_frame, frame_length))
+        return false;
+    link->tx_packet_queued = true;
+    return true;
+}
+
+H9MainAprsTxStatus h9_main_aprs_uart1_link_tx_status(
+    const H9MainAprsUart1Link *link, uint32_t now_ms)
+{
+    if (link == NULL || link->tx_active_token == 0u)
+        return H9_MAIN_APRS_TX_IDLE;
+    if ((uint32_t)(now_ms - link->tx_started_ms) >= link->tx_timeout_ms)
+        return H9_MAIN_APRS_TX_TIMED_OUT;
+    return link->tx_packet_queued && link->tx_drained ?
+           H9_MAIN_APRS_TX_DRAINED : H9_MAIN_APRS_TX_WAITING;
+}
+
+bool h9_main_aprs_uart1_link_tx_clear(H9MainAprsUart1Link *link)
+{
+    uint8_t frame[18];
+    size_t length;
+    if (link == NULL || link->tx_active_token == 0u) return false;
+    length = h9_main_aprs_tx_permit_encode(&link->session.versions,
+                                            false, link->tx_active_token,
+                                            frame, sizeof frame);
+    if (length == 0u ||
+        !h9_main_uart1_tx_queue_enqueue(&link->transmit_queue,
+                                         frame, length)) return false;
+    link->tx_active_token = 0u;
+    link->tx_packet_queued = false;
+    link->tx_drained = false;
+    return true;
 }

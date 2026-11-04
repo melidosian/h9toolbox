@@ -25,18 +25,23 @@ The APRS board sends replacement command `0x54` with
 drained and the DAC path has returned to idle. The stock `0x0F` reply means
 the closing flag entered the waveform queue; it does not mean RF has finished.
 The main serial session rejects malformed/zero-token completion frames and
-delivers a valid token to its callback. The board adapter must match that token
-against the current transaction before releasing PTT. A canceled packet does
-not emit a completion frame. Loss of the completion frame must time out and
+delivers a valid token to the UART1 link. That link matches the token against
+its current transaction, forwards the event to the application, and reports
+timeout before success if the deadline passes. It also queues the version-
+gated permit, packet, and clear frames in order. The board adapter must poll
+that status and release PTT only for the current completed transaction. A
+canceled packet does not emit a completion frame. Loss of the completion frame
+must time out and
 stop PTT; the 10-second permit lease independently cancels the waveform.
 
 The main TX service now requests a permit after its planned-side, frequency,
 and Dual Watch route readbacks pass, then calls its sole RF-keying callback.
 Cleanup requests PTT stop, clears the permit, restores receive routing, and
 releases the route reservation, even if packet sending fails. A failed permit
-request cannot reach the keying callback. The adapter's permit callback must
-assign a fresh nonzero token, and `send_packet` must wait for the matching
-`0x54` event before reporting success. A failed clear makes the transaction
+request cannot reach the keying callback. The adapter's permit callback can
+use the UART1 link to assign a fresh nonzero token. `send_packet` must queue
+the packet, poll for the matching `0x54` event, and time out before reporting
+success. A failed clear makes the transaction
 report cleanup failure; the APRS lease is a second bound on that condition.
 
 This is replacement protocol and source-level transaction code, not observed

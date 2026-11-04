@@ -5,6 +5,7 @@
 #include "h9_aprs_gpio_board.h"
 #include "h9_aprs_bitstream.h"
 #include "h9_aprs_boot_banner.h"
+#include "h9_aprs_burst_protocol.h"
 #include "h9_aprs_clock.h"
 #include "h9_aprs_ring.h"
 #include "h9_aprs_runtime_status.h"
@@ -4319,7 +4320,7 @@ static void main_uart_link_enable(void *context, uint32_t descriptor,
     MainUartLinkCapture *capture = (MainUartLinkCapture *)context;
     assert(descriptor == 0x001E3B0u && option == 0u);
     assert(capture->registers[5] == 0x12000u);
-    assert(capture->registers[6] == 11u);
+    assert(capture->registers[6] == 11u || capture->registers[6] == 13u);
     capture->enables++;
 }
 
@@ -4410,6 +4411,97 @@ static void test_main_aprs_uart1_link_forwards_gps_fix(void)
     assert(application_capture.gps_fix_count == 1u);
     assert(application_capture.gps_type == H9_MAIN_GPS_RMC);
     assert(application_capture.gps_fix.latitude_e7 == 481173000);
+}
+
+static void test_main_aprs_uart1_tx_transaction(void)
+{
+    uint32_t registers[11] = { 0 };
+    uint8_t receive[32] = { 0 };
+    uint8_t outgoing[3][64] = { { 0 } };
+    H9MainUart1TxSlot slots[3] = {
+        { outgoing[0], 0x12000u, sizeof outgoing[0], 0u },
+        { outgoing[1], 0x12100u, sizeof outgoing[1], 0u },
+        { outgoing[2], 0x12200u, sizeof outgoing[2], 0u }
+    };
+    MainUartLinkCapture dma_capture = { registers, 0u, 0u, 0u, 0u };
+    MainSessionCapture application_capture = { 0 };
+    H9MainAprsUart1DmaHooks hooks = {
+        main_uart_link_prepare, main_uart_link_enable,
+        main_uart_link_tx_ack, main_uart_link_rx_ack, &dma_capture
+    };
+    H9MainAprsSessionCallbacks application = { 0 };
+    H9MainAprsUart1Link link;
+    uint8_t frame[32];
+    const uint8_t packet[] = { 0x82u, 0xA0u, 0x7Eu };
+    uint8_t event[3] = { H9_APRS_TX_DRAINED_VERSION, 0u, 0u };
+    const uint8_t burst[2] = { H9_APRS_BURST_VERSION, 1u };
+    size_t length;
+    uint16_t token;
+    const uint32_t started = UINT32_MAX - 10u;
+
+    application.tx_drained = session_tx_drained;
+    application.burst_activity = session_burst_activity;
+    assert(h9_main_aprs_uart1_link_init(&link, registers, receive,
+                                        sizeof receive, 16u, slots, 3u,
+                                        &hooks, &application,
+                                        &application_capture));
+    assert(h9_main_aprs_uart1_link_tx_arm(&link, started, 100u) == 0u);
+    memcpy(link.session.versions.module, "H9R0.01", sizeof "H9R0.01");
+    memcpy(link.session.versions.protocol, "V1.0.0", sizeof "V1.0.0");
+    link.session.versions.has_module = 1u;
+    link.session.versions.has_protocol = 1u;
+    assert(h9_main_aprs_uart1_link_tx_arm(&link, started, 0u) == 0u);
+    assert(h9_main_aprs_uart1_link_tx_arm(&link, started,
+                                          H9_APRS_TX_PERMIT_LEASE_MS + 1u) == 0u);
+    token = h9_main_aprs_uart1_link_tx_arm(&link, started, 100u);
+    assert(token != 0u && link.transmit_queue.count == 1u);
+    assert(outgoing[0][5] == H9_APRS_TX_PERMIT_COMMAND &&
+           outgoing[0][6] == H9_APRS_TX_PERMIT_VERSION &&
+           outgoing[0][7] == H9_APRS_TX_PERMIT_ENABLE);
+    assert(h9_main_aprs_uart1_link_tx_arm(&link, started, 100u) == 0u);
+    assert(h9_main_aprs_uart1_link_tx_status(&link, started + 1u) ==
+           H9_MAIN_APRS_TX_WAITING);
+    event[1] = (uint8_t)(token + 1u);
+    event[2] = (uint8_t)((token + 1u) >> 8);
+    length = h9_wire_encode(H9_APRS_TX_DRAINED_COMMAND, event,
+                             sizeof event, frame, sizeof frame);
+    assert(length != 0u);
+    queue_session_bytes(&link.session, frame, length);
+    assert(h9_main_aprs_uart1_link_poll(&link) == length);
+    assert(h9_main_aprs_uart1_link_tx_status(&link, started + 1u) ==
+           H9_MAIN_APRS_TX_WAITING);
+    assert(application_capture.tx_drained_count == 1u);
+    assert(h9_main_aprs_uart1_link_tx_send(&link, packet,
+                                            sizeof packet, started + 2u));
+    assert(outgoing[1][5] == 0x00u && outgoing[1][6] == packet[0] &&
+           outgoing[1][7] == packet[1] && outgoing[1][8] == packet[2]);
+    assert(!h9_main_aprs_uart1_link_tx_send(&link, packet,
+                                             sizeof packet, started + 3u));
+    event[1] = (uint8_t)token;
+    event[2] = (uint8_t)(token >> 8);
+    length = h9_wire_encode(H9_APRS_TX_DRAINED_COMMAND, event,
+                             sizeof event, frame, sizeof frame);
+    queue_session_bytes(&link.session, frame, length);
+    assert(h9_main_aprs_uart1_link_poll(&link) == length);
+    assert(application_capture.tx_drained_count == 2u &&
+           application_capture.drained_token == token);
+    assert(h9_main_aprs_uart1_link_tx_status(&link, started + 50u) ==
+           H9_MAIN_APRS_TX_DRAINED);
+    assert(h9_main_aprs_uart1_link_tx_status(&link, started + 100u) ==
+           H9_MAIN_APRS_TX_TIMED_OUT);
+    length = h9_wire_encode(H9_APRS_BURST_COMMAND, burst, sizeof burst,
+                             frame, sizeof frame);
+    queue_session_bytes(&link.session, frame, length);
+    assert(h9_main_aprs_uart1_link_poll(&link) == length);
+    assert(application_capture.burst_count == 1u);
+    assert(h9_main_aprs_uart1_link_tx_clear(&link));
+    assert(link.transmit_queue.count == 3u);
+    assert(outgoing[2][5] == H9_APRS_TX_PERMIT_COMMAND &&
+           outgoing[2][7] == 0u && outgoing[2][8] == (uint8_t)token &&
+           outgoing[2][9] == (uint8_t)(token >> 8));
+    assert(h9_main_aprs_uart1_link_tx_status(&link, started + 100u) ==
+           H9_MAIN_APRS_TX_IDLE);
+    assert(h9_main_aprs_uart1_link_tx_arm(&link, started + 200u, 100u) == 0u);
 }
 
 typedef struct {
@@ -6606,6 +6698,7 @@ int main(void)
     test_main_uart1_tx_queue();
     test_main_aprs_uart1_link();
     test_main_aprs_uart1_link_forwards_gps_fix();
+    test_main_aprs_uart1_tx_transaction();
     test_main_uart1_board_open();
     test_main_uart1_baud();
     test_timed_beacon_scheduler();
