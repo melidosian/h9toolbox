@@ -133,4 +133,17 @@ bool h9_main_post_clock_descriptor32_run(
     const H9MainPostClockWords *words,
     const H9MainPostClockDescriptorResult *profile);
 
+/* App+0x05FE04..0x05FE5C: the r6/r9 condition flags control two repeated
+ * zero-write sequences at 0x1E1800 and bit updates at 0x1E5100. */
+typedef struct {
+    volatile uint32_t *control_1e1800;
+    volatile uint32_t *state_1e5100;
+} H9MainPostClockGateRegisters;
+
+void h9_main_post_clock_gate_bind_target(
+    H9MainPostClockGateRegisters *registers);
+bool h9_main_post_clock_gate_run(
+    const H9MainPostClockGateRegisters *registers,
+    const H9MainPostClockRouteFlags *flags);
+
 #endif

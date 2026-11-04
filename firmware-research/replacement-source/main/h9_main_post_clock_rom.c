@@ -318,3 +318,53 @@ bool h9_main_post_clock_descriptor32_run(
                         ~((words->second_word >> 16u) & 0xFFFFu));
     return true;
 }
+
+void h9_main_post_clock_gate_bind_target(
+    H9MainPostClockGateRegisters *registers)
+{
+    if (registers == NULL) return;
+    registers->control_1e1800 =
+        (volatile uint32_t *)(uintptr_t)0x001E1800u;
+    registers->state_1e5100 =
+        (volatile uint32_t *)(uintptr_t)0x001E5100u;
+}
+
+bool h9_main_post_clock_gate_run(
+    const H9MainPostClockGateRegisters *registers,
+    const H9MainPostClockRouteFlags *flags)
+{
+    volatile uint32_t *control;
+    volatile uint32_t *state;
+    if (registers == NULL || flags == NULL ||
+        registers->control_1e1800 == NULL ||
+        registers->state_1e5100 == NULL) return false;
+    control = registers->control_1e1800;
+    state = registers->state_1e5100;
+    if (!flags->r6_flag) {
+        control[0] = 0u;
+        state[0] |= 0x900u;
+        control[0] = 0u;
+        control[1] = 0u;
+        control[0] = 0u;
+        state[0] |= 0x900u;
+        state[0] |= 0x4u;
+        state[0] &= ~0x10u;
+        state[0] &= ~0x40u;
+        state[0] &= ~0x200u;
+        state[0] &= ~0x2000u;
+    }
+    if (!flags->r9_flag) {
+        control[0] = 0u;
+        state[0] |= 0x900u;
+        control[0] = 0u;
+        control[1] = 0u;
+        control[0] = 0u;
+        state[0] |= 0x900u;
+        state[0] |= 0x8u;
+        state[0] &= ~0x20u;
+        state[0] &= ~0x80u;
+        state[0] &= ~0x400u;
+        state[0] &= ~0x4000u;
+    }
+    return true;
+}

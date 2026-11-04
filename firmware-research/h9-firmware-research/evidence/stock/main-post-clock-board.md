@@ -101,4 +101,18 @@ whether descriptor 32 exists, the board code then ANDs descriptor 32 word
 word `+20` with the route control word, and descriptor 48 word `+32` with
 the complement of the fourth halfword. The target binder, four branch
 cases, and missing-descriptor behavior are host-tested. The diagnostic
-entry stops before app+`0x05FE04`; no hardware test has run this path.
+entry continues into the two flag-controlled blocks below; no hardware
+test has run this path.
+
+At app+`0x05FE04..0x05FE5C`, the preserved `r6` and `r9` conditions gate
+two similar MMIO sequences. When `r6` is zero, stock writes zero three
+times to `0x1E1800`, once to `0x1E1804`, sets bits `0x900` twice and bit
+`0x4` once at `0x1E5100`, then clears bits `0x10`, `0x40`, `0x200`, and
+`0x2000` there. When `r9` is zero, it repeats the zero writes and `0x900`
+sets, sets bit `0x8`, then clears `0x20`, `0x80`, `0x400`, and `0x4000`.
+Both blocks are skipped independently when their respective flag is set.
+The replacement preserves the volatile write order and takes the flags
+from the selector-192 step. Host tests cover all four flag combinations;
+the link check pins the stock instructions and verifies the repeated
+compiled writes. The purpose of these registers is still unverified. The
+next call begins at app+`0x05FE5C` and is not yet ported.

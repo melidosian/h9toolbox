@@ -5051,6 +5051,46 @@ static void test_main_post_clock_descriptor_route(void)
     }
 }
 
+static void test_main_post_clock_gate(void)
+{
+    H9MainPostClockGateRegisters registers;
+    H9MainPostClockRouteFlags flags = { false, false };
+    uint32_t control[2] = { 0x12345678u, 0x87654321u };
+    uint32_t state = UINT32_MAX;
+    h9_main_post_clock_gate_bind_target(&registers);
+    assert((uintptr_t)registers.control_1e1800 == 0x1E1800u &&
+           (uintptr_t)registers.state_1e5100 == 0x1E5100u);
+    registers.control_1e1800 = control;
+    registers.state_1e5100 = &state;
+    assert(!h9_main_post_clock_gate_run(NULL, &flags));
+    assert(!h9_main_post_clock_gate_run(&registers, NULL));
+    assert(h9_main_post_clock_gate_run(&registers, &flags));
+    assert(control[0] == 0u && control[1] == 0u &&
+           state == 0xFFFF990Fu);
+    control[0] = 0x12345678u;
+    control[1] = 0x87654321u;
+    state = UINT32_MAX;
+    flags.r9_flag = true;
+    assert(h9_main_post_clock_gate_run(&registers, &flags));
+    assert(control[0] == 0u && control[1] == 0u &&
+           state == 0xFFFFDDAFu);
+    control[0] = 0x12345678u;
+    control[1] = 0x87654321u;
+    state = UINT32_MAX;
+    flags.r6_flag = true;
+    flags.r9_flag = false;
+    assert(h9_main_post_clock_gate_run(&registers, &flags));
+    assert(control[0] == 0u && control[1] == 0u &&
+           state == 0xFFFFBB5Fu);
+    control[0] = 0x12345678u;
+    control[1] = 0x87654321u;
+    state = UINT32_MAX;
+    flags.r9_flag = true;
+    assert(h9_main_post_clock_gate_run(&registers, &flags));
+    assert(control[0] == 0x12345678u && control[1] == 0x87654321u &&
+           state == UINT32_MAX);
+}
+
 typedef struct {
     uint8_t bytes[192];
     size_t length;
@@ -5175,6 +5215,7 @@ int main(void)
     test_main_post_clock_bitmap();
     test_main_post_clock_handoff();
     test_main_post_clock_descriptor_route();
+    test_main_post_clock_gate();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();
