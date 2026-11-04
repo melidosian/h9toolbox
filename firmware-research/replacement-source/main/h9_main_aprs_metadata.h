@@ -35,5 +35,7 @@ size_t h9_main_aprs_gps_from_frame(H9MainGpsCollector *collector,
                                    const H9MainWireReceiver *receiver,
                                    H9MainGpsSentence on_sentence,
                                    void *context);
+size_t h9_main_aprs_gpio_reply_from_frame(const H9MainWireReceiver *receiver,
+                                           uint8_t *output, size_t capacity);
 
 #endif

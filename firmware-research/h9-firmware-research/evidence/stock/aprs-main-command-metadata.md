@@ -19,11 +19,15 @@ Virtual address base `0x01E00100` is inferred from JLFS entry metadata.
   replacement source retains bounded, zero-terminated strings in RAM;
   persistent settings writes and UI refresh remain unimplemented.
 - Command `0x11` calls app+`0x086F7A` with the first payload byte and the
-  remaining length. Its payload interpretation remains to be reconstructed.
+  remaining length. Independent Pi32v2 r3 disassembly shows that it acts
+  only when that first byte is `3`: it frames command `0x11` with payload
+  `{3, 0}` through app+`0x05B32E`, then writes the frame through app+`0x05B3BE`.
+  The replacement returns the framed bytes for a UART callback to send.
 - Command `0x51` checks a CRC-16/CCITT-style value using app+`0x087030`
   before executing control actions. The replacement source deliberately
   leaves those actions unimplemented until their input and state are mapped.
 
 The decompiler produced a valid body for app+`0x086EF4`, app+`0x086FB6`,
-and app+`0x087030`; it failed at app+`0x086F7A`. The notes above describe
-offline firmware behavior, not radio runtime validation.
+and app+`0x087030`; it failed at app+`0x086F7A`, which was independently
+decoded from the stock bytes. The notes above describe offline firmware
+behavior, not radio runtime validation.

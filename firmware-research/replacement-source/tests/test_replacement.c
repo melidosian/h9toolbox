@@ -335,6 +335,40 @@ static void test_main_gps_sentence_frames(void)
     assert(collector.length == 0);
 }
 
+static void test_main_gpio_query_reply(void)
+{
+    static const uint8_t query[] = { 0xC0u, 0x11u, 3u, 0xC0u };
+    H9MainWireReceiver main_receiver;
+    H9WireDecoder module_receiver;
+    uint8_t reply[H9_MAIN_APRS_WIRE_CAPACITY];
+    size_t reply_length;
+    size_t i;
+    unsigned frames = 0;
+    h9_main_wire_reset(&main_receiver);
+    for (i = 0; i < sizeof query - 1u; ++i)
+        assert(h9_main_wire_feed(&main_receiver, query[i]) ==
+               H9_MAIN_WIRE_MORE);
+    assert(h9_main_wire_feed(&main_receiver, query[i]) == H9_MAIN_WIRE_FRAME);
+    reply_length = h9_main_aprs_gpio_reply_from_frame(&main_receiver, reply,
+                                                        sizeof reply);
+    assert(reply_length != 0);
+    h9_wire_reset(&module_receiver);
+    for (i = 0; i < reply_length; ++i) {
+        if (h9_wire_feed(&module_receiver, reply[i]) == H9_WIRE_FRAME) {
+            frames++;
+            assert(module_receiver.command == 0x11u);
+            assert(module_receiver.length == 2u);
+            assert(module_receiver.payload[0] == 3u);
+            assert(module_receiver.payload[1] == 0u);
+            h9_wire_reset(&module_receiver);
+        }
+    }
+    assert(frames == 1);
+    main_receiver.payload[0] = 2u;
+    assert(h9_main_aprs_gpio_reply_from_frame(&main_receiver, reply,
+                                               sizeof reply) == 0);
+}
+
 static void test_main_policy(void)
 {
     H9MainAprsConfig cfg = { true, true, H9_RX_B, H9_TX_B_LOCK };
@@ -836,6 +870,7 @@ int main(void)
     test_main_ax25_packet();
     test_main_received_aprs_packet();
     test_main_gps_sentence_frames();
+    test_main_gpio_query_reply();
     test_main_policy();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();

@@ -1,5 +1,7 @@
 #include "h9_main_aprs_metadata.h"
 
+#include "h9_main_aprs_wire.h"
+
 #include <string.h>
 
 void h9_main_aprs_versions_init(H9MainAprsVersions *versions)
@@ -115,4 +117,15 @@ size_t h9_main_aprs_gps_from_frame(H9MainGpsCollector *collector,
         receiver->command != 0x10u) return 0;
     return h9_main_gps_feed(collector, receiver->payload, receiver->length,
                             on_sentence, context);
+}
+
+size_t h9_main_aprs_gpio_reply_from_frame(const H9MainWireReceiver *receiver,
+                                           uint8_t *output, size_t capacity)
+{
+    static const uint8_t reply[] = { 3u, 0u };
+    if (receiver == NULL || !receiver->frame_ready ||
+        receiver->command != 0x11u || receiver->length == 0u ||
+        receiver->payload[0] != 3u) return 0;
+    return h9_main_aprs_wire_encode(0x11u, reply, sizeof reply, output,
+                                     capacity);
 }
