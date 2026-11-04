@@ -46,4 +46,4 @@ a duty register. Both are now ported as isolated low-level primitives. See
 [the register trace](main-rf-output-controls.md). Neither bit is yet
 identified as physical PTT.
 
-The replacement `h9_main_tx_service` deliberately requires an *unkeyed* preparation callback, side/frequency readback, and cleanup callback. Those are proposed replacement safeguards. A board adapter must be based on further Pi32 register/ROM mapping and RF bench evidence before the service can transmit.
+The replacement `h9_main_tx_service` deliberately requires an *unkeyed* preparation callback, side/frequency readback, live RF route snapshot, and cleanup callback. The snapshot checks Dual Watch route and working frequency copies against the plan. Those are proposed replacement safeguards. A board adapter must be based on further Pi32 register/ROM mapping and RF bench evidence before the service can transmit. See [the route-readback trace](main-aprs-route-readback.md).

@@ -6,11 +6,13 @@
 #include <stdint.h>
 
 #include "h9_main_aprs.h"
+#include "h9_main_rf_state.h"
 
 typedef enum {
     H9_MAIN_TX_REJECTED,
     H9_MAIN_TX_PREPARE_FAILED,
     H9_MAIN_TX_READBACK_FAILED,
+    H9_MAIN_TX_ROUTE_FAILED,
     H9_MAIN_TX_SEND_FAILED,
     H9_MAIN_TX_CLEANUP_FAILED,
     H9_MAIN_TX_SENT
@@ -20,15 +22,17 @@ typedef enum {
  * (stock RAM 0x11B50), which governs the Lock choice; it must not infer side
  * from the highlighted display line. With Dual Watch, RF setup separately
  * reads the routed side byte at 0x11AEC. A board adapter must check current
- * band/region settings in
- * validate_frequency and leave PTT inactive throughout prepare_tx and
- * read_prepared_tx. send_packet is the only callback allowed to key RF.
+ * band/region settings in validate_frequency and leave PTT inactive throughout
+ * prepare_tx, read_prepared_tx, and read_rf_snapshot. The snapshot captures the live
+ * Dual Watch route and working frequency pair after preparation. send_packet
+ * is the only callback allowed to key RF.
  * stop_tx must deassert PTT even when send_packet reports failure. */
 typedef struct {
     bool (*read_current_side)(void *opaque, H9Side *side);
     bool (*validate_frequency)(void *opaque, uint32_t tx_hz);
     bool (*prepare_tx)(void *opaque, H9Side side, uint32_t tx_hz);
     bool (*read_prepared_tx)(void *opaque, H9Side *side, uint32_t *tx_hz);
+    bool (*read_rf_snapshot)(void *opaque, H9MainRfSnapshot *snapshot);
     bool (*send_packet)(void *opaque, const uint8_t *packet, size_t length);
     bool (*stop_tx)(void *opaque);
     bool (*restore_receive)(void *opaque, H9Side previous_side);

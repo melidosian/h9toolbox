@@ -11,6 +11,7 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
     H9Side prepared_side;
     uint32_t prepared_hz;
     H9TxPlan plan;
+    H9MainRfSnapshot rf_snapshot;
     H9MainTxResult result;
     bool stopped;
     bool restored;
@@ -20,7 +21,8 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
         hardware->read_current_side == NULL ||
         hardware->validate_frequency == NULL ||
         hardware->prepare_tx == NULL ||
-        hardware->read_prepared_tx == NULL || hardware->send_packet == NULL ||
+        hardware->read_prepared_tx == NULL ||
+        hardware->read_rf_snapshot == NULL || hardware->send_packet == NULL ||
         hardware->stop_tx == NULL || hardware->restore_receive == NULL ||
         !hardware->read_current_side(opaque, &previous_side))
         return H9_MAIN_TX_REJECTED;
@@ -35,8 +37,13 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
         result = H9_MAIN_TX_READBACK_FAILED;
         if (hardware->read_prepared_tx(opaque, &prepared_side, &prepared_hz) &&
             h9_main_tx_prepared(&plan, prepared_side, prepared_hz)) {
-            result = hardware->send_packet(opaque, packet, length) ?
-                     H9_MAIN_TX_SENT : H9_MAIN_TX_SEND_FAILED;
+            result = H9_MAIN_TX_ROUTE_FAILED;
+            if (hardware->read_rf_snapshot(opaque, &rf_snapshot) &&
+                h9_main_rf_snapshot_matches_plan(&rf_snapshot, config,
+                                                 &plan)) {
+                result = hardware->send_packet(opaque, packet, length) ?
+                         H9_MAIN_TX_SENT : H9_MAIN_TX_SEND_FAILED;
+            }
         }
     }
 

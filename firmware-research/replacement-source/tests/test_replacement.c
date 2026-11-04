@@ -35,6 +35,7 @@
 #include "h9_main_beacon.h"
 #include "h9_main_gps_fix.h"
 #include "h9_main_rf_output.h"
+#include "h9_main_rf_state.h"
 #include "h9_main_speaker_gate.h"
 #include "h9_main_rf_registers.h"
 #include "h9_main_boot_record.h"
@@ -1108,6 +1109,74 @@ static void test_main_aprs_session(void)
     }
 }
 
+static void test_main_rf_live_route(void)
+{
+    volatile uint8_t dual_watch = 1u;
+    volatile uint8_t route_side = 0u;
+    volatile uint8_t side_state = 0x80u;
+    volatile uint32_t working_rx = 44539000u;
+    volatile uint32_t working_tx = 44539000u;
+    volatile uint32_t a_rx = 44539000u;
+    volatile uint32_t a_tx = 44539000u;
+    volatile uint32_t b_rx = 14439000u;
+    volatile uint32_t b_tx = 14439000u;
+    H9MainRfStateMemory target = { 0 };
+    H9MainRfStateMemory memory = {
+        &dual_watch, &route_side, &side_state,
+        &working_rx, &working_tx, &a_rx, &a_tx, &b_rx, &b_tx
+    };
+    H9MainRfSnapshot snapshot;
+    H9MainAprsConfig config = { true, false, H9_RX_B, H9_TX_B_LOCK };
+    H9TxPlan plan = h9_main_tx_plan(&config, H9_SIDE_B,
+                                    445390000u, 144390000u);
+    h9_main_rf_state_bind_target(&target);
+    assert((uintptr_t)target.dual_watch == 0x12BA7u &&
+           (uintptr_t)target.route_side == 0x11AECu &&
+           (uintptr_t)target.channel_side_state == 0x11B50u &&
+           (uintptr_t)target.working_rx_10hz == 0x11C8Cu &&
+           (uintptr_t)target.working_tx_10hz == 0x11C9Cu &&
+           (uintptr_t)target.a_rx_10hz == 0x11CA0u &&
+           (uintptr_t)target.a_tx_10hz == 0x11CA4u &&
+           (uintptr_t)target.b_rx_10hz == 0x11CA8u &&
+           (uintptr_t)target.b_tx_10hz == 0x11CACu);
+    assert(plan.allowed && plan.side == H9_SIDE_B);
+    assert(h9_main_rf_state_read(&memory, &snapshot));
+    assert(snapshot.logical_side == H9_SIDE_B &&
+           snapshot.setup_side == H9_SIDE_A);
+    assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    route_side = 1u;
+    working_rx = b_rx;
+    working_tx = b_tx;
+    assert(h9_main_rf_state_read(&memory, &snapshot));
+    assert(h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    working_tx = a_tx;
+    assert(h9_main_rf_state_read(&memory, &snapshot));
+    assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    working_tx = b_tx;
+    dual_watch = 0u;
+    route_side = 0u;
+    assert(h9_main_rf_state_read(&memory, &snapshot));
+    assert(h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    dual_watch = 1u;
+    route_side = 1u;
+    side_state = 0u;
+    assert(h9_main_rf_state_read(&memory, &snapshot));
+    assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    config.tx_choice = H9_TX_B_AUTO;
+    plan = h9_main_tx_plan(&config, H9_SIDE_A,
+                            445390000u, 144390000u);
+    assert(plan.allowed && plan.restore_side_after_send);
+    assert(h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    config.tx_choice = H9_TX_A_AUTO;
+    assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    config.tx_choice = H9_TX_B_AUTO;
+    config.aprs_enabled = false;
+    assert(!h9_main_rf_snapshot_matches_plan(&snapshot, &config, &plan));
+    assert(!h9_main_rf_state_read(NULL, &snapshot));
+    memory.b_tx_10hz = NULL;
+    assert(!h9_main_rf_state_read(&memory, &snapshot));
+}
+
 static void test_main_policy(void)
 {
     H9MainAprsConfig cfg = { true, true, H9_RX_B, H9_TX_B_LOCK };
@@ -1279,10 +1348,14 @@ typedef struct {
     bool fail_stop;
     bool wrong_readback_side;
     bool wrong_readback_hz;
+    bool wrong_route_side;
+    bool wrong_working_pair;
+    bool changed_logical_side;
     H9MainTxFrequencyPolicy frequency_policy;
     unsigned validate_calls;
     unsigned prepare_calls;
     unsigned readback_calls;
+    unsigned snapshot_calls;
     unsigned send_calls;
     unsigned stop_calls;
     unsigned restore_calls;
@@ -1328,6 +1401,26 @@ static bool main_read_prepared(void *opaque, H9Side *side, uint32_t *hz)
     return true;
 }
 
+static bool main_read_rf_snapshot(void *opaque, H9MainRfSnapshot *snapshot)
+{
+    FakeMainTx *fake = (FakeMainTx *)opaque;
+    assert(fake->step == 2u);
+    fake->snapshot_calls++;
+    snapshot->dual_watch = true;
+    snapshot->logical_side = fake->changed_logical_side ?
+                             H9_SIDE_A : fake->current_side;
+    snapshot->setup_side = fake->wrong_route_side ?
+                           H9_SIDE_A : fake->prepared_side;
+    snapshot->a.receive_10hz = 44539000u;
+    snapshot->a.transmit_10hz = 44539000u;
+    snapshot->b.receive_10hz = 14439000u;
+    snapshot->b.transmit_10hz = 14439000u;
+    snapshot->working = fake->wrong_working_pair ? snapshot->a :
+                        (fake->prepared_side == H9_SIDE_B ?
+                         snapshot->b : snapshot->a);
+    return true;
+}
+
 static bool main_send_packet(void *opaque, const uint8_t *packet, size_t length)
 {
     FakeMainTx *fake = (FakeMainTx *)opaque;
@@ -1362,7 +1455,8 @@ static void test_main_tx_service(void)
     const uint8_t packet[] = { 0x82u };
     const H9MainTxHardware hardware = {
         main_read_side, main_validate_frequency, main_prepare, main_read_prepared,
-        main_send_packet, main_stop_tx, main_restore_receive
+        main_read_rf_snapshot, main_send_packet, main_stop_tx,
+        main_restore_receive
     };
     H9MainAprsConfig cfg = { true, false, H9_RX_B, H9_TX_B_LOCK };
     FakeMainTx fake = { 0 };
@@ -1388,7 +1482,7 @@ static void test_main_tx_service(void)
     assert(result == H9_MAIN_TX_SENT && fake.step == 5u);
     assert(fake.prepared_side == H9_SIDE_B && fake.prepared_hz == 144390000u);
     assert(fake.send_calls == 1u && fake.stop_calls == 1u &&
-           fake.restore_calls == 1u);
+           fake.restore_calls == 1u && fake.snapshot_calls == 1u);
 
     memset(&fake, 0, sizeof fake);
     fake.current_side = H9_SIDE_B;
@@ -1405,6 +1499,29 @@ static void test_main_tx_service(void)
                              packet, sizeof packet, &hardware, &fake);
     assert(result == H9_MAIN_TX_READBACK_FAILED && fake.send_calls == 0u);
     assert(fake.stop_calls == 1u && fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.wrong_route_side = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_ROUTE_FAILED && fake.send_calls == 0u);
+    assert(fake.snapshot_calls == 1u && fake.stop_calls == 1u &&
+           fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.wrong_working_pair = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_ROUTE_FAILED && fake.send_calls == 0u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.changed_logical_side = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_ROUTE_FAILED && fake.send_calls == 0u);
 
     memset(&fake, 0, sizeof fake);
     fake.current_side = H9_SIDE_B;
@@ -3201,6 +3318,7 @@ int main(void)
     test_main_uart_ring();
     test_main_aprs_session();
     test_main_policy();
+    test_main_rf_live_route();
     test_main_tx_frequency_precheck();
     test_main_tx_service();
     test_main_boot_record();
