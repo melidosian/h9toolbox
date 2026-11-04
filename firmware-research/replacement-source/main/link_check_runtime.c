@@ -10,6 +10,7 @@
 #include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
+#include "h9_main_post_clock_rom.h"
 
 #define H9_MAIN_RETAINED_BOOT_RECORD 0x0002FF88u
 #define H9_MAIN_BOOT_RESULT_WORD 0x00011C3Cu
@@ -61,6 +62,8 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     H9MainClockRegisters clock_registers;
     H9MainClockAuxFields clock_auxiliary;
     H9MainClockFinish clock_finish;
+    H9MainPostClockRom post_clock_rom;
+    H9MainPostClockWords post_clock_words;
     uint32_t calculated_clock;
     uint8_t first_initialization;
     typedef void (*RomSetup)(uint32_t, uint32_t);
@@ -107,6 +110,9 @@ __attribute__((noreturn)) void h9_main_board_entry(void)
     h9_main_clock_finish_bind_target(&clock_finish, &clock_registers,
                                      &clock_auxiliary);
     if (!h9_main_clock_finish_run(&clock_finish)) for (;;) { }
+    h9_main_post_clock_rom_bind_target(&post_clock_rom);
+    if (!h9_main_post_clock_rom_run(&post_clock_rom, &post_clock_words))
+        for (;;) { }
 #endif
     for (;;) { }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-archive Pi32v2 link check with first-pass stock entry reconstruction.
 
-The board entry stops after early clock timing calculation. Optional raw output is for
+The board entry stops after the first post-clock ROM reads. Optional raw output is for
 offline inspection only.
 """
 
@@ -173,6 +173,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "h9_main_clock_aux_bind_target",
         "h9_main_clock_finish_bind_target",
         "h9_main_clock_finish_run",
+        "h9_main_post_clock_rom_bind_target",
+        "h9_main_post_clock_rom_run",
     )
     board_positions = [board_body.find(item) for item in board_order]
     if -1 in board_positions or board_positions != sorted(board_positions):
@@ -187,6 +189,8 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         ("target_delay_nops", "nop"),
         ("target_rom_mode", "20000e2"),
         ("target_rom_finish", "2001650"),
+        ("target_read_selector", "2000058"),
+        ("target_set_control", "20008fe"),
     ):
         helper = re.search(
             rf"(?ms)^{name}:\n(.*?)(?=^\S[^\n]*:\n|\Z)", disassembly
@@ -528,6 +532,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "clock_source_latch_link_verified": True,
         "clock_aux_field_writer_link_verified": True,
         "early_board_clock_finish_path_verified": True,
+        "early_board_post_clock_rom_path_verified": True,
         "c_ram_start": data_start,
         "c_ram_end": bss_end,
         "ram_code_bytes": ram_code_end - ram_code_start,

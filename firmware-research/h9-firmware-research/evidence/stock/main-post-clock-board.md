@@ -17,6 +17,7 @@ app+`0x0C54B2`. The next instructions at app+`0x05FC24..0x05FC42` are:
 The path then reads MMIO `0x100100`, conditionally extracts two bits from
 `0x1E511C`, and calls ROM `0x02000058` with selector `148` before a larger
 branching board setup. The meaning of the selectors and resulting board
-state has not been established. The diagnostic board entry currently stops
-after the clock helper; this post-clock path has not been implemented or
-tested on hardware.
+state has not been established. `replacement-source/main/h9_main_post_clock_rom.*`
+ports the first four steps with injectable ROM callbacks. The diagnostic
+board entry stops after that block; the later MMIO and selector-148 path
+have not been implemented or tested on hardware.

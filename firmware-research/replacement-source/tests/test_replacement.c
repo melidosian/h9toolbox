@@ -48,6 +48,7 @@
 #include "h9_main_clock_timing.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_memory_window.h"
+#include "h9_main_post_clock_rom.h"
 #include "h9_main_serial_profile.h"
 #include "h9_main_serial_bus.h"
 #include "h9_main_serial_commands.h"
@@ -4458,6 +4459,60 @@ static void test_main_clock_finish(void)
     assert((*storage & 0x77FFu) == 0x1534u);
 }
 
+typedef struct {
+    uint32_t first;
+    uint32_t second;
+    unsigned reads;
+    unsigned sets;
+} PostClockCapture;
+
+static uint32_t post_clock_read(void *context, uint32_t selector)
+{
+    PostClockCapture *capture = (PostClockCapture *)context;
+    assert(selector == (capture->reads == 0u ? 49u : 51u));
+    assert(capture->reads < 2u);
+    capture->reads++;
+    return selector == 49u ? capture->first : capture->second;
+}
+
+static void post_clock_set(void *context, uint32_t group, uint32_t value)
+{
+    PostClockCapture *capture = (PostClockCapture *)context;
+    assert(capture->reads == 2u && capture->sets == 0u);
+    assert(group == 17u && value == 1u);
+    capture->sets++;
+}
+
+static void test_main_post_clock_rom(void)
+{
+    PostClockCapture capture = { 0x80u, 0x80u, 0u, 0u };
+    H9MainPostClockRom rom = { &capture, post_clock_read, post_clock_set };
+    H9MainPostClockWords words = { 0u, 0u };
+    assert(!h9_main_post_clock_rom_run(NULL, &words));
+    assert(!h9_main_post_clock_rom_run(&rom, NULL));
+    rom.set_control = NULL;
+    assert(!h9_main_post_clock_rom_run(&rom, &words));
+    assert(capture.reads == 0u && words.first_word == 0u);
+    rom.set_control = post_clock_set;
+
+    /* Signed low byte 0x80 skips selector 51 even if upper bits are clear. */
+    assert(h9_main_post_clock_rom_run(&rom, &words));
+    assert(capture.reads == 1u && capture.sets == 0u);
+    assert(words.first_word == UINT32_MAX &&
+           words.second_word == UINT32_MAX);
+
+    capture.first = 0x100u;
+    capture.second = 0x7Fu;
+    capture.reads = 0u;
+    assert(h9_main_post_clock_rom_run(&rom, &words));
+    assert(capture.reads == 2u && capture.sets == 0u);
+
+    capture.second = 0x80u;
+    capture.reads = 0u;
+    assert(h9_main_post_clock_rom_run(&rom, &words));
+    assert(capture.reads == 2u && capture.sets == 1u);
+}
+
 int main(void)
 {
 #ifdef _MSC_VER
@@ -4503,6 +4558,7 @@ int main(void)
     test_main_clock_source_registers();
     test_main_clock_aux_fields();
     test_main_clock_finish();
+    test_main_post_clock_rom();
     test_main_serial_profile();
     test_main_serial_bus();
     test_main_serial_commands();
