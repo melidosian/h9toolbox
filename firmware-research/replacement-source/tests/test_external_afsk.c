@@ -23,6 +23,8 @@ typedef struct {
     uint8_t packet[64];
     size_t packet_length;
     unsigned packets;
+    unsigned burst_reports;
+    bool burst_active;
     uint16_t adc_value;
     unsigned samples_since_poll;
     unsigned poll_every;
@@ -51,6 +53,16 @@ static void receive_serial(void *context, const uint8_t *data, size_t length)
     for (index = 0; index < length; ++index) {
         if (h9_main_wire_feed(&fixture->main_receiver, data[index]) ==
             H9_MAIN_WIRE_FRAME) {
+            if (fixture->main_receiver.command == 0x52u) {
+                CHECK(fixture->main_receiver.length == 2u);
+                CHECK(fixture->main_receiver.payload[0] == 1u);
+                CHECK(fixture->main_receiver.payload[1] <= 1u);
+                fixture->burst_active =
+                    fixture->main_receiver.payload[1] == 1u;
+                fixture->burst_reports++;
+                h9_main_wire_reset(&fixture->main_receiver);
+                continue;
+            }
             CHECK(fixture->main_receiver.command == 0u);
             CHECK(fixture->main_receiver.length <= sizeof fixture->packet);
             fixture->packet_length = fixture->main_receiver.length;
@@ -153,6 +165,9 @@ static void test_at_sample_rate(double sample_rate, bool force_overflow,
         send_flag(&fixture);
     gate_state = h9_aprs_demod_gate_state(&fixture.controller.demod);
     CHECK(gate_state.in_frame && gate_state.preamble_seen);
+    CHECK(h9_aprs_controller_report_burst_activity(&fixture.controller,
+                                                    100u));
+    CHECK(fixture.burst_reports == 1u && fixture.burst_active);
     h9_aprs_tx_gate_init(&gate, 0u);
     CHECK(h9_aprs_tx_gate_step(&gate, gate_state.preamble_seen,
                                gate_state.in_frame, false, 255u) ==
@@ -174,6 +189,17 @@ static void test_at_sample_rate(double sample_rate, bool force_overflow,
     CHECK(fixture.decoded.control == 3u && fixture.decoded.pid == 0xF0u);
     CHECK(fixture.decoded.information_length == 5u);
     CHECK(memcmp(fixture.decoded.information, ">TEST", 5u) == 0);
+    /* A complete decoded packet must release the prospective audio mute
+     * after the RF waveform ends, including with a DC offset on the ADC. */
+    for (index = 0; index < 200u; ++index) {
+        fixture.adc_value = (uint16_t)((128 + dc_bias) << 2);
+        h9_aprs_controller_adc_tick(&fixture.controller);
+    }
+    gate_state = h9_aprs_demod_gate_state(&fixture.controller.demod);
+    CHECK(!gate_state.in_frame && !gate_state.preamble_seen);
+    CHECK(h9_aprs_controller_report_burst_activity(&fixture.controller,
+                                                    200u));
+    CHECK(fixture.burst_reports == 2u && !fixture.burst_active);
 }
 
 int main(void)

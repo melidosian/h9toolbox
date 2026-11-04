@@ -34,3 +34,11 @@ main session, checks renewal and inactive transitions, rejects an unknown
 version, and checks the composed speaker/Bluetooth plan, route/option guards,
 and lease expiry. Both diagnostic target links pass. The linked images are
 not bootable or flashable firmware.
+
+The separate AFSK integration test generates an AX.25 packet from its own
+Bell 202 source, feeds the replacement ADC/demodulator, verifies a decoded
+packet and active `0x52` report after the flag preamble, then feeds ADC silence
+and verifies an inactive `0x52` report. It covers both 9,600 samples/s and
+the recovered timer rate of approximately 9,524 samples/s, including one
+DC-offset/noise case. It does not establish the live radio's ADC level,
+speaker/Bluetooth gate, or channel route.
