@@ -120,7 +120,8 @@ def verify_main_object(data: bytes, source: str, lto: bool) -> None:
         raise ValueError(f"{source}: object is not for Pi32v2")
 
 
-def build(target: str, compiler: str, output: Path, no_lto: bool = False) -> dict:
+def build(target: str, compiler: str, output: Path, no_lto: bool = False,
+          stack_usage: bool = False) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     target_flags = [flag for flag in FLAGS[target]
                     if not (no_lto and flag == "-flto")]
@@ -129,6 +130,10 @@ def build(target: str, compiler: str, output: Path, no_lto: bool = False) -> dic
         "-Werror", *target_flags,
         *(f"-I{ROOT / directory}" for directory in ("common", "aprs", "main")),
     ]
+    if stack_usage:
+        if target != "aprs":
+            raise ValueError("Stack-usage reports are supported for APRS only")
+        common_flags.append("-fstack-usage")
     if target == "main":
         compiler_root = Path(compiler).resolve().parent.parent
         for include_dir in (compiler_root / "pi32v2-include",

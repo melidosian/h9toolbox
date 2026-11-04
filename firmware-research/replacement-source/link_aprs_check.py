@@ -44,16 +44,36 @@ def verify_stock_envelope(path: Path) -> None:
         raise ValueError("Stock APRS ADC IRQ vector differs from pinned evidence")
 
 
+def read_stack_usage(paths: list[Path]) -> list[dict]:
+    records = []
+    for path in paths:
+        if not path.is_file():
+            raise ValueError(f"Missing compiler stack-usage report: {path}")
+        for line in path.read_text(encoding="utf-8").splitlines():
+            fields = line.split("\t")
+            if len(fields) != 3 or not fields[1].isdigit():
+                raise ValueError(f"Unrecognized stack-usage record in {path}: {line}")
+            records.append({
+                "function": fields[0].rsplit(":", 1)[-1],
+                "source_location": fields[0],
+                "frame_bytes": int(fields[1]),
+                "kind": fields[2],
+            })
+    return sorted(records, key=lambda item: item["frame_bytes"], reverse=True)
+
+
 def link(compiler: str, output: Path, stock_image: Path | None = None,
          emit_raw: bool = False) -> dict:
     if stock_image is not None:
         verify_stock_envelope(stock_image)
     output.mkdir(parents=True, exist_ok=True)
-    object_manifest = build("aprs", compiler, output / "objects")
+    object_manifest = build("aprs", compiler, output / "objects",
+                            stack_usage=True)
     source_dir = ROOT / "aprs"
     compiler_flags = [
         "-mcpu=cortex-m0", "-mthumb", "-Os", "-ffreestanding",
         "-fno-builtin", "-Wall", "-Wextra", "-Werror",
+        "-fstack-usage",
     ]
     runtime = output / "link_check_runtime.o"
     startup_source = output / "h9_aprs_startup.o"
@@ -65,6 +85,11 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
          str(source_dir / "h9_aprs_startup.c"), "-o", str(startup_source)])
     run([compiler, *compiler_flags, "-c",
          str(source_dir / "link_check_startup.S"), "-o", str(vectors)])
+    stack_usage = read_stack_usage([
+        *(output / "objects" / Path(item["object"]).with_suffix(".su")
+          for item in object_manifest["objects"]),
+        runtime.with_suffix(".su"), startup_source.with_suffix(".su"),
+    ])
 
     elf = output / "h9_aprs_link_check.elf"
     map_file = output / "h9_aprs_link_check.map"
@@ -155,6 +180,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
             "dma1_channel1": 25,
             "adc1": 28,
             "usart1": 43,
+            "usart2": 44,
         },
         "board_initialization_implemented": False,
         "uart1_receive_initialization_included": True,
@@ -171,6 +197,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "size_output": size_output,
         "bss_end": symbol_values["__bss_end"],
         "stack_headroom_bytes": stack_headroom,
+        "largest_compiler_reported_frame_bytes": stack_usage[0]["frame_bytes"],
+        "stack_usage_records": stack_usage,
+        "stack_usage_limit": "per-function frames only; no call-chain or ISR nesting proof",
         "raw_export": raw_file.name if raw_file is not None else None,
         "raw_export_sha256": raw_digest,
         "raw_export_purpose": "offline_layout_inspection_only" if emit_raw else None,
@@ -205,6 +234,9 @@ def main() -> int:
           f"reset 0x{manifest['reset_vector']:08X}")
     print(manifest["size_output"])
     print(f"RAM headroom above BSS: {manifest['stack_headroom_bytes']:,} bytes")
+    print("Largest compiler-reported stack frame: "
+          f"{manifest['largest_compiler_reported_frame_bytes']:,} bytes "
+          "(call chains not included)")
     if manifest["raw_export"]:
         print(f"Offline raw layout: {args.output / manifest['raw_export']}")
         print(f"Raw SHA-256: {manifest['raw_export_sha256']}")
