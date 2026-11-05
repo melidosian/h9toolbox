@@ -33,8 +33,10 @@ ROM `0x0200391A` and `0x02002CAE`, then calls app+`0x02CF22` for `app_core`
 with entry address `0x01E66748` and for `my_app` with entry address
 `0x01E88280`. Both calls pass zero in `r1`. It then calls ROM
 `0x02003180` and `0x02001650` before an `idle` loop. The exact startup
-behavior of those ROM entries and the task bodies is not ported. The
-diagnostic main entry still stops before the first of these ROM calls.
+behavior of those ROM entries and the task bodies is not ported.
+`main/h9_main_board_tail.*` records this call order and binds the known ROM
+addresses behind injectable hooks. It requires replacement task entrypoints;
+the diagnostic main entry still stops before the first of these ROM calls.
 
 The argument to `0x02002CAE` is RAM `0x12850`: the board function sets
 `r8=0x11AD0` earlier at app+`0x05FD9E`, then adds `0xD80` at app+`0x05FFB0`.

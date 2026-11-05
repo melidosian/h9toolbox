@@ -52,6 +52,7 @@
 #include "h9_main_boot_record.h"
 #include "h9_main_boot_validator.h"
 #include "h9_main_board_markers.h"
+#include "h9_main_board_tail.h"
 #include "h9_main_clock_probe.h"
 #include "h9_main_clock_handshake.h"
 #include "h9_main_clock_apply.h"
@@ -6925,6 +6926,86 @@ static void test_main_task_registry(void)
            target.report_failure == NULL);
 }
 
+typedef struct {
+    unsigned events[6];
+    unsigned count;
+    uintptr_t workspace;
+    uintptr_t core_entry;
+    uintptr_t app_entry;
+} BoardTailCapture;
+
+static void board_tail_prepare(void *context)
+{
+    BoardTailCapture *capture = (BoardTailCapture *)context;
+    capture->events[capture->count++] = 1u;
+}
+
+static void board_tail_workspace(void *context, uintptr_t workspace)
+{
+    BoardTailCapture *capture = (BoardTailCapture *)context;
+    capture->events[capture->count++] = 2u;
+    capture->workspace = workspace;
+}
+
+static int board_tail_create(void *context, uintptr_t entry,
+                             uintptr_t argument, uint8_t byte_4,
+                             uint16_t halfword_6, uint16_t halfword_8,
+                             const char *name)
+{
+    BoardTailCapture *capture = (BoardTailCapture *)context;
+    assert(argument == 0u && halfword_8 == 0x0300u);
+    if (strcmp(name, "app_core") == 0) {
+        capture->events[capture->count++] = 3u;
+        capture->core_entry = entry;
+        assert(byte_4 == 1u && halfword_6 == 0x0380u);
+        return -5;
+    }
+    assert(strcmp(name, "my_app") == 0 && byte_4 == 2u &&
+           halfword_6 == 0x0800u);
+    capture->events[capture->count++] = 4u;
+    capture->app_entry = entry;
+    return 0;
+}
+
+static void board_tail_start(void *context)
+{
+    BoardTailCapture *capture = (BoardTailCapture *)context;
+    capture->events[capture->count++] = 5u;
+}
+
+static void board_tail_finish(void *context)
+{
+    BoardTailCapture *capture = (BoardTailCapture *)context;
+    capture->events[capture->count++] = 6u;
+}
+
+static void test_main_board_tail(void)
+{
+    BoardTailCapture capture = { 0 };
+    H9MainTaskHooks tasks = { &capture, board_tail_create, NULL };
+    H9MainBoardTail tail = {
+        &capture, board_tail_prepare, board_tail_workspace,
+        board_tail_start, board_tail_finish, &tasks
+    };
+    H9MainBoardTail target;
+    int core_result = 99, app_result = 99;
+    const unsigned expected[] = { 1u, 2u, 3u, 4u, 5u, 6u };
+    assert(h9_main_board_tail_run(&tail, 0u, 0x200u,
+                                  &core_result, &app_result) == -1);
+    assert(capture.count == 0u && core_result == 99 && app_result == 99);
+    assert(h9_main_board_tail_run(&tail, 0x100u, 0x200u,
+                                  &core_result, &app_result) == 0);
+    assert(capture.count == 6u &&
+           memcmp(capture.events, expected, sizeof(expected)) == 0);
+    assert(capture.workspace == H9_MAIN_BOARD_TASK_WORKSPACE);
+    assert(capture.core_entry == 0x100u && capture.app_entry == 0x200u);
+    assert(core_result == H9_MAIN_TASK_LAUNCH_ERROR && app_result == 0);
+    h9_main_board_tail_bind_target(&target, &tasks);
+    assert(target.context == NULL && target.tasks == &tasks &&
+           target.rom_prepare_391a != NULL && target.rom_prepare_2cae != NULL &&
+           target.rom_start_3180 != NULL && target.rom_finish_1650 != NULL);
+}
+
 static void test_main_core_list(void)
 {
     uint32_t words[3] = { 0u, 0u, 0xA5A5A5A5u };
@@ -7290,6 +7371,7 @@ int main(void)
     test_main_post_map_gate();
     test_main_post_map_window();
     test_main_task_registry();
+    test_main_board_tail();
     test_main_core_list();
     test_main_core_init_walkers();
     test_main_channel_default_prefix();
