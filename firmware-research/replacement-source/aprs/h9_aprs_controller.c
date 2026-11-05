@@ -219,7 +219,9 @@ bool h9_aprs_controller_report_burst_activity(H9AprsController *controller,
     uint8_t payload[2];
     if (controller == NULL) return false;
     gate = h9_aprs_demod_gate_state(&controller->demod);
-    active = gate.in_frame || gate.preamble_seen;
+    /* A frame flag can remain set after the RF burst. The qualified preamble
+       is cleared by the demodulator's no-transition idle path. */
+    active = gate.preamble_seen;
     if ((!controller->burst_report_valid && !active) ||
         (controller->burst_report_valid &&
          controller->burst_reported_active == active &&

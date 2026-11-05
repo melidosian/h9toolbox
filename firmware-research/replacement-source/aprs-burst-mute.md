@@ -8,11 +8,17 @@ new protocol between **both replacement firmwares**, not a stock command.
 
 The APRS controller sends framed command `0x52` with two payload bytes:
 `{version=1, active=0|1}`. It reads the ADC demodulator's published
-`in_frame`/`preamble_seen` state in the main loop, never sends from the ADC
+`preamble_seen` state in the main loop, never sends from the ADC
 interrupt, sends an event on each activity transition, and renews an active
 event every 250 ms. A failed UART send leaves its state uncommitted so the
 next loop can retry. The main APRS session accepts only the exact versioned
 payload and calls `burst_activity`.
+
+The demodulator qualifies `preamble_seen` after six HDLC flags and clears it
+after 97 ADC samples without a transition. Its separate `in_frame` state may
+remain set after a packet while RF is idle, so it is not used as a mute
+signal. This can let the first part of a preamble through before qualification;
+the mute timing still needs measurement on hardware.
 
 The main-side `H9MainAprsMuteLease` uses the receiving board's millisecond
 clock. An active event is valid for 750 ms; an inactive event clears it

@@ -1410,6 +1410,9 @@ static void test_aprs_burst_activity_link(void)
     assert(!h9_aprs_controller_report_burst_activity(&controller, 0u));
     atomic_store_explicit(&controller.demod.gate_flags, 1u,
                           memory_order_release);
+    assert(!h9_aprs_controller_report_burst_activity(&controller, 100u));
+    atomic_store_explicit(&controller.demod.gate_flags, 3u,
+                          memory_order_release);
     capture.now_ms = 100u;
     assert(h9_aprs_controller_report_burst_activity(&controller, 100u));
     assert(fake.uart_length == 5u && fake.uart[0] == 0xC0u &&
@@ -1476,7 +1479,7 @@ static void test_aprs_burst_activity_link(void)
     assert(audio.decoder_feed && audio.speaker_audio &&
            audio.bluetooth_audio);
     fake.uart_length = 0u;
-    atomic_store_explicit(&controller.demod.gate_flags, 0u,
+    atomic_store_explicit(&controller.demod.gate_flags, 1u,
                           memory_order_release);
     assert(h9_aprs_controller_report_burst_activity(&controller, 351u));
     capture.now_ms = 351u;
