@@ -20,7 +20,23 @@ It then scans ten eight-byte RAM records beginning at `0x12A30`. The first
 word is a signed key. An equal key returns without changing the record;
 the first `-1` key is replaced and the halfword at record offset 4 becomes
 `1`. If no matching or empty record exists, it returns without insertion.
-Those four low-level helper effects and the registry's initialization path
-remain unported. `main/h9_main_pin_registry.*` models the observed call
-and registry sequence with injectable low-level actions; it does not make
-the full `my_app` task runnable.
+Each of the four low-level helpers calls the pin-bank lookup at app+`0x0000BA`.
+Its table at app+`0x000554` contains `0x1E5000`, `0x1E5040`, `0x1E5080`,
+and `0x1E50C0`, indexed by `pin >> 4`. For the five early `my_app` pins,
+the helpers take the ordinary branch: app+`0x000176` with value 0 clears
+bit `pin & 15` at bank offset `0x0C`; app+`0x0001F6` with value 1 sets
+it at offset `0x08`; app+`0x000284` with value 0 clears it at offset
+`0x10`; and app+`0x0002DC` with value 0 clears it at offset `0x14`.
+The pinned helper slices app+`0x000176..0x0001D8`,
+`0x0001F6..0x000266`, `0x000284..0x0002BE`, and
+`0x0002DC..0x000316` hash respectively to SHA-256
+`ff1d49dc53e7d4009adade553b6b174ec6e06dbc5f39ed22b0e15aeee0d921ee`,
+`0f670e0955c90397866b2c1df4336d5a31bd3693b79b99fc1f621ce01a6f64b5`,
+`d395d057d9c7e10d865a7f13356ed71d7c97840a35b121704c9377df4987d3a8`,
+and `a189d9c21707e6741945d2cf271d87f7aac9df85d567d03ac7e26847ff04e03d`.
+
+Pin 38 and pins 56 and above use different branches; the replacement
+`main/h9_main_pin_actions.*` rejects them. `main/h9_main_pin_registry.*`
+models the observed call and registry sequence. The registry's initial
+contents, other pin branches, and the rest of `my_app` remain unported;
+this does not make the task runnable.

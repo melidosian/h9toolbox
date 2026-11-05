@@ -19,6 +19,9 @@ H9MainPinResult h9_main_pin_registry_configure(H9MainPinRegistry *registry,
         registry->action_0176 == NULL || registry->action_01f6 == NULL ||
         registry->action_0284 == NULL || registry->action_02dc == NULL)
         return H9_MAIN_PIN_INVALID;
+    if (registry->supports_pin != NULL &&
+        !registry->supports_pin(registry->context, pin))
+        return H9_MAIN_PIN_INVALID;
 
     registry->action_0176(registry->context, pin, 0u);
     registry->action_01f6(registry->context, pin, 1u);

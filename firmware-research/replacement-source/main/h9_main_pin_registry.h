@@ -20,6 +20,7 @@ typedef struct {
     void (*action_0284)(void *context, uint32_t pin, uint32_t value);
     void (*action_02dc)(void *context, uint32_t pin, uint32_t value);
     volatile H9MainPinRecord *records;
+    int (*supports_pin)(void *context, uint32_t pin);
 } H9MainPinRegistry;
 
 typedef enum {

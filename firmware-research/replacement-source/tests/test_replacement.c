@@ -54,6 +54,7 @@
 #include "h9_main_board_markers.h"
 #include "h9_main_board_tail.h"
 #include "h9_main_pin_registry.h"
+#include "h9_main_pin_actions.h"
 #include "h9_main_clock_probe.h"
 #include "h9_main_clock_handshake.h"
 #include "h9_main_clock_apply.h"
@@ -7039,7 +7040,7 @@ static void test_main_pin_registry(void)
     PinRegistryCapture capture = { 0 };
     H9MainPinRegistry registry = {
         &capture, capture_pin_0176, capture_pin_01f6,
-        capture_pin_0284, capture_pin_02dc, records
+        capture_pin_0284, capture_pin_02dc, records, NULL
     };
     H9MainPinRegistry target = { 0 };
     unsigned index;
@@ -7084,6 +7085,49 @@ static void test_main_pin_registry(void)
     }
     h9_main_pin_registry_bind_target(&target);
     assert((uintptr_t)target.records == 0x12A30u);
+}
+
+static void test_main_pin_actions(void)
+{
+    uint32_t bank[4][6] = { { 0 } };
+    uint32_t sync = 0xA5A5u;
+    H9MainPinRecord records[H9_MAIN_PIN_RECORD_COUNT];
+    H9MainPinActions actions = { { bank[0], bank[1], bank[2], bank[3] },
+                                 &sync };
+    H9MainPinActions target;
+    H9MainPinRegistry registry = { 0 };
+    unsigned index;
+    for (index = 0u; index < 4u; ++index) {
+        bank[index][3] = UINT32_MAX;
+        bank[index][4] = UINT32_MAX;
+        bank[index][5] = UINT32_MAX;
+    }
+    for (index = 0u; index < H9_MAIN_PIN_RECORD_COUNT; ++index)
+        records[index].key = -1;
+    registry.records = records;
+    h9_main_pin_actions_attach(&registry, &actions);
+    assert(h9_main_pin_registry_configure(&registry, 38u, 1) ==
+           H9_MAIN_PIN_INVALID);
+    assert(records[0].key == -1 && bank[2][2] == 0u);
+    h9_main_my_app_configure_early_pins(&registry);
+    assert(bank[0][2] == 0x1402u && bank[2][2] == 0x30u);
+    assert(bank[0][3] == (UINT32_MAX & ~0x1402u) &&
+           bank[0][4] == (UINT32_MAX & ~0x1402u) &&
+           bank[0][5] == (UINT32_MAX & ~0x1402u));
+    assert(bank[2][3] == (UINT32_MAX & ~0x30u) &&
+           bank[2][4] == (UINT32_MAX & ~0x30u) &&
+           bank[2][5] == (UINT32_MAX & ~0x30u));
+    assert(bank[1][2] == 0u && bank[3][2] == 0u &&
+           bank[1][3] == UINT32_MAX && bank[3][3] == UINT32_MAX);
+    assert(records[0].key == 4 && records[1].key == 13 &&
+           records[2].key == 10 && records[3].key == 3 &&
+           records[4].key == 0);
+    h9_main_pin_actions_bind_target(&target);
+    assert((uintptr_t)target.banks[0] == 0x1E5000u &&
+           (uintptr_t)target.banks[1] == 0x1E5040u &&
+           (uintptr_t)target.banks[2] == 0x1E5080u &&
+           (uintptr_t)target.banks[3] == 0x1E50C0u &&
+           (uintptr_t)target.sync_1e0200 == 0x1E0200u);
 }
 
 static void test_main_core_list(void)
@@ -7453,6 +7497,7 @@ int main(void)
     test_main_task_registry();
     test_main_board_tail();
     test_main_pin_registry();
+    test_main_pin_actions();
     test_main_core_list();
     test_main_core_init_walkers();
     test_main_channel_default_prefix();
