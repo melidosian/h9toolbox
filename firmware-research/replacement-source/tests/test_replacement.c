@@ -78,6 +78,7 @@
 #include "h9_main_uart1_board.h"
 #include "h9_main_uart1_baud.h"
 #include "h9_main_uart1_dma_rom.h"
+#include "h9_main_uart1_pins.h"
 #include "h9_main_uart1_tx.h"
 #include "h9_main_uart1_tx_queue.h"
 #include "h9_main_tx_service.h"
@@ -4409,7 +4410,7 @@ static void main_uart_link_rx_ack(void *context)
 }
 
 typedef struct {
-    uint32_t descriptors[4];
+    uint32_t descriptors[6];
     uint32_t option;
     unsigned count;
 } MainUartRomCapture;
@@ -4417,7 +4418,7 @@ typedef struct {
 static void main_uart_rom_prepare(void *context, uint32_t descriptor)
 {
     MainUartRomCapture *capture = (MainUartRomCapture *)context;
-    assert(capture->count < 4u);
+    assert(capture->count < 6u);
     capture->descriptors[capture->count++] = descriptor;
 }
 
@@ -4425,7 +4426,7 @@ static void main_uart_rom_enable(void *context, uint32_t descriptor,
                                  uint32_t option)
 {
     MainUartRomCapture *capture = (MainUartRomCapture *)context;
-    assert(capture->count < 4u);
+    assert(capture->count < 6u);
     capture->descriptors[capture->count++] = descriptor;
     capture->option = option;
 }
@@ -4433,7 +4434,7 @@ static void main_uart_rom_enable(void *context, uint32_t descriptor,
 static void main_uart_rom_ack(void *context, uint32_t descriptor)
 {
     MainUartRomCapture *capture = (MainUartRomCapture *)context;
-    assert(capture->count < 4u);
+    assert(capture->count < 6u);
     capture->descriptors[capture->count++] = descriptor;
 }
 
@@ -4441,28 +4442,55 @@ static void test_main_uart1_dma_rom_hooks(void)
 {
     MainUartRomCapture capture = { { 0u }, 0u, 0u };
     H9MainUart1DmaRom rom = {
-        main_uart_rom_prepare, main_uart_rom_enable,
+        main_uart_rom_prepare, main_uart_rom_prepare, main_uart_rom_enable,
         main_uart_rom_ack, &capture
     };
     H9MainAprsUart1DmaHooks hooks;
     assert(!h9_main_uart1_dma_rom_make_hooks(NULL, &rom));
     assert(!h9_main_uart1_dma_rom_make_hooks(&hooks, NULL));
+    assert(!h9_main_uart1_dma_rom_initialize(NULL, 0x001E360u));
+    assert(!h9_main_uart1_dma_rom_initialize(&rom, 0x001E370u));
+    assert(h9_main_uart1_dma_rom_initialize(&rom, 0x001E360u));
+    assert(h9_main_uart1_dma_rom_initialize(&rom, 0x001E3B0u));
     assert(h9_main_uart1_dma_rom_make_hooks(&hooks, &rom));
     hooks.prepare_tx(hooks.context, 0x001E3B0u);
     hooks.enable_tx(hooks.context, 0x001E3B0u, 0u);
     hooks.acknowledge_tx(hooks.context);
     hooks.acknowledge_rx(hooks.context);
-    assert(capture.count == 4u);
-    assert(capture.descriptors[0] == 0x001E3B0u);
+    assert(capture.count == 6u);
+    assert(capture.descriptors[0] == 0x001E360u);
     assert(capture.descriptors[1] == 0x001E3B0u);
     assert(capture.descriptors[2] == 0x001E3B0u);
-    assert(capture.descriptors[3] == 0x001E360u);
+    assert(capture.descriptors[3] == 0x001E3B0u);
+    assert(capture.descriptors[4] == 0x001E3B0u);
+    assert(capture.descriptors[5] == 0x001E360u);
     assert(capture.option == 0u);
     rom.acknowledge = NULL;
     assert(!h9_main_uart1_dma_rom_make_hooks(&hooks, &rom));
     h9_main_uart1_dma_rom_bind_target(&rom);
-    assert(rom.prepare != NULL && rom.enable != NULL &&
+    assert(rom.initialize != NULL && rom.prepare != NULL && rom.enable != NULL &&
            rom.acknowledge != NULL && rom.context == NULL);
+}
+
+static void test_main_uart1_pins(void)
+{
+    uint32_t pinmux[10] = { 0 };
+    uint32_t gpio[6] = { 0 };
+    H9MainUart1Pins pins = { pinmux, gpio };
+    pinmux[9] = 0x40u;
+    pinmux[7] = 0x0Cu;
+    gpio[2] = 0x03u;
+    gpio[5] = 0x02u;
+    assert(!h9_main_uart1_pins_configure(NULL, 0x20u, 0x21u));
+    assert(!h9_main_uart1_pins_configure(&pins, 0x21u, 0x20u));
+    assert(pinmux[9] == 0x40u && gpio[2] == 0x03u);
+    assert(h9_main_uart1_pins_configure(&pins, 0x20u, 0x21u));
+    assert(pinmux[9] == 0x80u && pinmux[7] == 0x04u);
+    assert(gpio[2] == 0u && gpio[3] == 0x03u);
+    assert(gpio[4] == 0x02u && gpio[5] == 0u);
+    h9_main_uart1_pins_bind_target(&pins);
+    assert((uintptr_t)pins.pinmux_1e5100 == 0x001E5100u);
+    assert((uintptr_t)pins.gpio_1e5080 == 0x001E5080u);
 }
 
 static void test_main_aprs_uart1_link(void)
@@ -7156,6 +7184,7 @@ int main(void)
     test_main_serial_dma_read();
     test_main_uart1_irq();
     test_main_uart1_dma_rom_hooks();
+    test_main_uart1_pins();
     test_main_uart1_tx();
     test_main_uart1_tx_queue();
     test_main_aprs_uart1_link();

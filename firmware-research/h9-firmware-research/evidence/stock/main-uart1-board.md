@@ -43,7 +43,22 @@ The replacement `h9_main_uart1_board_open` ports the register and callback
 order with mandatory injected pin, ROM DMA, IRQ, and baud hooks. It rejects an
 occupied UART before any write, and requires the record's receive size and
 threshold to match the existing link. Its baud hook can now use the separate
-target binding, but pin setup, ROM DMA, IRQ registration, and a real board
-entry are still absent. It does not yet select a fallback UART, prove DMA
-cache coherency, or bind the main reset entry to this board adapter. The Pi32
-diagnostic link remains unflashable.
+target binding. The UART1 open branch calls the pin helper at app+`0x0C5A0A`;
+the helper at app+`0x078796` receives selector `1`.
+Its first MMIO block is `0x001E5100`, where it sets bit 7, clears bit 6 at
+`+0x24`, and sets mux field `01` at `+0x1C`. The selector-1 branch calls the
+GPIO-bank lookup for pins `0x20` and `0x21`; the table at app+`0x000554`
+resolves both to `0x001E5080`. For pin 32 it clears bit 0 at `+8` and sets
+bit 0 at `+12`. For pin 33 it sets bit 1 at `+8` and `+16`, clears it at
+`+20` and then `+8`, and sets it at `+12`. The independent Pi32v2 decode
+covers app+`0x078796..0x07882A`.
+`h9_main_uart1_pins.*` ports those writes with injectable MMIO and target
+addresses. Neither its electrical effect nor simultaneous pin ownership is
+hardware-verified. ROM DMA initialization, IRQ registration, and a real board
+entry are still absent. The UART1 ROM DMA initializer call sites at
+app+`0x0C5A64` and `0x0C5A6C` reach app trampoline `0x078792`, whose first
+instruction jumps to ROM `0x02002948`. The replacement DMA adapter exposes
+that mapped entry with a guard for the two observed descriptor addresses;
+the board-open callback does not yet call it. The replacement does not yet
+select a fallback UART, prove DMA cache coherency, or bind the main reset
+entry to this board adapter. The Pi32 diagnostic link remains unflashable.

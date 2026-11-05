@@ -35,6 +35,19 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
     ):
         if main_app[offset:offset + 4] != bytes.fromhex(expected):
             raise ValueError(f"main UART1 DMA ACK call differs at 0x{offset:X}")
+    for offset, expected in (
+        (0x0C5A0A, "BD EA C4 96"),
+        (0x0C5A64, "BD EA 95 96"),
+        (0x0C5A6C, "BD EA 91 96"),
+        (0x078792, "CC EA 59 50"),
+        (0x078798, "C1 FF 00 51 1E 00"),
+        (0x0787E6, "48 20 BC EA 67 3C"),
+        (0x0787FA, "48 21 04 8B"),
+        (0x07881A, "21 60 02 EF 02 00"),
+        (0x00055C, "80 50 1E 00"),
+    ):
+        if main_app[offset:offset + len(bytes.fromhex(expected))] != bytes.fromhex(expected):
+            raise ValueError(f"main UART1 pin setup differs at 0x{offset:X}")
     ram_code = main_app[0x0C618C:0x0C618C + 0x58]
     if ram_code[:0x40] != bytes(0x40) or ram_code[0x40:] != bytes.fromhex(
         "c1 ff 08 3e 1e 00 90 61 00 ef 10 10 10 60 "

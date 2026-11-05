@@ -4,9 +4,18 @@
 
 #define UART1_TX_DESCRIPTOR 0x001E3B0u
 #define UART1_RX_DESCRIPTOR 0x001E360u
+#define ROM_DMA_INITIALIZE 0x02002948u
 #define ROM_DMA_PREPARE 0x02002C80u
 #define ROM_DMA_ENABLE 0x02002B66u
 #define ROM_DMA_ACKNOWLEDGE 0x02002722u
+
+static void target_initialize(void *context, uint32_t descriptor)
+{
+    void (*operation)(uint32_t) =
+        (void (*)(uint32_t))(uintptr_t)ROM_DMA_INITIALIZE;
+    (void)context;
+    operation(descriptor);
+}
 
 static void target_prepare(void *context, uint32_t descriptor)
 {
@@ -35,10 +44,21 @@ static void target_acknowledge(void *context, uint32_t descriptor)
 void h9_main_uart1_dma_rom_bind_target(H9MainUart1DmaRom *rom)
 {
     if (rom == NULL) return;
+    rom->initialize = target_initialize;
     rom->prepare = target_prepare;
     rom->enable = target_enable;
     rom->acknowledge = target_acknowledge;
     rom->context = NULL;
+}
+
+bool h9_main_uart1_dma_rom_initialize(H9MainUart1DmaRom *rom,
+                                       uint32_t descriptor)
+{
+    if (rom == NULL || rom->initialize == NULL ||
+        (descriptor != UART1_RX_DESCRIPTOR &&
+         descriptor != UART1_TX_DESCRIPTOR)) return false;
+    rom->initialize(rom->context, descriptor);
+    return true;
 }
 
 static void prepare_tx(void *context, uint32_t descriptor)
