@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TD-H9 remote control discovery</title>
+<style>
+  :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; background:#101820; color:#e9f2f6; }
+  body { max-width: 780px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { line-height: 1.2; }
+  button { background:#16c9c6; border:0; border-radius:.5rem; color:#07171b; font:inherit; font-weight:700; padding:.65rem 1rem; margin:.25rem .25rem .25rem 0; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:default; }
+  section { background:#1b2832; padding:1rem; border-radius:.75rem; margin:1rem 0; }
+  code, pre { font: .85rem/1.45 ui-monospace, Consolas, monospace; }
+  pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#0d141a; padding:1rem; border-radius:.5rem; max-height:350px; overflow:auto; }
+  .note { color:#b7ced7; }
+  .error { color:#ff9d91; }
+</style>
+<main>
+  <h1>TD-H9 remote control discovery</h1>
+  <p>This local experiment checks how the TD-H9 stores A/B VFO, memory-channel selection, and RX volume. Listening and snapshot buttons only read. The labeled select/set and volume test buttons make guarded configuration writes. No button sends PTT, APRS, or erase commands.</p>
+  <p class="note">Keep APRS Connect disconnected and its beaconing off. Leave CH-A off a repeater while testing. Use the radio's Bluetooth programming mode; disconnect other radio apps first.</p>
+  <section>
+    <h2>1. Connect</h2>
+    <button id="connect">Connect TD-H9</button><button id="disconnect" disabled>Disconnect</button>
+    <p id="status" role="status">Disconnected.</p>
+  </section>
+  <section>
+    <h2>2. Watch manual controls</h2>
+    <p>Start listening, manually change A/B or RX volume on the radio, then stop. Any BLE notifications appear in the log. This stage sends no commands.</p>
+    <button id="listen" disabled>Start listening</button><button id="stop" disabled>Stop listening</button>
+  </section>
+  <section>
+    <h2>3. Compare saved radio state</h2>
+    <p>With A selected, capture A1. Then switch to B on the radio and capture B. Switch back to A and capture A2. Each capture enters and exits the known read-only programming protocol. If the radio will not let you change VFO while connected, disconnect between steps.</p>
+    <button id="a1" disabled>Capture A1</button><button id="b" disabled>Capture B</button><button id="a2" disabled>Capture A2</button>
+    <button id="download" disabled>Download local results</button>
+    <pre id="result">No snapshots yet.</pre>
+  </section>
+  <section>
+    <h2>4. Try selecting A or B</h2>
+    <p>The A/B/A result identified configuration byte <code>0x3004</code> (A=00, B=01). This unverified test changes only that byte in its 32-byte radio block. It checks radio identity, the saved baseline, ACK, and readback. It does not send PTT or APRS. The radio might apply this only after leaving programming mode or a restart.</p>
+    <p>First capture and download a fresh full backup. Keep CH-A off a repeater, and check the radio's display after each write.</p>
+    <button id="backup" disabled>Capture safety backup</button>
+    <button id="selectA" disabled>Try select A</button>
+    <button id="selectB" disabled>Try select B</button>
+    <p id="writeStatus" role="status">No safety backup in this browser session.</p>
+  </section>
+  <section>
+    <h2>5. Discover and set B's memory channel</h2>
+    <p id="aprsMemory">Capture a safety backup to locate the APRS memory channel.</p>
+    <p>With B selected, click <strong>Read B before</strong>. Manually change B to a different stored memory channel on the radio, then click <strong>Read B after</strong>. The page requires that only the candidate B channel byte change before it unlocks the restore test. The final button sets B back to the APRS memory and selects VFO B. Keep the dummy load attached and do not press PTT.</p>
+    <button id="bBefore" disabled>Read B before</button>
+    <button id="bAfter" disabled>Read B after manual change</button>
+    <button id="bAprs" disabled>Set B to APRS memory</button>
+    <p id="channelStatus" role="status">No B channel comparison yet.</p>
+  </section>
+  <section>
+    <h2>6. One-pass B + APRS selection</h2>
+    <p>This uses one complete read to make and download a fresh backup, locates the unique <strong>APRS / 144.390 MHz</strong> memory, writes B's channel field if needed, and writes B as the selected VFO. It verifies each written 32-byte block by readback. No manual before/after snapshots are needed. Keep the dummy load attached and APRS Connect beaconing disabled.</p>
+    <button id="onePass" disabled>Read once, then select B + APRS</button>
+    <p id="onePassStatus" role="status">Not run.</p>
+  </section>
+  <section>
+    <h2>7. Discover RX volume control</h2>
+    <p>Set the radio's receive volume to a low or midrange level and capture <strong>Low 1</strong>. Manually raise it and capture <strong>High</strong>. Return near the original level and capture <strong>Low 2</strong>; an exact return is not required. Keep the channel and other settings unchanged. Disconnect between captures if the radio will not let you adjust volume while connected.</p>
+    <button id="volumeLow1" disabled>Capture low 1</button><button id="volumeHigh" disabled>Capture high</button><button id="volumeLow2" disabled>Capture low 2</button>
+    <button id="volumeDownload" disabled>Download volume results</button>
+    <pre id="volumeResult" role="status">No RX volume snapshots yet.</pre>
+    <p>The page tolerates a different returned low level if all changes stay at one 0–30 byte. The one-step buttons unlock only if the high value is exactly one stored step above the returned low value. Each test makes a fresh full backup, checks the whole image against the returned-low snapshot, writes one byte, checks ACK, and reads the block back. A matching stored byte does not prove that live RX audio changed. Check the radio's actual received audio after each test.</p>
+    <p>If all snapshots match, the clone image has no volume candidate. A separate read-only check is to use <strong>Start listening</strong> above while moving the volume control, then inspect the BLE notification log.</p>
+    <button id="volumeHigher" disabled>Try one step higher</button><button id="volumeLower" disabled>Restore lower level</button>
+  </section>
+  <section><h2>Protocol log</h2><pre id="log"></pre></section>
+</main>
+<script type="module" src="app.mjs?build=rx-volume-3"></script>
+</html>

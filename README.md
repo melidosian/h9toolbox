@@ -2,6 +2,10 @@
 
 Firmware reverse-engineering notes, offline analysis, the Windows/Linux USB-C flasher, and the HID recovery tools are collected in [firmware-research](firmware-research/README.md). They are separate from the Bluetooth web programmer below.
 
+## Project files
+
+- [VFO control discovery](prototypes/vfo-control/README.md) contains the local Bluetooth remote-control experiment and its current hardware observations.
+
 A small, buildless Web Bluetooth programmer for the TIDRADIO TD-H9. Open the HTTPS site in Chrome or Edge on a computer with Bluetooth. No account is required. The radio image stays in browser memory until you download a backup.
 
 The custom domain uses Google Analytics 4 for page views and automatic interaction events. Enhanced Measurement is enabled, and the tag runs only on `h9toolbox.com`, not on previews or localhost. H9 Toolbox does not send radio images, channel contents, or settings to Analytics.
