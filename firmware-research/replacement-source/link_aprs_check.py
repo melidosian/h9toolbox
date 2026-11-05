@@ -208,8 +208,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         run([sibling_tool(compiler, "arm-none-eabi-objdump"), "-d", str(elf)]),
         stack_usage, stack_headroom,
     )
-    if direct_stack["largest_known_path_exceeds_headroom"]:
-        raise ValueError("A known APRS call path exceeds diagnostic stack headroom")
+    if (direct_stack["largest_known_path_exceeds_headroom"] or
+            direct_stack["one_irq_preemption"]["exceeds_headroom"]):
+        raise ValueError("A known APRS call or one-IRQ path exceeds diagnostic stack headroom")
     raw_file = None
     raw_digest = None
     if emit_raw:
@@ -304,7 +305,11 @@ def main() -> int:
     print("Longest direct / known-callback call paths: "
           f"{manifest['stack_direct_analysis']['largest_direct_path_bytes']:,} / "
           f"{manifest['stack_direct_analysis']['largest_known_callback_path_bytes']:,} "
-          "bytes (unknown callbacks and IRQ nesting excluded)")
+          "bytes (unknown callbacks and interrupt preemption excluded)")
+    irq = manifest["stack_direct_analysis"]["one_irq_preemption"]
+    print(f"Main path plus one known interrupt: {irq['total_bytes']:,} bytes "
+          f"({irq['thread_root']} + {irq['irq_root']} + "
+          f"{irq['exception_frame_bytes']} exception bytes)")
     print("Largest compiler-reported stack frame: "
           f"{manifest['largest_compiler_reported_frame_bytes']:,} bytes "
           "(call chains not included)")

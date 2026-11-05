@@ -2,7 +2,7 @@
 """Report direct-call stack paths in the diagnostic APRS ELF.
 
 This is an incomplete estimate: selected board callbacks are mapped, but
-other indirect calls, asynchronous interrupt nesting, and compiler helper
+other indirect calls, multiple interrupt nesting, and compiler helper
 functions without .su records are not resolved. A value below available
 RAM is therefore not proof of stack safety.
 """
@@ -25,6 +25,13 @@ ROOTS = (
     "h9_aprs_adc1_handler", "h9_aprs_usart1_handler",
     "h9_aprs_usart2_handler",
 )
+THREAD_ROOTS = ("h9_aprs_boot", "h9_aprs_board_main")
+IRQ_ROOTS = tuple(root for root in ROOTS if root not in THREAD_ROOTS)
+# Arm Cortex-M basic exception entry stacks eight words. Allow one more
+# word for alignment padding. See Arm's "How much stack memory do I need
+# for my Arm Cortex-M applications?":
+# https://developer.arm.com/community/arm-community-blogs/b/architectures-and-processors-blog/posts/how-much-stack-memory-do-i-need-for-my-arm-cortex--m-applications
+EXCEPTION_FRAME_BYTES = 36
 KNOWN_BOARD_CALLBACKS = {
     # These bindings are explicit in aprs/link_check_runtime.c and the
     # controller/demod source. Generic callbacks can have other targets.
@@ -102,6 +109,14 @@ def analyze(disassembly: str, usage_records: list[dict],
 
     direct_paths = paths_for(False)
     callback_paths = paths_for(True)
+    callback_by_root = {path["root"]: path for path in callback_paths}
+    thread_path = max((callback_by_root[root] for root in THREAD_ROOTS),
+                      key=lambda path: path["frame_bytes"])
+    irq_path = max((callback_by_root[root] for root in IRQ_ROOTS),
+                   key=lambda path: path["frame_bytes"])
+    aligned_thread_bytes = (thread_path["frame_bytes"] + 7) & ~7
+    one_irq_bytes = (aligned_thread_bytes + EXCEPTION_FRAME_BYTES +
+                     irq_path["frame_bytes"])
     return {
         "stack_headroom_bytes": headroom,
         "direct_call_paths": direct_paths,
@@ -110,12 +125,22 @@ def analyze(disassembly: str, usage_records: list[dict],
         "largest_known_callback_path_bytes": callback_paths[0]["frame_bytes"],
         "largest_known_path_exceeds_headroom":
             callback_paths[0]["frame_bytes"] > headroom,
+        "one_irq_preemption": {
+            "thread_root": thread_path["root"],
+            "thread_path_bytes": thread_path["frame_bytes"],
+            "thread_path_aligned_bytes": aligned_thread_bytes,
+            "irq_root": irq_path["root"],
+            "irq_path_bytes": irq_path["frame_bytes"],
+            "exception_frame_bytes": EXCEPTION_FRAME_BYTES,
+            "total_bytes": one_irq_bytes,
+            "exceeds_headroom": one_irq_bytes > headroom,
+        },
         "indirect_call_sites": {name: count for name, count in indirect.items()
                                 if count},
         "missing_frame_records": sorted(missing_frames),
         "direct_call_cycles": sorted(cycles),
         "stack_safety_proven": False,
-        "limitation": "Unknown callbacks, interrupt nesting, and missing frames are excluded",
+        "limitation": "Unknown callbacks, multiple interrupt nesting, and missing frames are excluded",
     }
 
 
@@ -139,11 +164,16 @@ def main() -> int:
           f" / {report['stack_headroom_bytes']} available")
     print("Longest path including known board callbacks: "
           f"{report['largest_known_callback_path_bytes']} bytes")
+    irq = report["one_irq_preemption"]
+    print(f"Main path plus one known interrupt: {irq['total_bytes']} bytes "
+          f"({irq['thread_root']} + {irq['irq_root']} + "
+          f"{irq['exception_frame_bytes']} exception bytes)")
     print(f"Indirect call sites (some board targets mapped): "
           f"{sum(report['indirect_call_sites'].values())}; "
           f"missing frame records: {len(report['missing_frame_records'])}")
-    print("Stack safety not proven: indirect calls and interrupt nesting remain")
-    return 1 if report["largest_known_path_exceeds_headroom"] else 0
+    print("Stack safety not proven: indirect calls and multiple interrupts remain")
+    return 1 if (report["largest_known_path_exceeds_headroom"] or
+                 irq["exceeds_headroom"]) else 0
 
 
 if __name__ == "__main__":
