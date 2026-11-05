@@ -53,6 +53,14 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
                          (0x0B181B, b"res_nor\x00")):
         if main_app[offset:offset + len(name)] != name:
             raise ValueError(f"main dev_mg volume name differs at 0x{offset:X}")
+    if sha256(main_app[0x04A7B2:0x04A870]).hexdigest() != (
+        "00a9a912ae03cde279eb5df6db63f3c17b278cd54188d96d7a1b28dacb284b4c"
+    ):
+        raise ValueError("main volume registration helper differs")
+    if sha256(main_app[0x0A27E0:0x0A2844]).hexdigest() != (
+        "98284a1d9d211728ec88948455d2b7947ef56c605e42df0c83855a21cd069f37"
+    ):
+        raise ValueError("main volume driver table differs")
     for offset, expected in (
         (0x0C5EEE, "BE EA 47 31"),
         (0x0C5F2A, "BE EA 29 31"),

@@ -65,6 +65,7 @@
 #include "h9_main_core_samples.h"
 #include "h9_main_core_post_samples.h"
 #include "h9_main_dev_mg_task.h"
+#include "h9_main_volume_registry.h"
 #include "h9_main_adc_mode.h"
 #include "h9_main_channel_defaults.h"
 #include "h9_main_heap_bitmap.h"
@@ -7521,6 +7522,104 @@ static void test_main_dev_mg_task(void)
     assert(capture.receives == 2u);
 }
 
+typedef struct {
+    H9MainVolumeNode nodes[3];
+    unsigned allocations;
+    unsigned locks;
+    unsigned unlocks;
+    unsigned lock_depth;
+    bool allocation_fails;
+} VolumeRegistryCapture;
+
+static void volume_lock(void *context)
+{
+    VolumeRegistryCapture *capture = (VolumeRegistryCapture *)context;
+    assert(capture->lock_depth == 0u);
+    ++capture->lock_depth;
+    ++capture->locks;
+}
+
+static void volume_unlock(void *context)
+{
+    VolumeRegistryCapture *capture = (VolumeRegistryCapture *)context;
+    assert(capture->lock_depth == 1u);
+    --capture->lock_depth;
+    ++capture->unlocks;
+}
+
+static H9MainVolumeNode *volume_allocate(void *context)
+{
+    VolumeRegistryCapture *capture = (VolumeRegistryCapture *)context;
+    assert(capture->lock_depth == 0u);
+    if (capture->allocation_fails) return NULL;
+    assert(capture->allocations < 3u);
+    return &capture->nodes[capture->allocations++];
+}
+
+static uintptr_t volume_open(void *context,
+                              const H9MainVolumeDriver *driver,
+                              uint8_t mode, uint32_t option)
+{
+    VolumeRegistryCapture *capture = (VolumeRegistryCapture *)context;
+    assert(capture->lock_depth == 1u && mode == 3u && option == 0u);
+    if (strcmp(driver->name, "fat_nor") == 0) return 0u;
+    if (strcmp(driver->name, "sdfile") == 0) return 0x1111u;
+    assert(strcmp(driver->name, "res_nor") == 0);
+    return 0x3333u;
+}
+
+static void test_main_volume_registry(void)
+{
+    VolumeRegistryCapture capture = { 0 };
+    H9MainVolumeRegistry registry;
+    H9MainVolumeRegistryHooks hooks = {
+        volume_lock, volume_unlock, volume_allocate, volume_open, &capture
+    };
+    H9MainVolumeLinks *link;
+    assert(!h9_main_volume_registry_init(NULL, h9_main_stock_volume_drivers,
+                                          3u, &hooks));
+    assert(h9_main_volume_registry_init(&registry,
+                                         h9_main_stock_volume_drivers,
+                                         3u, &hooks));
+    assert(h9_main_volume_registry_register(&registry, NULL) ==
+           H9_MAIN_VOLUME_INVALID);
+    assert(h9_main_volume_registry_register(&registry, "absent") ==
+           H9_MAIN_VOLUME_UNKNOWN);
+    assert(h9_main_volume_registry_register(&registry, "sdfile") ==
+           H9_MAIN_VOLUME_OK);
+    assert(h9_main_volume_registry_register(&registry, "sdfile") ==
+           H9_MAIN_VOLUME_DUPLICATE);
+    assert(h9_main_volume_registry_register(&registry, "fat_nor") ==
+           H9_MAIN_VOLUME_OPEN_FAILED);
+    assert(h9_main_volume_registry_register(&registry, "fat_nor") ==
+           H9_MAIN_VOLUME_DUPLICATE);
+    capture.allocation_fails = true;
+    assert(h9_main_volume_registry_register(&registry, "res_nor") ==
+           H9_MAIN_VOLUME_NO_MEMORY);
+    capture.allocation_fails = false;
+    assert(h9_main_volume_registry_register(&registry, "res_nor") ==
+           H9_MAIN_VOLUME_OK);
+    assert(capture.allocations == 3u && capture.lock_depth == 0u &&
+           capture.locks == capture.unlocks && capture.locks == 9u);
+    link = registry.head.next;
+    assert(link == &capture.nodes[0].links &&
+           capture.nodes[0].handle == 0x1111u &&
+           capture.nodes[0].flags == 1u &&
+           capture.nodes[0].sequence == 0u);
+    link = link->next;
+    assert(link == &capture.nodes[1].links &&
+           capture.nodes[1].handle == 0u &&
+           capture.nodes[1].flags == 0u &&
+           capture.nodes[1].sequence == 1u);
+    link = link->next;
+    assert(link == &capture.nodes[2].links &&
+           capture.nodes[2].handle == 0x3333u &&
+           capture.nodes[2].flags == 1u &&
+           capture.nodes[2].sequence == 2u &&
+           link->next == &registry.head &&
+           registry.head.previous == link);
+}
+
 static uint32_t channel_default_word(const uint8_t *bytes, unsigned offset)
 {
     return (uint32_t)bytes[offset] |
@@ -7827,6 +7926,7 @@ int main(void)
     test_main_core_samples();
     test_main_core_post_samples();
     test_main_dev_mg_task();
+    test_main_volume_registry();
     test_main_adc_mode();
     test_main_channel_default_prefix();
     test_main_sys_event_init();
