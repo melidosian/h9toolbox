@@ -63,6 +63,7 @@
 #include "h9_main_core_list.h"
 #include "h9_main_core_init.h"
 #include "h9_main_core_samples.h"
+#include "h9_main_core_post_samples.h"
 #include "h9_main_adc_mode.h"
 #include "h9_main_channel_defaults.h"
 #include "h9_main_heap_bitmap.h"
@@ -7347,6 +7348,67 @@ static void test_main_core_samples(void)
            target.poll_limit == 100u);
 }
 
+typedef struct {
+    uint32_t target[12];
+    uint32_t arg[12][4];
+    unsigned count;
+    uint32_t branch_result;
+    volatile uint32_t *list;
+} CorePostCapture;
+
+static uint32_t core_post_invoke(void *context, uint32_t target,
+                                 uint32_t r0, uint32_t r1,
+                                 uint32_t r2, uint32_t r3)
+{
+    CorePostCapture *capture = (CorePostCapture *)context;
+    unsigned index = capture->count++;
+    assert(index < 12u);
+    capture->target[index] = target;
+    capture->arg[index][0] = r0;
+    capture->arg[index][1] = r1;
+    capture->arg[index][2] = r2;
+    capture->arg[index][3] = r3;
+    if (target == 0x02002CAEu)
+        assert(capture->list[0] == 0x12F38u &&
+               capture->list[1] == 0x12F38u);
+    return target == 0x01E2D022u ? capture->branch_result : 0u;
+}
+
+static void test_main_core_post_samples(void)
+{
+    static const uint32_t expected[] = {
+        0x01E2475Au, 0x02003904u, 0x01E60776u, 0x01E24F92u,
+        0x021127B4u, 0x02002CAEu, 0x02002948u, 0x01E2D022u,
+        0x01E4A674u, 0x02002B66u, 0x01E5176Eu
+    };
+    uint32_t module = 0u, list[2] = { 0u, 0u };
+    uint8_t state = 7u;
+    CorePostCapture capture = { { 0 }, {{ 0 }}, 0u, 1u, list };
+    H9MainCorePostSamples post = {
+        &module, list, &state, core_post_invoke, &capture
+    };
+    unsigned index;
+    assert(!h9_main_core_post_samples_run(NULL));
+    assert(h9_main_core_post_samples_run(&post));
+    assert(module == 0x01EB1361u && capture.count == 11u);
+    for (index = 0u; index < capture.count; ++index)
+        assert(capture.target[index] == expected[index]);
+    assert(capture.arg[0][0] == 23u &&
+           capture.arg[0][2] == 0x01E8A908u &&
+           capture.arg[1][1] == 0x01E8A826u &&
+           capture.arg[1][2] == 2u &&
+           capture.arg[4][0] == 0x12F40u &&
+           capture.arg[4][2] == 0xA4u &&
+           capture.arg[7][2] == 0x01EB17DFu &&
+           capture.arg[10][0] == 7u);
+    capture.count = 0u;
+    capture.branch_result = 0u;
+    assert(h9_main_core_post_samples_run(&post));
+    assert(capture.count == 10u &&
+           capture.target[8] == 0x02002B66u &&
+           capture.target[9] == 0x01E5176Eu);
+}
+
 static uint32_t channel_default_word(const uint8_t *bytes, unsigned offset)
 {
     return (uint32_t)bytes[offset] |
@@ -7651,6 +7713,7 @@ int main(void)
     test_main_core_list();
     test_main_core_init_walkers();
     test_main_core_samples();
+    test_main_core_post_samples();
     test_main_adc_mode();
     test_main_channel_default_prefix();
     test_main_sys_event_init();

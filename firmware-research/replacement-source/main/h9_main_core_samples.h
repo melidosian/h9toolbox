@@ -7,8 +7,8 @@
 enum { H9_MAIN_CORE_SAMPLE_COUNT = 16,
        H9_MAIN_CORE_AVERAGE_COUNT = 10 };
 
-/* Stock app+0x060CAC..0x060D16, inside the direct app_core setup call.
- * The ADC mode selector at app+0x04AAA0 is still unported and is injected. */
+/* Stock app+0x060DAC..0x060E16, inside the direct app_core setup call.
+ * The two observed ADC modes are ported; the wider setup is incomplete. */
 typedef struct {
     volatile uint32_t *adc_1e3100;
     volatile uint16_t *samples_12338;

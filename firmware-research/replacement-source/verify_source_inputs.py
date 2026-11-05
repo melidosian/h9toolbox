@@ -27,6 +27,10 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         raise ValueError("main app is not the analyzed v1.0.38 image")
     if sha256(aprs_image).hexdigest() != APRS_SHA256:
         raise ValueError("APRS image is not the analyzed v1.0.15 image")
+    if sha256(main_app[0x060E16:0x060E96]).hexdigest() != (
+        "647f7f73b4d96ab6a6e83a5d52fb55404994b9146993ff8ca077dfc66914a4fb"
+    ):
+        raise ValueError("main app_core post-sample sequence differs")
     for offset, expected in (
         (0x0C5EEE, "BE EA 47 31"),
         (0x0C5F2A, "BE EA 29 31"),
