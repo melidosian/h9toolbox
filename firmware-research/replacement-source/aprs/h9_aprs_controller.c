@@ -125,7 +125,6 @@ static void apply_raw_setting(H9AprsController *controller,
     switch (command) {
     case 1u:
         settings->lead_ms = (uint16_t)value * 10u;
-        controller->tx.lead_ms = settings->lead_ms;
         break;
     case 2u:
         settings->persistence = value;
@@ -135,7 +134,6 @@ static void apply_raw_setting(H9AprsController *controller,
         break;
     case 4u:
         settings->tail_ms = (uint16_t)value * 10u;
-        controller->tx.tail_ms = settings->tail_ms;
         break;
     case 0x0Fu:
         controller->tx_status_enabled = value != 0u;
@@ -161,8 +159,6 @@ void h9_aprs_controller_init(H9AprsController *controller,
     controller->tx_settings.tail_ms = H9_APRS_STOCK_TX_TAIL_MS;
     controller->tx_settings.parameter3_ms = H9_APRS_STOCK_TX_PARAMETER3_MS;
     controller->tx_settings.persistence = H9_APRS_STOCK_TX_PERSISTENCE;
-    h9_aprs_tx_init(&controller->tx, controller->tx_settings.lead_ms,
-                    controller->tx_settings.tail_ms);
 }
 
 void h9_aprs_controller_uart_byte(H9AprsController *controller, uint8_t byte)
@@ -260,25 +256,6 @@ bool h9_aprs_controller_report_tx_drained(H9AprsController *controller,
                       payload, sizeof payload);
 }
 
-bool h9_aprs_controller_configure_tx(H9AprsController *controller,
-                                     uint16_t lead_ms, uint16_t tail_ms)
-{
-    if (controller == NULL || controller->tx.active) return false;
-    h9_aprs_tx_init(&controller->tx, lead_ms, tail_ms);
-    controller->tx_settings.lead_ms = lead_ms;
-    controller->tx_settings.tail_ms = tail_ms;
-    if (controller->hardware.tx_settings_changed != NULL)
-        controller->hardware.tx_settings_changed(controller->hardware.context,
-                                                 &controller->tx_settings);
-    return true;
-}
-
-bool h9_aprs_controller_queue_tx_byte(H9AprsController *controller,
-                                      uint8_t byte)
-{
-    return controller != NULL && h9_aprs_tx_enqueue(&controller->tx, byte);
-}
-
 static uint8_t reverse_high_nibble(uint8_t byte)
 {
     uint8_t high = (uint8_t)(byte >> 4);
@@ -303,12 +280,9 @@ void h9_aprs_controller_adc_tick(H9AprsController *controller)
     if (hw->demod_sample != NULL) hw->demod_sample(hw->context, sample);
     if (hw->read_dac_port != NULL && hw->write_dac_port != NULL) {
         dac = (uint8_t)(hw->read_dac_port(hw->context) & 0x0Fu);
-        if (hw->tx_wave_active != NULL && hw->next_tx_wave_sample != NULL) {
-            if (hw->tx_wave_active(hw->context))
-                has_wave = hw->next_tx_wave_sample(hw->context, &wave);
-        } else {
-            has_wave = h9_aprs_tx_next_sample(&controller->tx, &wave);
-        }
+        if (hw->tx_wave_active != NULL && hw->next_tx_wave_sample != NULL &&
+            hw->tx_wave_active(hw->context))
+            has_wave = hw->next_tx_wave_sample(hw->context, &wave);
         dac |= has_wave ? reverse_high_nibble(wave) : 0x80u;
         hw->write_dac_port(hw->context, dac);
     }

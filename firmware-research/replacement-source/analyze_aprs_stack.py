@@ -42,7 +42,6 @@ KNOWN_BOARD_CALLBACKS = {
         "board_submit_packet", "board_set_radio_gpio", "board_read_radio_gpio",
         "board_aux_uart_write", "board_read_status",
     ),
-    "h9_aprs_controller_configure_tx": ("board_tx_settings_changed",),
     "h9_aprs_controller_adc_tick": (
         "board_read_adc", "board_read_wave_port", "board_write_wave_port",
         "board_tx_wave_active", "board_next_tx_wave",

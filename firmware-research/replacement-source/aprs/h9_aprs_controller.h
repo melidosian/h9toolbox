@@ -4,7 +4,6 @@
 #include "h9_aprs_wire.h"
 #include "h9_aprs_demod.h"
 #include "h9_aprs_frame.h"
-#include "h9_aprs_tx.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -46,7 +45,6 @@ typedef struct {
     H9WireDecoder wire;
     H9AprsDemod demod;
     H9AprsFrame frame;
-    H9AprsTx tx;
     H9AprsTxSettings tx_settings;
     H9AprsHardware hardware;
     bool tx_status_enabled;
@@ -78,11 +76,8 @@ bool h9_aprs_controller_report_burst_activity(H9AprsController *controller,
 bool h9_aprs_controller_report_tx_encoded(H9AprsController *controller);
 bool h9_aprs_controller_report_tx_drained(H9AprsController *controller,
                                           uint16_t token);
-bool h9_aprs_controller_configure_tx(H9AprsController *controller,
-                                     uint16_t lead_ms, uint16_t tail_ms);
-bool h9_aprs_controller_queue_tx_byte(H9AprsController *controller,
-                                      uint8_t byte);
-/* This preserves the stock order: demodulation before optional TX waveform. */
+/* This preserves the stock order: demodulation before optional TX waveform.
+ * Both waveform callbacks are required; a missing callback leaves DAC idle. */
 void h9_aprs_controller_adc_tick(H9AprsController *controller);
 
 #endif

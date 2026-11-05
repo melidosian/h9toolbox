@@ -2691,8 +2691,8 @@ static void test_aprs_tx_service(void)
     hw.context = &fake;
     hw.transmit_aprs_packet = submit_service_packet;
     h9_aprs_controller_init(&controller, &hw);
-    assert(controller.tx.lead_ms == H9_APRS_STOCK_TX_LEAD_MS &&
-           controller.tx.tail_ms == H9_APRS_STOCK_TX_TAIL_MS);
+    assert(controller.tx_settings.lead_ms == H9_APRS_STOCK_TX_LEAD_MS &&
+           controller.tx_settings.tail_ms == H9_APRS_STOCK_TX_TAIL_MS);
     serial_length = h9_main_aprs_wire_encode(0x00u, packet, packet_length,
                                               serial, sizeof serial);
     assert(serial_length != 0);
@@ -3050,11 +3050,14 @@ static void test_aprs_controller(void)
     controller.hardware.write_dac_port = write_dac;
     controller.hardware.tx_wave_active = NULL;
     controller.hardware.next_tx_wave_sample = NULL;
-    assert(h9_aprs_controller_configure_tx(&controller, 0, 0));
-    assert(h9_aprs_controller_queue_tx_byte(&controller, 0xFFu));
     h9_aprs_controller_adc_tick(&controller);
     assert(fake.demod_calls == 4 && fake.dac_calls == 1 &&
-           fake.dac == 0xB5u);
+           fake.dac == 0x85u);
+    controller.hardware.tx_wave_active = tx_active;
+    fake.dac_calls = 0;
+    h9_aprs_controller_adc_tick(&controller);
+    assert(fake.demod_calls == 5 && fake.dac_calls == 1 &&
+           fake.dac == 0x85u);
 
     fake.uart_length = 0;
     assert(h9_aprs_ring_push(&controller.demod.receive, 0x7Eu));
