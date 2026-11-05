@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'">
+  <meta name="robots" content="noindex, nofollow">
+  <title>KISS TNC test page | H9 Toolbox</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <h1>Browser KISS TNC</h1>
+    <p>APRS packet transport proof of concept. Connect a KISS-compatible TNC, or try simulated packets in demo mode. Bluetooth and serial connections stay in your browser.</p>
+    <p class="note">The H9’s Bluetooth KISS endpoint is not yet verified. Its known FF00 programming service is not a confirmed packet interface. This page sends no programming handshake or automatic radio commands.</p>
+    <section aria-labelledby="connection-title">
+      <h2 id="connection-title">Connection</h2>
+      <label>Transport<select id="transport"><option value="demo">Demo (no radio)</option><option value="ble">Bluetooth LE GATT</option><option value="serial">Serial / paired Bluetooth serial</option></select></label>
+      <fieldset id="bleFields" hidden><legend>BLE KISS endpoint</legend>
+        <p>Enter UUIDs supplied by your TNC. TX is the characteristic the browser writes; RX is the characteristic it subscribes to.</p>
+        <label>Service UUID<input id="service" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false"></label>
+        <label>TX characteristic UUID<input id="write" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false"></label>
+        <label>RX characteristic UUID<input id="notify" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false"></label>
+      </fieldset>
+      <fieldset id="serialFields" hidden><legend>Serial endpoint</legend>
+        <p>Select an existing KISS serial port. For Bluetooth Classic SPP, pair in your operating system first; browser support for paired Bluetooth ports varies. The TNC must already be in KISS mode.</p>
+        <label>Baud rate<input id="baud" type="number" min="300" max="1000000" value="9600"></label>
+      </fieldset>
+      <div class="actions"><button id="connect">Connect</button><button id="disconnect" disabled>Disconnect</button><button id="sample" disabled>Simulate received packet</button></div>
+      <p id="state" role="status">Disconnected</p>
+    </section>
+    <section aria-labelledby="send-title">
+      <h2 id="send-title">Send an APRS packet</h2>
+      <p>Enter a packet in monitor format. On hardware, use your own licensed callsign and the appropriate channel. This sends a packet to the TNC; it does not confirm RF transmission or delivery.</p>
+      <label>Packet<textarea id="packet" rows="3" spellcheck="false">N0CALL-1&gt;APRS:>Browser KISS TNC demo</textarea></label>
+      <label>KISS port<input id="port" type="number" min="0" max="15" value="0"></label>
+      <label class="check"><input id="allowTransmit" type="checkbox"> Enable transmission to connected hardware</label>
+      <button id="send" disabled>Send packet</button>
+    </section>
+    <section aria-labelledby="monitor-title">
+      <div class="actions"><h2 id="monitor-title">Packet monitor</h2><button id="clear">Clear</button></div>
+      <p>RX and TX show AX.25 UI packets. Other KISS commands and undecodable frames remain visible as hex. Latest 200 entries; nothing is uploaded or saved.</p>
+      <ol id="monitor" aria-label="Packet history"></ol>
+      <p id="error" role="alert"></p>
+    </section>
+  </main>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
