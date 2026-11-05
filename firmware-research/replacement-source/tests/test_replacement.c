@@ -7352,8 +7352,10 @@ typedef struct {
     uint32_t target[12];
     uint32_t arg[12][4];
     unsigned count;
-    uint32_t branch_result;
+    int create_result;
+    unsigned failure_reports;
     volatile uint32_t *list;
+    volatile uint8_t *storage;
 } CorePostCapture;
 
 static uint32_t core_post_invoke(void *context, uint32_t target,
@@ -7368,45 +7370,83 @@ static uint32_t core_post_invoke(void *context, uint32_t target,
     capture->arg[index][1] = r1;
     capture->arg[index][2] = r2;
     capture->arg[index][3] = r3;
-    if (target == 0x02002CAEu)
+    if (target == 0x02002CAEu && r0 == 0x12940u)
+        assert(capture->storage[0] == 0xA5u &&
+               capture->list[0] == 0u);
+    if (target == 0x02002CAEu && r0 == 0x12F38u) {
         assert(capture->list[0] == 0x12F38u &&
                capture->list[1] == 0x12F38u);
-    return target == 0x01E2D022u ? capture->branch_result : 0u;
+        for (unsigned offset = 0u; offset < 0xA4u; ++offset)
+            assert(capture->storage[offset] == 0u);
+    }
+    return 0u;
+}
+
+static int core_post_create(void *context, uintptr_t entry,
+                            uintptr_t argument, uint8_t byte_4,
+                            uint16_t halfword_6, uint16_t halfword_8,
+                            const char *name)
+{
+    CorePostCapture *capture = (CorePostCapture *)context;
+    assert(strcmp(name, "dev_mg") == 0 && halfword_8 == 0x0200u);
+    (void)core_post_invoke(context, 0x02003102u, (uint32_t)entry,
+                           (uint32_t)argument, byte_4, halfword_6);
+    return capture->create_result;
+}
+
+static void core_post_report_failure(void *context)
+{
+    ++((CorePostCapture *)context)->failure_reports;
 }
 
 static void test_main_core_post_samples(void)
 {
     static const uint32_t expected[] = {
-        0x01E2475Au, 0x02003904u, 0x01E60776u, 0x01E24F92u,
-        0x021127B4u, 0x02002CAEu, 0x02002948u, 0x01E2D022u,
-        0x01E4A674u, 0x02002B66u, 0x01E5176Eu
+        0x01E2475Au, 0x02003904u, 0x01E60776u, 0x02002CAEu,
+        0x02002CAEu, 0x02002948u, 0x02003102u,
+        0x0200010Au, 0x02002B66u, 0x01E5176Eu
     };
     uint32_t module = 0u, list[2] = { 0u, 0u };
+    uint8_t storage[0xA4u];
     uint8_t state = 7u;
-    CorePostCapture capture = { { 0 }, {{ 0 }}, 0u, 1u, list };
+    CorePostCapture capture = {
+        { 0 }, {{ 0 }}, 0u, 1, 0u, list, storage
+    };
+    H9MainTaskHooks task_hooks = {
+        &capture, core_post_create, core_post_report_failure
+    };
     H9MainCorePostSamples post = {
-        &module, list, &state, core_post_invoke, &capture
+        &module, list, storage, &state,
+        &task_hooks, 0x12345678u, core_post_invoke, &capture
     };
     unsigned index;
+    memset(storage, 0xA5, sizeof storage);
     assert(!h9_main_core_post_samples_run(NULL));
     assert(h9_main_core_post_samples_run(&post));
-    assert(module == 0x01EB1361u && capture.count == 11u);
+    assert(module == 0x01EB1361u && capture.count == 10u &&
+           capture.failure_reports == 1u);
     for (index = 0u; index < capture.count; ++index)
         assert(capture.target[index] == expected[index]);
     assert(capture.arg[0][0] == 23u &&
            capture.arg[0][2] == 0x01E8A908u &&
            capture.arg[1][1] == 0x01E8A826u &&
            capture.arg[1][2] == 2u &&
-           capture.arg[4][0] == 0x12F40u &&
-           capture.arg[4][2] == 0xA4u &&
-           capture.arg[7][2] == 0x01EB17DFu &&
-           capture.arg[10][0] == 7u);
+           capture.arg[3][0] == 0x12940u &&
+           capture.arg[4][0] == 0x12F38u &&
+           capture.arg[6][0] == 0x12345678u &&
+           capture.arg[6][2] == 3u &&
+           capture.arg[6][3] == 0x0200u &&
+           capture.arg[7][0] == 0xFFFFFFF2u &&
+           capture.arg[9][0] == 7u);
     capture.count = 0u;
-    capture.branch_result = 0u;
+    capture.create_result = 0;
+    list[0] = list[1] = 0u;
+    memset(storage, 0xA5, sizeof storage);
     assert(h9_main_core_post_samples_run(&post));
-    assert(capture.count == 10u &&
-           capture.target[8] == 0x02002B66u &&
-           capture.target[9] == 0x01E5176Eu);
+    assert(capture.count == 9u &&
+           capture.failure_reports == 1u &&
+           capture.target[7] == 0x02002B66u &&
+           capture.target[8] == 0x01E5176Eu);
 }
 
 static uint32_t channel_default_word(const uint8_t *bytes, unsigned offset)

@@ -31,6 +31,19 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "647f7f73b4d96ab6a6e83a5d52fb55404994b9146993ff8ca077dfc66914a4fb"
     ):
         raise ValueError("main app_core post-sample sequence differs")
+    for start, end, expected in (
+        (0x024E92, 0x024E9C,
+         "d0251b671345f9bcedb13a5b701224ca4dfab1c451d92effd6869a9f36d7e2f8"),
+        (0x04A574, 0x04A578,
+         "8d2dc18219c4cd47323a1b57a5cb80b25581565311dfee263ee9cc6cf37b9277"),
+    ):
+        if sha256(main_app[start:end]).hexdigest() != expected:
+            raise ValueError(f"main app_core wrapper differs at 0x{start:X}")
+    if main_app[0x0B16DF:0x0B16E6] != b"dev_mg\x00" or \
+            sha256(main_app[0x02CF22:0x02CF66]).hexdigest() != (
+                "d020b759cb79c94e2a92f7cf1fe1208deb8d47064e4dae615f3fb3fa3610426e"
+            ):
+        raise ValueError("main dev_mg task-launch input differs")
     for offset, expected in (
         (0x0C5EEE, "BE EA 47 31"),
         (0x0C5F2A, "BE EA 29 31"),

@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "h9_main_task_registry.h"
+
 /* Stock app+0x060E16..0x060E96, after the 16+10 ADC samples. Calls into
  * unported ROM/application services are explicit; the caller must supply
  * implementations before this can run on the replacement board. */
@@ -14,7 +16,10 @@ typedef uint32_t (*H9MainCorePostInvoke)(void *context, uint32_t target,
 typedef struct {
     volatile uint32_t *module_11bc0;
     volatile uint32_t *list_12f38;
+    volatile uint8_t *storage_12f40;
     volatile uint8_t *state_12188;
+    const H9MainTaskHooks *task_hooks;
+    uintptr_t dev_mg_entry;
     H9MainCorePostInvoke invoke;
     void *context;
 } H9MainCorePostSamples;
