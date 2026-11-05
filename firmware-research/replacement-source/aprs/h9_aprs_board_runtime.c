@@ -1,5 +1,4 @@
 #include <stddef.h>
-#include <string.h>
 
 #include "h9_aprs_clock.h"
 #include "h9_aprs_boot_banner.h"
@@ -8,6 +7,8 @@
 #include "h9_aprs_status.h"
 #include "h9_aprs_tx_defaults.h"
 
+/* Replacement board entry. It is linked into the diagnostic image, but its
+ * peripheral routing has not been verified on the physical APRS board. */
 static H9AprsRuntimeState runtime;
 
 static void board_uart_write(void *context, const uint8_t *data, size_t length)
@@ -111,24 +112,6 @@ static bool board_next_tx_wave(void *context, uint8_t *sample)
     return h9_aprs_tx_runtime_next_sample(&state->tx_runtime, sample);
 }
 
-/* Temporary freestanding shims for a whole-archive link. */
-void *memcpy(void *destination, const void *source, size_t length)
-{
-    unsigned char *to = (unsigned char *)destination;
-    const unsigned char *from = (const unsigned char *)source;
-    size_t index;
-    for (index = 0; index < length; ++index) to[index] = from[index];
-    return destination;
-}
-
-void *memset(void *destination, int value, size_t length)
-{
-    unsigned char *to = (unsigned char *)destination;
-    size_t index;
-    for (index = 0; index < length; ++index) to[index] = (unsigned char)value;
-    return destination;
-}
-
 __attribute__((noreturn)) void h9_aprs_board_main(void)
 {
     uint32_t system_clock_hz;
@@ -221,7 +204,7 @@ __attribute__((noreturn)) void h9_aprs_board_main(void)
         runtime.gate_overflow_seen = gate_state.queue_overflow;
         /* Replacement command 0x53 carries a bounded permit. The main
          * board adapter must still prove RF route and keying before sending
-         * it; this diagnostic entry has no such main-side adapter. */
+         * it; this board entry has no main-side adapter. */
         (void)h9_aprs_tx_runtime_step(&runtime.tx_runtime,
                                       h9_aprs_tx_permit_active(
                                           &runtime.tx_permit, now),

@@ -33,7 +33,7 @@ IRQ_ROOTS = tuple(root for root in ROOTS if root not in THREAD_ROOTS)
 # https://developer.arm.com/community/arm-community-blogs/b/architectures-and-processors-blog/posts/how-much-stack-memory-do-i-need-for-my-arm-cortex--m-applications
 EXCEPTION_FRAME_BYTES = 36
 KNOWN_BOARD_CALLBACKS = {
-    # These bindings are explicit in aprs/link_check_runtime.c and the
+    # These bindings are explicit in aprs/h9_aprs_board_runtime.c and the
     # controller/demod source. Generic callbacks can have other targets.
     "stream_byte": ("board_uart_write",),
     "h9_wire_encode_stream": ("board_uart_write",),

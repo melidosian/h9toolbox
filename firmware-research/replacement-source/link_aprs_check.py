@@ -110,20 +110,12 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         "-fno-builtin", "-Wall", "-Wextra", "-Werror",
         "-fstack-usage",
     ]
-    runtime = output / "link_check_runtime.o"
-    startup_source = output / "h9_aprs_startup.o"
     vectors = output / "link_check_startup.o"
-    run([compiler, *compiler_flags, "-std=c11", "-c",
-         f"-I{ROOT / 'common'}", f"-I{ROOT / 'aprs'}",
-         str(source_dir / "link_check_runtime.c"), "-o", str(runtime)])
-    run([compiler, *compiler_flags, "-std=c11", "-c",
-         str(source_dir / "h9_aprs_startup.c"), "-o", str(startup_source)])
     run([compiler, *compiler_flags, "-c",
          str(source_dir / "link_check_startup.S"), "-o", str(vectors)])
     stack_usage = read_stack_usage([
         *(output / "objects" / Path(item["object"]).with_suffix(".su")
           for item in object_manifest["objects"]),
-        runtime.with_suffix(".su"), startup_source.with_suffix(".su"),
     ])
 
     elf = output / "h9_aprs_link_check.elf"
@@ -132,8 +124,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     archive = output / "objects" / object_manifest["archive"]
     run([compiler, "-mcpu=cortex-m0", "-mthumb", "-nostdlib",
          "-Wl,--build-id=none", f"-Wl,-Map={map_file}",
-         "-T", str(script), "-o", str(elf), str(vectors), str(startup_source),
-         str(runtime),
+         "-T", str(script), "-o", str(elf), str(vectors),
          "-Wl,--whole-archive", str(archive), "-Wl,--no-whole-archive",
          "-lgcc"])
     elf_data = elf.read_bytes()
@@ -171,6 +162,7 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
     symbol_values = {}
     required_symbols = {
         "__bss_end", "__stack_top", "Default_Handler",
+        "h9_aprs_boot", "h9_aprs_board_main", "memcpy", "memset",
         "h9_aprs_nmi_handler", "h9_aprs_hardfault_handler",
         "h9_aprs_svc_handler", "h9_aprs_pendsv_handler",
         "h9_aprs_systick_handler",
@@ -233,7 +225,9 @@ def link(compiler: str, output: Path, stock_image: Path | None = None,
         },
         "compiler": compiler,
         "source_objects": len(object_manifest["objects"]),
-        "startup_source_object": startup_source.name,
+        "startup_source_object": "aprs_h9_aprs_startup.o",
+        "board_runtime_from_archive": True,
+        "freestanding_memory_routines_from_archive": True,
         "vector_entries": 48,
         "reserved_zero_vectors": sorted(RESERVED_VECTOR_SLOTS),
         "default_spin_vectors": sorted(DEFAULT_VECTOR_SLOTS),

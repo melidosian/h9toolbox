@@ -19,8 +19,8 @@
 #include "h9_aprs_uart_receive.h"
 #include "h9_aprs_wave_output.h"
 
-/* One instance is reserved in the diagnostic board entry so the linker
- * measures the RAM required by the current receive, decode, and TX source. */
+/* One instance belongs to the replacement board runtime. The linker
+ * measures the RAM required by its receive, decode, and TX source. */
 typedef struct {
     H9AprsController controller;
     H9AprsTxService tx_service;
