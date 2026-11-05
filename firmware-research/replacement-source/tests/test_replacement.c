@@ -62,6 +62,7 @@
 #include "h9_main_clock_timing.h"
 #include "h9_main_core_list.h"
 #include "h9_main_core_init.h"
+#include "h9_main_core_samples.h"
 #include "h9_main_channel_defaults.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_exception.h"
@@ -7213,6 +7214,67 @@ static void test_main_core_init_walkers(void)
            h9_main_event_records[2].word[6] == 0x01E2C88Au);
 }
 
+typedef struct {
+    volatile uint32_t *adc;
+    uint32_t modes[2];
+    unsigned mode_count;
+    unsigned init_count;
+    bool allow_ready;
+} CoreSamplesCapture;
+
+static void core_samples_initialize(void *context)
+{
+    CoreSamplesCapture *capture = (CoreSamplesCapture *)context;
+    assert(capture->adc[0] == 0u);
+    ++capture->init_count;
+}
+
+static void core_samples_select(void *context, uint32_t mode)
+{
+    CoreSamplesCapture *capture = (CoreSamplesCapture *)context;
+    assert(capture->mode_count < 2u && capture->init_count == 1u);
+    capture->modes[capture->mode_count++] = mode;
+    capture->adc[1] = mode == 0x50000Fu ? 0x123u : 0x456u;
+    if (capture->allow_ready) capture->adc[0] |= 0x80u;
+}
+
+static void test_main_core_samples(void)
+{
+    uint32_t adc[2] = { 0xFFFFFFFFu, 0u };
+    uint16_t captured[H9_MAIN_CORE_SAMPLE_COUNT] = { 0 };
+    uint16_t average = 0xFFFFu, ready = 0u;
+    CoreSamplesCapture fake = { adc, { 0u, 0u }, 0u, 0u, true };
+    H9MainCoreSamples samples = {
+        adc, captured, &average, &ready, &fake,
+        core_samples_initialize, core_samples_select, 3u
+    };
+    H9MainCoreSamples target;
+    unsigned index;
+    assert(!h9_main_core_samples_run(NULL));
+    assert(h9_main_core_samples_run(&samples));
+    assert(fake.init_count == 1u && fake.mode_count == 2u &&
+           fake.modes[0] == 0x50000Fu && fake.modes[1] == 0xFu);
+    for (index = 0u; index < H9_MAIN_CORE_SAMPLE_COUNT; ++index)
+        assert(captured[index] == 0x123u);
+    assert(average == 0x456u && ready == 1u &&
+           (adc[0] & 0x40u) != 0u);
+
+    adc[0] = 0xFFFFFFFFu;
+    fake.mode_count = fake.init_count = 0u;
+    fake.allow_ready = false;
+    average = 0xFFFFu;
+    ready = 0u;
+    assert(!h9_main_core_samples_run(&samples));
+    assert(fake.mode_count == 1u && average == 0xFFFFu && ready == 0u);
+    h9_main_core_samples_bind_target(&target, 100u);
+    assert((uintptr_t)target.adc_1e3100 == 0x1E3100u &&
+           (uintptr_t)target.samples_12338 == 0x12338u &&
+           (uintptr_t)target.average_11b96 == 0x11B96u &&
+           (uintptr_t)target.ready_11b98 == 0x11B98u &&
+           target.initialize != NULL && target.select_mode == NULL &&
+           target.poll_limit == 100u);
+}
+
 static uint32_t channel_default_word(const uint8_t *bytes, unsigned offset)
 {
     return (uint32_t)bytes[offset] |
@@ -7516,6 +7578,7 @@ int main(void)
     test_main_pin_actions();
     test_main_core_list();
     test_main_core_init_walkers();
+    test_main_core_samples();
     test_main_channel_default_prefix();
     test_main_sys_event_init();
     test_main_sys_event_task_prelude();

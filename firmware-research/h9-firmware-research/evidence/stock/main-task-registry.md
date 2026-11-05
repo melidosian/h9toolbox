@@ -84,6 +84,11 @@ slice SHA-256 is
 `495683945a63e4d89abee6ab3f394d7e7267fc2bd7f9f76059e013b47aef6583`.
 The list's consumers and app-core integration are still unknown.
 
+The direct `app_core` setup call at app+`0x060AF8` resets the pin registry,
+then captures ADC samples and a ten-sample average. The bounded source
+port and the conflicting Ghidra/vendor decode of its poll condition are
+documented in [main-core-adc-samples.md](main-core-adc-samples.md).
+
 The second initializer in the later group, app+`0x048A46`, starts with two
 loops over RAM records at `0x143B0` and `0x144F8`, each with a stride of
 `0xA4` and two iterations. It writes a zero word, halfwords `10` and `300`,
