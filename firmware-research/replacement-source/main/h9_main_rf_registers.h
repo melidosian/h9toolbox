@@ -56,4 +56,17 @@ bool h9_main_rf_write_frequency(uint32_t frequency_10hz,
 bool h9_main_rf_write_af(uint8_t mode, H9MainRfWrite write_register,
                          void *opaque);
 
+typedef bool (*H9MainAudioRequest)(void *opaque, uint8_t source,
+                                    bool enabled);
+
+/* Stock app+0x05CB2C receive setup. The two RAM inputs retain their
+ * addresses because their wider state meanings are not verified. The
+ * source-4 audio request uses the ordinary speaker arbiter, not the APRS
+ * mute policy. Caller must supply the real RF bus and audio arbiter. */
+bool h9_main_rf_receive_setup(bool ram_11d28_nonzero,
+                               bool ram_11afe_nonzero,
+                               H9MainRfWrite write_register,
+                               H9MainAudioRequest request_audio,
+                               void *opaque);
+
 #endif

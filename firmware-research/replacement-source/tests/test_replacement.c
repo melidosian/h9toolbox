@@ -895,6 +895,69 @@ static void test_main_rf_register_values(void)
     assert(!h9_main_rf_write_af(1u, NULL, &bus));
 }
 
+typedef struct {
+    uint8_t registers[3];
+    uint16_t words[3];
+    unsigned writes;
+    unsigned audio_calls;
+    unsigned fail_write;
+    bool fail_audio;
+} FakeRfReceiveBus;
+
+static bool fake_rf_receive_write(void *opaque, uint8_t reg, uint16_t word)
+{
+    FakeRfReceiveBus *bus = (FakeRfReceiveBus *)opaque;
+    if (bus->writes == bus->fail_write || bus->writes >= 3u) return false;
+    bus->registers[bus->writes] = reg;
+    bus->words[bus->writes] = word;
+    ++bus->writes;
+    return true;
+}
+
+static bool fake_rf_receive_audio(void *opaque, uint8_t source, bool enabled)
+{
+    FakeRfReceiveBus *bus = (FakeRfReceiveBus *)opaque;
+    assert(bus->writes == 3u && source == 4u && !enabled);
+    ++bus->audio_calls;
+    return !bus->fail_audio;
+}
+
+static void test_main_rf_receive_setup(void)
+{
+    FakeRfReceiveBus bus = { { 0 }, { 0 }, 0u, 0u, 4u, false };
+    assert(!h9_main_rf_receive_setup(false, false, NULL,
+                                      fake_rf_receive_audio, &bus));
+    assert(!h9_main_rf_receive_setup(false, false,
+                                      fake_rf_receive_write, NULL, &bus));
+    assert(bus.writes == 0u);
+    assert(h9_main_rf_receive_setup(false, false,
+                                     fake_rf_receive_write,
+                                     fake_rf_receive_audio, &bus));
+    assert(bus.writes == 3u && bus.audio_calls == 1u);
+    assert(bus.registers[0] == 0x30u && bus.words[0] == 0xBDF5u);
+    assert(bus.registers[1] == 0x47u && bus.words[1] == 0x6140u);
+    assert(bus.registers[2] == 0x70u && bus.words[2] == 0u);
+    bus.writes = 0u;
+    bus.audio_calls = 0u;
+    assert(h9_main_rf_receive_setup(true, true,
+                                     fake_rf_receive_write,
+                                     fake_rf_receive_audio, &bus));
+    assert(bus.words[0] == 0xC1FEu && bus.audio_calls == 0u);
+    bus.writes = 0u;
+    bus.fail_write = 1u;
+    assert(!h9_main_rf_receive_setup(false, false,
+                                      fake_rf_receive_write,
+                                      fake_rf_receive_audio, &bus));
+    assert(bus.writes == 1u && bus.audio_calls == 0u);
+    bus.writes = 0u;
+    bus.fail_write = 4u;
+    bus.fail_audio = true;
+    assert(!h9_main_rf_receive_setup(false, false,
+                                      fake_rf_receive_write,
+                                      fake_rf_receive_audio, &bus));
+    assert(bus.writes == 3u && bus.audio_calls == 1u);
+}
+
 static void test_main_gpio_query_reply(void)
 {
     static const uint8_t query[] = { 0xC0u, 0x11u, 3u, 0xC0u };
@@ -8002,6 +8065,7 @@ int main(void)
     test_main_audio_policy();
     test_main_audio_status();
     test_main_rf_register_values();
+    test_main_rf_receive_setup();
     test_main_gpio_query_reply();
     test_main_control_frames();
     test_main_control_volume();

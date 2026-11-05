@@ -31,6 +31,19 @@ rejects a zero or out-of-range corrected frequency, which is a replacement
 guard. This source does not implement the later setup within stock
 `FUN_01e59094` or `FUN_01e5ad68`: Ghidra reports a bad instruction in
 the former, and the latter also changes RF outputs before packet send.
+
+At app+`0x05CB2C`, a receive-setup helper reads RAM `0x11D28` and writes
+RF register `0x30` as `0xBDF5` when zero or `0xC1FE` otherwise. It then
+calls the AF selector with mode `1` (register `0x47 = 0x6140`), writes
+register `0x70 = 0`, and, if RAM `0x11AFE` is zero, requests audio source
+`4` OFF through app+`0x05224C`. The independent instruction listing
+confirms this order, and the exact app+`0x05CB2C..0x05CB70` bytes are
+pinned to the stock image. `h9_main_rf_receive_setup` now expresses these
+operations through RF and audio callbacks; its host test checks both
+guard branches, call order, and stopped-on-failure behavior. The source-4
+request follows the ordinary speaker arbiter. It is not a verified
+Bluetooth output gate, decoder tap, or per-channel receive indication.
+
 The ROM RF register transport at `0x02001634`, the precise PTT assertion
 point, and emitted frequency remain unverified. This is therefore a
 partial source port and cannot serve as the unkeyed TX preparation adapter

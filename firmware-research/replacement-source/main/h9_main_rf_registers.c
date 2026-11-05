@@ -96,3 +96,19 @@ bool h9_main_rf_write_af(uint8_t mode, H9MainRfWrite write_register,
         return false;
     return write_register(opaque, 0x47u, word);
 }
+
+bool h9_main_rf_receive_setup(bool ram_11d28_nonzero,
+                               bool ram_11afe_nonzero,
+                               H9MainRfWrite write_register,
+                               H9MainAudioRequest request_audio,
+                               void *opaque)
+{
+    if (write_register == NULL || request_audio == NULL) return false;
+    if (!write_register(opaque, 0x30u,
+                        ram_11d28_nonzero ? 0xC1FEu : 0xBDF5u) ||
+        !h9_main_rf_write_af(1u, write_register, opaque) ||
+        !write_register(opaque, 0x70u, 0u)) return false;
+    if (!ram_11afe_nonzero && !request_audio(opaque, 4u, false))
+        return false;
+    return true;
+}

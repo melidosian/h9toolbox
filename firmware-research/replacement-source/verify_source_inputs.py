@@ -65,6 +65,10 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "333d84d1d2d8088a8b7005799e3b4dd9d652c5a042c0f622c87e63eff3e2bdb6"
     ):
         raise ValueError("main audio status selector differs")
+    if sha256(main_app[0x05CB2C:0x05CB70]).hexdigest() != (
+        "b69cd7ce1b206d27dbd51effa0bebf8ab749d7bcecb207276ac4b02dbf7c6ead"
+    ):
+        raise ValueError("main RF receive setup differs")
     if sha256(main_app[0x0A27E0:0x0A2844]).hexdigest() != (
         "98284a1d9d211728ec88948455d2b7947ef56c605e42df0c83855a21cd069f37"
     ):
