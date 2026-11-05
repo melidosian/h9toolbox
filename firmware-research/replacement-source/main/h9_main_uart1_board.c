@@ -37,12 +37,13 @@ int h9_main_uart1_board_open(H9MainAprsUart1Link *link,
 
     uart = link->irq.registers;
     if ((uart[UART_CONTROL] & 1u) != 0u) return 0;
-    hooks->configure_pins(hooks->context, record->tx_pin, record->rx_pin);
+    if (!hooks->configure_pins(hooks->context, record->tx_pin,
+                               record->rx_pin)) return 0;
     uart[UART_CONTROL] = 0x3400u;
-    hooks->initialize_dma(hooks->context, 0x001E360u);
-    hooks->initialize_dma(hooks->context, 0x001E3B0u);
-    hooks->register_irq(hooks->context, 0x13u, 3u,
-                        uart1_vector, link);
+    if (!hooks->initialize_dma(hooks->context, 0x001E360u) ||
+        !hooks->initialize_dma(hooks->context, 0x001E3B0u)) return 0;
+    if (!hooks->register_irq(hooks->context, 0x13u, 3u,
+                             uart1_vector, link)) return 0;
     link->receive.produced = 0u;
     link->receive.consumed = 0u;
     uart[UART_RX_END] = record->storage_address + record->storage_size;
@@ -53,7 +54,6 @@ int h9_main_uart1_board_open(H9MainAprsUart1Link *link,
         uart[UART_CONTROL] |= 2u;
     else
         uart[UART_CONTROL] &= ~2u;
-    hooks->configure_baud(hooks->context,
-                          (record->baud & 0x1FFFFFEu) >> 1);
-    return 1;
+    return hooks->configure_baud(hooks->context,
+                                 (record->baud & 0x1FFFFFEu) >> 1);
 }

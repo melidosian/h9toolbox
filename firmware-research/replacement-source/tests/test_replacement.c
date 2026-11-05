@@ -76,6 +76,7 @@
 #include "h9_main_serial_dma.h"
 #include "h9_main_uart1_irq.h"
 #include "h9_main_uart1_board.h"
+#include "h9_main_uart1_board_target.h"
 #include "h9_main_uart1_baud.h"
 #include "h9_main_uart1_dma_rom.h"
 #include "h9_main_uart1_pins.h"
@@ -5001,23 +5002,33 @@ typedef struct {
     void *handler_context;
 } MainUartBoardCapture;
 
-static void main_uart_board_pins(void *context, uint8_t tx, uint8_t rx)
+static bool main_uart_board_pins(void *context, uint8_t tx, uint8_t rx)
 {
     MainUartBoardCapture *capture = (MainUartBoardCapture *)context;
     assert(tx == 0x20u && rx == 0x21u);
     capture->steps[capture->count++] = 1u;
+    return true;
 }
 
-static void main_uart_board_dma(void *context, uint32_t descriptor)
+static bool main_uart_board_dma(void *context, uint32_t descriptor)
 {
     MainUartBoardCapture *capture = (MainUartBoardCapture *)context;
     assert(capture->registers[0] == 0x3400u);
     assert(descriptor == (capture->count == 1u ?
                           0x001E360u : 0x001E3B0u));
     capture->steps[capture->count++] = 2u;
+    return true;
 }
 
-static void main_uart_board_irq(void *context, uint8_t number,
+static bool main_uart_board_fail_dma(void *context, uint32_t descriptor)
+{
+    MainUartBoardCapture *capture = (MainUartBoardCapture *)context;
+    assert(capture->registers[0] == 0x3400u);
+    assert(descriptor == 0x001E360u);
+    return false;
+}
+
+static bool main_uart_board_irq(void *context, uint8_t number,
                                  uint8_t priority, void (*handler)(void *),
                                  void *handler_context)
 {
@@ -5026,9 +5037,10 @@ static void main_uart_board_irq(void *context, uint8_t number,
     capture->handler = handler;
     capture->handler_context = handler_context;
     capture->steps[capture->count++] = 3u;
+    return true;
 }
 
-static void main_uart_board_baud(void *context, uint32_t half_baud)
+static bool main_uart_board_baud(void *context, uint32_t half_baud)
 {
     MainUartBoardCapture *capture = (MainUartBoardCapture *)context;
     assert(half_baud == 9600u);
@@ -5037,6 +5049,7 @@ static void main_uart_board_baud(void *context, uint32_t half_baud)
     assert(capture->registers[8] == 0x14800u);
     assert(capture->registers[9] == 1024u);
     capture->steps[capture->count++] = 4u;
+    return true;
 }
 
 static void test_main_uart1_board_open(void)
@@ -5072,6 +5085,13 @@ static void test_main_uart1_board_open(void)
     assert(!h9_main_uart1_board_open(&link, &record, &board));
     assert(registers[0] == 1u && board_capture.count == 0u);
     registers[0] = 0u;
+    board.initialize_dma = main_uart_board_fail_dma;
+    assert(!h9_main_uart1_board_open(&link, &record, &board));
+    assert(registers[0] == 0x3400u && board_capture.count == 1u &&
+           board_capture.handler == NULL);
+    board_capture.count = 0u;
+    board.initialize_dma = main_uart_board_dma;
+    registers[0] = 0u;
     assert(h9_main_uart1_board_open(&link, &record, &board));
     assert(board_capture.count == 5u);
     assert(board_capture.steps[0] == 1u &&
@@ -5083,6 +5103,105 @@ static void test_main_uart1_board_open(void)
     registers[0] = 0x4008u;
     board_capture.handler(board_capture.handler_context);
     assert(link.receive.produced == 1024u && dma_capture.rx_acks == 1u);
+}
+
+typedef struct {
+    MainUartRomCapture dma;
+    unsigned irq_enters;
+    unsigned irq_leaves;
+} MainUartTargetCapture;
+
+static void main_uart_target_enter(void *context, uint32_t bank,
+                                   uint32_t priority, uint32_t shift)
+{
+    MainUartTargetCapture *capture = (MainUartTargetCapture *)context;
+    assert(bank == 2u && priority == 3u && shift == 12u);
+    capture->irq_enters++;
+}
+
+static void main_uart_target_leave(void *context, uint32_t value,
+                                   uint32_t field, uint32_t shift)
+{
+    MainUartTargetCapture *capture = (MainUartTargetCapture *)context;
+    assert((value & 0xF000u) == field && shift == 12u);
+    capture->irq_leaves++;
+}
+
+static void test_main_uart1_board_target(void)
+{
+    static H9MainUart1BoardTarget target;
+    static H9MainAprsUart1Link link;
+    static MainUartTargetCapture capture;
+    static uint32_t uart[11];
+    static uint32_t pinmux[10];
+    static uint32_t gpio[6];
+    static uint32_t vectors[64];
+    static uint32_t controls[8];
+    static uint8_t receive[2048];
+    static uint8_t outgoing[32];
+    static H9MainUart1TxSlot slot;
+    uint32_t clock_ready = 0u;
+    uint32_t timebase = 1000u;
+    uint32_t activity = 5u;
+    H9MainAprsUart1DmaHooks hooks;
+    H9MainSerialOpenRecord record;
+
+    h9_main_uart1_board_target_bind(&target);
+    assert((uintptr_t)target.pins.pinmux_1e5100 == 0x001E5100u);
+    assert((uintptr_t)target.dma.initialize != 0u);
+    assert((uintptr_t)target.irq.vector_words_2bf00 == 0x0002BF00u);
+    assert((uintptr_t)target.baud.uart_registers == 0x001E2100u);
+    target.pins.pinmux_1e5100 = pinmux;
+    target.pins.gpio_1e5080 = gpio;
+    target.dma.initialize = main_uart_rom_prepare;
+    target.dma.prepare = main_uart_rom_prepare;
+    target.dma.enable = main_uart_rom_enable;
+    target.dma.acknowledge = main_uart_rom_ack;
+    target.dma.context = &capture.dma;
+    target.irq.context = &capture;
+    target.irq.vector_words_2bf00 = vectors;
+    target.irq.control_words_10f100 = controls;
+    target.irq.enter_02001634 = main_uart_target_enter;
+    target.irq.leave_02001650 = main_uart_target_leave;
+    target.baud.uart_registers = uart;
+    target.baud.clock_ready_d9e4 = &clock_ready;
+    target.baud.timebase_d9dc = &timebase;
+    target.baud.activity_1e34c = &activity;
+    slot.storage = outgoing;
+    slot.dma_address = 0x16000u;
+    slot.capacity = sizeof outgoing;
+    slot.length = 0u;
+    assert(h9_main_uart1_dma_rom_make_hooks(&hooks, &target.dma));
+    assert(h9_main_aprs_uart1_link_init(&link, uart, receive,
+                                        sizeof receive, 1024u, &slot, 1u,
+                                        &hooks, NULL, NULL));
+    h9_main_aprs_serial_profile(&record, 0x14000u, 0u);
+    assert(!h9_main_uart1_board_target_open(&target, &link, &record));
+    assert(uart[0] == 0u && capture.dma.count == 0u &&
+           pinmux[9] == 0u && vectors[0x13] == 0u);
+
+    clock_ready = 48000000u;
+    link.dma.prepare_tx = main_uart_link_prepare;
+    assert(!h9_main_uart1_board_target_open(&target, &link, &record));
+    assert(uart[0] == 0u && capture.dma.count == 0u);
+    link.dma.prepare_tx = hooks.prepare_tx;
+    assert(h9_main_uart1_board_target_open(&target, &link, &record));
+    assert(capture.dma.count == 2u &&
+           capture.dma.descriptors[0] == 0x001E360u &&
+           capture.dma.descriptors[1] == 0x001E3B0u);
+    assert(pinmux[9] == 0x80u && pinmux[7] == 0x04u &&
+           gpio[3] == 3u);
+    assert(vectors[0x13] ==
+           (uint32_t)(uintptr_t)h9_main_uart1_board_target_vector);
+    assert(capture.irq_enters == 1u && capture.irq_leaves == 1u);
+    assert(uart[0] == 0x3469u && uart[2] == 1249u &&
+           uart[7] == 0x14000u && uart[8] == 0x14800u &&
+           uart[9] == 1024u);
+
+    uart[0] = 0x4008u;
+    h9_main_uart1_board_target_vector();
+    assert(link.receive.produced == 1024u && capture.dma.count == 3u &&
+           capture.dma.descriptors[2] == 0x001E360u);
 }
 
 static void test_main_uart1_baud(void)
@@ -7193,6 +7312,7 @@ int main(void)
     test_main_tx_adapter_transaction();
     test_main_tx_ram_policy();
     test_main_uart1_board_open();
+    test_main_uart1_board_target();
     test_main_uart1_baud();
     test_timed_beacon_scheduler();
     test_recovered_bit_path();

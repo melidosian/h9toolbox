@@ -54,11 +54,18 @@ bit 0 at `+12`. For pin 33 it sets bit 1 at `+8` and `+16`, clears it at
 covers app+`0x078796..0x07882A`.
 `h9_main_uart1_pins.*` ports those writes with injectable MMIO and target
 addresses. Neither its electrical effect nor simultaneous pin ownership is
-hardware-verified. ROM DMA initialization, IRQ registration, and a real board
-entry are still absent. The UART1 ROM DMA initializer call sites at
+hardware-verified. The UART1 ROM DMA initializer call sites at
 app+`0x0C5A64` and `0x0C5A6C` reach app trampoline `0x078792`, whose first
 instruction jumps to ROM `0x02002948`. The replacement DMA adapter exposes
-that mapped entry with a guard for the two observed descriptor addresses;
-the board-open callback does not yet call it. The replacement does not yet
-select a fallback UART, prove DMA cache coherency, or bind the main reset
-entry to this board adapter. The Pi32 diagnostic link remains unflashable.
+that mapped entry with a guard for the two observed descriptor addresses.
+`h9_main_uart1_board_target.*` now wires pin setup, ROM DMA initialization,
+the existing IRQ registration adapter, and baud setup into the UART1 open
+sequence. Its no-argument vector bridge dispatches to the APRS UART link.
+Before any MMIO, it requires a nonzero clock state, matching link DMA hooks,
+and matching UART pointers. On Pi32 it also checks that RX and TX DMA
+addresses equal their backing pointers. The open hooks return success or
+failure; if a later hook fails, earlier writes may remain. A host test opens
+this adapter with fake MMIO and ROM calls and drives an RX interrupt through
+the registered vector. The main reset/board entry does not call it yet, and
+hardware behavior, fallback UART selection, and DMA cache coherency remain
+unverified. The Pi32 diagnostic link remains unflashable.

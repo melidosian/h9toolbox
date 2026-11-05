@@ -76,8 +76,8 @@ two 11-byte pin tables reside at copied RAM `0xDA60` and `0xDA6C`. The pair
 helper at app+`0x0C5652` tests control-register bit 0 for each UART. The
 fallback when the preferred channel is busy, interrupt callback behavior, and
 read/write timing remain untested. `replacement-source/main/h9_main_serial_profile.*`
-ports the 32-byte open record and pin-table route without touching hardware;
-no board adapter is connected yet.
+ports the 32-byte open record and pin-table route without touching hardware.
+The new UART1 board adapter is not called from the main board entry yet.
 
 The selected UART1 serial object has function slots for byte write
 (`0x01EC5E3A`), byte read (`0x01EC5E74`), bulk read (`0x01EC5EFA`), and bulk
@@ -131,9 +131,10 @@ has a recovered entry point, though its ROM implementation is still opaque.
 (`0x02002B66`), and shared TX/RX ACK (`0x02002722`) calls to the link hooks.
 The ACK adapter supplies the observed TX or RX descriptor address. Host
 tests exercise that routing; the target bindings have not been executed on
-the radio. DMA setup, cache/synchronization rule, actual interrupt-vector
-binding, and completed TX path are not yet connected to the replacement board
-entry.
+the radio. The UART1 board adapter now connects DMA initialization and the
+interrupt-vector bridge at source level. Cache/synchronization rules and the
+completed physical TX path remain unresolved, and the main board entry does
+not invoke this adapter.
 
 `replacement-source/main/h9_main_aprs_uart1_link.*` now binds the three
 replacement components at the C interface: an RX interrupt advances the DMA
@@ -142,4 +143,6 @@ frames enter persistent TX slots until TX event 1. An end-to-end fake-register
 test covers a command `0x11` GPIO query and the reply's TX completion. This is
 an integration of reconstructed behavior, not evidence of working board
 hardware. The link accepts required ROM operation callbacks and board-owned
-DMA buffers but still has no Pi32 UART/DMA initialization or vector binding.
+DMA buffers. The separate UART1 target adapter now provides source-level
+pin, DMA-initialization, baud, and vector binding, with a host test that
+dispatches an RX interrupt through that vector. No radio execution is proven.

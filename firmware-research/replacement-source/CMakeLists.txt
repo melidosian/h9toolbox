@@ -55,6 +55,7 @@ add_library(h9_replacement_core STATIC
     main/h9_main_serial_dma.c
     main/h9_main_uart1_irq.c
     main/h9_main_uart1_board.c
+    main/h9_main_uart1_board_target.c
     main/h9_main_uart1_baud.c
     main/h9_main_uart1_dma_rom.c
     main/h9_main_uart1_pins.c
