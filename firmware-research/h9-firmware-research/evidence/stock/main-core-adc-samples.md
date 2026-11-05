@@ -9,8 +9,8 @@ Addresses use the inferred `0x01E00100` application base.
 Immediately after resetting the pin registry, stock writes zero twice to
 MMIO `0x1E3100`, calls app+`0x04AA78`, then calls app+`0x04AAA0` with
 `0x50000F`. The first helper calls ROM `0x020000E2` with `(4,4,1,0)`
-and `(4,0,1,1)`; the second helper is a longer ADC mode selector that
-remains unported.
+and `(4,0,1,1)`; the second helper's two modes used here are now ported
+in [main-adc-mode-selector.md](main-adc-mode-selector.md).
 
 Stock takes 16 samples from MMIO `0x1E3104` and stores their low halfwords
 at RAM `0x12338..0x12356`. For each sample it waits for control bit 7 at
@@ -26,5 +26,5 @@ decoder and the vendor Pi32 `llvm-objdump` both decode the exact stock
 bytes `50 E8 FD 39` as a branch while bit 7 is clear. The replacement
 uses the vendor toolchain's bit-7 condition and bounds the poll. Physical
 ADC behavior has not been measured. `main/h9_main_core_samples.*` ports
-this bounded block through an injected mode selector; the larger
+this bounded block and binds the two required selector modes; the larger
 `app_core` setup call remains incomplete.

@@ -16,7 +16,7 @@ typedef struct {
     volatile uint16_t *ready_11b98;
     void *context;
     void (*initialize)(void *context); /* stock app+0x04AA78 */
-    void (*select_mode)(void *context, uint32_t mode); /* app+0x04AAA0 */
+    bool (*select_mode)(void *context, uint32_t mode); /* app+0x04AAA0 */
     uint32_t poll_limit;
 } H9MainCoreSamples;
 

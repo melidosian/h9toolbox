@@ -1,4 +1,5 @@
 #include "h9_main_core_samples.h"
+#include "h9_main_adc_mode.h"
 
 #include <stddef.h>
 
@@ -11,6 +12,14 @@ static void target_initialize(void *context)
     configure(4u, 0u, 1u, 1u);
 }
 
+static bool target_select_mode(void *context, uint32_t mode)
+{
+    H9MainAdcMode selection;
+    (void)context;
+    h9_main_adc_mode_bind_target(&selection);
+    return h9_main_adc_mode_select(&selection, mode, NULL);
+}
+
 void h9_main_core_samples_bind_target(H9MainCoreSamples *samples,
                                        uint32_t poll_limit)
 {
@@ -21,7 +30,7 @@ void h9_main_core_samples_bind_target(H9MainCoreSamples *samples,
     samples->ready_11b98 = (volatile uint16_t *)(uintptr_t)0x00011B98u;
     samples->context = NULL;
     samples->initialize = target_initialize;
-    samples->select_mode = NULL; /* app+0x04AAA0 is not ported yet */
+    samples->select_mode = target_select_mode;
     samples->poll_limit = poll_limit;
 }
 
@@ -62,14 +71,14 @@ bool h9_main_core_samples_run(H9MainCoreSamples *samples)
     samples->adc_1e3100[0] = 0u;
     samples->adc_1e3100[0] = 0u;
     samples->initialize(samples->context);
-    samples->select_mode(samples->context, 0x50000Fu);
+    if (!samples->select_mode(samples->context, 0x50000Fu)) return false;
     for (index = 0u; index < H9_MAIN_CORE_SAMPLE_COUNT; ++index) {
         if (!take_sample(samples, &value)) return false;
         samples->samples_12338[index] = value;
         acknowledge_sample(samples->adc_1e3100);
     }
     *samples->average_11b96 = 0u;
-    samples->select_mode(samples->context, 0xFu);
+    if (!samples->select_mode(samples->context, 0xFu)) return false;
     for (index = 0u; index < H9_MAIN_CORE_AVERAGE_COUNT; ++index) {
         if (!take_sample(samples, &value)) return false;
         sum = (uint16_t)(sum + value);

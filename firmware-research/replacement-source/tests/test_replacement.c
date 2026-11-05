@@ -63,6 +63,7 @@
 #include "h9_main_core_list.h"
 #include "h9_main_core_init.h"
 #include "h9_main_core_samples.h"
+#include "h9_main_adc_mode.h"
 #include "h9_main_channel_defaults.h"
 #include "h9_main_heap_bitmap.h"
 #include "h9_main_exception.h"
@@ -7229,13 +7230,84 @@ static void core_samples_initialize(void *context)
     ++capture->init_count;
 }
 
-static void core_samples_select(void *context, uint32_t mode)
+static bool core_samples_select(void *context, uint32_t mode)
 {
     CoreSamplesCapture *capture = (CoreSamplesCapture *)context;
     assert(capture->mode_count < 2u && capture->init_count == 1u);
     capture->modes[capture->mode_count++] = mode;
     capture->adc[1] = mode == 0x50000Fu ? 0x123u : 0x456u;
     if (capture->allow_ready) capture->adc[0] |= 0x80u;
+    return true;
+}
+
+typedef struct {
+    volatile uint32_t *clock;
+    volatile uint32_t *control;
+    uint32_t calls[4][4];
+    unsigned count;
+} AdcModeCapture;
+
+static void adc_mode_rom_configure(void *context, uint32_t group,
+                                    uint32_t selector, uint32_t mask,
+                                    uint32_t value)
+{
+    AdcModeCapture *capture = (AdcModeCapture *)context;
+    assert(capture->count < 4u);
+    if (capture->count == 0u) {
+        assert(*capture->clock == UINT32_MAX);
+    } else if (capture->count == 1u) {
+        assert(*capture->clock == 0xF3FFFFFFu);
+        assert(*capture->control == 0xFFFFFFBFu);
+    }
+    capture->calls[capture->count][0] = group;
+    capture->calls[capture->count][1] = selector;
+    capture->calls[capture->count][2] = mask;
+    capture->calls[capture->count][3] = value;
+    ++capture->count;
+}
+
+static void test_main_adc_mode(void)
+{
+    uint16_t ready = 0xABCDu, previous = 0u;
+    uint32_t clock = UINT32_MAX, select = UINT32_MAX;
+    uint32_t gate = UINT32_MAX, control = UINT32_MAX, adc = 0u;
+    AdcModeCapture capture = { &clock, &control, { { 0u } }, 0u };
+    H9MainAdcMode mode = {
+        &ready, &clock, &select, &gate, &control, &adc,
+        &capture, adc_mode_rom_configure
+    };
+    H9MainAdcMode target;
+    assert(!h9_main_adc_mode_select(NULL, 0x50000Fu, &previous));
+    assert(!h9_main_adc_mode_select(&mode, 0x123u, &previous));
+    assert(ready == 0xABCDu && capture.count == 0u);
+    assert(h9_main_adc_mode_select(&mode, 0x50000Fu, &previous));
+    assert(previous == 0xABCDu && ready == UINT16_MAX);
+    assert(clock == 0xF3FFFFFFu && select == 0xFFFBFFFFu &&
+           gate == 0xFFF7FFFFu && control == 0xFFFFFFBFu &&
+           adc == 0xFF7Eu);
+    assert(capture.count == 4u);
+    assert(capture.calls[0][0] == 4u && capture.calls[0][1] == 0u &&
+           capture.calls[0][2] == 1u && capture.calls[0][3] == 0u);
+    assert(capture.calls[1][0] == 4u && capture.calls[1][1] == 4u &&
+           capture.calls[1][2] == 1u && capture.calls[1][3] == 0u);
+    assert(capture.calls[2][0] == 4u && capture.calls[2][1] == 0u &&
+           capture.calls[2][2] == 1u && capture.calls[2][3] == 1u);
+    assert(capture.calls[3][0] == 4u && capture.calls[3][1] == 1u &&
+           capture.calls[3][2] == 3u && capture.calls[3][3] == 5u);
+    capture.count = 0u;
+    clock = UINT32_MAX;
+    control = UINT32_MAX;
+    assert(h9_main_adc_mode_select(&mode, 0xFu, &previous));
+    assert(previous == UINT16_MAX && capture.count == 4u &&
+           capture.calls[3][3] == 0u && adc == 0xFF7Eu);
+    h9_main_adc_mode_bind_target(&target);
+    assert((uintptr_t)target.ready_11b98 == 0x11B98u &&
+           (uintptr_t)target.register_1e19ec == 0x1E19ECu &&
+           (uintptr_t)target.register_1e0044 == 0x1E0044u &&
+           (uintptr_t)target.register_1e1964 == 0x1E1964u &&
+           (uintptr_t)target.register_1e1910 == 0x1E1910u &&
+           (uintptr_t)target.adc_1e3100 == 0x1E3100u &&
+           target.rom_configure != NULL);
 }
 
 static void test_main_core_samples(void)
@@ -7271,7 +7343,7 @@ static void test_main_core_samples(void)
            (uintptr_t)target.samples_12338 == 0x12338u &&
            (uintptr_t)target.average_11b96 == 0x11B96u &&
            (uintptr_t)target.ready_11b98 == 0x11B98u &&
-           target.initialize != NULL && target.select_mode == NULL &&
+           target.initialize != NULL && target.select_mode != NULL &&
            target.poll_limit == 100u);
 }
 
@@ -7579,6 +7651,7 @@ int main(void)
     test_main_core_list();
     test_main_core_init_walkers();
     test_main_core_samples();
+    test_main_adc_mode();
     test_main_channel_default_prefix();
     test_main_sys_event_init();
     test_main_sys_event_task_prelude();
