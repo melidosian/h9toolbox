@@ -44,6 +44,7 @@
 #include "h9_main_beacon.h"
 #include "h9_main_gps_fix.h"
 #include "h9_main_audio_arbiter.h"
+#include "h9_main_audio_policy.h"
 #include "h9_main_rf_output.h"
 #include "h9_main_rf_state.h"
 #include "h9_main_speaker_gate.h"
@@ -686,6 +687,76 @@ static void test_main_audio_gate_arbiter(void)
     assert(h9_main_audio_gate_plan(1u, 4u, false, fake_audio_policy,
                                    &policy, &plan));
     assert(policy.calls == 4u && plan.apply_speaker && !plan.speaker_on);
+}
+
+static void test_main_audio_policy(void)
+{
+    H9MainAudioPolicyState state = { 0 };
+    H9MainAudioGatePlan plan;
+    bool effective = true;
+    assert(!h9_main_audio_policy_callback(NULL, true, &effective));
+    assert(!h9_main_audio_policy_callback(&state, true, NULL));
+    assert(!h9_main_audio_policy_evaluate(&state, true));
+    state.ram_11b16 = 1u;
+    state.ram_11b1a = 1u;
+    assert(h9_main_audio_policy_evaluate(&state, true));
+    assert(!h9_main_audio_policy_evaluate(&state, false));
+    assert(h9_main_audio_gate_plan(1u, 4u, false,
+                                   h9_main_audio_policy_callback,
+                                   &state, &plan));
+    assert(plan.apply_speaker && !plan.speaker_on);
+    state.ram_11b1a = 0u;
+    assert(h9_main_audio_policy_evaluate(&state, false));
+    assert(h9_main_audio_gate_plan(1u, 4u, false,
+                                   h9_main_audio_policy_callback,
+                                   &state, &plan));
+    assert(!plan.apply_speaker);
+    state.ram_11b1a = 1u;
+    state.ram_12bf4 = 1u;
+    assert(!h9_main_audio_policy_evaluate(&state, true));
+    state.ram_12bf4 = 0u;
+
+    state.ram_c1b2 = 2u;
+    state.ram_c1b4 = 3u;
+    assert(!h9_main_audio_policy_evaluate(&state, true));
+    state.ram_c1b4 = 1u;
+    state.ram_c1c3 = 1u;
+    assert(!h9_main_audio_policy_evaluate(&state, true));
+    state.ram_c1c3 = 0u;
+    state.ram_c1b4 = 5u;
+    state.ram_c1c2 = 1u;
+    state.ram_12bf6 = 1u;
+    assert(!h9_main_audio_policy_evaluate(&state, true));
+    state.ram_c1c2 = 0u;
+    state.ram_12bf6 = 0u;
+    state.ram_11b23 = 1u;
+    state.ram_c1c1 = 1u;
+    assert(!h9_main_audio_policy_evaluate(&state, true));
+    state.ram_11b23 = 0u;
+    state.ram_c1c1 = 0u;
+    state.ram_11b4d = 4u;
+    assert(h9_main_audio_policy_evaluate(&state, true));
+    assert(!h9_main_audio_policy_evaluate(&state, false));
+    state.ram_11b4d = 0u;
+    state.status_1692c = 0x2Eu;
+    assert(h9_main_audio_policy_evaluate(&state, false));
+    state.status_1692c = 0u;
+    state.ram_11b24 = 1u;
+    assert(!h9_main_audio_policy_evaluate(&state, true));
+    state.ram_11b24 = 0u;
+    assert(h9_main_audio_policy_evaluate(&state, false));
+
+    state.ram_c1b2 = 0u;
+    state.ram_11afd = 1u;
+    state.ram_11b20 = 1u;
+    assert(h9_main_audio_policy_evaluate(&state, false));
+    state.ram_11afd = 0u;
+    state.ram_12bd8 = 1u;
+    assert(!h9_main_audio_policy_evaluate(&state, true));
+    state.ram_11b25 = 1u;
+    assert(h9_main_audio_policy_evaluate(&state, false));
+    assert(h9_main_audio_policy_callback(&state, false, &effective) &&
+           effective);
 }
 
 typedef struct {
@@ -7877,6 +7948,7 @@ int main(void)
     test_main_rf_output_registers();
     test_main_speaker_gate();
     test_main_audio_gate_arbiter();
+    test_main_audio_policy();
     test_main_rf_register_values();
     test_main_gpio_query_reply();
     test_main_control_frames();

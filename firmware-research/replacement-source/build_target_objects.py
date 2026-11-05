@@ -67,6 +67,7 @@ SOURCES = {
         "main/h9_main_beacon.c",
         "main/h9_main_gps_fix.c",
         "main/h9_main_audio_arbiter.c",
+        "main/h9_main_audio_policy.c",
         "main/h9_main_board_markers.c",
         "main/h9_main_board_tail.c",
         "main/h9_main_pin_registry.c",

@@ -29,3 +29,16 @@ Ghidra's pseudocode renders the bit-2 guard as a comparison to
 instead set a temporary value to `!requested`, AND it with extracted bit 2,
 and return when the result is nonzero. This interpretation is reflected in
 the source and host tests.
+
+The policy function called for other sources at app+`0x052102..0x052228`
+hashes to SHA-256
+`dcdeae3eef2c26ed4c9a250da76ef6c205a1590bfb14fd0a7a4c14dace9135c1`.
+Its corrected Pi32 instruction listing checks RAM `0x11B16` and
+`0x12BF4` first, then branches by `0xC1B2` and `0xC1B4`. The
+replacement `h9_main_audio_policy.*` ports those tests and the remaining
+raw RAM-field branches into a pure decision callback for the arbiter.
+The result of app+`0x01682C` is a separate supplied status byte; its
+meaning remains unverified. The host test checks selected branches and
+speaker-arbiter composition. No live RAM snapshot, speaker application,
+or Bluetooth output hook is connected. This policy is an ordinary
+speaker-routing decision, not a dual-output APRS mute.

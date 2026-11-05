@@ -57,6 +57,10 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "00a9a912ae03cde279eb5df6db63f3c17b278cd54188d96d7a1b28dacb284b4c"
     ):
         raise ValueError("main volume registration helper differs")
+    if sha256(main_app[0x052102:0x052228]).hexdigest() != (
+        "dcdeae3eef2c26ed4c9a250da76ef6c205a1590bfb14fd0a7a4c14dace9135c1"
+    ):
+        raise ValueError("main speaker audio policy differs")
     if sha256(main_app[0x0A27E0:0x0A2844]).hexdigest() != (
         "98284a1d9d211728ec88948455d2b7947ef56c605e42df0c83855a21cd069f37"
     ):
