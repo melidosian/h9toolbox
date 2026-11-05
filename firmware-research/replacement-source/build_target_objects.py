@@ -100,6 +100,7 @@ SOURCES = {
         "main/h9_main_uart1_irq.c",
         "main/h9_main_uart1_board.c",
         "main/h9_main_uart1_baud.c",
+        "main/h9_main_uart1_dma_rom.c",
         "main/h9_main_uart1_tx.c",
         "main/h9_main_uart1_tx_queue.c",
         "main/h9_main_tx_service.c",

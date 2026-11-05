@@ -77,6 +77,7 @@
 #include "h9_main_uart1_irq.h"
 #include "h9_main_uart1_board.h"
 #include "h9_main_uart1_baud.h"
+#include "h9_main_uart1_dma_rom.h"
 #include "h9_main_uart1_tx.h"
 #include "h9_main_uart1_tx_queue.h"
 #include "h9_main_tx_service.h"
@@ -4407,6 +4408,63 @@ static void main_uart_link_rx_ack(void *context)
     ((MainUartLinkCapture *)context)->rx_acks++;
 }
 
+typedef struct {
+    uint32_t descriptors[4];
+    uint32_t option;
+    unsigned count;
+} MainUartRomCapture;
+
+static void main_uart_rom_prepare(void *context, uint32_t descriptor)
+{
+    MainUartRomCapture *capture = (MainUartRomCapture *)context;
+    assert(capture->count < 4u);
+    capture->descriptors[capture->count++] = descriptor;
+}
+
+static void main_uart_rom_enable(void *context, uint32_t descriptor,
+                                 uint32_t option)
+{
+    MainUartRomCapture *capture = (MainUartRomCapture *)context;
+    assert(capture->count < 4u);
+    capture->descriptors[capture->count++] = descriptor;
+    capture->option = option;
+}
+
+static void main_uart_rom_ack(void *context, uint32_t descriptor)
+{
+    MainUartRomCapture *capture = (MainUartRomCapture *)context;
+    assert(capture->count < 4u);
+    capture->descriptors[capture->count++] = descriptor;
+}
+
+static void test_main_uart1_dma_rom_hooks(void)
+{
+    MainUartRomCapture capture = { { 0u }, 0u, 0u };
+    H9MainUart1DmaRom rom = {
+        main_uart_rom_prepare, main_uart_rom_enable,
+        main_uart_rom_ack, &capture
+    };
+    H9MainAprsUart1DmaHooks hooks;
+    assert(!h9_main_uart1_dma_rom_make_hooks(NULL, &rom));
+    assert(!h9_main_uart1_dma_rom_make_hooks(&hooks, NULL));
+    assert(h9_main_uart1_dma_rom_make_hooks(&hooks, &rom));
+    hooks.prepare_tx(hooks.context, 0x001E3B0u);
+    hooks.enable_tx(hooks.context, 0x001E3B0u, 0u);
+    hooks.acknowledge_tx(hooks.context);
+    hooks.acknowledge_rx(hooks.context);
+    assert(capture.count == 4u);
+    assert(capture.descriptors[0] == 0x001E3B0u);
+    assert(capture.descriptors[1] == 0x001E3B0u);
+    assert(capture.descriptors[2] == 0x001E3B0u);
+    assert(capture.descriptors[3] == 0x001E360u);
+    assert(capture.option == 0u);
+    rom.acknowledge = NULL;
+    assert(!h9_main_uart1_dma_rom_make_hooks(&hooks, &rom));
+    h9_main_uart1_dma_rom_bind_target(&rom);
+    assert(rom.prepare != NULL && rom.enable != NULL &&
+           rom.acknowledge != NULL && rom.context == NULL);
+}
+
 static void test_main_aprs_uart1_link(void)
 {
     uint32_t registers[11] = { 0 };
@@ -7097,6 +7155,7 @@ int main(void)
     test_main_serial_port();
     test_main_serial_dma_read();
     test_main_uart1_irq();
+    test_main_uart1_dma_rom_hooks();
     test_main_uart1_tx();
     test_main_uart1_tx_queue();
     test_main_aprs_uart1_link();

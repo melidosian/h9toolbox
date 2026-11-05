@@ -122,9 +122,18 @@ then calls the application event callback. TX event 1 sets control bit
 `0x2000`, acknowledges `0x1E3B0`, and calls the callback. The replacement
 `h9_main_uart1_irq.*` ports that ordering with injected acknowledgement and
 event callbacks; fake-register tests cover all three events and zero-length
-partial RX. The ROM acknowledgement behavior, DMA setup,
-cache/synchronization rule, actual interrupt-vector binding, and completed TX path are
-not yet connected to the replacement board entry.
+partial RX. The three ACK call instructions at app+`0x0C5EEE`,
+`0x0C5F2A`, and `0x0C5F66` all resolve to the app trampoline at
+app+`0x08C180` (virtual `0x01E8C280`). Its first instruction is
+`CB EA 4F B2`, a direct jump to ROM `0x02002722`. Thus the ACK operation
+has a recovered entry point, though its ROM implementation is still opaque.
+`h9_main_uart1_dma_rom.*` now maps the TX prepare (`0x02002C80`), TX enable
+(`0x02002B66`), and shared TX/RX ACK (`0x02002722`) calls to the link hooks.
+The ACK adapter supplies the observed TX or RX descriptor address. Host
+tests exercise that routing; the target bindings have not been executed on
+the radio. DMA setup, cache/synchronization rule, actual interrupt-vector
+binding, and completed TX path are not yet connected to the replacement board
+entry.
 
 `replacement-source/main/h9_main_aprs_uart1_link.*` now binds the three
 replacement components at the C interface: an RX interrupt advances the DMA

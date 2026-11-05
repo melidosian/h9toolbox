@@ -27,6 +27,14 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         raise ValueError("main app is not the analyzed v1.0.38 image")
     if sha256(aprs_image).hexdigest() != APRS_SHA256:
         raise ValueError("APRS image is not the analyzed v1.0.15 image")
+    for offset, expected in (
+        (0x0C5EEE, "BE EA 47 31"),
+        (0x0C5F2A, "BE EA 29 31"),
+        (0x0C5F66, "BE EA 0B 31"),
+        (0x08C180, "CB EA 4F B2"),
+    ):
+        if main_app[offset:offset + 4] != bytes.fromhex(expected):
+            raise ValueError(f"main UART1 DMA ACK call differs at 0x{offset:X}")
     ram_code = main_app[0x0C618C:0x0C618C + 0x58]
     if ram_code[:0x40] != bytes(0x40) or ram_code[0x40:] != bytes.fromhex(
         "c1 ff 08 3e 1e 00 90 61 00 ef 10 10 10 60 "
