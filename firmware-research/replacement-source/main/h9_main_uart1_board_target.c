@@ -55,9 +55,11 @@ static bool register_irq(void *context, uint8_t number, uint8_t priority,
     return true;
 }
 
-static bool configure_baud(void *context, uint32_t half_baud)
+static bool configure_baud(void *context, uint32_t half_baud,
+                           uint32_t field_10)
 {
     H9MainUart1BoardTarget *target = (H9MainUart1BoardTarget *)context;
+    *target->baud.activity_1e34c = field_10;
     return h9_main_uart1_baud_configure(&target->baud, half_baud);
 }
 

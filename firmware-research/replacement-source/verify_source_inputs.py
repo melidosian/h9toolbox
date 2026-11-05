@@ -36,6 +36,8 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         if main_app[offset:offset + 4] != bytes.fromhex(expected):
             raise ValueError(f"main UART1 DMA ACK call differs at 0x{offset:X}")
     for offset, expected in (
+        (0x0C5A44, "D0 EC 40 E1"),
+        (0x0C5A90, "D0 EC 71 E2"),
         (0x0C5A0A, "BD EA C4 96"),
         (0x0C5A64, "BD EA 95 96"),
         (0x0C5A6C, "BD EA 91 96"),

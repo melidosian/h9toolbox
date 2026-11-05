@@ -15,7 +15,8 @@ typedef struct {
     bool (*register_irq)(void *context, uint8_t interrupt_number,
                          uint8_t priority, void (*handler)(void *),
                          void *handler_context);
-    bool (*configure_baud)(void *context, uint32_t half_baud);
+    bool (*configure_baud)(void *context, uint32_t half_baud,
+                           uint32_t field_10);
     void *context;
 } H9MainUart1BoardHooks;
 

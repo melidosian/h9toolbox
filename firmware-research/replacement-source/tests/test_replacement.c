@@ -5040,10 +5040,11 @@ static bool main_uart_board_irq(void *context, uint8_t number,
     return true;
 }
 
-static bool main_uart_board_baud(void *context, uint32_t half_baud)
+static bool main_uart_board_baud(void *context, uint32_t half_baud,
+                                 uint32_t field_10)
 {
     MainUartBoardCapture *capture = (MainUartBoardCapture *)context;
-    assert(half_baud == 9600u);
+    assert(half_baud == 9600u && field_10 == 10u);
     assert(capture->registers[0] == 0x3468u);
     assert(capture->registers[7] == 0x14000u);
     assert(capture->registers[8] == 0x14800u);
@@ -5196,7 +5197,7 @@ static void test_main_uart1_board_target(void)
     assert(capture.irq_enters == 1u && capture.irq_leaves == 1u);
     assert(uart[0] == 0x3469u && uart[2] == 1249u &&
            uart[7] == 0x14000u && uart[8] == 0x14800u &&
-           uart[9] == 1024u);
+           uart[9] == 1024u && uart[4] == 10u && activity == 10u);
 
     uart[0] = 0x4008u;
     h9_main_uart1_board_target_vector();

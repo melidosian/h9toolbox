@@ -19,8 +19,10 @@ branch of the open routine at app+`0x0C57BC`, stock:
 5. Clears ring produced/consumed at `0x001E358/0x001E35C`, sets UART
    `+0x20` to receive storage address plus capacity, ORs control with `0x68`,
    sets `+0x1C` to storage address, and sets `+0x24` to the record's read
-   limit. The stock APRS record supplies storage `0x10CFC`, capacity `2048`,
-   and read limit `1024`.
+   limit. It also copies the record's field at `+0x10` into the UART1 object
+   word at RAM `0x1E34C` before configuring baud. The stock APRS record
+   supplies storage `0x10CFC`, capacity `2048`, read limit `1024`, and value
+   `10` for that field.
 6. Sets control bit 1 from the baud field's low bit, then calls the baud
    helper at app+`0x0C56E4` with `(baud & 0x1FFFFFE) >> 1`. For the APRS
    profile, that argument is `9600` from baud field `19200`.
@@ -37,7 +39,11 @@ timebase word at RAM `0xD9DC`: for activity below 11 it uses
 fields remain unverified. The replacement `h9_main_uart1_baud_configure`
 implements this register sequence with injected pointers and refuses a zero
 clock state before touching UART registers; it has not been exercised on the
-radio.
+radio. The independent decode at app+`0x0C5A44` loads the record's `+0x10`
+word, and app+`0x0C5A90` writes it to UART1 object `+0x20` (`0x1E34C`).
+The target adapter now makes this copy immediately before the baud helper;
+for the stock APRS profile and a timebase of 1000, the helper writes `10` to
+UART register `+0x10`.
 
 The replacement `h9_main_uart1_board_open` ports the register and callback
 order with mandatory injected pin, ROM DMA, IRQ, and baud hooks. It rejects an

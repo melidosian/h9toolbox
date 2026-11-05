@@ -55,5 +55,6 @@ int h9_main_uart1_board_open(H9MainAprsUart1Link *link,
     else
         uart[UART_CONTROL] &= ~2u;
     return hooks->configure_baud(hooks->context,
-                                 (record->baud & 0x1FFFFFEu) >> 1);
+                                 (record->baud & 0x1FFFFFEu) >> 1,
+                                 record->field_10);
 }
