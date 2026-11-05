@@ -69,6 +69,7 @@ SOURCES = {
         "main/h9_main_audio_arbiter.c",
         "main/h9_main_board_markers.c",
         "main/h9_main_board_tail.c",
+        "main/h9_main_pin_registry.c",
         "main/h9_main_clock_probe.c",
         "main/h9_main_clock_handshake.c",
         "main/h9_main_clock_apply.c",

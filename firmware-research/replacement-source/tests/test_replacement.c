@@ -53,6 +53,7 @@
 #include "h9_main_boot_validator.h"
 #include "h9_main_board_markers.h"
 #include "h9_main_board_tail.h"
+#include "h9_main_pin_registry.h"
 #include "h9_main_clock_probe.h"
 #include "h9_main_clock_handshake.h"
 #include "h9_main_clock_apply.h"
@@ -7006,6 +7007,85 @@ static void test_main_board_tail(void)
            target.rom_start_3180 != NULL && target.rom_finish_1650 != NULL);
 }
 
+typedef struct {
+    uint32_t pins[20];
+    uint32_t values[20];
+    unsigned actions[20];
+    unsigned count;
+} PinRegistryCapture;
+
+static void capture_pin_action(void *context, unsigned action,
+                                uint32_t pin, uint32_t value)
+{
+    PinRegistryCapture *capture = (PinRegistryCapture *)context;
+    assert(capture->count < 20u);
+    capture->actions[capture->count] = action;
+    capture->pins[capture->count] = pin;
+    capture->values[capture->count++] = value;
+}
+
+static void capture_pin_0176(void *context, uint32_t pin, uint32_t value)
+{ capture_pin_action(context, 0u, pin, value); }
+static void capture_pin_01f6(void *context, uint32_t pin, uint32_t value)
+{ capture_pin_action(context, 1u, pin, value); }
+static void capture_pin_0284(void *context, uint32_t pin, uint32_t value)
+{ capture_pin_action(context, 2u, pin, value); }
+static void capture_pin_02dc(void *context, uint32_t pin, uint32_t value)
+{ capture_pin_action(context, 3u, pin, value); }
+
+static void test_main_pin_registry(void)
+{
+    H9MainPinRecord records[H9_MAIN_PIN_RECORD_COUNT];
+    PinRegistryCapture capture = { 0 };
+    H9MainPinRegistry registry = {
+        &capture, capture_pin_0176, capture_pin_01f6,
+        capture_pin_0284, capture_pin_02dc, records
+    };
+    H9MainPinRegistry target = { 0 };
+    unsigned index;
+    for (index = 0u; index < H9_MAIN_PIN_RECORD_COUNT; ++index) {
+        records[index].key = -1;
+        records[index].enabled = 0u;
+        records[index].unknown_6 = 0x55AAu;
+    }
+    assert(h9_main_pin_registry_configure(NULL, 12u, 4) ==
+           H9_MAIN_PIN_INVALID);
+    assert(h9_main_pin_registry_configure(&registry, 12u, 4) ==
+           H9_MAIN_PIN_INSERTED);
+    assert(capture.count == 4u && records[0].key == 4 &&
+           records[0].enabled == 1u && records[0].unknown_6 == 0x55AAu);
+    for (index = 0u; index < 4u; ++index) {
+        assert(capture.actions[index] == index && capture.pins[index] == 12u);
+        assert(capture.values[index] == (index == 1u ? 1u : 0u));
+    }
+    capture.count = 0u;
+    assert(h9_main_pin_registry_configure(&registry, 37u, 4) ==
+           H9_MAIN_PIN_EXISTING);
+    assert(capture.count == 4u && records[1].key == -1);
+    for (index = 0u; index < H9_MAIN_PIN_RECORD_COUNT; ++index)
+        records[index].key = (int32_t)index;
+    capture.count = 0u;
+    assert(h9_main_pin_registry_configure(&registry, 36u, 20) ==
+           H9_MAIN_PIN_FULL);
+    assert(capture.count == 4u && records[9].key == 9);
+    for (index = 0u; index < H9_MAIN_PIN_RECORD_COUNT; ++index)
+        records[index].key = -1;
+    capture.count = 0u;
+    h9_main_my_app_configure_early_pins(&registry);
+    assert(capture.count == 20u);
+    assert(records[0].key == 4 && records[1].key == 13 &&
+           records[2].key == 10 && records[3].key == 3 &&
+           records[4].key == 0 && records[5].key == -1);
+    for (index = 0u; index < 20u; ++index) {
+        static const uint8_t pins[5] = { 12u, 37u, 36u, 10u, 1u };
+        assert(capture.pins[index] == pins[index / 4u]);
+        assert(capture.actions[index] == index % 4u);
+        assert(capture.values[index] == (index % 4u == 1u ? 1u : 0u));
+    }
+    h9_main_pin_registry_bind_target(&target);
+    assert((uintptr_t)target.records == 0x12A30u);
+}
+
 static void test_main_core_list(void)
 {
     uint32_t words[3] = { 0u, 0u, 0xA5A5A5A5u };
@@ -7372,6 +7452,7 @@ int main(void)
     test_main_post_map_window();
     test_main_task_registry();
     test_main_board_tail();
+    test_main_pin_registry();
     test_main_core_list();
     test_main_core_init_walkers();
     test_main_channel_default_prefix();

@@ -130,7 +130,11 @@ dispatch callbacks must map stock addresses to replacement functions before
 this source can drive the real `app_core` task.
 
 Stock `my_app` at app+`0x088180` begins with delays, port/configuration
-calls, and radio-device writes. Later in its analyzed body it constructs the
+calls, and radio-device writes. Its first five pin-helper calls through
+app+`0x079BE4`, including the helper's ten-entry RAM registry, are now
+reconstructed in source; see
+[main-my-app-early-pins.md](main-my-app-early-pins.md). Later in its analyzed
+body it constructs the
 32-byte APRS serial-open record with pins `0x20/0x21`, 2,048-byte RX storage,
 and 1,024-byte read chunks, matching the separately traced main APRS UART
 path. The fixed Ghidra project reports unresolved instructions near
