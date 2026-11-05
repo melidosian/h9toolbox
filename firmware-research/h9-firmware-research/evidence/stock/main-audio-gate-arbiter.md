@@ -37,8 +37,20 @@ Its corrected Pi32 instruction listing checks RAM `0x11B16` and
 `0x12BF4` first, then branches by `0xC1B2` and `0xC1B4`. The
 replacement `h9_main_audio_policy.*` ports those tests and the remaining
 raw RAM-field branches into a pure decision callback for the arbiter.
-The result of app+`0x01682C` is a separate supplied status byte; its
-meaning remains unverified. The host test checks selected branches and
-speaker-arbiter composition. No live RAM snapshot, speaker application,
-or Bluetooth output hook is connected. This policy is an ordinary
-speaker-routing decision, not a dual-output APRS mute.
+The result of app+`0x01682C` is now supplied by
+`h9_main_audio_status.*`. Stock app+`0x01677C` scans two 28-byte records
+at RAM `0x1D3DC` and `0x1D3F8`. A record qualifies when byte `+0x12`
+has bit `0x20`, halfword `+6` is nonzero, and halfword `+8` has neither
+`0x2080` bit. If exactly one qualifies, app+`0x01682C` returns its byte
+`+0xE`; if none qualifies, it returns `0x2B`. When both qualify, the
+selector calls app+`0x016728`, which compares six bytes against a key
+at `0x1D43C` and accepts the first matching record with bit `0x20` at
+`+0x12`. The replacement exposes that unported comparator as a callback
+and returns no record if ambiguity cannot be resolved. Selector `1`
+instead returns the first active record with a `0x2080` flag. The entire
+app+`0x016728..0x01683C` slice is pinned to the stock image, and the
+host test composes the returned status with the speaker policy.
+
+The records' owner, status-byte meaning, live RAM snapshot, speaker
+application, and Bluetooth output hook remain unidentified. This policy
+is an ordinary speaker-routing decision, not a dual-output APRS mute.

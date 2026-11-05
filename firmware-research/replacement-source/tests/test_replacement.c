@@ -45,6 +45,7 @@
 #include "h9_main_gps_fix.h"
 #include "h9_main_audio_arbiter.h"
 #include "h9_main_audio_policy.h"
+#include "h9_main_audio_status.h"
 #include "h9_main_rf_output.h"
 #include "h9_main_rf_state.h"
 #include "h9_main_speaker_gate.h"
@@ -757,6 +758,56 @@ static void test_main_audio_policy(void)
     assert(h9_main_audio_policy_evaluate(&state, false));
     assert(h9_main_audio_policy_callback(&state, false, &effective) &&
            effective);
+}
+
+static bool match_audio_record(void *context,
+                               const H9MainAudioRecord *record)
+{
+    return record->bytes[0] == *(const uint8_t *)context;
+}
+
+static void test_main_audio_status(void)
+{
+    H9MainAudioStatusSnapshot snapshot = { 0 };
+    H9MainAudioPolicyState policy = { 0 };
+    uint8_t key = 2u;
+    assert(h9_main_audio_select_record(NULL, 0u) == NULL);
+    assert(h9_main_audio_status(NULL) == 0x2Bu);
+    assert(h9_main_audio_status(&snapshot) == 0x2Bu);
+
+    snapshot.records[0].bytes[0] = 1u;
+    snapshot.records[0].bytes[6] = 1u;
+    snapshot.records[0].bytes[0x12] = 0x20u;
+    snapshot.records[0].bytes[0xE] = 0x2Eu;
+    assert(h9_main_audio_select_record(&snapshot, 0u) ==
+           &snapshot.records[0]);
+    assert(h9_main_audio_status(&snapshot) == 0x2Eu);
+    policy.ram_11b16 = 1u;
+    policy.ram_c1b2 = 2u;
+    policy.ram_c1b4 = 0u;
+    policy.ram_11b24 = 1u;
+    policy.status_1692c = h9_main_audio_status(&snapshot);
+    assert(h9_main_audio_policy_evaluate(&policy, false));
+
+    snapshot.records[0].bytes[8] = 0x80u;
+    assert(h9_main_audio_select_record(&snapshot, 0u) == NULL);
+    assert(h9_main_audio_select_record(&snapshot, 1u) ==
+           &snapshot.records[0]);
+    snapshot.records[0].bytes[8] = 0u;
+    snapshot.records[1].bytes[0] = 2u;
+    snapshot.records[1].bytes[6] = 1u;
+    snapshot.records[1].bytes[0x12] = 0x20u;
+    snapshot.records[1].bytes[0xE] = 0x30u;
+    assert(h9_main_audio_select_record(&snapshot, 0u) == NULL);
+    snapshot.key_match = match_audio_record;
+    snapshot.key_context = &key;
+    assert(h9_main_audio_select_record(&snapshot, 0u) ==
+           &snapshot.records[1]);
+    assert(h9_main_audio_status(&snapshot) == 0x30u);
+    snapshot.records[1].bytes[0x12] = 0u;
+    assert(h9_main_audio_status(&snapshot) == 0x2Eu);
+    snapshot.records[0].bytes[6] = 0u;
+    assert(h9_main_audio_status(&snapshot) == 0x2Bu);
 }
 
 typedef struct {
@@ -7949,6 +8000,7 @@ int main(void)
     test_main_speaker_gate();
     test_main_audio_gate_arbiter();
     test_main_audio_policy();
+    test_main_audio_status();
     test_main_rf_register_values();
     test_main_gpio_query_reply();
     test_main_control_frames();

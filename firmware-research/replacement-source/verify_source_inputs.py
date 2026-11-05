@@ -61,6 +61,10 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
         "dcdeae3eef2c26ed4c9a250da76ef6c205a1590bfb14fd0a7a4c14dace9135c1"
     ):
         raise ValueError("main speaker audio policy differs")
+    if sha256(main_app[0x016728:0x01683C]).hexdigest() != (
+        "333d84d1d2d8088a8b7005799e3b4dd9d652c5a042c0f622c87e63eff3e2bdb6"
+    ):
+        raise ValueError("main audio status selector differs")
     if sha256(main_app[0x0A27E0:0x0A2844]).hexdigest() != (
         "98284a1d9d211728ec88948455d2b7947ef56c605e42df0c83855a21cd069f37"
     ):
