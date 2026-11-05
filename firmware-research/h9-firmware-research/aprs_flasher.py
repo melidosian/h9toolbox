@@ -181,6 +181,16 @@ def validate_release_manifest(path: Path, image: Image) -> None:
             )
 
 
+def validate_recovery_image(path: Path) -> Image:
+    """Require the captured stock APRS image as a local recovery input."""
+    image = inspect_image(path)
+    if len(image.data) != STOCK_IMAGE_SIZE or image.digest != STOCK_SHA256:
+        raise AprsFlashError(
+            "Recovery image is not the byte-verified stock APRS-1.0.15.bin"
+        )
+    return image
+
+
 def checksum(data: bytes) -> int:
     """Vendor Form4.CalculateChecksum: sum inclusive bytes, modulo 256."""
     return sum(data) & 0xFF
@@ -265,6 +275,8 @@ def main(argv: list[str] | None = None) -> int:
             option.add_argument("--allow-modified", action="store_true")
             option.add_argument("--release-manifest", type=Path,
                                 help="matching release record required for modified images")
+            option.add_argument("--recovery-image", type=Path,
+                                help="byte-verified stock APRS image required for modified images")
             option.add_argument("--yes", action="store_true", help="Authorize writing the APRS controller")
             option.add_argument("--journal", type=Path,
                                 help="New JSONL transfer journal (default: beside image)")
@@ -301,6 +313,12 @@ def main(argv: list[str] | None = None) -> int:
                         "diagnostic link-check exports are not flashable"
                     )
                 validate_release_manifest(args.release_manifest, image)
+                if args.recovery_image is None:
+                    raise AprsFlashError(
+                        "Modified image requires --recovery-image with the "
+                        "byte-verified stock APRS-1.0.15.bin"
+                    )
+                validate_recovery_image(args.recovery_image)
             if not args.yes:
                 raise AprsFlashError("Add --yes to write the APRS controller")
             try:

@@ -4,6 +4,7 @@ import importlib.util
 import contextlib
 import io
 import json
+from hashlib import sha256
 from pathlib import Path
 import struct
 import tempfile
@@ -183,8 +184,12 @@ class AprsFlasherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             image_path = Path(directory) / "test.bin"
             manifest_path = Path(directory) / "release.json"
+            recovery_path = Path(directory) / "stock-recovery.bin"
             journal_path = Path(directory) / "attempt.jsonl"
             image_path.write_bytes(data)
+            recovery = bytearray(aprs.STOCK_IMAGE_SIZE)
+            struct.pack_into("<II", recovery, 0, 0x20001A50, 0x080020D5)
+            recovery_path.write_bytes(recovery)
             manifest_path.write_text(json.dumps({
                 "kind": "aprs_release_image", "flashable": True,
                 "image_sha256": aprs.inspect_image(image_path).digest,
@@ -192,11 +197,13 @@ class AprsFlasherTests(unittest.TestCase):
             }))
             output = io.StringIO()
             serial_module = SimpleNamespace(Serial=lambda *args, **kwargs: port)
-            with patch.dict(sys.modules, {"serial": serial_module}):
+            with patch.object(aprs, "STOCK_SHA256", sha256(recovery).hexdigest()), \
+                 patch.dict(sys.modules, {"serial": serial_module}):
                 with contextlib.redirect_stdout(output):
                     result = aprs.main([
                         "flash", str(image_path), "--port", "COM7", "--yes",
                         "--allow-modified", "--release-manifest", str(manifest_path),
+                        "--recovery-image", str(recovery_path),
                         "--journal", str(journal_path)
                     ])
             self.assertEqual(result, 0)
@@ -206,6 +213,35 @@ class AprsFlasherTests(unittest.TestCase):
             self.assertEqual(len(rows), block_count + 3)
             self.assertEqual(rows[-1]["event"], "transfer_acknowledged")
             self.assertEqual(rows[-1]["acknowledged_end"], len(data))
+
+    def test_modified_flash_rejects_missing_or_wrong_recovery_before_serial(self):
+        data = bytearray(aprs.STOCK_IMAGE_SIZE - 128)
+        struct.pack_into("<II", data, 0, 0x20001A50, 0x080020D5)
+        with tempfile.TemporaryDirectory() as directory:
+            image_path = Path(directory) / "modified.bin"
+            manifest_path = Path(directory) / "release.json"
+            wrong_recovery = Path(directory) / "wrong-recovery.bin"
+            image_path.write_bytes(data)
+            wrong_bytes = bytearray(aprs.STOCK_IMAGE_SIZE)
+            struct.pack_into("<II", wrong_bytes, 0, 0x20001A50, 0x080020D5)
+            wrong_recovery.write_bytes(wrong_bytes)
+            image = aprs.inspect_image(image_path)
+            manifest_path.write_text(json.dumps({
+                "kind": "aprs_release_image", "flashable": True,
+                "image_sha256": image.digest, "image_bytes": len(data),
+                "image_base": aprs.IMAGE_BASE,
+            }))
+            arguments = ["flash", str(image_path), "--port", "COM7", "--yes",
+                         "--allow-modified", "--release-manifest",
+                         str(manifest_path)]
+            error_output = io.StringIO()
+            with contextlib.redirect_stderr(error_output):
+                self.assertEqual(aprs.main(arguments), 1)
+            self.assertIn("--recovery-image", error_output.getvalue())
+            with contextlib.redirect_stderr(error_output):
+                self.assertEqual(aprs.main(arguments + [
+                    "--recovery-image", str(wrong_recovery)]), 1)
+            self.assertIn("Recovery image is not", error_output.getvalue())
 
     def test_diagnostic_or_mismatched_manifest_cannot_open_serial_port(self):
         data = bytearray(aprs.STOCK_IMAGE_SIZE)
