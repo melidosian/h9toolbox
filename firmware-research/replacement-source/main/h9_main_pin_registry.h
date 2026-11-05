@@ -11,7 +11,8 @@ typedef struct {
     uint16_t unknown_6;
 } H9MainPinRecord;
 
-enum { H9_MAIN_PIN_RECORD_COUNT = 10 };
+enum { H9_MAIN_PIN_RECORD_COUNT = 10,
+       H9_MAIN_PIN_RESET_WORD_COUNT = 22 };
 
 typedef struct {
     void *context;
@@ -31,6 +32,10 @@ typedef enum {
 } H9MainPinResult;
 
 void h9_main_pin_registry_bind_target(H9MainPinRegistry *registry);
+/* Stock app+0x060CA0..0x060CAA fills 22 words starting at RAM 0x12A30
+ * with all ones before my_app can register pins. The caller must provide
+ * storage for all 22 words, including eight bytes after the ten records. */
+int h9_main_pin_registry_reset(H9MainPinRegistry *registry);
 H9MainPinResult h9_main_pin_registry_configure(H9MainPinRegistry *registry,
                                                 uint32_t pin, int32_t key);
 /* First five calls in stock my_app at app+0x08818A..0x0881B2. */

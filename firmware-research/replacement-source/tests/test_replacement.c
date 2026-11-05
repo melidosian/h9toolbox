@@ -7087,6 +7087,21 @@ static void test_main_pin_registry(void)
     assert((uintptr_t)target.records == 0x12A30u);
 }
 
+static void test_main_pin_registry_reset(void)
+{
+    uint32_t words[H9_MAIN_PIN_RESET_WORD_COUNT + 1u] = { 0 };
+    H9MainPinRegistry registry = { 0 };
+    unsigned index;
+    words[H9_MAIN_PIN_RESET_WORD_COUNT] = 0x12345678u;
+    assert(h9_main_pin_registry_reset(NULL) == -1);
+    assert(h9_main_pin_registry_reset(&registry) == -1);
+    registry.records = (H9MainPinRecord *)words;
+    assert(h9_main_pin_registry_reset(&registry) == 0);
+    for (index = 0u; index < H9_MAIN_PIN_RESET_WORD_COUNT; ++index)
+        assert(words[index] == UINT32_MAX);
+    assert(words[H9_MAIN_PIN_RESET_WORD_COUNT] == 0x12345678u);
+}
+
 static void test_main_pin_actions(void)
 {
     uint32_t bank[4][6] = { { 0 } };
@@ -7497,6 +7512,7 @@ int main(void)
     test_main_task_registry();
     test_main_board_tail();
     test_main_pin_registry();
+    test_main_pin_registry_reset();
     test_main_pin_actions();
     test_main_core_list();
     test_main_core_init_walkers();

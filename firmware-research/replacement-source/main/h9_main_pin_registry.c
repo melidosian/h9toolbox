@@ -10,6 +10,17 @@ void h9_main_pin_registry_bind_target(H9MainPinRegistry *registry)
     registry->records = (volatile H9MainPinRecord *)(uintptr_t)0x00012A30u;
 }
 
+int h9_main_pin_registry_reset(H9MainPinRegistry *registry)
+{
+    volatile uint32_t *words;
+    unsigned index;
+    if (registry == NULL || registry->records == NULL) return -1;
+    words = (volatile uint32_t *)registry->records;
+    for (index = 0u; index < H9_MAIN_PIN_RESET_WORD_COUNT; ++index)
+        words[index] = UINT32_MAX;
+    return 0;
+}
+
 H9MainPinResult h9_main_pin_registry_configure(H9MainPinRegistry *registry,
                                                 uint32_t pin, int32_t key)
 {

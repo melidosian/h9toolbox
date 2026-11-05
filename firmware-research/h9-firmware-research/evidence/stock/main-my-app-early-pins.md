@@ -35,8 +35,18 @@ The pinned helper slices app+`0x000176..0x0001D8`,
 `d395d057d9c7e10d865a7f13356ed71d7c97840a35b121704c9377df4987d3a8`,
 and `a189d9c21707e6741945d2cf271d87f7aac9df85d567d03ac7e26847ff04e03d`.
 
+The registry is initialized in the direct `app_core` setup call at
+app+`0x060AF8`. At app+`0x060CA0..0x060CAA`, stock computes
+`0x11AD0 + 3936 = 0x12A30`, loads `-1`, and uses `rep 2 22` to store
+22 words through `0x12A84`. This covers the ten records (80 bytes) and
+the next eight bytes. The exact 10-byte slice hashes to SHA-256
+`ba35582165a630f24dfe0fa79c2f4b26ef01ebe2e10e17512cdbd65173d3020e`.
+The corrected Ghidra pseudocode and independent Pi32v2 decode agree on
+the address and repeat count. `h9_main_pin_registry_reset` now preserves
+the 22-word span; the rest of the setup call is still unported.
+
 Pin 38 and pins 56 and above use different branches; the replacement
 `main/h9_main_pin_actions.*` rejects them. `main/h9_main_pin_registry.*`
-models the observed call and registry sequence. The registry's initial
-contents, other pin branches, and the rest of `my_app` remain unported;
-this does not make the task runnable.
+models the observed call and registry sequence. The alternate pin
+branches and the rest of `my_app` remain unported; this does not make
+the task runnable.
