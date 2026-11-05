@@ -44,6 +44,15 @@ def verify(main_app: bytes, aprs_image: bytes, oscillator_source: str,
                 "d020b759cb79c94e2a92f7cf1fe1208deb8d47064e4dae615f3fb3fa3610426e"
             ):
         raise ValueError("main dev_mg task-launch input differs")
+    if sha256(main_app[0x04A870:0x04A8AA]).hexdigest() != (
+        "366d6c1012faa3cdbd84fcb8570833b93edf8479bf60e56d6f3433c5ca2a5c1e"
+    ):
+        raise ValueError("main dev_mg task entry differs")
+    for offset, name in ((0x0B17D4, b"sdfile\x00"),
+                         (0x0B1813, b"fat_nor\x00"),
+                         (0x0B181B, b"res_nor\x00")):
+        if main_app[offset:offset + len(name)] != name:
+            raise ValueError(f"main dev_mg volume name differs at 0x{offset:X}")
     for offset, expected in (
         (0x0C5EEE, "BE EA 47 31"),
         (0x0C5F2A, "BE EA 29 31"),

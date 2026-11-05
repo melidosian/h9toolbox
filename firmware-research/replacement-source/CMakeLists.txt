@@ -36,6 +36,7 @@ add_library(h9_replacement_core STATIC
     main/h9_main_core_init.c
     main/h9_main_core_samples.c
     main/h9_main_core_post_samples.c
+    main/h9_main_dev_mg_task.c
     main/h9_main_adc_mode.c
     main/h9_main_channel_defaults.c
     main/h9_main_heap_bitmap.c

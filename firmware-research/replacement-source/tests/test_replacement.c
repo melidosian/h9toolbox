@@ -64,6 +64,7 @@
 #include "h9_main_core_init.h"
 #include "h9_main_core_samples.h"
 #include "h9_main_core_post_samples.h"
+#include "h9_main_dev_mg_task.h"
 #include "h9_main_adc_mode.h"
 #include "h9_main_channel_defaults.h"
 #include "h9_main_heap_bitmap.h"
@@ -7452,6 +7453,74 @@ static void test_main_core_post_samples(void)
            capture.target[8] == 0x01E5176Eu);
 }
 
+typedef struct {
+    unsigned calls;
+    volatile uint8_t *ready;
+    unsigned receives;
+} DevMgmtCapture;
+
+static void dev_mg_initialize(void *context)
+{
+    DevMgmtCapture *capture = (DevMgmtCapture *)context;
+    assert(capture->calls++ == 0u && *capture->ready == 1u);
+}
+
+static void dev_mg_register(void *context, const char *name)
+{
+    static const char *const expected[] = {
+        "sdfile", "fat_nor", "res_nor"
+    };
+    DevMgmtCapture *capture = (DevMgmtCapture *)context;
+    assert(capture->calls >= 1u && capture->calls <= 3u);
+    assert(strcmp(name, expected[capture->calls - 1u]) == 0);
+    ++capture->calls;
+}
+
+static void dev_mg_acknowledge(void *context, uint32_t descriptor)
+{
+    DevMgmtCapture *capture = (DevMgmtCapture *)context;
+    assert(capture->calls++ == 4u && descriptor == 0x12F90u);
+}
+
+static void dev_mg_receive(void *context, uint32_t message[8])
+{
+    DevMgmtCapture *capture = (DevMgmtCapture *)context;
+    unsigned index;
+    assert(capture->calls == 5u);
+    for (index = 0u; index < 8u; ++index)
+        assert(message[index] == (capture->receives == 0u ? 0u :
+                                  index + 1u));
+    for (index = 0u; index < 8u; ++index)
+        message[index] = index + 1u;
+    ++capture->receives;
+}
+
+static void test_main_dev_mg_task(void)
+{
+    uint8_t ready = 0u;
+    H9MainDevMgmtTask task = { &ready, { 0 }, false };
+    DevMgmtCapture capture = { 0u, &ready, 0u };
+    H9MainDevMgmtHooks hooks = {
+        dev_mg_initialize, dev_mg_register, dev_mg_acknowledge,
+        dev_mg_receive, &capture
+    };
+    H9MainDevMgmtTask target;
+    h9_main_dev_mg_task_bind_target(&target);
+    assert((uintptr_t)target.ready_11798 == 0x11798u &&
+           !target.started);
+    assert(!h9_main_dev_mg_task_step(&task, &hooks));
+    assert(!h9_main_dev_mg_task_start(NULL, &hooks));
+    assert(!h9_main_dev_mg_task_start(&task, NULL));
+    assert(ready == 0u && capture.calls == 0u);
+    memset(task.message, 0xA5, sizeof task.message);
+    assert(h9_main_dev_mg_task_start(&task, &hooks));
+    assert(task.started && capture.calls == 5u);
+    assert(!h9_main_dev_mg_task_start(&task, &hooks));
+    assert(h9_main_dev_mg_task_step(&task, &hooks));
+    assert(h9_main_dev_mg_task_step(&task, &hooks));
+    assert(capture.receives == 2u);
+}
+
 static uint32_t channel_default_word(const uint8_t *bytes, unsigned offset)
 {
     return (uint32_t)bytes[offset] |
@@ -7757,6 +7826,7 @@ int main(void)
     test_main_core_init_walkers();
     test_main_core_samples();
     test_main_core_post_samples();
+    test_main_dev_mg_task();
     test_main_adc_mode();
     test_main_channel_default_prefix();
     test_main_sys_event_init();
