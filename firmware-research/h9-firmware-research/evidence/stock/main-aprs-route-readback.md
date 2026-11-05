@@ -52,5 +52,10 @@ test checks that every TX callback runs while reserved and that early reject,
 successful send, and cleanup failure release it. This is a replacement
 transaction contract, not behavior established in stock firmware. It does
 not itself identify the radio's scheduler or provide the live lock adapter.
+The source now repeats position, frequency-policy, synth, and route readbacks
+after the APRS permit acknowledgment, immediately before its keying callback.
+Host tests change each input during permit arm and confirm no packet send.
+This narrows the asynchronous wait window; a live route reservation is still
+needed through keying and cleanup.
 No stock ROM RF-register reader, physical PTT boundary, or live board adapter
 has been established. The diagnostic main ELF remains unflashable.

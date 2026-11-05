@@ -60,6 +60,10 @@ for the matching permit acknowledgment before the key hook, then for the
 matching drained event before stop. Both waits have a clock deadline and
 an iteration cap. If the PTT stop hook cannot confirm deassertion, the
 adapter does not restore the receive route or release the reservation.
+The TX service repeats position, frequency-policy, synth, and route checks
+after the permit acknowledgment and before its only keying callback. A change
+during the acknowledgment wait rejects the send and runs cleanup. This does
+not replace a live reservation against subsequent concurrent changes.
 
 This is replacement protocol and source-level transaction code, not observed
 stock behavior. The main radio board adapter still has to prove the actual

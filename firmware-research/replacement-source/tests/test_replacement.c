@@ -1769,6 +1769,10 @@ typedef struct {
     bool fail_stop;
     bool fail_permit_arm;
     bool fail_permit_clear;
+    bool change_region_after_permit;
+    bool change_route_after_permit;
+    bool change_synth_after_permit;
+    bool change_position_after_permit;
     bool permit_active;
     bool wrong_readback_side;
     bool wrong_readback_hz;
@@ -1839,7 +1843,7 @@ static bool main_validate_frequency(void *opaque, uint32_t hz)
 {
     FakeMainTx *fake = (FakeMainTx *)opaque;
     assert(fake->route_reserved);
-    assert(fake->step == 0u);
+    assert(fake->step == 0u || fake->step == 2u);
     ++fake->validate_calls;
     return h9_main_tx_hz_allowed_with_limits(&fake->frequency_policy,
                                               &h9_main_stock_tx_limits, hz);
@@ -1871,7 +1875,7 @@ static bool main_read_prepared(void *opaque, H9Side *side, uint32_t *hz)
 {
     FakeMainTx *fake = (FakeMainTx *)opaque;
     assert(fake->route_reserved);
-    assert(fake->step == 1u);
+    assert(fake->step == 1u || fake->step == 2u);
     fake->step = 2u;
     fake->readback_calls++;
     *side = fake->wrong_readback_side ? H9_SIDE_A : fake->prepared_side;
@@ -1924,6 +1928,18 @@ static bool main_set_aprs_permit(void *opaque, bool enabled)
         assert(fake->step == 2u && fake->snapshot_calls == 1u);
         fake->permit_arm_calls++;
         fake->permit_active = true;
+        if (!fake->fail_permit_arm) {
+            if (fake->change_region_after_permit)
+                fake->frequency_policy.region_mode = 2u;
+            if (fake->change_route_after_permit)
+                fake->wrong_route_side = true;
+            if (fake->change_synth_after_permit)
+                fake->prepared_hz = 145000000u;
+            if (fake->change_position_after_permit) {
+                fake->position_source = 1u;
+                fake->gps_fix_valid = false;
+            }
+        }
         return !fake->fail_permit_arm;
     }
     assert(fake->step == 4u);
@@ -2010,7 +2026,7 @@ static void test_main_tx_service(void)
     fake.latitude_raw = 1u;
     result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
                              packet, sizeof packet, &hardware, &fake);
-    assert(result == H9_MAIN_TX_SENT && fake.position_reads == 1u &&
+    assert(result == H9_MAIN_TX_SENT && fake.position_reads == 2u &&
            fake.send_calls == 1u);
 
     memset(&fake, 0, sizeof fake);
@@ -2032,9 +2048,43 @@ static void test_main_tx_service(void)
     assert(!fake.prepared_restore_side);
     assert(fake.route_side == 0u && fake.side_state == 0x80u);
     assert(fake.send_calls == 1u && fake.stop_calls == 1u &&
-           fake.restore_calls == 1u && fake.snapshot_calls == 1u &&
+           fake.restore_calls == 1u && fake.snapshot_calls == 2u &&
            fake.permit_arm_calls == 1u && fake.permit_clear_calls == 1u &&
            !fake.permit_active);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.change_region_after_permit = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_PREKEY_CHANGED && fake.send_calls == 0u &&
+           fake.validate_calls == 2u && fake.stop_calls == 1u &&
+           fake.permit_clear_calls == 1u && fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.change_route_after_permit = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_PREKEY_CHANGED && fake.send_calls == 0u &&
+           fake.snapshot_calls == 2u && fake.stop_calls == 1u &&
+           fake.permit_clear_calls == 1u && fake.restore_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.change_synth_after_permit = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_PREKEY_CHANGED && fake.send_calls == 0u &&
+           fake.readback_calls == 2u && fake.stop_calls == 1u);
+
+    memset(&fake, 0, sizeof fake);
+    fake.current_side = H9_SIDE_B;
+    fake.change_position_after_permit = true;
+    result = h9_main_tx_send(&cfg, 445390000u, 144390000u,
+                             packet, sizeof packet, &hardware, &fake);
+    assert(result == H9_MAIN_TX_PREKEY_CHANGED && fake.send_calls == 0u &&
+           fake.position_reads == 2u && fake.stop_calls == 1u);
 
     memset(&fake, 0, sizeof fake);
     fake.current_side = H9_SIDE_B;

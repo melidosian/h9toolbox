@@ -53,9 +53,23 @@ H9MainTxResult h9_main_tx_send(const H9MainAprsConfig *config,
                 h9_main_rf_snapshot_matches_plan(&rf_snapshot, config,
                                                  &plan)) {
                 result = H9_MAIN_TX_PERMIT_FAILED;
-                if (hardware->set_aprs_permit(opaque, true))
-                    result = hardware->send_packet(opaque, packet, length) ?
-                             H9_MAIN_TX_SENT : H9_MAIN_TX_SEND_FAILED;
+                if (hardware->set_aprs_permit(opaque, true)) {
+                    result = H9_MAIN_TX_PREKEY_CHANGED;
+                    if (hardware->read_position_status(opaque, &position) &&
+                        h9_main_beacon_position_ready(&position) &&
+                        hardware->validate_frequency(opaque,
+                                                     plan.expected_tx_hz) &&
+                        hardware->read_prepared_tx(opaque, &prepared_side,
+                                                   &prepared_hz) &&
+                        h9_main_tx_prepared(&plan, prepared_side,
+                                            prepared_hz) &&
+                        hardware->read_rf_snapshot(opaque, &rf_snapshot) &&
+                        h9_main_rf_snapshot_matches_plan(&rf_snapshot,
+                                                         config, &plan))
+                        result = hardware->send_packet(opaque, packet,
+                                  length) ? H9_MAIN_TX_SENT :
+                                            H9_MAIN_TX_SEND_FAILED;
+                }
             }
         }
     }

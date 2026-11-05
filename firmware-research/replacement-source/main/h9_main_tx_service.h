@@ -16,6 +16,7 @@ typedef enum {
     H9_MAIN_TX_READBACK_FAILED,
     H9_MAIN_TX_ROUTE_FAILED,
     H9_MAIN_TX_PERMIT_FAILED,
+    H9_MAIN_TX_PREKEY_CHANGED,
     H9_MAIN_TX_SEND_FAILED,
     H9_MAIN_TX_CLEANUP_FAILED,
     H9_MAIN_TX_SENT
@@ -41,7 +42,9 @@ typedef enum {
  * only after both readbacks match; the adapter must verify that the APRS
  * module supports replacement command 0x53 and assign a fresh nonzero token.
  * That callback must wait for the matching 0x55 permit acknowledgment before
- * reporting success. send_packet is the only callback allowed to key RF and
+ * reporting success. After that acknowledgment, the service rereads
+ * position, frequency policy, prepared synth, and RF route before keying.
+ * send_packet is the only callback allowed to key RF and
  * must wait for the
  * matching replacement 0x54 drained event before returning success. A stale
  * token, missing event, or timeout is failure; the route stays reserved
