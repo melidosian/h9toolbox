@@ -1,5 +1,5 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BRICK_BREAKER_SECTORS, crc16, expectedCrcs, H9Hid, loadBackup, loadBrickBreakerPackage, loadBrickBreakerStockSeed, loadStockPackage, planUpdate, scanRadio, verifyBrickBreakerBackup, writeSector } from './firmware.mjs?v=20261106a';
-import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261106a';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BRICK_BREAKER_SECTORS, crc16, expectedCrcs, H9Hid, loadBackup, loadBrickBreakerPackage, loadBrickBreakerStockSeed, loadStockPackage, planUpdate, scanRadio, verifyBrickBreakerBackup, writeSector } from './firmware.mjs?v=20261106b';
+import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261106b';
 
 const $ = id => document.getElementById(id);
 let target = null, stockSeed = null, backup = null, device = null, hid = null, plan = null, restorePlan = null, busy = false;
