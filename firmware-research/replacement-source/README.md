@@ -1,6 +1,137 @@
 # TD-H9 replacement firmware source, first pass
 
-This is the beginning of a source rewrite for the **main Pi32v2 firmware** and the separate **ARM APRS controller**. It is not a complete replacement image and must not be flashed. Source behavior below is tied to the captured stock v1.0.38 main app (`app.bin` SHA-256 `11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3`) and APRS v1.0.15 image (SHA-256 `1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33`). Neither vendor image is checked into the repository.
+## HELLO WORLD display transport experiment
+
+`build_hello_display_hook.py` creates an offline, stock-derived main package
+that calls authored Pi32v2 assembly after the stock `my_app` task initializes
+and clears the 160×128 LCD. The hook replaces the four-byte call at
+app+`0x8841E`, then calls the original backlight setup, selects a 66×8 pixel
+window, streams a generated RGB565 rendering of `HELLO WORLD` through the
+stock LCD byte writer, and holds the task there. The code and pixels fit in
+a 1,704-byte erased cave at app+`0xA77F0`; 1,108 bytes are used. This keeps
+the stock startup and LCD transport intact to verify our drawing path before
+porting those drivers into the standalone boot probe.
+
+```powershell
+py -3 firmware-research/replacement-source/build_hello_display_hook.py --stock-image private/downloads/stock-main-extracted/app.bin --stock-package private/downloads/H9_Update-Type-C_41dc2974-af11-4ae0-8302-3fe4d775de0c/H9_Update-Type-C/TD-H9-V1.0.38.fw
+py -3 firmware-research/h9-flasher/h9_flasher.py inspect firmware-research/replacement-source/build/hello-display-main/h9_hello_display_OFFLINE_EXPERIMENT.fw --stock-base private/downloads/H9_Update-Type-C_41dc2974-af11-4ae0-8302-3fe4d775de0c/H9_Update-Type-C/TD-H9-V1.0.38.fw
+```
+
+The built package SHA-256 is
+`fcefde9a6958a13deabdb3ae9e79d8b8668ef75cd9dcbda76346f0a72a5c9a0e`.
+Offline validation confirms that its 892,928-byte flash payload changes only
+sectors `0x5000`, `0x8D000`, `0xAC000`, and `0xD9000`; its stock-derived app
+repack passes the flasher's format check. The pinned HID fallback is
+`../h9-firmware-research/restore_hello_display_over_hid.py`.
+
+On 2026-11-06, a fresh radio backup matched the pinned stock image. The
+four-sector package flashed with a full byte readback matching target SHA-256
+`1b731db95725ff8870512074760f07bbe36dd0e42221534c940f0a3709dd5abe`.
+On normal power-on, the user saw a blank screen; no `HELLO WORLD` text was
+visible. PTT+2 HID mode showed exactly the four display-image sectors changed
+and all 209 other accessible main sectors matching stock. The HID fallback
+restored those four sectors, then verified all 213 accessible sectors by CRC.
+The user confirmed the usual channel screen and working controls after normal
+power-on. **Do not flash this package again.** The hook's execution stage is
+not yet known. The stock-derived hook is a
+transport experiment, not a standalone replacement startup. The pinned
+`../h9-firmware-research/trial_hello_display.ps1` script prepares a new
+read-only backup, checks the exact BR23 disk and package hashes for a trial,
+and has a BR23 restore action. It has not been used on hardware. After a
+successful display test, the LCD initialization, byte transport, and backlight
+control still need to move into the authored reset path before the broader
+replacement main firmware can claim the same result independently of stock
+task startup.
+
+`main/hello_display_hook_stage2.s` is a revised offline diagnostic. It keeps
+the same hook and pixel data but drives the previously verified GPIO9 LED:
+one pulse at hook entry, two after the original backlight call, three after
+the LCD window call, and repeating groups of four after all pixel bytes are
+sent. It also preserves `r0` across the original backlight call. Its package
+under `build/hello-display-stage2/` has SHA-256
+`8aa95ace8938881cf3bd4e8c049cf2bc0ad37e74792c967decd7a6cb0b764dae`;
+the embedded flash SHA-256 is
+`848e2ebae2bcc0a4b2c658894aa2793910b2f7d660a22c8f9a0e988bcaca94c5`.
+The package and its pinned HID fallback passed offline checks. In a second
+hardware trial, it flashed and passed full readback, but normal power-on gave
+one LED pulse and a solid black screen. The HID restore of all four sectors
+passed its 213-sector CRC scan, and the user confirmed normal screen and
+controls afterward. Do not flash stage two again. Independent stock disassembly
+then identified the fault: app+`0x079CC6` dereferences `r0` as a descriptor
+pointer, while the diagnostic LED call had replaced that register with pulse
+count 1 before calling the original function. The first image also replaced
+`r0` with the function address. A third offline build in
+`build/hello-display-stage3/` saves `r0` in `r8` at hook entry and restores it
+before the original backlight call. Its package SHA-256 is
+`606eea3a5bff8e0536665e6e28a89136568de2ef45c3ff0e6f5ed55ebe88420c`.
+It passed offline package and HID recovery-plan validation before the trial.
+Rebuild the successful revision with:
+
+```powershell
+py -3 firmware-research/replacement-source/build_hello_display_hook.py --source firmware-research/replacement-source/main/hello_display_hook_stage3.s --stock-image private/downloads/stock-main-extracted/app.bin --stock-package private/downloads/H9_Update-Type-C_41dc2974-af11-4ae0-8302-3fe4d775de0c/H9_Update-Type-C/TD-H9-V1.0.38.fw --output firmware-research/replacement-source/build/hello-display-stage3
+```
+
+The third trial completed on hardware on 2026-11-06. A fresh main-flash backup
+matched stock SHA-256
+`74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f214d322894d26ce4e648`.
+The four-sector flash passed full-byte readback against image SHA-256
+`f5566c573ad0be20623624ee33ec44f6330314eb021e338caef574eebf895cb4`.
+After a normal power-on, the user saw **HELLO WORLD** on the display and
+repeating groups of four top-LED pulses. The latter confirms the authored
+pixel-stream loop completed. The test firmware intentionally holds the radio
+task at that screen. The pinned PTT+2 HID fallback restored the four changed
+sectors, verified all 213 accessible main-firmware sectors against stock by
+CRC. The user confirmed the normal channel screen and working controls after
+power-cycling. The experimental package remains under the ignored build
+directory; the radio was returned to stock.
+
+## Minimal main boot probe
+
+`build_main_boot_probe.py` builds a separate 208-byte Pi32v2 program at the
+stock `0x01E00100` app entry. It reuses the verified stock launch-argument copy
+and stack setup, clears the stock `0xE2E0..0x1E4D4` RAM interval, writes
+`0x48394254` and its complement to RAM words `0xE2E0` and `0xE2E4`, then
+configures the stock breathing LED's GPIO 9 and blinks three pulses followed
+by a pause. [The stock trace](../h9-firmware-research/evidence/stock/main-visible-boot-signal.md)
+links the breathing LED setting and timer to GPIO bank 0 bit 9. The two RAM
+words remain a debugger-visible sign that execution reached C after RAM
+initialization. The probe has no display, scheduler, or radio drivers.
+
+```powershell
+py -3 firmware-research/replacement-source/build_main_boot_probe.py --compiler 'C:\path\to\pi32\bin\clang.exe' --stock-image 'C:\path\to\decrypted\app.bin'
+```
+
+The build verifies the launch ABI bytes, RAM clear bounds, entry address,
+LED blink symbol, unresolved symbols, and stock-size raw layout. The raw
+app preserves all pinned stock bytes after the 208-byte probe. Its `build/boot-probe-main/`
+output contains an ELF, map, raw app layout, and manifest. The raw file is
+for offline inspection only. A stock-derived `.fw` overlay passed
+`h9_flasher.py inspect --stock-base` and differs from stock in 2 of 218
+flash sectors (the first app sector and metadata near `0xD9000`). On
+2026-11-06, the verified overlay was flashed over a fresh stock backup.
+Both sectors and the complete `0xDA000`-byte readback verified. After a normal
+power-on, the user observed the repeated three-pulse LED pattern. This proves
+that the replacement entry executed far enough to drive GPIO 9. The RAM marker
+was not read on hardware, and the probe has no display or radio functions.
+
+For a failed boot, the main flasher's `restore` uses the fresh backup created
+before the flash. A second, HID-specific fallback is
+`../h9-firmware-research/restore_boot_probe_over_hid.py`. Its `plan` command
+validates the exact probe package and stock main-flash backup without a device;
+`inspect` checks the radio's accessible main-firmware CRC map in PTT+2 mode;
+`restore --yes` rewrites only sectors `0xD9000` and `0x5000`, with the app
+header last. After the boot test, the normal BR23 disk did not enumerate in
+update mode. PTT+2 produced the solid-green-light `4C4A:4155` HID interface.
+The read-only scan found exactly the two probe sectors changed and 211 other
+accessible main-firmware sectors matching stock. The fallback restored the
+two sectors, verified all 213 accessible sectors by CRC, and the user confirmed
+the normal channel screen and working controls after power-cycling. The first
+`0x5000` bootloader bytes were unchanged by the probe and are outside the HID
+CRC map. The stock backup is
+`private/downloads/h9-before-boot-probe-20261106.bin` (SHA-256
+`74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f214d322894d26ce4e648`).
+
+This is the beginning of a source rewrite for the **main Pi32v2 firmware** and the separate **ARM APRS controller**. The isolated main boot probe and stock-derived display hook above have booted; the broader standalone replacement source is not a complete radio firmware image. Source behavior below is tied to the captured stock v1.0.38 main app (`app.bin` SHA-256 `11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3`) and APRS v1.0.15 image (SHA-256 `1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33`). Neither vendor image is checked into the repository.
 
 ## Implemented source
 
