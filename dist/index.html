@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self'; connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'">
   <meta name="theme-color" content="#0c1822">
-  <meta name="description" content="Choose the TD-H9 Bluetooth channel programmer or explore stock-derived firmware, Brick Breaker, and recovery tools at H9 Toolbox.">
+  <meta name="description" content="Program your TD-H9 over Bluetooth in your browser. Back up the radio, edit channels and settings, and write changes with H9 Toolbox.">
   <link rel="canonical" href="https://h9toolbox.com/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="H9 Toolbox">
   <meta property="og:url" content="https://h9toolbox.com/">
-  <meta property="og:title" content="H9 Toolbox | Programmer &amp; firmware">
-  <meta property="og:description" content="Bluetooth channel programming and TD-H9 firmware experiments, each with its own backup and recovery path.">
-  <title>H9 Toolbox | Programmer &amp; firmware</title>
+  <meta property="og:title" content="TD-H9 Web Programmer | H9 Toolbox">
+  <meta property="og:description" content="Connect over Bluetooth, save an original backup, and edit TD-H9 channels and settings in your browser.">
+  <title>TD-H9 Web Programmer | H9 Toolbox</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="/landing.css">
   <script src="/https-redirect.js"></script>
@@ -26,37 +26,39 @@
     </header>
 
     <main>
-      <section class="landing-hero" aria-labelledby="hero-title">
+      <section class="landing-hero hero-without-diagram" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="overline"><span class="signal-dot"></span> TIDRADIO TD-H9 · OPEN TOOLS</p>
-          <h1 id="hero-title">Choose what you want to change.</h1>
-          <p class="hero-lead">Edit the radio's channels and settings over Bluetooth, or explore firmware experiments and recovery tools. Start with the area that matches your job.</p>
+          <p class="overline"><span class="signal-dot"></span> TIDRADIO TD-H9 · WEB BLUETOOTH PROGRAMMER</p>
+          <h1 id="hero-title">Program your <span class="keep-together">TD-H9.</span><br><em>Right in your browser.</em></h1>
+          <p class="hero-lead">Connect from desktop Chrome or Edge, back up your radio, then edit channels and settings. No account or H9 Toolbox install needed.</p>
+          <div class="hero-start"><a class="hero-primary" href="/programmer/">Open Web programmer <span aria-hidden="true">↗</span></a><a class="hero-secondary" href="/firmware/">Explore firmware hacks ↗</a></div>
+          <ol class="quick-path" aria-label="How to program your radio"><li><span>1</span>Connect Bluetooth</li><li><span>2</span>Read &amp; save original</li><li><span>3</span>Edit &amp; write</li></ol>
         </div>
-        <div class="hero-diagram" aria-hidden="true">
+        <div class="hero-diagram" aria-hidden="true" hidden>
           <div class="diagram-label">TD-H9</div>
           <div class="diagram-radio"><div class="diagram-antenna"></div><div class="diagram-screen"><span>H9</span><span>TOOLBOX</span></div><div class="diagram-keys"><i></i><i></i><i></i><i></i></div></div>
-          <div class="diagram-path path-left"><span>BLUETOOTH</span><b>CH / SETTINGS</b></div>
-          <div class="diagram-path path-right"><span>USB / HID</span><b>FIRMWARE</b></div>
+          <div class="diagram-path path-left"><span>START HERE</span><b>WEB PROGRAMMER</b></div>
+          <div class="diagram-path path-right"><span>ALSO HERE</span><b>FIRMWARE</b></div>
         </div>
       </section>
 
       <section class="route-section" aria-label="Choose a tool">
         <article class="route-card programmer-card">
-          <div class="route-top"><span class="route-number">01 / PROGRAM</span><span class="route-mode">BLUETOOTH</span></div>
+          <div class="route-top"><span class="route-number">01 / START HERE</span><span class="route-mode">WEB BLUETOOTH</span></div>
           <div class="route-icon" aria-hidden="true"><span class="radio-wave">◖</span><span class="radio-core"></span><span class="radio-wave">◗</span></div>
           <h2>Channels &amp; settings</h2>
           <p>Read your TD-H9, save its original <code>.img</code>, edit channels and mapped settings, then write changed blocks back from Chrome or Edge.</p>
           <ul><li>No account required</li><li>CSV and readable JSON transfer</li><li>Radio data stays in your browser</li></ul>
-          <a class="route-action" href="/programmer/">Open Bluetooth programmer <span aria-hidden="true">↗</span></a>
+          <a class="route-action" href="/programmer/">Open Web programmer <span aria-hidden="true">↗</span></a>
         </article>
 
         <article class="route-card firmware-card">
-          <div class="route-top"><span class="route-number">02 / EXPLORE</span><span class="route-mode">USB-C / HID</span></div>
+          <div class="route-top"><span class="route-number">02 / EXPLORE LATER</span><span class="route-mode">USB-C / HID</span></div>
           <div class="route-icon firmware-icon" aria-hidden="true"><span class="pixel-brick"></span><span class="pixel-brick"></span><span class="pixel-brick"></span><span class="pixel-ball"></span><span class="pixel-paddle"></span></div>
           <h2>Firmware &amp; games</h2>
           <p>Build the stock-derived Brick Breaker image, use the guided flashing tool, and keep a recovery backup. The normal channel screen remains available.</p>
           <ul><li>Source and build tools on GitHub</li><li>Backup before writing</li><li>PTT+2 HID restore instructions</li></ul>
-          <a class="route-action" href="/firmware/">Explore firmware tools <span aria-hidden="true">↗</span></a>
+          <a class="route-action" href="/firmware/">Explore firmware hacks <span aria-hidden="true">↗</span></a>
         </article>
       </section>
 
