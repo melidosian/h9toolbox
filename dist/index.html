@@ -4,149 +4,69 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self'; connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'">
-  <meta name="theme-color" content="#111f2c">
-  <meta name="description" content="Program your TIDRADIO TD-H9 over Bluetooth in Chrome or Edge. Edit channels and radio settings, import CSV, and save backups with H9 Toolbox. No account required.">
-  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0c1822">
+  <meta name="description" content="Choose the TD-H9 Bluetooth channel programmer or explore stock-derived firmware, Brick Breaker, and recovery tools at H9 Toolbox.">
   <link rel="canonical" href="https://h9toolbox.com/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="H9 Toolbox">
-  <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://h9toolbox.com/">
-  <meta property="og:title" content="TIDRADIO TD-H9 Bluetooth Programmer | H9 Toolbox">
-  <meta property="og:description" content="Edit TD-H9 channels and radio settings, import channel CSV files, and save backups directly in your browser. No account required.">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="TIDRADIO TD-H9 Bluetooth Programmer | H9 Toolbox">
-  <meta name="twitter:description" content="Edit TD-H9 channels and radio settings, import channel CSV files, and save backups directly in your browser. No account required.">
-  <title>TIDRADIO TD-H9 Bluetooth Programmer | H9 Toolbox</title>
-  <link rel="icon" href="./favicon.ico" type="image/x-icon">
-  <script src="./https-redirect.js"></script>
-  <script src="./analytics.js"></script>
-  <link rel="stylesheet" href="./styles.css">
+  <meta property="og:title" content="H9 Toolbox | Programmer &amp; firmware">
+  <meta property="og:description" content="Bluetooth channel programming and TD-H9 firmware experiments, each with its own backup and recovery path.">
+  <title>H9 Toolbox | Programmer &amp; firmware</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/landing.css">
+  <script src="/https-redirect.js"></script>
+  <script src="/analytics.js"></script>
 </head>
-<body>
-  <div class="shell">
-    <header class="topbar">
-      <div class="brand"><span class="mark">H9</span><span><strong>H9 Toolbox</strong><small>TD-H9 PROGRAMMER</small></span></div>
-      <span class="connection" id="connection"><i></i> Disconnected</span>
+<body class="landing-page">
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="site-brand" href="/" aria-label="H9 Toolbox home"><span class="site-mark">H9</span><span><strong>H9 Toolbox</strong><small>TOOLS FOR THE TD-H9</small></span></a>
+      <nav class="site-nav" aria-label="Main navigation"><a href="/programmer/">Programmer</a><a href="/firmware/">Firmware</a><a class="nav-github" href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub ↗</a></nav>
     </header>
 
     <main>
-      <section class="intro">
-        <div class="eyebrow">DIRECT TO RADIO · NO ODMASTER ACCOUNT</div>
-        <h1>TIDRADIO TD-H9.<br><em>Bluetooth programmer.</em></h1>
-        <p>H9 Toolbox connects to your TIDRADIO TD-H9 over Bluetooth so you can edit channels and radio settings in Chrome or Edge. Import and export channel CSV files, transfer readable JSON configurations, and save a full .img backup. No account is required. Radio data stays in your browser; visits and site interactions on h9toolbox.com are measured with Google Analytics.</p>
-        <p class="subtext">TD-H9 owners have successfully used H9 Toolbox on several radios.</p>
-        <div class="intro-actions"><a class="button ghost" href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">View GitHub repository ↗</a></div>
+      <section class="landing-hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="overline"><span class="signal-dot"></span> TIDRADIO TD-H9 · OPEN TOOLS</p>
+          <h1 id="hero-title">Choose what you want to change.</h1>
+          <p class="hero-lead">Edit the radio's channels and settings over Bluetooth, or explore firmware experiments and recovery tools. Start with the area that matches your job.</p>
+        </div>
+        <div class="hero-diagram" aria-hidden="true">
+          <div class="diagram-label">TD-H9</div>
+          <div class="diagram-radio"><div class="diagram-antenna"></div><div class="diagram-screen"><span>H9</span><span>TOOLBOX</span></div><div class="diagram-keys"><i></i><i></i><i></i><i></i></div></div>
+          <div class="diagram-path path-left"><span>BLUETOOTH</span><b>CH / SETTINGS</b></div>
+          <div class="diagram-path path-right"><span>USB / HID</span><b>FIRMWARE</b></div>
+        </div>
       </section>
 
-      <div class="layout">
-        <div class="primary">
-          <section class="card" aria-labelledby="radio-title">
-            <div class="card-head"><div><span class="step">01</span><h2 id="radio-title">Connect to your TD-H9</h2></div><span class="hint">Chrome or Edge · HTTPS</span></div>
-            <p class="subtext">Turn on the radio’s Bluetooth programming mode, then choose it from the browser’s device list.</p>
-            <div class="controls"><button id="connect" class="button primary-button">Connect Bluetooth</button><button id="disconnect" class="button ghost" disabled>Disconnect</button></div>
-            <details class="advanced"><summary>Bluetooth options</summary>
-              <div class="option-row"><label for="profile">UART service</label><select id="profile"><option value="auto">Auto-detect known profiles</option><option value="h9">TD-H9 / FF00</option><option value="nordic">Nordic UART</option><option value="hm10">HM-10 / FFE0</option><option value="feasycom">Feasycom / FFF0</option><option value="custom">Custom service UUID</option></select></div>
-              <div class="option-row"><label for="customUuid">Additional service UUID</label><input id="customUuid" type="text" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
-              <div class="option-row"><label for="checksum">Read reply</label><select id="checksum"><option value="auto">Auto-detect 36 or 37 bytes</option><option value="no">36 bytes (no checksum)</option><option value="yes">37 bytes (with checksum)</option></select></div>
-              <p class="fine">The browser can only inspect services listed before you choose a device. If your radio uses another service, enter its UUID and reconnect.</p>
-            </details>
-          </section>
+      <section class="route-section" aria-label="Choose a tool">
+        <article class="route-card programmer-card">
+          <div class="route-top"><span class="route-number">01 / PROGRAM</span><span class="route-mode">BLUETOOTH</span></div>
+          <div class="route-icon" aria-hidden="true"><span class="radio-wave">◖</span><span class="radio-core"></span><span class="radio-wave">◗</span></div>
+          <h2>Channels &amp; settings</h2>
+          <p>Read your TD-H9, save its original <code>.img</code>, edit channels and mapped settings, then write changed blocks back from Chrome or Edge.</p>
+          <ul><li>No account required</li><li>CSV and readable JSON transfer</li><li>Radio data stays in your browser</li></ul>
+          <a class="route-action" href="/programmer/">Open Bluetooth programmer <span aria-hidden="true">↗</span></a>
+        </article>
 
-          <section class="card" aria-labelledby="backup-title">
-            <div class="card-head"><div><span class="step">02</span><h2 id="backup-title">Read &amp; back up</h2></div><span id="radioMode" class="chip">No image</span></div>
-            <p class="subtext">Read the radio before editing. Saving an untouched backup is recommended so you can recover your original configuration.</p>
-            <div class="controls backup-actions">
-              <div class="option-help"><button id="read" class="button primary-button" type="button" disabled>Read from radio</button><button class="info-button" type="button" aria-label="About Read from radio" aria-describedby="help-read" aria-expanded="false"></button><span class="tooltip-text" id="help-read" role="tooltip">Copies the complete radio image into this browser. Reading does not change the radio.</span></div>
-              <div class="option-help"><button id="save" class="button ghost" type="button" disabled>Save original .img</button><button class="info-button" type="button" aria-label="About Save original image" aria-describedby="help-save" aria-expanded="false"></button><span class="tooltip-text" id="help-save" role="tooltip">Optionally downloads the untouched radio image so you can restore your original configuration later.</span></div>
-              <div class="option-help"><label class="button ghost file-label">Open .img or JSON<input id="openFile" type="file" accept=".img,.json,application/octet-stream,application/json"></label><button class="info-button" type="button" aria-label="About Open image or JSON" aria-describedby="help-open" aria-expanded="false"></button><span class="tooltip-text" id="help-open" role="tooltip">Open a full .img backup or an H9 Toolbox JSON file. A config JSON needs a radio read or .img loaded first; a lossless archive can open by itself.</span></div>
-            </div>
-            <details class="advanced file-options"><summary>More file options</summary>
-              <div class="controls backup-exports">
-                <div class="option-help"><button id="exportJson" class="button ghost" type="button" disabled>Config JSON</button><button class="info-button" type="button" aria-label="About Config JSON" aria-describedby="help-config" aria-expanded="false"></button><span class="tooltip-text" id="help-config" role="tooltip">Readable channels and settings for sharing or editing. It includes stored callsigns and relay passwords, but not the full radio image.</span></div>
-                <div class="option-help"><button id="exportImg" class="button ghost" type="button" disabled>Working .img</button><button class="info-button" type="button" aria-label="About Working image" aria-describedby="help-working" aria-expanded="false"></button><span class="tooltip-text" id="help-working" role="tooltip">Downloads the image with your current edits. Keep the original .img separately for recovery.</span></div>
-                <div class="option-help"><button id="exportArchive" class="button ghost" type="button" disabled>Lossless JSON</button><button class="info-button" type="button" aria-label="About Lossless JSON" aria-describedby="help-archive" aria-expanded="false"></button><span class="tooltip-text" id="help-archive" role="tooltip">A complete JSON archive with raw memory bytes. It can recreate the original .img without a separate backup; older memoryBlocks files still open.</span></div>
-              </div>
-            </details>
-            <div class="progress-wrap" id="progressWrap" hidden><div class="progress-track"><div id="progressBar"></div></div><span id="progressLabel">0%</span></div>
-            <p class="fine" id="imageInfo">No radio image loaded.</p>
-          </section>
+        <article class="route-card firmware-card">
+          <div class="route-top"><span class="route-number">02 / EXPLORE</span><span class="route-mode">USB-C / HID</span></div>
+          <div class="route-icon firmware-icon" aria-hidden="true"><span class="pixel-brick"></span><span class="pixel-brick"></span><span class="pixel-brick"></span><span class="pixel-ball"></span><span class="pixel-paddle"></span></div>
+          <h2>Firmware &amp; games</h2>
+          <p>Build the stock-derived Brick Breaker image, use the guided flashing tool, and keep a recovery backup. The normal channel screen remains available.</p>
+          <ul><li>Source and build tools on GitHub</li><li>Backup before writing</li><li>PTT+2 HID restore instructions</li></ul>
+          <a class="route-action" href="/firmware/">Explore firmware tools <span aria-hidden="true">↗</span></a>
+        </article>
+      </section>
 
-          <section class="card channels" aria-labelledby="channels-title">
-            <div class="card-head"><div><span class="step">03</span><h2 id="channels-title">Channels</h2></div><span class="chip" id="channelCount">0 loaded</span></div>
-            <p class="subtext">Create, edit, and remove memory channels. Changes stay in the image until you write them to the radio.</p>
-            <div class="channel-tools"><input id="search" type="search" placeholder="Find channel or frequency" aria-label="Find channel" disabled><div class="channel-tool-actions"><label class="toggle"><input id="showAll" type="checkbox" disabled> Show empty</label><input id="newChannelNumber" type="number" min="1" max="199" placeholder="Next free" aria-label="New channel number; leave blank for next free" disabled><button id="createChannel" class="button primary-button" disabled>Create channel</button></div></div>
-              <div class="channel-import-actions"><div class="controls"><label class="button ghost file-label">Import channels CSV<input id="openChannels" type="file" accept=".csv,text/csv,.json,application/json"></label><button id="exportChannels" class="button ghost" disabled>Export channels CSV</button><label class="toggle"><input id="replaceChannels" type="checkbox"> Replace all channels</label></div><p class="fine">CSV includes every editable channel option. Import merges by channel number; Replace all also clears occupied slots missing from the file after confirmation. Older channel JSON exports can still be opened.</p></div>
-            <div class="table-wrap"><table><thead><tr><th>CH</th><th>Name</th><th>RX MHz</th><th>TX MHz</th><th>Mode</th><th>Tones</th><th>Power</th><th>Scan</th><th></th></tr></thead><tbody id="channelRows"><tr><td colspan="9" class="empty">Read from the radio or open a backup to see channels.</td></tr></tbody></table></div>
-            <div class="edit-panel" id="editPanel" hidden>
-              <div class="edit-title"><h3 id="editHeading">Edit channel</h3><button id="cancelEdit" class="text-button">Cancel</button></div>
-              <p class="fine editor-intro">Changing RX updates TX for simplex or a recognized repeater output. Select + or − when needed; enter TX yourself for a custom split or leave it blank for receive-only.</p>
-              <fieldset class="editor-section"><legend>Frequency &amp; display</legend><div class="edit-grid">
-                <label>Name<input id="editName" maxlength="8" autocomplete="off"></label>
-                <label>RX MHz<input id="editRx" type="text" inputmode="decimal" placeholder="146.52000"></label>
-                <label>TX MHz<input id="editTx" type="text" inputmode="decimal" placeholder="146.52000"></label>
-                <label>Offset direction<select id="editDirection"><option value="0">None / split</option><option value="1">Minus (−)</option><option value="2">Plus (+)</option><option value="3">Unknown / preserve</option></select></label>
-                <label>Modulation &amp; width<select id="editMode"><option value="FM">FM · wide</option><option value="NFM">FM · narrow</option><option value="AM">AM · wide</option><option value="NAM">AM · narrow</option></select></label>
-                <label>Transmit power<select id="editPower"><option value="0">Low · 1 W</option><option value="1">Mid · 5 W</option><option value="2">High · 10 W</option><option value="3">Unknown · preserve</option></select></label>
-              </div><div class="tx-assist"><span id="txHint" class="fine">Changing RX updates TX.</span><button id="suggestTx" class="text-button" type="button">Use suggested TX</button></div><p class="fine">US suggestions: 2 m ±0.600 MHz, 1.25 m −1.600 MHz, 70 cm ±5.000 MHz. 70 cm direction varies locally; verify the repeater listing. <a href="https://www.arrl.org/band-plan" target="_blank" rel="noreferrer">ARRL band plan</a></p></fieldset>
-              <fieldset class="editor-section"><legend>Squelch tones</legend><div class="tone-grid">
-                <div class="tone-box"><h4>Transmit tone</h4><div class="edit-grid">
-                  <label>Type<select id="editTxToneType"><option value="off">Off</option><option value="ctcss">CTCSS</option><option value="dcs">DCS</option><option value="raw">Unknown · preserve</option></select></label>
-                  <label id="editTxCtcssWrap">CTCSS Hz<select id="editTxCtcss"></select></label>
-                  <label id="editTxDcsWrap">DCS code<select id="editTxDcs"></select></label>
-                  <label id="editTxPolarityWrap">DCS polarity<select id="editTxPolarity"><option value="N">Normal</option><option value="R">Reverse</option></select></label>
-                </div></div>
-                <div class="tone-box"><h4>Receive tone</h4><div class="edit-grid">
-                  <label>Type<select id="editRxToneType"><option value="off">Off</option><option value="ctcss">CTCSS</option><option value="dcs">DCS</option><option value="raw">Unknown · preserve</option></select></label>
-                  <label id="editRxCtcssWrap">CTCSS Hz<select id="editRxCtcss"></select></label>
-                  <label id="editRxDcsWrap">DCS code<select id="editRxDcs"></select></label>
-                  <label id="editRxPolarityWrap">DCS polarity<select id="editRxPolarity"><option value="N">Normal</option><option value="R">Reverse</option></select></label>
-                </div></div>
-              </div></fieldset>
-              <fieldset class="editor-section"><legend>Channel behavior</legend><div class="edit-grid">
-                <label>PTT ID<select id="editPttId"><option value="0">Off</option><option value="1">Beginning</option><option value="2">End</option><option value="3">Both</option></select></label>
-                <label>Scramble code<select id="editScramble"></select></label>
-                <label class="check-option"><input id="editUsed" type="checkbox"> Channel enabled</label>
-                <label class="check-option"><input id="editScan" type="checkbox"> Include in scan</label>
-                <label class="check-option"><input id="editBusyLock" type="checkbox"> Busy channel lockout</label>
-                <label class="check-option"><input id="editHopping" type="checkbox"> Hopping RX</label>
-              </div></fieldset>
-              <div class="editor-actions"><button id="applyEdit" class="button primary-button">Apply to image</button><button id="clearEdit" class="button danger" type="button">Remove channel</button><span id="editError" class="error" role="alert"></span></div>
-            </div>
-          </section>
-
-          <section class="card settings" aria-labelledby="settings-title">
-            <div class="card-head"><div><span class="step">04</span><h2 id="settings-title">Radio settings</h2></div><span class="chip" id="settingsCount">0 loaded</span></div>
-            <p class="subtext">Inspect and edit documented radio, Bluetooth, GNSS, and APRS options from the full backup. Open a group to see its controls. Unknown values remain unchanged unless you select a new value.</p>
-            <div id="settingsGroups" class="settings-groups">Read from the radio or open a backup to inspect its settings.</div>
-            <div class="editor-actions"><button id="applySettings" class="button primary-button" type="button">Apply settings to image</button><span id="settingsError" class="error" role="alert"></span></div>
-            <p class="fine">Fixed GNSS coordinates, stored DTMF codes, FM broadcast presets, and undocumented firmware bytes remain in the backup and are not edited here. Changing APRS beacon or relay options can cause transmissions; review those values before writing.</p>
-          </section>
-
-          <section class="card" aria-labelledby="write-title">
-            <div class="card-head"><div><span class="step">05</span><h2 id="write-title">Write changes</h2></div><span class="chip warn" id="changeCount">No changes</span></div>
-            <p class="subtext">Only changed 32-byte blocks are sent. Before each write, the app checks that the radio still matches the original image, then reads the block back.</p>
-            <label class="confirm"><input id="riskAcknowledged" type="checkbox" disabled><span>I have reviewed my channels and settings and am ready to write these changes to my radio.</span></label>
-            <div class="controls"><button id="write" class="button write-button" disabled>Write changed blocks</button></div>
-          </section>
-        </div>
-
-        <aside class="sidebar">
-          <section class="card status-card" aria-labelledby="activity-title"><div class="card-head"><div><span class="step">●</span><h2 id="activity-title">Activity</h2></div></div><div id="status" class="status">Ready to connect.</div><ol id="log" class="log" aria-live="polite"></ol></section>
-          <section class="note"><strong>Ready to program</strong><p>Read your radio, save an untouched backup, and review your channels and settings before writing. Firmware versions can vary, so check the displayed settings against your radio on the first read.</p><p>Bluetooth and programming stay local to your browser.</p></section>
-        </aside>
-      </div>
-      <section class="card" aria-labelledby="programmer-help-title">
-        <div class="card-head"><h2 id="programmer-help-title">About programming the TIDRADIO TD-H9</h2></div>
-        <details class="advanced"><summary>Which browsers support Bluetooth programming?</summary><p>Use Chrome or Edge on a computer with Bluetooth and open this site over HTTPS. Enable Bluetooth programming mode on the TD-H9 before connecting. Web Bluetooth is not supported in iPhone Safari.</p></details>
-        <details class="advanced"><summary>Can I edit channels without connecting a radio?</summary><p>Yes. Open a previously saved TD-H9 .img backup or a lossless JSON archive to work offline. You can edit channels and mapped settings, import or export channel CSV files, and download the working .img. Writing changes to a radio requires a Bluetooth connection.</p></details>
-        <details class="advanced"><summary>Which channel settings can I change?</summary><p>Edit receive and transmit frequencies, channel names, FM or AM modulation, bandwidth, CTCSS and DCS tones, transmit power, scan inclusion, and other mapped channel options for channels 1–199. The radio settings editor also covers mapped display, button, Bluetooth, GNSS, and APRS options. Undocumented bytes are preserved.</p></details>
-        <details class="advanced"><summary>Do I need an account, and where is my radio data stored?</summary><p>No account or ODmaster login is needed. Radio images, channels, and settings stay in browser memory unless you download them. Google Analytics measures visits and site interactions on h9toolbox.com, but does not receive radio images, channels, or settings.</p></details>
-        <details class="advanced"><summary>Should I save a backup before writing changes?</summary><p>Yes. Keep an untouched .img backup so you can return to your original configuration. Review your channels and settings before writing. H9 Toolbox checks the radio against the original image, writes only changed blocks, and reads each changed block back to verify it.</p></details>
+      <section class="file-note" aria-labelledby="file-note-title">
+        <div><span class="note-kicker">TWO DIFFERENT BACKUPS</span><h2 id="file-note-title">Know which image you have.</h2></div>
+        <p>The Bluetooth programmer saves a channel and settings <code>.img</code>. Firmware flashing uses a <code>.fw</code> package and a separate main-flash backup. Keep both if you use both tools; they are not interchangeable.</p>
       </section>
     </main>
-    <footer><div class="footer-links">H9 Toolbox <span>Independent TD-H9 programming tool · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. Save an untouched backup and review your settings before writing.<br><strong>Analytics:</strong> Google Analytics measures visits and site interactions on h9toolbox.com. H9 Toolbox does not send radio images, channels, or settings to Analytics.</p></footer>
+
+    <footer class="site-footer"><span>H9 Toolbox · Independent TD-H9 tools</span><span><a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a> · <a href="/firmware/">Firmware and recovery</a></span><p>H9 Toolbox was entirely and responsibly AI generated under human direction. Site visits and interactions are measured with Google Analytics; radio images, channels, and settings are not sent to Analytics.</p></footer>
   </div>
-  <script type="module" src="./app.js"></script>
 </body>
 </html>
