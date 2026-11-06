@@ -68,6 +68,15 @@ checks the exact backup and package, scans the accessible sectors, restores
 changed sectors, and rescans their CRCs. A backup from the same radio is
 required before any write.
 
+The backup bytes and their recovery manifest are **not in the repo**. The
+stage-23 trial and HID restore scripts pin this radio's paths and stock-backup
+hash; they are a reproducible record of this hardware trial, not a drop-in
+recovery plan for a different radio. The [generic BR23 flasher](../h9-flasher/README.md#custom-main-image-offline-validation-and-recovery)
+can create a fresh backup and manifest for another radio and restore that
+image through USB Update mode. The pinned HID fallback was verified only with
+this radio's backup; another owner needs to establish their own HID recovery
+path before relying on it.
+
 The latest stage-23 radio backup is kept under ignored `private/downloads/`.
 Generated packages, logs, extracted vendor bytes, and radio backups stay out
 of Git; backups can contain private settings. See the [USB flasher](../h9-flasher/README.md)
