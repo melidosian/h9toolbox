@@ -21,9 +21,9 @@ The detailed, chronological experiments and source inventory are preserved in
   coordinates were reversed when opening an LCD cell window. Stage 23 swaps
   them. The [trial record](RESEARCH_LOG.md#stage-twenty-three-snake-coordinate-correction)
   includes the observed failure and correction.
-- The earlier [stage-21 task](main/display_task_entry_stage21.s) established
-  fast, four-direction key-driven redraw. Stages 17–20 established the panel
-  initialization, pixel path, buffer transfers, and stock key decoder.
+- The earlier [stage-21 trial](RESEARCH_LOG.md#stage-twenty-one-faster-four-direction-marker-trial)
+  established fast, four-direction key-driven redraw. Stages 17–20 established
+  the panel initialization, pixel path, buffer transfers, and stock key decoder.
 - After the stage-23 trial, the pinned HID restore returned all 213 accessible
   main-firmware sectors to the stock CRC map. The user confirmed the normal
   channel screen and controls after power-cycling.
@@ -61,6 +61,9 @@ The latest stage-23 radio backup is kept under ignored `private/downloads/`.
 Generated packages, logs, extracted vendor bytes, and radio backups stay out
 of Git; backups can contain private settings. See the [USB flasher](../h9-flasher/README.md)
 and [HID recovery notes](../h9-firmware-research/README.md) for protocol details.
+Earlier stage-specific source and trial scripts remain local for reference;
+only the working stage-23 source, builder, trial, and HID restore scripts are
+tracked in the current checkout.
 
 ## Source work beyond the display task
 

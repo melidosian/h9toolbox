@@ -3,6 +3,8 @@
 This is the chronological record of display experiments, source ports, and
 offline link checks. Some entries describe their state when written; use the
 [current status](README.md) for the latest verified hardware result.
+Earlier stage-specific source and trial scripts are retained locally; the
+current tracked tree carries the working stage-23 path.
 
 ## Stage-twenty-three Snake coordinate correction
 
