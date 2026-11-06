@@ -37,13 +37,24 @@ It changes only four 4096-byte sectors: `0x5000`, `0x8D000`, `0xAC000`, and
 
 ## Rebuild and recover
 
-The stock v1.0.38 application input is pinned to SHA-256
-`11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3`.
-The official `.fw` package and extracted `app.bin` are local inputs and are
-not committed. From the repo root, rebuild with:
+Another builder needs the exact official v1.0.38 `.fw` package (SHA-256
+`c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6`),
+Python 3, and a checkout of `pi32v2-isa`. The package and extracted `app.bin`
+are local inputs and are not committed. The extracted application must match
+SHA-256 `11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3`.
+The Snake builder currently expects the assembler under the ignored
+`firmware-research/h9-firmware-research/output/pi32v2-isa/` directory. The
+hardware-tested package was assembled with commit
+`66ac37bb2ae40e5dbbd5588a6a7c2d7baf829d7f` from that repository.
+
+From the repo root, extract the stock application and build the Snake package:
 
 ```powershell
-py -3 firmware-research/replacement-source/build_display_task_stage23.py --stock-image <stock-app.bin> --stock-package <stock-v1.0.38.fw>
+$stock = 'C:\path\to\TD-H9-V1.0.38.fw'
+py -3 firmware-research/h9-firmware-research/firmware.py extract $stock --output firmware-research/h9-firmware-research/output/stock
+git clone https://github.com/jvitkauskas/pi32v2-isa.git firmware-research/h9-firmware-research/output/pi32v2-isa
+git -C firmware-research/h9-firmware-research/output/pi32v2-isa checkout 66ac37bb2ae40e5dbbd5588a6a7c2d7baf829d7f
+py -3 firmware-research/replacement-source/build_display_task_stage23.py --stock-image firmware-research/h9-firmware-research/output/stock/app.bin --stock-package $stock
 ```
 
 The builder checks the stock input, erased code cave, hook, and exact changed
