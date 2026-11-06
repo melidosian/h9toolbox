@@ -1,8 +1,9 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BRICK_BREAKER_SECTORS, crc16, expectedCrcs, H9Hid, loadBackup, loadBrickBreakerPackage, loadBrickBreakerStockSeed, loadStockPackage, planUpdate, scanRadio, verifyBrickBreakerBackup, writeSector } from './firmware.mjs?v=20261106b';
-import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261106b';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BRICK_BREAKER_IMAGE_SHA256, BRICK_BREAKER_SECTORS, classifyBrickBreakerRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBrickBreakerPackage, loadBrickBreakerStockSeed, loadStockPackage, planUpdate, scanRadio, sha256, verifyBrickBreakerBackup, writeSector } from './firmware.mjs?v=20261106d';
+import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261106d';
+import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261106d';
 
 const $ = id => document.getElementById(id);
-let target = null, stockSeed = null, backup = null, device = null, hid = null, plan = null, restorePlan = null, busy = false;
+let target = null, stockSeed = null, gameSeed = null, backup = null, device = null, hid = null, plan = null, restorePlan = null, busy = false;
 let cancelBackup = false, backupRunning = false;
 let firmwareSelection = 0, backupSelection = 0;
 const resumeKey = 'h9-hid-pending-v1';
@@ -30,6 +31,7 @@ function refresh() {
   $('restore').disabled = busy || !restorePlan?.length || !$('acknowledge').checked;
   $('firmwareFile').disabled = busy;
   $('loadBrickBreaker').disabled = busy;
+  $('loadStockGitHub').disabled = busy;
   $('backupFile').disabled = busy;
   $('flash').textContent = target?.kind === 'brick-breaker' ? 'Install Brick Breaker' : 'Write verified firmware';
 }
@@ -85,7 +87,7 @@ async function validateSelectedBackup(announceWaiting = true) {
 
 $('firmwareFile').addEventListener('change', async event => {
   const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; backup = null; forgetPlan();
+  ++backupSelection; target = null; stockSeed = null; gameSeed = null; backup = null; forgetPlan();
   const file = event.target.files[0];
   if (!file) { $('firmwareState').textContent = 'No package selected'; await validateSelectedBackup(false); return; }
   try {
@@ -101,7 +103,7 @@ $('firmwareFile').addEventListener('change', async event => {
 });
 $('loadBrickBreaker').addEventListener('click', async () => {
   const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; backup = null; forgetPlan();
+  ++backupSelection; target = null; stockSeed = null; gameSeed = null; backup = null; forgetPlan();
   busy = true; refresh();
   try {
     status('Downloading the pinned Brick Breaker package and stock recovery seed from H9 Toolbox.');
@@ -119,6 +121,29 @@ $('loadBrickBreaker').addEventListener('click', async () => {
     await validateSelectedBackup(false);
   } catch (error) {
     if (selection === firmwareSelection) { $('firmwareState').textContent = 'Brick Breaker package rejected'; fail(error); }
+  } finally { busy = false; refresh(); }
+});
+$('loadStockGitHub').addEventListener('click', async () => {
+  const selection = ++firmwareSelection;
+  ++backupSelection; target = null; stockSeed = null; gameSeed = null; backup = null; forgetPlan();
+  busy = true; refresh();
+  try {
+    status('Downloading the pinned Type-C v1.0.38 ZIP from the TDH9 GitHub mirror.');
+    const [zipResponse, gameResponse] = await Promise.all([
+      fetch(TYPE_C_ZIP_URL, { cache: 'no-store' }),
+      fetch('./brick-breaker-v1.0.38.fw?v=208409d8', { cache: 'no-store' }),
+    ]);
+    if (!zipResponse.ok || !gameResponse.ok) throw new Error('Could not download the stock or game firmware source.');
+    const stockBytes = await extractPinnedStockFirmware(new Uint8Array(await zipResponse.arrayBuffer()));
+    const loaded = await loadStockPackage(stockBytes);
+    const game = await loadBrickBreakerPackage(new Uint8Array(await gameResponse.arrayBuffer()));
+    if (selection !== firmwareSelection) return;
+    target = loaded; gameSeed = game.image; $('firmwareFile').value = '';
+    $('firmwareState').textContent = 'Stock v1.0.38 · pinned GitHub ZIP and extracted .fw verified';
+    status('Stock Type-C v1.0.38 package verified locally. The game image is available as a fast backup seed. No radio write sent.');
+    await validateSelectedBackup(false);
+  } catch (error) {
+    if (selection === firmwareSelection) { $('firmwareState').textContent = 'GitHub stock package rejected'; fail(error); }
   } finally { busy = false; refresh(); }
 });
 $('backupFile').addEventListener('change', () => validateSelectedBackup());
@@ -149,27 +174,31 @@ $('createBackup').addEventListener('click', async () => {
   try {
     status('Scanning accessible flash sector CRCs. No erase or write will be sent.');
     const current = await scanRadio(hid, progress);
-    if (target.kind === 'brick-breaker') {
-      const original = expectedCrcs(stockSeed);
-      for (let physical = APP_START; physical < IMAGE_SIZE; physical += SECTOR_SIZE) {
-        const index = (physical - APP_START) / SECTOR_SIZE;
-        if (current[index] !== original[index]) throw new Error(`Brick Breaker install requires exact stock v1.0.38 at 0x${physical.toString(16)}. No write sent.`);
-      }
-    }
+    const source = target.kind === 'brick-breaker'
+      ? classifyBrickBreakerRadio(current, stockSeed, target.image)
+      : gameSeed ? classifyBrickBreakerRadio(current, target.image, gameSeed) : 'other';
     status('Recovering accessible flash bytes using shifted CRC windows. This may take several minutes; keep USB connected.');
-    const recovered = await readAccessibleFlash(hid, current, stockSeed ? [stockSeed, target.image] : target.image, progress, () => cancelBackup);
+    const knownImages = stockSeed ? [stockSeed, target.image] : gameSeed ? [target.image, gameSeed] : target.image;
+    const recovered = await readAccessibleFlash(hid, current, knownImages, progress, () => cancelBackup);
     if (cancelBackup) throw new Error('HID backup cancelled. No radio write was sent.');
     const archive = await createHidArchive(recovered.accessible, recovered.method);
     const loaded = await loadHidArchive(archive, target.image);
-    if (target.kind === 'brick-breaker') await verifyBrickBreakerBackup(loaded.image);
+    if (source === 'stock') await verifyBrickBreakerBackup(loaded.image);
+    if (source === 'brick-breaker' && await sha256(loaded.image) !== BRICK_BREAKER_IMAGE_SHA256)
+      throw new Error('Recovered Brick Breaker image differs from the pinned build. No backup accepted.');
     const date = new Date().toISOString().slice(0, 10);
-    const name = `TD-H9-HID-recovery-${date}.h9hid`;
+    const name = `TD-H9-${source === 'brick-breaker' ? 'Brick-Breaker-' : ''}HID-recovery-${date}.h9hid`;
     const url = URL.createObjectURL(new Blob([archive], { type: 'application/octet-stream' }));
     const link = document.createElement('a'); link.href = url; link.download = name; document.body.append(link);
     link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
-    backup = loaded;
-    $('backupState').textContent = `${name} · download started · ${recovered.method === 'verified-known-image-seed' ? 'verified image seed' : 'erased sector seed'}`;
-    status('HID recovery archive built and download started. Confirm it is saved before writing. Protected boot bytes are not in this archive.');
+    if (source === 'brick-breaker' && target.kind === 'brick-breaker') {
+      if (!backup) $('backupState').textContent = `${name} · game backup download started; select a stock backup to restore`;
+      status(`Current Brick Breaker backup download started. ${backup ? 'The selected stock backup is still available for Restore.' : 'Select a prior stock backup before Restore.'} Confirm the download is saved.`);
+    } else {
+      backup = loaded;
+      $('backupState').textContent = `${name} · download started · ${recovered.method === 'verified-known-image-seed' ? 'verified image seed' : 'erased sector seed'}`;
+      status(`${source === 'brick-breaker' ? 'Current Brick Breaker' : 'HID recovery'} archive built and download started. Confirm it is saved before writing. Protected boot bytes are not in this archive.`);
+    }
     progress(1, 1);
   } catch (error) { fail(error); }
   busy = false; backupRunning = false; cancelBackup = false; refresh();

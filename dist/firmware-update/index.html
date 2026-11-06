@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://raw.githubusercontent.com; object-src 'none'; base-uri 'self'">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#111f2c">
   <title>Firmware update | H9 Toolbox</title>
@@ -33,7 +33,7 @@
         <div class="card-head"><div><span class="step">01</span><h2 id="files-title">Select firmware and backup</h2></div></div>
         <div class="file-grid">
           <div class="hosted-package"><strong>Brick Breaker for stock v1.0.38</strong><button class="button primary-button" id="loadBrickBreaker">Load verified Brick Breaker .fw</button><small>Downloads the exact tested package and checks its SHA-256 before any radio access.</small></div>
-          <label>Or select official TD-H9 v1.0.38 .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label>
+          <div class="hosted-package"><strong>Stock Type-C v1.0.38</strong><button class="button ghost" id="loadStockGitHub">Fetch stock .fw from GitHub</button><small>Reads the pinned ZIP from the third-party TDH9 mirror and verifies both the ZIP and extracted firmware hashes.</small><label>Or select a local stock .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label></div>
           <label class="backup-file">Existing recovery backup, optional (.h9hid or raw .bin)<input id="backupFile" type="file" accept=".h9hid,.bin,application/octet-stream"><small id="backupState">No backup selected. You can create one after connecting.</small></label>
         </div>
         <p class="selection-state" id="firmwareState" aria-live="polite">No firmware package selected</p>
@@ -44,7 +44,7 @@
         <ol class="instructions"><li>Turn the radio off and connect a data-capable USB-C cable.</li><li>Hold <strong>PTT + 2</strong> while powering on. The screen stays blank and the top LED turns green.</li><li>Click Connect and select the JieLi HID device in the browser chooser.</li></ol>
         <div class="controls"><button class="button primary-button" id="connect">Connect HID radio</button><button class="button ghost" id="disconnect" disabled>Disconnect</button></div>
         <div class="controls backup-controls"><button class="button ghost" id="createBackup" disabled>Create and download HID recovery backup</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button><span id="backupHint" class="hint" aria-live="polite">Select a firmware target and connect the radio first.</span></div>
-        <p class="fine">The radio must stay in HID mode throughout backup. The page checks each reconstructed sector and rescans the radio before accepting the archive. Confirm the download is saved before proceeding.</p>
+        <p class="fine">The radio must stay in HID mode throughout backup. The page checks each reconstructed sector and rescans the radio before accepting the archive. A backup made while Brick Breaker is installed preserves that game image; keep your earlier stock backup to restore stock. Confirm the download is saved before proceeding.</p>
       </section>
       <section class="card" aria-labelledby="inspect-title">
         <div class="card-head"><div><span class="step">03</span><h2 id="inspect-title">Inspect and update</h2></div></div>
@@ -63,6 +63,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The HID sector recovery procedure has been tested on a physical TD-H9; this full browser update flow is awaiting hardware validation.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=20261106b"></script>
+  <script type="module" src="./update.js?v=20261106d"></script>
 </body>
 </html>

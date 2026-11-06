@@ -92,6 +92,21 @@ export async function verifyBrickBreakerBackup(image) {
     'Brick Breaker requires an exact stock v1.0.38 main-firmware backup. No writes allowed.');
 }
 
+export function classifyBrickBreakerRadio(current, stock, game) {
+  requireValue(current.length === (FLASH_SIZE - APP_START) / SECTOR_SIZE,
+    'Incomplete radio CRC scan.');
+  const matches = image => {
+    for (let physical = APP_START; physical < IMAGE_SIZE; physical += SECTOR_SIZE) {
+      const index = (physical - APP_START) / SECTOR_SIZE;
+      if (current[index] !== crc16(image.subarray(physical, physical + SECTOR_SIZE))) return false;
+    }
+    return true;
+  };
+  if (matches(stock)) return 'stock';
+  if (matches(game)) return 'brick-breaker';
+  throw new Error('Radio is neither exact stock v1.0.38 nor the pinned Brick Breaker image. No backup seed accepted.');
+}
+
 export async function loadBackup(bytes, target) {
   requireValue(bytes.length === IMAGE_SIZE, 'Select a raw 0xDA000-byte full-flash backup, not a Bluetooth .img.');
   requireValue(same(bytes.slice(0, APP_START), target.slice(0, APP_START)), 'Boot region differs. HID cannot update the first 0x5000 bytes.');

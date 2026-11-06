@@ -85,14 +85,17 @@ saved in the copied folder's `build/` directory.
 ## Experimental browser HID flasher
 
 The hosted build is available through `https://h9toolbox.com/firmware-update/`.
+The page can fetch the pinned Type-C stock v1.0.38 ZIP directly from the
+`teedubyeah/TDH9` GitHub mirror, extract the `.fw` locally, and check both
+published hashes. A local stock `.fw` remains an option.
 On a radio running the exact stock v1.0.38 main image, load the pinned Brick
 Breaker package, connect in PTT+2 HID mode, create and save an `.h9hid` recovery
 backup, inspect the five-sector plan, and only then start installation. The
 browser checks the hosted package, reconstructed stock seed, backup image,
 radio CRC map, and each written sector. The full browser flow still needs a
-physical-radio trial. A radio already running Brick Breaker needs its prior
-stock backup to use the browser Restore button; it cannot make a new stock
-backup from the installed game image.
+physical-radio trial. A radio already running Brick Breaker can make a backup
+of its current game image; it still needs its prior stock backup to use the
+browser Restore button.
 
 ## Guided HID restore
 
