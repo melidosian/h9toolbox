@@ -4,6 +4,7 @@ This folder collects the TD-H9 v1.0.38 firmware investigation and tools. It is r
 
 ## Start here
 
+- [Brick Breaker source package](brick-breaker/README.md): independently buildable, hardware-tested stock-UI game with its pinned assembler, flasher, backup, and HID recovery tools. Official firmware and personal backups are excluded.
 - [Firmware analysis and recovery record](h9-firmware-research/README.md): container layout, APRS module, audio and transmit routing, startup logo, failed logo experiment, and successful HID recovery.
 - [APRS code map](h9-firmware-research/APRS_CODE_MAP.md): current hypotheses and the decoded receive/transmit paths.
 - [APRS TX route models](h9-firmware-research/aprs_tx_route_model.py): offline reconstruction of the shared TX CH selector and its [timed-beacon caller](h9-firmware-research/aprs_timed_beacon_model.py); neither measures RF.

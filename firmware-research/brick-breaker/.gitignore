@@ -1,0 +1,12 @@
+# Vendor firmware, generated images, backups, and logs stay local.
+build/
+dist/
+input/
+backups/
+*.fw
+*.bin
+!tools/h9-flasher/vendor/data/br23loader.bin
+*.raw
+*.img
+__pycache__/
+*.pyc
