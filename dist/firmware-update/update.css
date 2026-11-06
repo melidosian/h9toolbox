@@ -9,6 +9,11 @@
 .file-grid label{display:grid;gap:8px;color:#c5dfd5;font-size:12px;font-weight:700;min-width:0}
 .file-grid input{width:100%;color:#cedfda;background:#0e1c26;border:1px solid #37535d;border-radius:8px;padding:10px;font-size:12px}
 .file-grid small{font-weight:400;color:#95b3ad;overflow-wrap:anywhere}
+.file-grid .backup-file{grid-column:1/-1}
+.hosted-package{display:grid;align-content:start;gap:11px;min-width:0;padding:15px;border:1px solid #37535d;border-radius:8px;background:#142832;color:#c5dfd5;font-size:12px}
+.hosted-package .button{justify-self:start;white-space:normal;text-align:center}
+.hosted-package small{line-height:1.5}
+.selection-state{color:#a9d9c4;font-size:12px;margin:13px 0 0}
 .instructions{color:#bed1ce;font-size:13px;line-height:1.65;padding-left:22px}
 .instructions li{margin-bottom:5px}
 .firmware-main .confirm{align-items:flex-start;line-height:1.5;margin:21px 0 16px}

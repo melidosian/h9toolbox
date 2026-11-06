@@ -62,7 +62,7 @@ export function recoverPreviousSector(next, windows, previousSectorCrc) {
   return result;
 }
 
-async function knownAppMatches(hid, crcs, target) {
+export async function knownAppMatches(hid, crcs, target) {
   if (target.length !== IMAGE_SIZE) return false;
   for (let index = 0; index < APP_SECTORS; index++) {
     if (crc16(target.subarray(APP_START + index * SECTOR_SIZE, APP_START + (index + 1) * SECTOR_SIZE)) !== crcs[index]) return false;
@@ -113,15 +113,20 @@ async function collectWindows(hid, crcs, startBoundary, onProgress, cancelled) {
   return rows;
 }
 
-export async function readAccessibleFlash(hid, crcs, target, onProgress = () => {}, cancelled = () => false) {
+export async function readAccessibleFlash(hid, crcs, knownImages, onProgress = () => {}, cancelled = () => false) {
   requireValue(crcs.length === SECTORS, 'Incomplete HID sector scan.');
   const sectors = Array(SECTORS).fill(null);
   let seedIndex, startBoundary, method;
-  if (await knownAppMatches(hid, crcs, target)) {
-    for (let index = 0; index < APP_SECTORS; index++) sectors[index] = target.slice(APP_START + index * SECTOR_SIZE, APP_START + (index + 1) * SECTOR_SIZE);
+  const candidates = Array.isArray(knownImages) ? knownImages : [knownImages];
+  let verifiedSeed = null;
+  for (const image of candidates) {
+    if (await knownAppMatches(hid, crcs, image)) { verifiedSeed = image; break; }
+  }
+  if (verifiedSeed) {
+    for (let index = 0; index < APP_SECTORS; index++) sectors[index] = verifiedSeed.slice(APP_START + index * SECTOR_SIZE, APP_START + (index + 1) * SECTOR_SIZE);
     seedIndex = APP_SECTORS - 1;
     startBoundary = seedIndex;
-    method = 'verified-official-image-seed';
+    method = 'verified-known-image-seed';
   } else {
     seedIndex = await findBlankPair(hid, crcs);
     sectors[seedIndex] = BLANK.slice();

@@ -1,8 +1,8 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, loadStockPackage, planUpdate, scanRadio, writeSector } from './firmware.mjs?v=20261104b';
-import { createHidArchive, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261104b';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BRICK_BREAKER_SECTORS, crc16, expectedCrcs, H9Hid, loadBackup, loadBrickBreakerPackage, loadBrickBreakerStockSeed, loadStockPackage, planUpdate, scanRadio, verifyBrickBreakerBackup, writeSector } from './firmware.mjs?v=20261106a';
+import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261106a';
 
 const $ = id => document.getElementById(id);
-let target = null, backup = null, device = null, hid = null, plan = null, restorePlan = null, busy = false;
+let target = null, stockSeed = null, backup = null, device = null, hid = null, plan = null, restorePlan = null, busy = false;
 let cancelBackup = false, backupRunning = false;
 let firmwareSelection = 0, backupSelection = 0;
 const resumeKey = 'h9-hid-pending-v1';
@@ -22,18 +22,38 @@ function refresh() {
   $('createBackup').disabled = busy || !hid || !target;
   $('backupHint').textContent = busy && backupRunning ? 'Reading the radio. Keep USB connected.'
     : !hid ? 'Connect the HID radio to enable backup.'
-      : !target ? 'Select TD-H9-V1.0.38.fw from the Type-C download in step 01 to enable backup.'
+      : !target ? 'Select a firmware target in step 01 to enable backup.'
         : 'Ready to create a local HID recovery backup.';
   $('cancelBackup').hidden = !backupRunning;
   $('acknowledge').disabled = busy || (!plan?.length && !restorePlan?.length);
   $('flash').disabled = busy || !plan?.length || !$('acknowledge').checked;
   $('restore').disabled = busy || !restorePlan?.length || !$('acknowledge').checked;
   $('firmwareFile').disabled = busy;
+  $('loadBrickBreaker').disabled = busy;
   $('backupFile').disabled = busy;
+  $('flash').textContent = target?.kind === 'brick-breaker' ? 'Install Brick Breaker' : 'Write verified firmware';
 }
 function fail(error) { status(error?.message || String(error), true); }
 function pending() { try { return JSON.parse(localStorage.getItem(resumeKey)); } catch { return null; } }
 function forgetPlan() { plan = null; restorePlan = null; $('acknowledge').checked = false; $('planState').textContent = 'Inspect the radio before writing.'; refresh(); }
+async function verifyLiveGamePlan(current, changed, resumeSector) {
+  if (target.kind !== 'brick-breaker') return;
+  if (resumeSector) {
+    const index = (resumeSector - APP_START) / SECTOR_SIZE;
+    const backupCrc = expectedCrcs(backup.image)[index];
+    const gameCrc = expectedCrcs(target.image)[index];
+    if (current[index] !== backupCrc && current[index] !== gameCrc) return;
+  }
+  const live = backup.image.slice();
+  const targetCrcs = expectedCrcs(target.image);
+  for (const physical of changed) {
+    const index = (physical - APP_START) / SECTOR_SIZE;
+    if (current[index] === targetCrcs[index])
+      live.set(target.image.subarray(physical, physical + SECTOR_SIZE), physical);
+  }
+  if (!await knownAppMatches(hid, current, live))
+    throw new Error('Live radio bytes differ from the exact stock/Brick Breaker sector plan. No writes allowed.');
+}
 
 async function validateSelectedBackup(announceWaiting = true) {
   const selection = ++backupSelection;
@@ -42,7 +62,7 @@ async function validateSelectedBackup(announceWaiting = true) {
   if (!file) { $('backupState').textContent = 'No backup selected. You can create one after connecting.'; refresh(); return; }
   if (!target) {
     $('backupState').textContent = `${file.name} · waiting for firmware package`;
-    if (announceWaiting) status('Backup selected. Choose the official Type-C .fw package to validate it.');
+    if (announceWaiting) status('Backup selected. Choose a firmware target to validate it.');
     refresh(); return;
   }
   try {
@@ -50,6 +70,7 @@ async function validateSelectedBackup(announceWaiting = true) {
     const loaded = file.name.toLowerCase().endsWith('.h9hid')
       ? await loadHidArchive(bytes, target.image)
       : await loadBackup(bytes, target.image);
+    if (target.kind === 'brick-breaker') await verifyBrickBreakerBackup(loaded.image);
     if (selection !== backupSelection) return;
     backup = loaded;
     $('backupState').textContent = `${file.name} · ${backup.source === 'hid' ? 'HID archive verified' : 'boot region verified'}`;
@@ -64,7 +85,7 @@ async function validateSelectedBackup(announceWaiting = true) {
 
 $('firmwareFile').addEventListener('change', async event => {
   const selection = ++firmwareSelection;
-  ++backupSelection; target = null; backup = null; forgetPlan();
+  ++backupSelection; target = null; stockSeed = null; backup = null; forgetPlan();
   const file = event.target.files[0];
   if (!file) { $('firmwareState').textContent = 'No package selected'; await validateSelectedBackup(false); return; }
   try {
@@ -77,6 +98,28 @@ $('firmwareFile').addEventListener('change', async event => {
     $('firmwareState').textContent = 'Package rejected'; fail(error);
   }
   await validateSelectedBackup(false);
+});
+$('loadBrickBreaker').addEventListener('click', async () => {
+  const selection = ++firmwareSelection;
+  ++backupSelection; target = null; stockSeed = null; backup = null; forgetPlan();
+  busy = true; refresh();
+  try {
+    status('Downloading the pinned Brick Breaker package and stock recovery seed from H9 Toolbox.');
+    const [packageResponse, seedResponse] = await Promise.all([
+      fetch('./brick-breaker-v1.0.38.fw?v=208409d8', { cache: 'no-store' }),
+      fetch('./brick-breaker-stock-sectors.bin?v=223c3b5c', { cache: 'no-store' }),
+    ]);
+    if (!packageResponse.ok || !seedResponse.ok) throw new Error('Could not download the Brick Breaker assets.');
+    const loaded = await loadBrickBreakerPackage(new Uint8Array(await packageResponse.arrayBuffer()));
+    const seed = await loadBrickBreakerStockSeed(new Uint8Array(await seedResponse.arrayBuffer()), loaded.image);
+    if (selection !== firmwareSelection) return;
+    target = loaded; stockSeed = seed; $('firmwareFile').value = '';
+    $('firmwareState').textContent = 'Brick Breaker · exact hardware-tested .fw verified';
+    status('Brick Breaker package and exact stock v1.0.38 recovery seed verified locally. No radio write sent.');
+    await validateSelectedBackup(false);
+  } catch (error) {
+    if (selection === firmwareSelection) { $('firmwareState').textContent = 'Brick Breaker package rejected'; fail(error); }
+  } finally { busy = false; refresh(); }
 });
 $('backupFile').addEventListener('change', () => validateSelectedBackup());
 $('connect').addEventListener('click', async () => {
@@ -106,18 +149,26 @@ $('createBackup').addEventListener('click', async () => {
   try {
     status('Scanning accessible flash sector CRCs. No erase or write will be sent.');
     const current = await scanRadio(hid, progress);
+    if (target.kind === 'brick-breaker') {
+      const original = expectedCrcs(stockSeed);
+      for (let physical = APP_START; physical < IMAGE_SIZE; physical += SECTOR_SIZE) {
+        const index = (physical - APP_START) / SECTOR_SIZE;
+        if (current[index] !== original[index]) throw new Error(`Brick Breaker install requires exact stock v1.0.38 at 0x${physical.toString(16)}. No write sent.`);
+      }
+    }
     status('Recovering accessible flash bytes using shifted CRC windows. This may take several minutes; keep USB connected.');
-    const recovered = await readAccessibleFlash(hid, current, target.image, progress, () => cancelBackup);
+    const recovered = await readAccessibleFlash(hid, current, stockSeed ? [stockSeed, target.image] : target.image, progress, () => cancelBackup);
     if (cancelBackup) throw new Error('HID backup cancelled. No radio write was sent.');
     const archive = await createHidArchive(recovered.accessible, recovered.method);
     const loaded = await loadHidArchive(archive, target.image);
+    if (target.kind === 'brick-breaker') await verifyBrickBreakerBackup(loaded.image);
     const date = new Date().toISOString().slice(0, 10);
     const name = `TD-H9-HID-recovery-${date}.h9hid`;
     const url = URL.createObjectURL(new Blob([archive], { type: 'application/octet-stream' }));
     const link = document.createElement('a'); link.href = url; link.download = name; document.body.append(link);
     link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
     backup = loaded;
-    $('backupState').textContent = `${name} · download started · ${recovered.method === 'verified-official-image-seed' ? 'official image seed' : 'erased sector seed'}`;
+    $('backupState').textContent = `${name} · download started · ${recovered.method === 'verified-known-image-seed' ? 'verified image seed' : 'erased sector seed'}`;
     status('HID recovery archive built and download started. Confirm it is saved before writing. Protected boot bytes are not in this archive.');
     progress(1, 1);
   } catch (error) { fail(error); }
@@ -131,6 +182,10 @@ $('inspect').addEventListener('click', async () => {
     const marker = pending();
     const resumeSector = marker?.packageHash === target.packageHash && marker?.backupHash === backup.hash ? marker.sector : null;
     const changed = planUpdate(current, backup.image, target.image, resumeSector);
+    if (target.kind === 'brick-breaker' && (changed.length !== BRICK_BREAKER_SECTORS.length ||
+      !BRICK_BREAKER_SECTORS.every(physical => changed.includes(physical))))
+      throw new Error('Brick Breaker sector plan differs from the five tested sectors. No writes allowed.');
+    await verifyLiveGamePlan(current, changed, resumeSector);
     const backupCrcs = expectedCrcs(backup.image), targetCrcs = expectedCrcs(target.image);
     const unknown = changed.filter(physical => {
       const index = (physical - APP_START) / SECTOR_SIZE;
@@ -151,6 +206,15 @@ async function performWrite(direction) {
   const destination = direction === 'update' ? target.image : backup.image;
   busy = true; refresh();
   try {
+    const fresh = await scanRadio(hid);
+    const marker = pending();
+    const resumeSector = marker?.packageHash === target.packageHash && marker?.backupHash === backup.hash ? marker.sector : null;
+    const changed = planUpdate(fresh, backup.image, target.image, resumeSector);
+    await verifyLiveGamePlan(fresh, changed, resumeSector);
+    const destinationCrcs = expectedCrcs(destination);
+    const freshWork = changed.filter(physical => fresh[(physical - APP_START) / SECTOR_SIZE] !== destinationCrcs[(physical - APP_START) / SECTOR_SIZE]);
+    if (freshWork.length !== work.length || freshWork.some((physical, index) => physical !== work[index]))
+      throw new Error('Radio sector state changed since inspection. Inspect again before writing.');
     status(`${direction === 'update' ? 'Updating' : 'Restoring'} ${work.length} sectors. Keep USB connected and the radio powered on.`);
     for (let index = 0; index < work.length; index++) {
       const physical = work[index];

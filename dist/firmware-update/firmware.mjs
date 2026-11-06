@@ -5,6 +5,10 @@ export const FLASH_SIZE = 0x100000;
 export const SECTOR_SIZE = 4096;
 export const STOCK_PACKAGE_SHA256 = 'c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6';
 export const STOCK_IMAGE_SHA256 = '74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f214d322894d26ce4e648';
+export const BRICK_BREAKER_PACKAGE_SHA256 = '208409d8d7e335904f70f9e28e27e9c413c6296a3d185a69a55707ac8ddaee68';
+export const BRICK_BREAKER_IMAGE_SHA256 = '741bbeb87eb84cd7c6988054c56a267bb73c89bbe5cc74dc4e5bc0d75ce7e193';
+export const BRICK_BREAKER_STOCK_SECTORS_SHA256 = '223c3b5c97cbcd26fd18ba0b20346e12cd2bdba3473672fdd17742115e1581a9';
+export const BRICK_BREAKER_SECTORS = [0x5000, 0x8d000, 0xac000, 0xae000, 0xd9000];
 const KEY = new Uint8Array([0x4e, 0x61, 0xbc, 0x00]); // 12345678, little endian
 
 export function crc16(bytes) {
@@ -24,10 +28,10 @@ export async function sha256(bytes) {
 function same(a, b) { return a.length === b.length && a.every((value, index) => value === b[index]); }
 function requireValue(condition, message) { if (!condition) throw new Error(message); }
 
-export async function loadStockPackage(bytes) {
+async function loadPackage(bytes, expectedPackageHash, expectedImageHash, kind) {
   requireValue(bytes.length >= 0x200 && bytes.length <= 16 * 1024 * 1024, 'Invalid firmware package size.');
   const packageHash = await sha256(bytes);
-  requireValue(packageHash === STOCK_PACKAGE_SHA256, 'Only the verified official TD-H9 v1.0.38 .fw package is supported.');
+  requireValue(packageHash === expectedPackageHash, `This is not the verified ${kind} TD-H9 v1.0.38 package.`);
   const header = bytes.slice(0, 0x200);
   let key = 0xf181;
   for (let index = 0; index < 0x40; index++) {
@@ -59,8 +63,33 @@ export async function loadStockPackage(bytes) {
       requireValue(crc16(image) === rv.getUint16(4, true), 'Firmware image CRC is invalid.');
     }
   }
-  requireValue(image?.length === IMAGE_SIZE && await sha256(image) === STOCK_IMAGE_SHA256, 'Firmware image does not match the verified v1.0.38 image.');
-  return { image, packageHash };
+  requireValue(image?.length === IMAGE_SIZE && await sha256(image) === expectedImageHash, `Firmware image does not match the verified ${kind} image.`);
+  return { image, packageHash, kind };
+}
+
+export function loadStockPackage(bytes) {
+  return loadPackage(bytes, STOCK_PACKAGE_SHA256, STOCK_IMAGE_SHA256, 'stock');
+}
+
+export function loadBrickBreakerPackage(bytes) {
+  return loadPackage(bytes, BRICK_BREAKER_PACKAGE_SHA256, BRICK_BREAKER_IMAGE_SHA256, 'brick-breaker');
+}
+
+export async function loadBrickBreakerStockSeed(bytes, gameImage) {
+  requireValue(bytes.length === BRICK_BREAKER_SECTORS.length * SECTOR_SIZE &&
+    await sha256(bytes) === BRICK_BREAKER_STOCK_SECTORS_SHA256, 'Hosted stock seed is corrupt or unexpected.');
+  requireValue(gameImage.length === IMAGE_SIZE && await sha256(gameImage) === BRICK_BREAKER_IMAGE_SHA256,
+    'Brick Breaker image is unexpected.');
+  const stock = gameImage.slice();
+  BRICK_BREAKER_SECTORS.forEach((physical, index) =>
+    stock.set(bytes.subarray(index * SECTOR_SIZE, (index + 1) * SECTOR_SIZE), physical));
+  requireValue(await sha256(stock) === STOCK_IMAGE_SHA256, 'Stock seed does not reconstruct the verified v1.0.38 image.');
+  return stock;
+}
+
+export async function verifyBrickBreakerBackup(image) {
+  requireValue(image.length === IMAGE_SIZE && await sha256(image) === STOCK_IMAGE_SHA256,
+    'Brick Breaker requires an exact stock v1.0.38 main-firmware backup. No writes allowed.');
 }
 
 export async function loadBackup(bytes, target) {

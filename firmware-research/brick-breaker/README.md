@@ -30,8 +30,13 @@ active during the game; game-mode transmit inhibition has not been added.
   HID protocol code, and BR23 RAM loader needed to build and recover this
   exact image. Third-party notices are in the tool directories.
 
-Generated firmware, official inputs, backups, and logs are ignored by Git.
-They are deliberately absent from this public repository. The guided CLI
+The exact hardware-tested Brick Breaker `.fw` is published at
+`dist/firmware-update/brick-breaker-v1.0.38.fw` for the experimental browser
+flasher. A 20 KiB stock-sector seed alongside it lets the browser reconstruct
+and verify the original stock image for fast HID backup. Recreate both hosted
+assets from the pinned local stock and game packages with
+`python publish_browser_assets.py`. Other generated firmware, official inputs,
+radio backups, and logs remain outside the public repository. The guided CLI
 downloads the Type-C v1.0.38 ZIP from
 [`teedubyeah/TDH9` at a pinned commit](https://github.com/teedubyeah/TDH9/blob/1ccb67c2684204b0097533486c545607caaf65b8/Firmware/1.0.38/H9_Update-Type-C_1.0.38.zip),
 checks the ZIP SHA-256 `1d1b6f87705f026dc5c5b118786d133cbc7f0589f606c8572581df981492155a`,
@@ -76,6 +81,18 @@ not the exact pinned stock version.
 
 To build only, add `build` after the one-line command. The generated `.fw` is
 saved in the copied folder's `build/` directory.
+
+## Experimental browser HID flasher
+
+The hosted build is available through `https://h9toolbox.com/firmware-update/`.
+On a radio running the exact stock v1.0.38 main image, load the pinned Brick
+Breaker package, connect in PTT+2 HID mode, create and save an `.h9hid` recovery
+backup, inspect the five-sector plan, and only then start installation. The
+browser checks the hosted package, reconstructed stock seed, backup image,
+radio CRC map, and each written sector. The full browser flow still needs a
+physical-radio trial. A radio already running Brick Breaker needs its prior
+stock backup to use the browser Restore button; it cannot make a new stock
+backup from the installed game image.
 
 ## Guided HID restore
 
