@@ -23,6 +23,23 @@ py -3 h9_flasher.py flash "C:\path\to\TD-H9-V1.0.38.fw" --device '\\.\PHYSICALDR
 
 Replace `PHYSICALDRIVE1` with the verified radio disk. If opening the disk returns `Access is denied`, use an elevated PowerShell session. After `backup`, power-cycle the radio and re-enter update mode before `flash`; then verify the disk number again. `flash` accepts an existing backup only if it exactly matches the current radio contents. This build also requires the `0x856014` SPI NOR ID observed during the first TD-H9 backup. Keep the radio attached until the command reports that readback verification passed.
 
+## macOS
+
+`vendor/scsiio/libusbport.py` (added by this project) talks to the BR23
+update device over libusb bulk-only transport, so the same commands work on
+a Mac. Install Homebrew `libusb` and `pyusb==1.3.1`, then pass the device's
+VID:PID instead of a disk path and run as root so libusb can detach the macOS
+mass-storage driver:
+
+```sh
+sudo ~/h9usb/bin/python h9_flasher.py probe --device 4C4A:2342
+```
+
+`4C4A:2342` is the VID:PID seen on one TD-H9 in USB Update mode (2026-11-08).
+INQUIRY, the ROM's WRITE_MEMORY/READ_MEMORY/JUMP, and RAM programs were
+exercised through this transport. The RAM helper's flash commands had not
+yet been run through it at the time of writing.
+
 ## Linux
 
 Identify the radio's SCSI generic device by its `BR23 UBOOT1.00` INQUIRY identity. `lsscsi -g` lists both the block and generic paths, when installed. Recheck the path every time you reconnect the radio, since `/dev/sgN` numbering can change. Your account needs read/write access to the SCSI generic device; root is simplest for initial use.

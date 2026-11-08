@@ -1,0 +1,11 @@
+# Vendor firmware, generated images, backups, and logs stay local.
+build/
+dist/
+input/
+backups/
+*.fw
+*.bin
+*.raw
+*.img
+__pycache__/
+*.pyc

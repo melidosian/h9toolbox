@@ -1,0 +1,1086 @@
+# Resource flash and UI boundary: research log
+
+Chronological record of the resource-flash and replacement-UI work. Each
+entry says what was found, how, and whether hardware was involved. Static
+facts live in the evidence notes:
+[UI/radio superloop](h9-firmware-research/evidence/stock/main-ui-radio-superloop.md)
+and [resource flash](h9-firmware-research/evidence/stock/main-resource-flash.md).
+Unless stated otherwise, the input is stock v1.0.38 `app.bin`
+(`11a07bc0…f9cd3`), read-only.
+
+## 2026-11-07 Planning: where a replacement UI can meet the radio
+
+- Stock `my_app` is a superloop that interleaves key handling, drawing, TX
+  setup, channel-to-RF copies, audio-source requests, and the LED and standby
+  ticks. One callee (`0x01E819F0`) both draws and changes RF output bits.
+  There is no function-level UI/radio boundary.
+- Snake replaces the `my_app` entry, so the loop and the stock resource-flash
+  setup never run. Brick Breaker stops the loop once the game starts. Neither
+  shows custom code running beside a working radio.
+- Free erased space in the app totals about 3.5 KiB in three gaps, plus a
+  1 KiB zero run; the package format keeps the app size fixed. This limits a
+  larger UI.
+- `pi32-call-index-v2.json` lacks the `my_app` loop call sites, so caller
+  searches through it are incomplete.
+- Recommended first UI milestone: a read-only overlay at the proven Brick
+  Breaker hook that returns to the stock loop on every pass (M1).
+
+## 2026-11-07 S0: the resource flash is reachable through the app
+
+- The seven-partition table at `0x01EB53F0` tiles the 16 MiB chip. The
+  Bluetooth clone image is partition `rw_freq` at `0x900000`: the clone `R`
+  handler reads each byte with `0x01E52CB2(4, addr + i, …)`.
+- The stock writer refuses voice, font, and resource (mask `38`). These are
+  the partitions stock never writes.
+- Read, erase, program, write-enable, busy-wait, and JEDEC routines were
+  located (chip select GPIO 23, SPI2). The stock `res_nor`, `fat_nor`, and
+  `sdfile` drivers and a `usb_msd` task exist; the USB-disk lead was not
+  pursued.
+- 44 bytes of RAM padding between `.bss` and the heap (`0x1E4D8..0x1E4FF`)
+  have no code references.
+
+## 2026-11-07 S1: read-only service image (built, not flashed)
+
+- One 4-byte call in the clone `R` loop (app+`0x05D018`) is redirected to a
+  402-byte shim. Addresses below `0x4000` behave as stock; `0x4000+32n`
+  selects a 32 KiB bank and returns status (`H9RS`, live JEDEC ID, ready
+  flag); `0x8000–0xFFFF` return chip bytes through the stock reader.
+- Package `aeb9ce21…`, 4 changed sectors. The build is reproducible, the
+  flasher verifies it as an app-only stock rebuild, the call encoding was
+  checked against stock bytes, and the pinned HID restore plan validates.
+- Correction during the work: short (2-byte) Pi32 calls resolve to
+  `site + 2 + displacement`, not `+4`. An early annotation script used `+4`
+  for every call. The S1 shim only uses targets taken from 4-byte calls, so
+  it is unaffected.
+- `test/firmware-update.test.mjs` "browser readback reconstructs…" already
+  fails on `main` at `24ec51a` (`verified-known-image-seed` vs
+  `verified-official-image-seed`). It is unrelated to this work.
+
+## 2026-11-08 S2: guarded write service (built, not flashed)
+
+- The clone `W` callback call at app+`0x05D11C` has room for a 4-byte call
+  if the service performs `r0 = r6` itself. `W` addresses below `0x5000`
+  skip the session write-permission bit, so the service uses
+  `0x4000–0x4FFF`.
+- Erase needs the CRC-16/XMODEM of the sector's current contents (erased
+  sector CRC `0xE03E`). Programming only touches erased bytes and is read
+  back. Only voice, font, and resource are allowed. Flash I/O goes through
+  the stock erase/program routines in 8-byte pieces, so it stays off DMA.
+- Package `d44e907c…`; the S1 code is byte-identical inside it.
+
+## 2026-11-08 Bluetooth throughput
+
+- No measured rate exists. At 32 bytes per round trip, an estimated
+  30–100 ms per block puts a two-pass whole-chip dump at about 9–30 hours.
+  Targeted per-sector backups (seconds to minutes) are practical. The S1
+  trial step that reads the logo area measures the real rate.
+
+## 2026-11-08 U0: USB route through the mask ROM
+
+- The flasher's RAM helper `br23loader.bin` is stored encrypted with the
+  JieLi CrcDecode keystream, restarting every 512 bytes. Decrypted, it runs
+  at `0x12000`.
+- The helper implements `FB` ops 0–6 and `0x42`, **not** `FB08`
+  (JUMP_TO_MEMORY). Its WRITE_MEMORY is a CRC-checked memcpy that resets the
+  chip for targets in `0x12000–0x27FFF`. That window includes its
+  flash-driver function table at `0x14C00`, so that table cannot be
+  redirected. Its READ_MEMORY reads any address.
+- The helper can drive SPI0/1/2 (base table at `0x14720`) and chooses the port
+  from packed key/value settings (`SPI`, `UTTX`, `UTBD`, `RESET`, `USBDP`,
+  …; build date `Sep 14 2020`). Using it for the GPIO-selected resource flash
+  is not established.
+- Therefore the route uses the mask ROM's own WRITE_MEMORY, READ_MEMORY, and
+  JUMP_TO_MEMORY. Open question: does the ROM's jump return to its command
+  loop?
+- SPI2 bring-up for update mode is ported from stock: base `0x1E1E00`, port A
+  via `0x1E511C` bit 16, pins CLK 24 / DO 26 / DI 25, chip select 23. Stock
+  sets GPIO directions only for port B. Whether SPI2's clock is enabled in
+  update mode is unknown.
+- macOS offers no SCSI pass-through to USB disks. Bulk-only transport over
+  libusb (Homebrew 1.0.30, pyusb 1.3.1) works with the vendored protocol
+  code; detaching the macOS disk driver needs root.
+- Correction: the S0/S1 notes said `my_app` sets the `0x5AA5` ready marker
+  after its JEDEC read. Only a **check** was observed (app+`0x0884C8`, which
+  skips chip setup when the marker is already set); where it is written is
+  not yet located. The notes were corrected.
+
+## 2026-11-08 U1: staged ROM test (ready, not run)
+
+- `resource_usb.py u1 --stage probe|read|full`. Probe sends only INQUIRY and
+  records the USB descriptors; read adds two READ_MEMORY of RAM
+  `0x12000`/`0x13000`; full checks the cipher, uploads a 24-byte marker
+  program, and jumps twice. All of it is RAM-only.
+- READ_MEMORY has never been sent to this radio's ROM; the flasher only used
+  WRITE_MEMORY and JUMP. The read stage checks it in isolation.
+- 14 offline tests pass, including a fake ROM that never returns from the
+  jump and a non-ROM device that receives no vendor commands.
+
+## 2026-11-08 U1 hardware, macOS (one TD-H9)
+
+Radio in USB Update mode (power on holding 8), USB-C data cable to an
+Apple-silicon Mac. macOS asked to allow the new USB accessory; the user
+allowed it. macOS mounted no volume (`diskutil` listed none).
+
+- **Device identity:** `resource_usb.py list` (descriptors only) found
+  `4C4A:2342` with manufacturer and product strings `BR23UBOOT1.00`. The
+  PTT+2 HID recovery mode uses the same VID with PID `4155`.
+- **Driver:** without root, libusb's detach of the macOS mass-storage driver
+  failed with "Access denied (insufficient permissions)" before any command
+  was sent. The tool then saved no report on an open failure; that was fixed
+  so every attempt leaves one.
+- **Probe stage (INQUIRY only), run with sudo: pass.** USB 1.10 (full
+  speed), interface 0, mass-storage subclass 6 (SCSI transparent), bulk
+  endpoints IN `0x81` and OUT `0x01`, 64-byte maximum packet. The macOS driver
+  was detached and reattached on exit. INQUIRY: vendor `BR23`, product
+  `UBOOT1.00`, revision `1.00`.
+- At USB 1.1 full speed, bulk-only transport tops out near 1 MB/s in
+  practice, so a 16 MiB read is a few minutes at best. The SPI read rate in
+  the RAM program and the per-command overhead will set the real figure.
+
+- **Read stage (INQUIRY plus READ_MEMORY `FD07`): pass.** This is the first
+  READ_MEMORY sent to this radio's mask ROM. 16 bytes at `0x12000`:
+  `3fe96acd1e87b6eb76e45da7c9cc3ff6`; at `0x13000`:
+  `2b9480ccb13ea215ea92b7a62dbad5f7`. Each address read the same twice. Neither
+  matches the RAM helper in encrypted or decrypted form. That is consistent with
+  untouched RAM after a fresh power-on (no helper was uploaded this session),
+  which also suggests the ROM does not use `0x12000`/`0x13000` itself.
+  *Correction (attempt 2 below):* READ_MEMORY returns RAM encrypted with the
+  CrcDecode keystream, so these bytes are the ROM's encrypted view, not raw RAM.
+  Decoded, `0x12000` holds `0x01EB4D10 0x01EB4650 0x01EB4698 0x01EB46E0`
+  (pointers into the app's address space) and `0x13000` holds
+  `0x00013004 0xFFFFFFFF 0x00013004 0x00013004` (self-referencing list
+  heads). This is the stock app's RAM, not power-on noise; see attempt 3.
+
+- **Full stage, attempt 1: stopped before any jump.** The first WRITE_MEMORY
+  (`FB06`, 16 bytes to `0x13100`, for the cipher check) completed with CSW
+  status 0, but the transport reported a nonzero residue. The vendored
+  protocol treats that as "Short data write". The cause was in the new macOS
+  transport: it returned the CSW residue field, whereas the vendored Windows
+  port, which the flasher used successfully on this radio, computes residue
+  from the bytes actually carried and ignores the CSW field. The transport
+  now does the same and records every command where the CSW residue
+  disagrees. The full stage reads back everything it writes, so an
+  unaccepted write is still caught. Pending the rerun, the working
+  hypothesis is that the BR23 ROM reports a bogus CSW residue for
+  WRITE_MEMORY.
+
+- **Full stage, attempt 2: the radio reset into the normal firmware.** Same
+  power-on as attempt 1, with the residue fix.
+  - Every command's CSW residue equalled the full transfer length (12 of 12,
+    for example `FD07`, 16 bytes carried, CSW residue 16). The BR23 ROM's CSW
+    residue field is meaningless, for reads as well as writes. The transport
+    fix was correct.
+  - The cipher check wrote the pattern encrypted and read back the
+    *encrypted* pattern; it then wrote the plain pattern and read back the
+    plain pattern. The tool concluded "stores as sent" and uploaded the
+    program **unencrypted**. That conclusion was wrong. The flasher's
+    encrypted RAM helper runs, so WRITE_MEMORY decrypts, so after the first
+    write RAM held the plain pattern. The only consistent reading is that
+    **READ_MEMORY encrypts what it returns with the same per-transfer
+    CrcDecode keystream**. The check had assumed raw reads.
+  - The ROM therefore stored the decrypted (scrambled) program at `0x12000`
+    (`4f4419e7 8d3e15d3 …`). On the jump the CPU executed one byte load
+    (`r7 = b[r4+4]`), then an undefined instruction at `0x12002`. The radio
+    left USB Update mode, pyusb reported "Other error" for the jump, and the
+    radio booted to the normal channel screen. Those bytes contain no flash
+    access. The radio booting normally confirms the main firmware is intact.
+  - Whether the jump returns is **still unknown**: the code that ran was not
+    the marker program.
+  - Fix: writes are always encrypted. The check now only decides whether
+    reads are encrypted (encrypted pattern back) or raw (plain pattern back)
+    and stops on anything else. Decoded reads decrypt. The fake ROM now
+    models encrypting reads, and a regression test asserts the program is
+    never sent unencrypted. 16 tests pass.
+  - Also learned: a crash in USB Update mode resets the radio into its normal
+    firmware. That is the benign failure mode U1 was designed around.
+
+- **Full stage, attempt 3: pass.** The radio was powered off, then put back
+  in USB Update mode. Reads were identified as encrypted ("writes decrypted,
+  reads encrypted"). The decoded program in RAM matched the 24 uploaded bytes
+  exactly. Both jumps returned in about 1 ms, the marker read `H9U1` with
+  counters 1 and 2, and INQUIRY still answered afterwards. **The BR23 mask
+  ROM's JUMP_TO_MEMORY calls the RAM program and returns to its USB command
+  loop.** The resource-flash route can rely on the ROM and our own code
+  alone, with no vendor RAM helper and no main-firmware change.
+  - Entry registers: `r0 = 0x11384`, `r1 = 0x12000` (the entry address). The
+    16-bit jump argument (`0x4839`) was in neither register. Where it goes
+    is untested; the SPI2 program takes its inputs from a RAM parameter
+    block instead.
+  - RAM before the upload read identically in all three sessions, across
+    two power-offs, one of them after the attempt-2 reset. Decoded, it is
+    the stock app's data (see the read-stage correction). **RAM survives the
+    radio being switched off**; the app's previous state is still present in
+    USB Update mode. Code must not assume RAM is cleared, which the tag
+    checks in S1/S2 already handle.
+  - The CSW residue again equalled the full length on all 14 commands.
+
+**U1 conclusion:** pass on one TD-H9 (macOS, USB 1.1 full speed). Next is
+U2, a JEDEC ID read through the SPI2 RAM program.
+
+## 2026-11-08 U2 tooling (built, not yet run)
+
+- `resource_usb.py u2` uploads `spi2_rom`, writes the parameter block at
+  `0x13040` (op 1, divider 31), jumps, and reads back status and JEDEC ID,
+  twice. It refuses a timeout, an all-zero or all-one ID, an ID that changes,
+  or a capacity other than 16 MiB.
+- The U1 session code (report, transport, CSW notes) was factored into a
+  shared runner. U2 reuses the U1 upload path that worked on hardware. 23
+  offline tests pass.
+
+## 2026-11-08 U2 hardware: SPI2 runs, the bus reads FFFFFF
+
+- Same Mac and radio, USB Update mode. The cipher check and the 378-byte
+  `spi2_rom` upload verified. Op 1 (stock SPI2 setup, divider 31) ran twice
+  and returned in about 1 ms each time with **status ok and JEDEC
+  `FFFFFF`**. INQUIRY was not re-run because the tool stopped on the ID.
+- **SPI2 is clocked in USB Update mode:** control bit 15 set for every byte,
+  so the shift register runs. The data line read all ones, so no chip drove
+  MISO. The likely causes are that the pins are not configured as they are in
+  normal boot (board init writes GPIO bank masks that never run in update
+  mode), or that the flash is not powered or selected.
+- Static follow-up:
+  - Stock reads GPIO input at `[bank+4]` (app+`0x052558`, pin 6).
+  - Board init at app+`0x05FD46` clears the pull-up/down of pin 23 (and 53).
+  - A UART-style pin routine at `0x01E789C0..0x01E78A04` sets pin 25 as output
+    and 26 as input with pull-up (also pairs 9/10 and 36/37). That is a UART
+    pin option, not evidence of the SPI wiring.
+  - Stock's SPI0 port-D row `[24, 26, 21, 25, 20, 2]` and SPI2 port-A row
+    `[24, 26, 25]` share an order (CLK, DO, DI, …). That supports CLK 24,
+    MOSI 26, MISO 25.
+  - `my_app` also calls `0x01E7A1FE` (sends `0x01E786BA(85, 1, &1)`) before
+    the flash setup, and `0x01E7A216` reads a 2-byte ID with command `90`
+    after it. Neither has been identified as a power switch.
+- New `spi2_rom` ops (712 bytes, `eebf23af…`), all read-only on flash:
+  - op 3 snapshots GPIO banks 0–1, `0x1E5100..0x1E511C`, and SPI2
+    control/baud by word reads.
+  - op 5 bit-bangs `9F` on CS 23 / CLK 24 / MOSI 26 / MISO 25 with SPI2
+    disabled, releasing MOSI to input after the command byte so a wrong
+    data-pin guess cannot cause contention.
+  - op 4 applies SDK-style pin setup (CLK and DO outputs, DI input, input
+    enable on, pulls off) before the stock SPI2 setup.
+  - `resource_usb.py u2 --op regs|bitbang|pins`. 25 offline tests pass.
+
+## 2026-11-08 U2 register snapshot (op 3), fresh power-on into update mode
+
+Word reads only. Bank 1 = GPIO 16–31 at `0x1E5040`:
+
+| Offset | Bank 1 | Bank 0 | Reading |
+|---|---|---|---|
+| `+0` out | `00000000` | `00000000` | all low |
+| `+4` in | `00000FCF` | `0000FC77` | bank 1: GPIO 16–19 and 22–27 high |
+| `+8` dir | `0000FFFF` | `0000FFFF` | **every pin an input** |
+| `+12` input enable | `0000FFFF` | `0000FFFF` | all enabled |
+| `+16` pull-up | `00000002` (GPIO 17) | `00002000` (GPIO 13) | |
+| `+20` pull-down | `00000000` | `00000000` | |
+| `+24`, `+32` | `0000FFFF` | `0000FFFF` | unidentified |
+
+- GPIO 23–26 are inputs and all read **high with no internal pulls**,
+  which implies external pull-ups, consistent with the resource flash's
+  chip select and SPI lines being on these pins.
+- `0x1E5100..0x1E511C`: `766C 1 0 0 0 7F F 0`. `0x1E511C` bit 16 is clear,
+  so SPI2 already maps to port A by default.
+- SPI2 control `00008000` (pending flag set, not enabled), baud `0`.
+- **Conclusion for the U2 FFFFFF:** in update mode nothing sets the SPI pins'
+  directions, and the SPI2 peripheral does not override GPIO direction.
+  CLK and MOSI never reached the bus, so the flash saw no clock and MISO
+  stayed at its pull-up. Normal boot must configure these pins elsewhere
+  (board init or an SDK pin routine not yet located). The `bitbang` and
+  `pins` ops set the directions explicitly.
+
+## 2026-11-08 U2 bit-bang (op 5): still FFFFFF
+
+- Same session as the snapshot. CS 23 and CLK 24 were driven as outputs,
+  MOSI 26 was driven during `9F` and then released, and MISO was sampled on
+  25 with SPI2 disabled. Two runs, about 2 ms each: **`FFFFFF`**. The pins
+  being undriven was therefore not the only problem.
+- **Pin table re-read (correction):** each SPI controller's entry at
+  `0x01EB4EE4 + 28·n` is a 4-byte port count followed by 6-byte port records
+  in the order **[CS, CLK, DO, DI, D2, D3]**:
+  - SPI0: count 4; A `[51, 50, 49, 48, 23, 53]`, B `[13, 14, 49, 48, 15, 53]`,
+    C `[–, 6, 8, 3, 7, 2]`, D `[–, 24, 26, 21, 25, 20]`.
+  - SPI1: count 2; A `[–, 18, 17, 16, –, –]`, B `[–, 35, 37, 36, –, –]`.
+  - SPI2: count 2; A `[–, 24, 26, 25, –, –]`, B `[–, 13, 62, 61, –, –]`.
+  The earlier reading started one byte late (stock reads the CLK byte at
+  `+5`). It happened to give the same CLK/DO/DI values, so CLK 24 stands.
+  Whether "DO" is the MCU's output or the flash's is not settled by the
+  table.
+- GPIO 23–26 read high through external pull-ups, which suggests the flash
+  supply is up. Swapped data pins became the leading hypothesis.
+- Op 5 now takes the data-pin masks from the parameter block (`+32` MOSI,
+  `+36` MISO). The program refuses anything other than GPIO 25/26 in either
+  order. Both pins start as inputs and MOSI is driven only during the
+  command byte. `u2 --op bitbang-swap` sends MOSI 25 / MISO 26. Program 852
+  bytes (`a28c8d7c…`); 26 offline tests pass.
+
+## 2026-11-08 U2: bit-bang with swapped data pins, and a snapshot afterwards
+
+- `bitbang-swap` (MOSI 25, MISO 26), two runs: **`FFFFFF`**. Both data-pin
+  orders fail.
+- Op 3 snapshot right after the bit-bang ops (same session):
+  - bank 1 out `00000680`, in `00000E4F`, dir `0000FE7F`, ie `0000FFFF`,
+    pull-up `00000002`. **The writes took effect:** GPIO 23 and 24 are
+    outputs; 25 and 26 are back to inputs.
+  - GPIO 24 (CLK): driven low, reads low. Normal.
+  - **GPIO 23 (CS): driven high (`out=1`, `dir=0`) but reads low (`in=0`).**
+    Before any program ran, it read high as an input. Something else
+    drives the pad low and overrides the GPIO output.
+  - Other registers unchanged from the fresh snapshot. SPI2 is disabled (the
+    bit-bang op cleared bit 0); control `00008000`.
+- **Hypothesis:** stock's SPI0 port-A record `[51, 50, 49, 48, 23, 53]` lists
+  GPIO 23 and 53 as SPI0 data lines 2 and 3 (quad mode for the internal
+  flash). Board init clears exactly those two pins' pulls. If the mask ROM
+  runs the internal flash in quad mode in USB Update mode, SPI0 owns GPIO 23,
+  so the external flash's chip select never behaves as commanded. In the
+  running app, SPI0 presumably uses fewer data lines, leaving 23 as a GPIO.
+- To test it, op 3 now also captures GPIO banks 2–3 (GPIO 53) and SPI0/SPI1
+  control and baud (892-byte program, `6dd35f35…`). Stock's SPI2 mode routine
+  (`0x01E4C1AE`) uses control bits 10–11 as the data width (0, then `0x400`,
+  then `0x800`), so SPI0 bits 10–11 should show the mode.
+
+## 2026-11-08 U2: SPI0 snapshot; correction to the GPIO 23 reading
+
+- Extended op 3, same session: **SPI0, SPI1, and SPI2 control are all
+  `00008000`** (bit 0 clear, so disabled; width bits 0) with baud 0. The
+  quad-SPI0 hypothesis is **refuted**: no SPI controller is enabled in USB
+  Update mode.
+- **Correction:** "GPIO 23 driven high but reads low" was not evidence of
+  contention. Bank 3 (GPIO 48–63): out `00000010`, in `0000002F`, dir
+  `0000FFEF`, pull-up `00000018`, `+28` `00000010`. The ROM drives GPIO 52 as
+  an output high, and it also reads 0. **The `+4` input register reads 0 for
+  pins configured as outputs.** GPIO 23 was probably high as commanded.
+- Bank 2 (GPIO 32–47): all inputs, in `000000FF`. GPIO 53: input, reads 1.
+- Unchanged lead: bank-1 inputs read `0FCF` before any program ran, so
+  **GPIO 20 and 21 are low** while 16–19 and 22–27 are high, all with pulls
+  off. Stock's SPI0 port-D option `[–, 24, 26, 21, 25, 20]` offers a quad
+  flash on these pins. A HOLD# or data line on 20/21 is possible.
+- New op 6 (`--op sample` / `sample-swap`, 932-byte program `72971c29…`): the
+  op-5 bit-bang that also stores the full bank-1 input word before chip
+  select falls and after every clock rise (33 words at RAM `0x13600`). It
+  drives nothing new: only CS 23, CLK 24, and MOSI during the command. The
+  report lists which GPIO 16–31 change and their response bits. 27 offline
+  tests pass.
+
+## 2026-11-08 U2: sampled bit-bang; the flash never answers
+
+- `sample` (MOSI 26) and `sample-swap` (MOSI 25), two runs each. Bank-1
+  input before chip select: `0E4F`. During the command it was `0A4F` (MOSI 26
+  driven) or `0C4F` (MOSI 25 driven), only because a pin set as an output
+  reads 0. **All 24 response clocks read `0E4F`: no GPIO 16–31 changed.**
+  The flash drove nothing in either data-pin order.
+- That leaves two possibilities: the flash is not responding in update mode
+  (unpowered, held, or never selected), or **GPIO outputs do not reach the
+  pads in this mode**. Output pins always read 0, so the second has never
+  been checked. If outputs do not drive, chip select never falls, which
+  explains every result.
+- Stock GPIO usage, from all pin-bank lookups followed by register writes:
+  - **GPIO 27** is set to output high at `0x01E886E6`, right after `my_app`
+    stores `0x5AA5` (`h[r0+16] = 23205` at `0x01E886DE`), and driven low at
+    `0x01E50608`/`0x01E50716`. It is likely the flash's WP#/HOLD#. It comes
+    after the stock JEDEC read and reads high (external pull-up) in update
+    mode.
+  - **GPIO 7:** routine `0x01E88246` counts RAM `0x10CF4`, holds the pin low,
+    and pulses it high every 301 calls. It looks like a heartbeat or
+    watchdog kick, not a supply enable.
+  - Other `my_app` outputs: GPIO 18 (LCD command/data), 22 (LCD reset, low),
+    and 0, 3, 6, 8, 9, 34, 35 after the flash setup. No pin is identified as
+    the flash supply.
+- New op 7 (`--op led`, program 994 bytes `da0d4f16…`): sets GPIO 9 (top LED,
+  proven by the boot probe) as an output and pulses it twice, each half-cycle
+  4,000,000 loop iterations. A visible blink shows that outputs drive pads in
+  update mode. The run time also gives a rough CPU speed. 28 offline tests
+  pass.
+
+## 2026-11-08 U2: LED test; outputs work, the flash stays silent
+
+- `--op led`: the user saw the top LED blink twice and then turn off. **GPIO
+  outputs drive the pads in USB Update mode.** Chip select, clock, and MOSI
+  from the bit-bang tests reached the board.
+- Timing: 16,000,000 iterations of a two-instruction loop took 2.669 s
+  including USB overhead, about 6 million iterations per second. That
+  suggests a CPU clock of roughly 12–24 MHz in this mode. The bit-bang clock
+  was therefore about 50 kHz.
+- **Conclusion so far:** with correct pins, outputs that drive, and both
+  data-pin orders tried, the resource flash does not respond in USB Update
+  mode, although stock reaches it in normal boot. Something stock does
+  first, such as power, a power domain, or an enable, is missing.
+- JieLi boards sometimes power SPI flash from a high-drive GPIO. In update
+  mode the ROM drives GPIO 52 as an output high with bank-3 `+28` (likely
+  high drive) set. The only stock pin given the same treatment, GPIO 21 at
+  `0x01E78844`, belongs to a UART pin-setup switch (`0x01E787C4`) called
+  only by the UART open routine `0x01EC58BC` (the APRS link). **It is not
+  the flash supply.**
+- Not yet examined: non-GPIO power-domain or LDO registers in board init and
+  `app_core` initialization. Direct register writes in board init are not
+  covered by the pin-lookup scan.
+
+## 2026-11-08 Decision: Bluetooth route, with a fast bulk read
+
+The user chose the Bluetooth route (S1/S2) while the USB route waits on the
+flash-power question, and asked for more speed.
+
+- **Stock reply path:** the parser's send-byte callback `0x01E4FE82` (session
+  `+4`, block variant `0x01E4FE9E` at `+8`) appends to the **80-byte** buffer
+  at RAM `0x127B0`, the same buffer incoming GATT writes land in. It silently
+  drops bytes beyond 80. After `0x01E5D018` returns, the GATT callback checks
+  TX capacity (`0x01E5D2CA` → `0x01E50286` = `ble_user_cmd_prepare(9, …)`) and
+  sends the reply with `0x01E5D2E0(12, 0x127B0, len)`. Handle 12 is the
+  programming notify handle; handle 17 serves the other write path.
+- `0x01E5D2E0(handle, buf, len)` checks for a connection (`h[0x11AD0+138]`)
+  and notification enable (`0x01E17C28(handle+1)`), then calls
+  `ble_user_cmd_prepare(10, 4, handle, buf, len, 0)`. It returns 0 on success.
+- Consequences: pushing extra bytes through the stock reply caps at about 2×.
+  Overlapping requests would corrupt the shared buffer. The parser runs
+  inside the GATT write callback, where stock already submits
+  notifications.
+- **Bulk read (S1, inherited by S2):** `R` at `0x3C00 + 32·k` streams from a
+  cursor (set by the bank-select status read) as notifications on handle 12.
+  Packets are tagged `B7 5A seq`, with 16/48/112/176/240 data bytes for `k`
+  0–4. Each request sends up to 2 KiB, checking capacity before every packet
+  and keeping 48 bytes free for the stock reply. The 32-byte reply reports
+  `H9BK`, status, start, count, the TX capacity seen, and the new cursor.
+  Bulk state uses `0x1E4D8–0x1E4DF` and `0x1E4FC–0x1E4FF` (no code
+  references). S1 is now 783 bytes and S2 1,618 bytes. Both builds
+  reproduce, and the flasher and the HID restore plan accept them.
+- The page matches every byte to the reply's start, count, and cursor. It
+  steps the packet size down if a notification is refused or truncated,
+  waits when the queue is full, restarts the bank on any other error, and
+  falls back to 32-byte reads on an image without bulk support.
+- **macOS flashing:** the generic `h9-flasher` gained `scsiio/libusbport.py`
+  (darwin only), using a copy of the hardware-tested `usb_msc.py`. A test
+  keeps the two copies identical. Windows/Linux paths and the Brick Breaker
+  copy are unchanged.
+
+## 2026-11-08 Mac flasher: probe and read-only backup
+
+- Radio power-cycled back into USB Update mode. `h9_flasher.py probe
+  --device 4C4A:2342` (libusb port): `BR23 UBOOT1.00 1.00`.
+- `h9_flasher.py backup` (read-only) uploaded the 11,264-byte RAM helper
+  through the ROM, started it, and read SPI NOR ID `0x856014` and chip key
+  `0xF181`. It then read all 892,928 bytes of main flash. **The flasher's
+  RAM-helper commands work over the macOS transport.**
+- **Finding:** the backup's SHA-256 is
+  `741bbeb87eb84cd7c6988054c56a267bb73c89bbe5cc74dc4e5bc0d75ce7e193`, the
+  pinned **Brick Breaker** flash image, not stock (`74243eae…`). The radio
+  had Brick Breaker installed. Flashing S1 therefore writes six sectors
+  (S1's four, plus `0x8D000`/`0xAE000` back to stock) and replaces Brick
+  Breaker. The pinned S1/S2 HID fallback assumes a stock radio, so the
+  first-line recovery is `h9_flasher.py restore` with the backup taken by
+  the flash command.
+
+## 2026-11-08 S1 (with bulk read) flashed from macOS
+
+- `h9_flasher.py flash` (package `93f7a701…`, `--stock-base` stock v1.0.38,
+  libusb port): uploaded the RAM helper, read ID `0x856014` and chip key
+  `0xF181`, and saved backup `~/h9-backups/h9-before-s1-20261108.bin` (Brick
+  Breaker image `741bbeb8…`) with its manifest. It then updated **6 of 218
+  sectors**, verified each sector, and verified a full 892,928-byte readback
+  `152b3bd42b99b71b21b74ba30cb1e9221038642325901482d9cd3cceffec79d1` (the S1
+  target). **First flash write through the macOS transport.**
+- Recovery to the previous state: `h9_flasher.py restore` with the same
+  package, stock base, and that backup.
+
+## 2026-11-08 S1 over Bluetooth: service check passes; first bulk read fails
+
+- **Check service** (status slot 0): version 1, flash ready yes, **JEDEC
+  `C8 40 18` = GigaDevice, 16 MiB** (a GD25Q128-class part). This is the
+  first live identification of the resource flash, and the first proof that
+  the S1 hook and its JEDEC routine run on hardware.
+- **Fast read of `resource` failed:** "Invalid read header at 0x3c80:
+  00 00 00 00". The stock reply header (`W 3C 80 20`) was preceded by
+  untagged zero bytes. The working explanation: the stack splits each
+  243-byte notification to the link MTU, so only the first fragment carries
+  `B7 5A`, and the continuation fragments (zeros at the start of `resource`)
+  landed in the reply queue. Not yet confirmed.
+- Page fix, no reflash: tagged packets are reassembled from the following
+  fragments up to the expected length; the first notification sizes are
+  logged, revealing the MTU; an incomplete packet (truncation rather than
+  splitting) steps the packet size down. Console logging added: debug for
+  every BLE write and notification, info for every bulk reply, warn for
+  retries, and error for failures, plus `window.h9` for live state.
+
+## 2026-11-08 S1 bulk read works: link MTU and TX capacity measured
+
+- With fragment reassembly, the fast read of `resource` (3 MiB, two passes)
+  runs at **about 2.1 KiB/s** with 240-byte packets: one packet, 240 bytes,
+  per request. Each request is one round trip of about 110 ms.
+- First request: **TX capacity 494 bytes**; notification sizes **182, 61,
+  37**. A 243-byte tagged packet arrives as 182 + 61, so **the link's ATT
+  payload is 182 bytes** (MTU 185 with macOS), and the stock reply is 37
+  bytes. This confirms the fragmentation explanation for the first failure.
+- With the 48-byte reply reserve, a second 243-byte packet never fits in
+  494. The page now derives the link payload from the first notification
+  and switches to the largest size that is not split: 176-byte packets
+  (179 with the tag), two per request, 352 bytes per round trip.
+- Firmware headroom identified, not implemented: size the last packet to the
+  remaining capacity (about 440 bytes per request), or test whether the
+  capacity recovers while still inside the GATT callback, which would let
+  one request stream the full 2 KiB.
+
+## 2026-11-08 Bulk read v2: fill the queue, optional waiting (built)
+
+- The user asked for more speed. Changes to the bulk sender:
+  - Each packet carries min(slot size, room − 44) bytes in multiples of 8,
+    with a 4-byte header `B7 5A seq len`, so a round trip fills the 494-byte
+    queue: about 450 bytes instead of 240.
+  - Slots k 8–12 poll for room (at most 100 polls of 20,000 iterations) to
+    test whether the queue drains while still inside the GATT callback.
+  - The reply word packs count (12 bits), first capacity (10), and polls
+    that ended with room (10).
+- The page starts with 176-byte packets in wait mode. If no poll ever finds
+  room, it switches to the no-wait slots. It reassembles split packets by
+  their length byte.
+- S1 is 867 bytes (package `400b12bd…`); S2 is 1,702 of the 1,704-byte cave
+  (package `4f87f98e…`). Both rebuild byte for byte and pass flasher
+  inspection. Flashing the new S1 over the installed S1 changes sectors
+  `0x5000`, `0xAC000`, `0xD9000`.
+
+- **Flashed from macOS:** backup `~/h9-backups/h9-before-s1v2-20261108.bin`
+  (previous S1, `152b3bd4…`) with its manifest. Updated **3 of 218 sectors**
+  and verified a full readback of `1d96c1500bad991a7efbed66bbe7a35a11f7b6ccd57bc128a47d80886145d23f`.
+
+## 2026-11-08 Bulk v2 on hardware: every request timed out; reserve raised
+
+- Read of `resource`, wait slot with 176-byte packets: all six attempts at
+  `0xA00000` ended with "Timed out waiting for radio (0/4 bytes)". **No
+  reply header arrived at all**, and re-entering programming and selecting
+  the bank worked each time.
+- Explanation: v2 kept only 40 bytes after its last packet for the 37-byte
+  stock reply. Stock checks capacity (`0x01E5D2CA`) before sending its reply
+  and **silently skips it when it does not fit**. The capacity evidently
+  includes per-notification overhead beyond the data bytes. v1, which kept
+  48 bytes after a full packet, always got its reply.
+- Fix (v3): send only when room ≥ 76 and use room − 68 data bytes, so 64
+  bytes stay free. With capacity 494 this should give about 176 + 176 + 48 =
+  400 bytes per round trip. Packages: S1 `1160c6d7…` (flash `8b3c9f56…`), S2
+  `e60d4cd5…`. Both rebuild byte for byte; the constants were checked in the
+  disassembly.
+- The timeouts left the radio otherwise untouched: the next request still
+  entered programming mode normally.
+
+- **v3 flashed from macOS:** backup `~/h9-backups/h9-before-s1v3-20261108.bin`
+  (v2, `1d96c150…`) with manifest; updated 3 of 218 sectors; full readback
+  verified `8b3c9f560d9d4f11c7836dfffbc8b7990ce62ab88bb396f3b56e2a93f5666c8a`.
+
+## 2026-11-08 Bulk v3 on hardware: 416 bytes per request, 3.4 KiB/s
+
+- Fast read of `resource` (macOS, Chrome): first request in wait mode with
+  176-byte packets: **416 bytes** sent, TX capacity 494, **polls that found
+  room: 0**. Notification sizes 180, 180, 68, 37: three unsplit packets
+  (176 + 176 + 64 data bytes) and the stock reply.
+- **The BLE TX queue does not drain while the GATT write callback runs.**
+  Waiting inside the callback (up to 100 polls) never found room. Each round
+  trip is therefore capped by the 494-byte queue. The page switched to the
+  no-wait slots as designed.
+- Throughput: **3.4 KiB/s** with 416 bytes per request, about 120 ms per round
+  trip, against 2.1 KiB/s for v1 (240 bytes per request). That is about 15 min
+  per pass for the 3 MiB `resource` partition and about 80 min for the whole
+  chip.
+- Remaining levers: the round-trip time (write without response, and the BLE
+  connection interval, which only the radio can request to change) or
+  overlapping requests (each callback copies its reply into the stack before
+  returning, but a second request arriving before the queue drains could have
+  its reply dropped).
+
+## 2026-11-08 BLE connection parameters: stock uses slave latency 10
+
+- The stock calls to `ble_user_cmd_prepare` (`0x01E16652`) use classes 1–4
+  (advertising), 5 (disconnect), 7–10 (send path), 11, and 19. That matches
+  JieLi's SDK enum, where **11 = `BLE_CMD_REQ_CONN_PARAM_UPDATE`**.
+- Class 11 has one caller, stock `0x01E50316`. It reads index `b[0x11AD4]`
+  (0–2; a caller at `0x01E5DF32` increments it, stepping down the table
+  after a rejection) and the connection handle `h[0x11AD0+138]`, then sends
+  `(11, 2, handle, &table[index])`. Table `0x01EA2A38` (min/max in
+  1.25 ms units, latency, timeout in 10 ms units):
+  - 0: 16/24 (20–30 ms), **latency 10**, 600 (6 s)
+  - 1: 12/28 (15–35 ms), latency 10, 600
+  - 2: 8/20 (10–25 ms), latency 10, 600
+- **Slave latency 10 lets the radio skip up to ten connection events when it
+  has nothing to send.** A request arriving at an idle radio can wait up to
+  about 11 intervals, which fits the measured ~120 ms round trip.
+- S1 v4 (984 bytes, package `4b2eaaa3…`, flash `ae4ec5a8…`): bulk slot 16
+  (`R 0x3E00`) requests 15–30 ms with latency 0 and a 6 s timeout (within
+  Apple's accessory limits), using a constant table at `0x01EA7CC0`. Slot 17
+  (`R 0x3E20`) calls stock `0x01E50316` to restore stock parameters. The
+  builder now pins `0x01E16652` and `0x01E50316`.
+- The page requests the fast link after selecting the bank, waits 1.5 s,
+  logs the average round trip at 50 and every 500 requests, and restores the
+  stock link afterwards.
+- **S2 no longer fits** the 1,704-byte cave with these additions (the builder
+  refuses it). Its write module has to move to the second erased cave
+  (1,004 bytes at app+`0xA9D9E`, sector `0xAE000`) before S2 can be rebuilt.
+
+- **S1 v4 flashed from macOS:** backup `~/h9-backups/h9-before-s1v4-20261108.bin`
+  (v3, `8b3c9f56…`) with manifest; updated 3 of 218 sectors; full readback
+  verified `ae4ec5a8231192384abb68ffa72a3f2bdd8164af7f1e408979b9fba8760c0248`.
+
+## 2026-11-08 S1 v4: fast-link request accepted by the stack, no speed change
+
+- The write characteristic supports both write and write without response
+  (the page used write with response).
+- Custom range `0xA00000`, 256 KiB, one pass. Link request (slot 16):
+  **status ok** (the stack accepted the request). After waiting 1.5 s, the
+  first bulk request again carried 416 bytes with capacity 494; the
+  notifications were 180, 180, 68, and 37 bytes. **Average round trip over 50
+  requests: 122 ms (3.3 KiB/s), unchanged.** The user reported 3.0–3.1 KiB/s.
+- The browser cannot see the negotiated interval. Two readings fit:
+  (a) macOS chose 30 ms within the requested 15–30 ms, so only slave latency
+  changed and that was not the limit; (b) about one notification per
+  connection event, so four notifications per request at 30 ms is about
+  120 ms. Both point to the connection interval, not latency, as the limit.
+- Next checks: write without response (no reflash), and a fixed 15 ms
+  request (min = max = 12), or a packet capture (Apple PacketLogger) to read
+  the actual interval and packets per event.
+
+- **Write without response: no change.** 256 KiB at `0xA00000` in 81 s, 631
+  requests at 416 bytes each, average round trip **124 ms**, no size
+  reductions or retries; SHA-256 `da95ba28…406f`. Of the 8,192 32-byte
+  blocks, 4,356 are erased (all `0xFF`). The user saved the `.bin` and
+  manifest locally.
+- Every request produces exactly four notifications (180, 180, 68, 37):
+  **about one notification per connection event, at about 31 ms each.**
+  macOS evidently used 30 ms from the 15–30 ms request. The connection
+  interval is the remaining lever.
+
+- S1 v5 (1,008 bytes, package `200ce8e6…`, flash `c442fdfb…`): slot 18
+  (`R 0x3E40`) requests a fixed 15 ms link (min = max = 12, latency 0,
+  timeout 6 s) from an 8-aligned table at `0x01EA7CD8`. The page's link
+  setting now offers fixed 15 ms (default), 15–30 ms, or the stock link.
+
+## 2026-11-08 S1 v5: fixed 15 ms link doubles throughput
+
+- Flashed S1 v5, then read 256 KiB at `0xA00000` in one pass with the link
+  set to fixed 15 ms. Slot 18 returned ok; after 1.5 s the first request
+  again carried 416 bytes (capacity 494; notifications 180/180/68/37).
+- **Average round trip over 50 requests: 63 ms (6.4 KiB/s)**, against 122–124
+  ms with stock parameters or the 15–30 ms request. **macOS accepts a fixed
+  15 ms, latency-0 interval**, and the round trip halves. That is still four
+  notifications per request at about one per connection event.
+- Throughput so far over BLE on macOS: 32-byte reads (not measured, estimated
+  0.3–1 KiB/s); bulk v1 2.1 KiB/s; bulk v3 3.4 KiB/s; v5 with the fixed 15 ms
+  link **6.4 KiB/s**. At that rate: 256 KiB about 40 s, `resource` (3 MiB)
+  about 8 min per pass, the whole 16 MiB chip about 43 min.
+- Ceiling for this design: each request is bounded by the 494-byte TX queue
+  (about 416 data bytes) and needs four connection events at 15 ms. The only
+  remaining lever is overlapping requests, which risks the stock reply
+  being dropped when the queue is still full. It is not attempted.
+
+## 2026-11-08 S2 rebuilt across two caves
+
+- The user is backing up `resource` (two passes) at about 6.5 KiB/s.
+- Page: the progress line now shows the time left in this pass and the total,
+  including the remaining passes at the current rate.
+- S2's write module now goes in section `.s2`, linked by
+  `resource_service_s2.ld` into the second erased cave (app+`0xA9D9E`, 1,004
+  bytes). The S1 code stays in the first cave, **byte-identical to the S1 v5
+  on the radio** (`c7382849…`). The builder handles multiple caves (each
+  checked erased in stock and bounded) and per-stage sector sets. The cave
+  starts at flash `0xAEE9E`, so the 834-byte module also reaches sector
+  `0xAF000`.
+- S2 package `29c50041…`, flash `e61d181b…`, sectors `0x5000, 0x62000,
+  0xAC000, 0xAE000, 0xAF000, 0xD9000`; rebuild identical; flasher
+  inspection passes. `resource_s2_read` (`0x01EA9E9E`) calls the S1 reader at
+  `0x01EA78F0`; `W` enters `resource_s2_write` (`0x01EA9EF6`). The HID restore
+  plan now takes each package's own sector set (S1 4, S2 6) and validates.
+- Flashing S2 over the installed S1 v5 changes `0x5000, 0x62000, 0xAE000,
+  0xAF000, 0xD9000`; `0xAC000` is identical.
+
+## 2026-11-08 Boot logo located in the resource dump
+
+- Two 256 KiB dumps of `0xA00000`, taken with S1 v3 and with S1 v5, are
+  identical (SHA-256 `da95ba28…406f`), so the bulk path reads consistently.
+- 4 KiB sector map of `0xA00000–0xA3FFFF` (`0` all zero, `#` data, `.`
+  erased): `000####000` then `#` through sector 31, then erased.
+- **The startup logo is a raw 160 × 128 RGB565 bitmap, big-endian (MSB
+  first), with no header, at `0xA00000–0xA09FFF`: 40,960 bytes, exactly 10
+  sectors.** Rendered this way it shows the TIDRADIO logo and "Talk It
+  Direct" on black; the zero sectors are the black bands above and below.
+  Other resources start at the sector boundary `0xA0A000`, so no other data
+  shares the logo sectors. (The image is vendor artwork and is not
+  committed; render the local dump to see it.)
+- **Correction:** `make_boot_logo_patch.py` and the earlier notes assumed a
+  128 × 160 little-endian image. Rendered that way the data shows as stripes;
+  160 × 128 big-endian is correct, matching the MSB-first byte order found for
+  the panel in the Snake work.
+- Consequence: replacing the boot logo means rewriting these 10 sectors
+  (erase with the CRC check, program, read back) through S2. No descriptors
+  or pointers change.
+
+## 2026-11-08 Full `resource` backup verified (S1 v5, macOS)
+
+- `resource` (`0xA00000`, 3 MiB), two passes, fast read with the fixed 15 ms
+  link and write without response: **both passes SHA-256 `8acaed7c…c89c`, 0
+  differing blocks**, 477 s per pass (6.4 KiB/s), 7,562 requests at 416 bytes
+  each, round trip 63 ms, no retries or size changes. Saved locally by the
+  user.
+- The first 256 KiB matches both earlier dumps exactly. Logo region
+  `0xA00000–0xA09FFF` SHA-256 `54d2077d…4574`.
+- **Partition usage:** only sectors `0xA00000–0xA1EFFF` (31 sectors, 124 KiB:
+  the logo plus other images) hold data. **737 of 768 sectors are erased.**
+- **S2 test sector chosen: `0xCFF000`**, the last sector of `resource`.
+  It is erased in the backup and far from any data.
+
+## 2026-11-08 S2 on hardware: first resource-flash write passes
+
+- S2 (package `29c50041…`, flash `e61d181b…`) flashed from macOS; the service
+  reported version 2.
+- **Sector test at `0xCFF000`: passed.** Erased check: CRC `0xE03E`. Pattern
+  programmed in 128 `W` blocks, with a status check after each, and read
+  back: CRC `0xC082`, which equals the page's CRC-16 of `testPattern(0xCFF000)`.
+  Erase with the pattern CRC, then a full `0xFF` read-back. Times: about 28 s
+  to program and verify 4 KiB (one status read per block), about 9 s to erase
+  and verify.
+- **This is the first erase/program of the resource flash: guarded by the
+  CRC proof, partition-limited, and checked block by block.**
+
+## 2026-11-08 Boot logo writer (page section 5) and KD9CRQ logo
+
+- Page section 5 reads the logo, previews it, prepares a new one (image fitted
+  to 160 x 128 on black, or a 40,960-byte `.bin`, or a dump starting at
+  `0xA00000`), and rewrites only the sectors that differ. Each sector: erase
+  with the CRC of the contents read this session, then program with a status
+  check after **every** 32-byte block (the path the sector test proved), then
+  read back the whole logo at the end. Unit tests cover the RGB565
+  big-endian conversion, `.bin` handling and the sector plan.
+- User-supplied logo `KD9CRQ_TD-H9_boot_RGB565_BE.bin` (outside the repo):
+  40,960 bytes, SHA-256 `d5d9d97c…4540`. It equals its 160 x 128 PNG converted
+  to RGB565 big-endian (0 differing pixels); all 10 sectors differ from stock.
+  Expected write time: about 10 x (9 s erase + 28 s program), plus a 7 s
+  read-back, so about 6–7 minutes.
+
+## 2026-11-08 Custom boot logo written on hardware
+
+- **The KD9CRQ boot logo (`d5d9d97c…4540`) was written to `0xA00000` through S2
+  and verified byte for byte by a full read-back.** The radio booted and
+  showed the new logo (user confirmed: "It worked!").
+- All 10 sectors were rewritten, about 10 s each including the erase with
+  the CRC check and 128 blocks with a status check after each. The total was
+  1 min 40 s, far under the 6–7 min estimate. The logo read and read-back
+  each took 9 s at 6.0–6.7 KiB/s.
+- This confirms the stock logo renderer does no content check beyond the
+  descriptor length (unchanged) and a successful read.
+- The stock logo is kept locally in the `resource` backup (first 40,960
+  bytes, `54d2077d…4574`).
+
+## 2026-11-08 Merging Brick Breaker and S2: space survey; the "caves" may be icon pixels
+
+- Space needed: Brick Breaker game 1,628 B plus launcher 94 B; S1 1,008 B plus
+  S2 834 B, so 1,842 B for the service. Erased runs of at least 256 B in the
+  stock app: `0xA77F0` (1,704), `0xA9D9E` (1,004), `0xA51A8` (857). With
+  Brick Breaker installed, 76 + 910 + 857 = 1,843 B remain, in three pieces.
+  That is a one-byte margin, so not a workable merge as-is.
+- The packer keeps app.bin at its stock size (resources follow it), so
+  growing the app would move other files. Not pursued.
+- **New finding (unconfirmed on hardware):** a pointer table at app+`0xB1F24`,
+  next to the strings `Signal`, `GNSS Status` and `%3d.%01d`, lists
+  `0x01EA2FB2`, `0x01EA55FA` and `0x01EA7C42` (app+`0xA2EB2`, `0xA54FA`,
+  `0xA7B42`). These are 0x2648 bytes apart, which is 4,900 RGB565 pixels,
+  i.e. 70 x 70. The bytes around every "cave" are grey-scale RGB565 values
+  (`DEDB`, `2965`, `528A`, `B596`, `0020`). So the three 0xFF runs are very
+  likely **white pixels inside three 70 x 70 stock icons**, probably on the
+  GNSS status screen, rather than unused flash:
+  - `0xA51A8` lies in icon A
+  - `0xA77F0` spans the end of icon B and the start of icon C
+  - `0xA9D9E` lies in icon C
+- If so, Brick Breaker, S1 and S2 each draw machine code as noise in white
+  areas of those icons. No code loads `0xB1F24` by absolute address, so the
+  screen that draws them is not yet traced. **Hardware check:** open the GNSS
+  status screen with S2 (or Brick Breaker) installed and look for noise in
+  icon backgrounds.
+
+## 2026-11-08 The three "code caves" are QR-code margins (decoded)
+
+- **Correction to the entry above:** the three 70 x 70 images are **QR codes**,
+  not GNSS icons. They are RGB565 big-endian, like the boot logo. Decoded
+  with OpenCV's WeChat QR decoder (the plain detector read only A and C):
+  - A (app+`0xA2EB2`): `https://cdn.shopify.com/s/files/1/0096/6479/0607/files/H9_GMRS_Version_User_Manual.pdf?v=1775805601`
+  - B (app+`0xA54FA`): `https://cdn.shopify.com/s/files/1/0096/6479/0607/files/H9_Ham_Version_User_Manual.pdf?v=1775805601`
+  - C (app+`0xA7B42`): `https://www.youtube.com/playlist?list=PLsw2V3krXH6ye3StOAfDGCxCev0M6bIIA`
+  The screen that shows them is not yet traced; the table's neighbouring
+  strings (`GNSS Status`, `Signal`) belong to other screens.
+- The 0xFF runs are the QR codes' **white quiet zones**:
+  - `0xA51A8`: bottom margin of A (pixels 4475–4899)
+  - `0xA77F0`: bottom margin of B, then top rows 0–6 of C
+  - `0xA9D9E`: from pixel 4398 (row 62, col 58) to the end of C, so a few
+    pixels of the QR's last module row as well as its bottom margin
+- Effect of installed builds (rendered from each raw app):
+  - Brick Breaker changes 0 / 424 / 435 pixels of A / B / C
+  - S2 changes 0 / 425 / 496 pixels
+  - The damage shows as coloured noise bands in the margins
+  - **All three codes still decode with both builds**, rendered as drawn
+    with no added margin
+- Consequence for a merge: using `0xA51A8` would add a noise band to the
+  bottom margin of QR A, like B's today. That is cosmetic and scanning is
+  expected to survive (still to be checked on the screen).
+
+## 2026-11-08 Hardware: QR codes still work with the margin noise
+
+- The QR codes are on the radio's **User Manual** menu. With the installed
+  build, the top and bottom white space shows noise, and **the QR codes still
+  scan fine** (user check). The user approved filling the QR white space
+  with code. That includes `0xA51A8` (QR A's bottom margin), for a merged
+  Brick Breaker + S2 build.
+
+## 2026-11-08 Merged Brick Breaker + S2 build (offline)
+
+- Stage `bb-s2` in `resource-service/build.py`. It starts from the exact
+  hardware-tested Brick Breaker app, built by Brick Breaker's own builder and
+  pinned: app `5c459345…`, package `208409d8…`. It then adds the S2 service
+  in space Brick Breaker leaves erased. The builder rejects any byte change
+  outside the two clone hooks and the three service regions.
+- `resource_service.s` gains `.ifdef COMPACT`, defined only for this stage:
+  - no slot 16 (15–30 ms link request) and no `link_params`
+  - no in-radio wait: k 8–12 behave like k 0–4 and report 0 polls, so
+    existing pages switch to no-wait after the first request
+  - code in `.svc`, byte tables in `.tables`
+  - every other reply byte is unchanged
+  - S1 v5 and S2 still rebuild byte-identical to the tested packages
+    (`200ce8e6…`, `29c50041…`)
+- Layout (`resource_service_bb.ld`):
+  - `.s2`, 834 B: app+`0xA51A8` (QR A margin, 857 B)
+  - `.tables`, 48 B: app+`0xA7E50` (after the 1,628 B game, 72 B)
+  - `.svc`, 888 B: app+`0xA9E00` (after the 94 B launcher, 906 B)
+  - Entries: `R` → `0x01EA52A8`, `W` → `0x01EA5300`; Brick Breaker's
+    `my_app` hook is unchanged.
+- Package `b9d24cb4…`, flash `83f79fb3…`, 8 sectors from stock: `0x5000,
+  0x62000, 0x8D000, 0xAA000, 0xAC000, 0xAE000, 0xAF000, 0xD9000`. Coming from
+  Brick Breaker, 7 sectors are written (`0x8D000` is already identical).
+- Checks:
+  - rebuild identical, and `h9_flasher inspect` verified
+  - HID restore plan (8 sectors) validated offline
+  - game, launcher and hook bytes identical to Brick Breaker
+  - disassembly reviewed: S2 calls the reader at `0x01EA9F00`; all table
+    references fall in `0x01EA7F50–7F7F`; the compact bulk path checks TX
+    room once
+  - all three QR codes still decode, with 417 / 424 / 903 pixels changed
+- RAM: Brick Breaker uses `0xC3AF`/`0xC3B2`, the stock PWM block at `0x12208`
+  and GPIO/LCD registers; the service uses `0x1E4D8–0x1E4FF`. No overlap.
+
+## 2026-11-08 Web flasher: Brick Breaker + Boot logo replaces Brick Breaker (local, untested)
+
+- At the user's direction, the web HID flasher (`dist/firmware-update/`) now
+  hosts only **Brick Breaker + Boot logo** (package `b9d24cb4…`) in place of
+  the original Brick Breaker.
+- Hosted seeds: stock sectors (`ae543e82…`, 8 sectors, rebuilds exact stock)
+  and the original Brick Breaker's 7 differing sectors (`1cc3367b…`, rebuilds
+  `741bbeb8…`). With them the page recognises, backs up, and **upgrades a
+  radio still running the original Brick Breaker directly**.
+  - `planUpdate` accepts a sector holding the original image's bytes and
+    rejects CRC collisions with it.
+  - The live check rebuilds the radio image from stock, build or original
+    sectors before `knownAppMatches`.
+- Old hosted files are removed. `brick-breaker/publish_browser_assets.py` is
+  retired; `resource-service/publish_browser_assets.py` writes all three files
+  and checks each rebuild exactly.
+- Tests (`test_browser_flasher.mjs`, 8 pass):
+  - plan from stock
+  - direct upgrade from the original Brick Breaker
+  - interrupted upgrade with mixed sectors
+  - unknown contents refused
+  - archives
+  - simulated install, upgrade and restore, byte for byte
+  - tampering rejected
+- Stock restore point for the test: `~/h9-backups/h9-stock-v1.0.38-restore-point.bin`.
+  The user's radio readback taken under the original Brick Breaker
+  (`741bbeb8…`, identical to the pinned image) with the 8 stock sectors
+  applied; byte-identical to the official v1.0.38 image, boot area included.
+- Served locally at `http://127.0.0.1:8781/firmware-update/` for the first
+  browser HID trial. Not yet deployed.
+
+## 2026-11-08 Web flasher: quick HID backup
+
+- User report: the HID backup takes 10+ minutes.
+- Cause: on a radio holding a known image, the firmware area is verified with
+  about 100 CRC requests, but the 38 settings sectors above `0xDA000` are
+  recovered from shifted windows. That is 3 groups x 4,095 = **12,285
+  requests**, about 49 ms each by the user's timing. The page never writes
+  that area.
+- Change:
+  - `readAccessibleFlash(..., { settings: false })` returns the application
+    area only (`0x5000–0xD9FFF`) after the known-image check, with a CRC
+    rescan.
+  - New archive format `h9toolbox-hid-backup-v2` (application only, marked
+    as excluding settings). `loadHidArchive` accepts v1 and v2, and checks the
+    metadata length before parsing.
+  - The page defaults to the quick backup. A checkbox restores the full
+    settings-area backup.
+  - A radio not matching a known image still gets full recovery
+    (65,520 requests).
+- Also added step labels and measured time-left estimates to the web
+  flasher's progress line.
+- Test: a quick backup of a known application uses fewer than 120 window
+  requests and round-trips through the v2 archive; an unknown application
+  fails the known-image check.
+
+## 2026-11-08 Hardware: web HID flasher works both ways on macOS
+
+- **First hardware validation of the browser HID installer** (local copy at
+  `http://127.0.0.1:8781/firmware-update/`, Chrome on macOS, PTT+2 HID mode).
+  The user reported:
+  - Restoring stock over Brick Breaker + Boot logo worked.
+  - Installing Brick Breaker + Boot logo over stock worked.
+  - The quick (application-only) HID backup ran "super quick".
+- Restore point: `h9-stock-v1.0.38-restore-point.bin`.
+- This is the first complete browser install and restore on hardware for any
+  package. It also validates WebHID on macOS, which the site footer listed as
+  untested.
+
+## 2026-11-08 Boot logo on the website: step 04 and /boot-logo/ (local, untested on hardware)
+
+- `dist/boot-logo/radio.mjs`: the Bluetooth session ported from the hardware-
+  proven prototype, with an injected transport:
+  - handshake
+  - fast bulk read (fixed 15 ms link requested then restored, packet
+    reassembly, MTU-based packet size, retries) with a 32-byte fallback
+  - guarded logo write: CRC-checked erase, status check after every block,
+    full read-back
+- `dist/boot-logo/logo-tool.mjs`: UI shared by Firmware update **step 04**
+  and the new standalone **/boot-logo/** page.
+  - Any browser-decodable image (PNG/JPG/WebP/GIF/BMP), with EXIF
+    orientation, halving downscale, fit/fill/stretch, background colour for
+    transparency and bars, optional sharp pixels, and Floyd–Steinberg dither
+    to RGB565.
+  - A saved `.bin` puts a logo back.
+  - **Write stays disabled until the current logo has been saved** in this
+    connection.
+  - Progress with measured time left.
+  - A clean stop resumes; any other failure requires a re-read before
+    resuming.
+- Tests: `test/boot-logo-radio.test.mjs` (7 pass) drives `radio.mjs` against
+  a simulated S2 radio (status slots, bank cursor, bulk streaming split at the
+  MTU, link slots, guarded erase/program with the firmware's result codes):
+  - service check
+  - fast read, including with a 100-byte MTU
+  - fallback with no bulk read
+  - writing only the changed sectors, including an erase-only sector,
+    without touching neighbouring data
+  - refusal when the radio changed since the read (no erase)
+  - stop and resume
+- Browser check (Chrome, local):
+  - both pages mount with no console errors
+  - a 1200x900 PNG with a transparent hole converts with correct bars,
+    background and gradient
+  - Write stays locked before a read and save
+- The update page's wording now reflects the hardware-validated install and
+  restore.
+
+## 2026-11-08 Renamed to "H9 Toolbox Firmware"; success panels
+
+- The merged build is now presented as **H9 Toolbox Firmware**: stock v1.0.38
+  with Brick Breaker (hold Back) and the boot-logo service.
+  - Hosted files: `h9-toolbox-firmware-v1.0.38.fw` and
+    `h9-toolbox-firmware-stock-sectors.bin`
+  - Build output: `h9_toolbox_firmware_*` (stage `bb-s2`)
+  - HID archives of it: `TD-H9-H9-Toolbox-Firmware-…`
+  - **The package bytes are unchanged** (`b9d24cb4…`, flash `83f79fb3…`).
+    Earlier log entries keep the old name.
+- The web flasher shows a large result panel after Install or Restore:
+  - success: the sector count, CRC verification, time, and what to check on
+    the radio, with a "Continue to step 04" button
+  - failure: the error and how to resume
+- The logo tool shows a result panel after a write ("all 40,960 bytes
+  read back and match"), and a "Verified on radio" badge and outline on the
+  radio preview once the read-back matches.
+- Checked in Chrome with sample content. Fixed a contrast bug: the badge
+  inherited the caption's grey text.
+
+## 2026-11-08 Web flasher: settings-area backup option removed
+
+- At the user's request, the "also back up the settings area" checkbox is
+  gone. The page always makes the quick firmware-area backup when the radio
+  holds a known image. A radio with unknown firmware still gets full
+  recovery automatically; at about 49 ms per request, that is 65,520 requests
+  or roughly 53 minutes, and the page now says "about an hour".
+- `readAccessibleFlash`'s `settings` option and the v1 archive format remain
+  for compatibility and tests.
+
+## 2026-11-08 Web flasher: step 04 collapsed unless H9 Toolbox Firmware is confirmed
+
+- Step 04 (boot logo) sits in a collapsed `<details>` by default. It opens
+  when the page sees H9 Toolbox Firmware on the radio:
+  - after a verified install of the build
+  - when an Inspect, backup, or final CRC scan matches the build image
+- It stays closed, with a note to install first, when the radio matches
+  stock or the original Brick Breaker. Unknown or mixed radios leave it
+  unchanged.
+- The user can always open it by hand (e.g. firmware already installed,
+  logo only).
+- Checked in Chrome: closed by default, tool mounted inside.
+
+## 2026-11-08 Web flasher: backup without choosing firmware first
+
+- User question: why must firmware be selected before a backup? It needn't
+  be. The backup used the target only as a reference image. It now loads the
+  three hosted references (stock rebuilt from the build plus its seed, H9
+  Toolbox Firmware, and the original Brick Breaker; all hash-checked) when
+  none are loaded.
+- The protected-boot placeholder comes from a known image; the boot region
+  is identical in all of them and is never written.
+- The archive made on the page is kept (`createdBackup`). When firmware is
+  chosen afterwards it is checked against that target, without the user
+  re-selecting the file. A chosen backup file takes precedence.
+- A page-made backup of a modified radio is kept but is not offered as the
+  stock restore point for an install; the page shows a note, not an error.
+
+## 2026-11-08 Web flasher: steps reordered; Inspect folded into the write
+
+- New order:
+  1. **Connect radio** (button renamed from "Connect HID radio"), then
+     **Back up the radio**
+  2. **Select firmware**, with the restore-point backup; the backup made in
+     step 01 is used automatically
+  3. **Write firmware**
+  4. Boot logo
+- The chosen firmware card animates: a one-time pulse, a green outline and a
+  "✓ Selected" badge, with the other option dimmed. Reduced motion is
+  respected.
+- The Inspect button is gone. **Install** and **Restore** each run the same
+  checks first (`inspectRadio`): full CRC scan, pinned 8-sector plan, live
+  shifted-window check, interrupted-sector rule. They then write the sectors
+  that still differ, or report "already installed / already matches" and
+  write nothing.
+- This replaces the old inspect-then-rescan comparison; the safety checks
+  are unchanged.
+- Step 03 shows what is still missing (connect, select, back up, tick the
+  box) or "Ready. The radio is checked again before anything is written."
+- Checked in Chrome: selecting the hosted build animates the card, dims
+  stock, relabels the button "Install H9 Toolbox Firmware", and shows
+  "Connect the radio in step 01."
+
+## 2026-11-08 Web flasher: backup moved into step 03; Install gated on it
+
+- Step 03's buttons are now **Backup radio**, **Install [H9 Toolbox
+  Firmware | stock v1.0.38]**, **Restore backup**; step 01 is connect only.
+  The restore-point file stays in step 02.
+- `radioBackedUp` is reset on every connect and set when a page backup of
+  the connected radio succeeds. **Install stays disabled until it is set**,
+  and still needs a valid stock restore point.
+- The colour follows the next action: Backup is the primary button until it
+  succeeds, then Install (once enabled). The hint under the buttons says
+  what is missing.
+- Checked in Chrome: Backup coloured, Install and Restore grey, no console
+  errors.
+
+## 2026-11-08 Web flasher: reinstall/update on a radio already running H9 Toolbox
+
+- Problem: a radio already running H9 Toolbox Firmware could not reinstall
+  or update without the user finding a separate stock backup file. Its own
+  page backup (an H9 Toolbox image) is not a stock restore point.
+- Fix: when the page backup shows the radio runs a **known** modified image
+  (H9 Toolbox Firmware or the original Brick Breaker; matched by sector and
+  shifted-window CRCs) and no file is chosen, the restore point is exact
+  official stock v1.0.38 rebuilt from the hosted, hash-checked files
+  (`source: 'hosted-stock'`).
+  - That is exactly the HID-writable firmware area a stock radio holds; this
+    was confirmed on the user's radio earlier (restore-point derivation).
+  - Restore is labelled "Restore stock v1.0.38".
+  - A radio with unrecognised firmware still needs the user's own stock file.
+- Reinstall on a radio already matching the package checks every sector and
+  reports "already installed … up to date" without writing. An update or
+  partial install writes only the sectors that differ.
+- After a page backup, the restore point is chosen by the same
+  `validateSelectedBackup` path as a chosen file.
+- Test added (9 pass): a build radio plans 0 sectors to install and 8 to
+  restore against rebuilt stock; the original Brick Breaker plans 7 to
+  install. Browser load check is clean.
+
+Hardware results for S1 and S2, and U2 onward, will be recorded here.
