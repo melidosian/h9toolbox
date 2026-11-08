@@ -13,7 +13,7 @@
   <meta property="og:title" content="H9 Toolbox Firmware for the TD-H9 | H9 Toolbox">
   <title>H9 Toolbox Firmware for the TD-H9 | H9 Toolbox</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="/landing.css?v=20261108a">
+  <link rel="stylesheet" href="/landing.css?v=20261108b">
   <script src="/https-redirect.js"></script>
   <script src="/analytics.js"></script>
 </head>
@@ -37,7 +37,7 @@
         <article class="detail-card"><span class="detail-label">BOOT LOGO / BLUETOOTH</span><h2>Your own startup image.</h2><p>Pick any PNG or JPG; it is converted to the radio's 160 × 128 screen in your browser, written over Bluetooth, and read back to verify. Save the current logo first and you can always put it back. The logo stays even if you return to stock.</p><a class="text-link" href="/boot-logo/">Open the boot logo tool ↗</a></article>
       </section>
 
-      <section class="commands" aria-labelledby="install-title"><div class="section-heading"><span class="note-kicker">GET STARTED</span><h2 id="install-title">Install in your browser.</h2><p>Use desktop Chrome or Edge and a data-capable USB-C cable. The installer backs up the radio before anything is written and checks every sector afterwards.</p></div><div class="command-grid"><div class="command-card"><h3>1 · Install the firmware (USB-C)</h3><p>Hold <strong>PTT + 2</strong> while powering on (blank screen, green LED). On the <a href="/firmware-update/">Firmware update</a> page: Connect radio, select H9 Toolbox Firmware, Backup radio, then Install.</p></div><div class="command-card"><h3>2 · Change the boot logo (Bluetooth)</h3><p>Power-cycle the radio and turn on Bluetooth programming mode. Use step 04 on the Firmware update page or the <a href="/boot-logo/">Boot logo</a> page: Connect, save the current logo, choose an image, Write.</p></div></div><p class="command-note">Already running the original Brick Breaker? Install upgrades it directly. To go back, use Restore stock on the same page. Source and build tools are on <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research/resource-service" target="_blank" rel="noopener noreferrer">GitHub ↗</a>.</p></section>
+      <section class="commands install-cta" aria-labelledby="install-title"><div class="section-heading"><span class="note-kicker">GET STARTED</span><h2 id="install-title">Install in your browser.</h2><p>The web flasher backs up your radio, installs H9 Toolbox Firmware over USB-C, and lets you change the boot logo. Use desktop Chrome or Edge.</p></div><a class="solid-link cta-button" href="/firmware-update/">Open the web flasher ↗</a><p class="command-note">Already running the original Brick Breaker? The web flasher upgrades it directly, and can restore stock at any time. Source and build tools are on <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research/resource-service" target="_blank" rel="noopener noreferrer">GitHub ↗</a>.</p></section>
 
       <section class="compat-note" aria-labelledby="compat-title"><span class="detail-label">RECOVERY</span><h2 id="compat-title">What if something goes wrong?</h2><p>The installer only writes after checking the radio, verifies every sector, and can resume an interrupted install. Restore returns the firmware to stock v1.0.38 through the same PTT + 2 mode. Your channels and settings are never changed by the installer; back them up with the Web programmer if you like.</p><a class="text-link" href="/programmer/">Open Web programmer ↗</a></section>
 
