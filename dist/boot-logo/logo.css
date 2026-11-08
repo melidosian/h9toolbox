@@ -12,3 +12,16 @@
 .logo-tool .instructions{color:#bed1ce;font-size:13px;line-height:1.65;padding-left:22px}
 @media(max-width:620px){.logo-pair,.logo-options{grid-template-columns:1fr}}
 .logo-pair figcaption .verified-badge{color:#11302b;font-weight:700}
+.result-panel{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;align-items:start;margin-top:20px;padding:18px 20px;border:1px solid #4fae86;border-radius:10px;background:#173a30;color:#cdeedd}
+.result-panel::before{content:"✓";grid-row:1/span 3;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:#8bdcb6;color:#11302b;font:700 22px 'Space Grotesk',sans-serif}
+.result-panel strong{font:600 17px 'Space Grotesk',sans-serif;color:#e9fff3;letter-spacing:-.01em}
+.result-panel p{margin:2px 0 0;font-size:13px;line-height:1.55}
+.result-panel ol{margin:6px 0 0;padding-left:20px;font-size:13px;line-height:1.6}
+.result-panel .button{justify-self:start;margin-top:10px}
+.result-panel.failed{border-color:#a3665e;background:#3a2524;color:#f3d3cc}
+.result-panel.failed::before{content:"!";background:#f0a596;color:#3a1714}
+.result-panel.failed strong{color:#ffe3dc}
+.logo-pair canvas.verified{outline:3px solid #8bdcb6;outline-offset:2px}
+.verified-badge{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:5px;background:#8bdcb6;color:#11302b;font-size:11px;font-weight:700}
+.toolbox-note{margin:10px 0 0;padding:9px 12px;border:1px solid #4fae86;border-radius:8px;background:#173a30;color:#cdeedd;font-size:12px;line-height:1.5}
+.toolbox-note strong{color:#e9fff3}

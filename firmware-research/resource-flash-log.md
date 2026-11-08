@@ -1083,4 +1083,42 @@ flash-power question, and asked for more speed.
   restore against rebuilt stock; the original Brick Breaker plans 7 to
   install. Browser load check is clean.
 
+## 2026-11-08 Bluetooth programmer: H9 Toolbox detection, fast read, boot logo (simulated, not yet on hardware)
+
+- `dist/app.js` probes the H9 Toolbox status block (`R 0x4000`) as the
+  first read of each session.
+  - Stock firmware returns ordinary clone bytes (rejected by the parser,
+    session continues) or nothing.
+  - On a timeout the page exits, waits 300 ms and re-enters before the
+    normal read. That costs about 2.5 s only for stock radios that ignore
+    the address.
+- **Fast read:** the clone image is the start of `rw_freq` (chip
+  `0x900000`; the stock clone reader uses selector 4). With the service, the
+  programmer bulk-reads `0x900000 + 0x3140` through the shared
+  `ResourceRadio` (fixed 15 ms link requested, then restored). It then
+  compares 4 blocks (first, last, two random) with normal clone reads. Any
+  error or mismatch logs why and falls back to the standard 394-block read.
+  **The rw_freq mapping is inferred from the stock code and still needs a
+  hardware confirmation;** the cross-check guards it.
+- Writes are unchanged (stock `W` path).
+- `ResourceRadio` shares the connection by receiving every notification (each
+  reader clears its own queue per session).
+- **Boot logo card (step 06)** appears once H9 Toolbox is detected and uses
+  the logo tool's new `connection` mode: the host supplies the session and
+  busy state, and the tool hides its own Connect controls. The two block
+  each other while busy.
+- Timed progress (step label, measured time left, "done in") for reads and
+  writes, as on the firmware update page. Logo-tool styles (result panel,
+  badge) moved into `logo.css` so the tool is self-contained.
+- The simulator moved to `test/support/simulated-radio.mjs`. It gained a
+  stock mode and clone reads from `rw_freq`, and runs in the browser behind
+  a fake Web Bluetooth device.
+- Browser results (real programmer page, simulated radios):
+  - H9 Toolbox: detected, fast read in 15 radio requests instead of 394,
+    4/4 cross-check blocks match, logo card shown, logo read byte-exact
+    (SHA-256 matches), buttons interlock
+  - stock answering the probe: 395 requests, no card
+  - stock ignoring the probe: timeout, re-sync, normal read, no card; ETA
+    shown ("about 9 s left" … "Read complete in 16 s")
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

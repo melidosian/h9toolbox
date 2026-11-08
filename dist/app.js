@@ -6,6 +6,9 @@ import { parseMHz, standardOffset, planTransmit } from './channel-plan.mjs';
 import { exportChannels, inspectChannelImport, importChannels } from './channels-file.mjs';
 import { serializeChannelsCsv, parseChannelsCsv } from './channels-csv.mjs';
 import { readBlockReply } from './protocol.mjs';
+import { ResourceRadio } from './boot-logo/radio.mjs?v=20261108a';
+import { parseStatus, statusAddress } from './boot-logo/resource.mjs?v=20261108a';
+import { mountLogoTool } from './boot-logo/logo-tool.mjs?v=20261108d';
 
 const $ = id => document.getElementById(id);
 const MEM_SIZE = 0x3140;
@@ -35,6 +38,15 @@ let busy = false;
 let incoming = [];
 let incomingWake = null;
 let readReplyMode = 'auto';
+// H9 Toolbox Firmware: `resourceRadio` shares this connection (it gets every
+// notification and clears its own queue per session), `toolbox` holds the
+// service status once a read has detected it. The clone image is the start of
+// the rw_freq partition at chip 0x900000, so it can be bulk-read.
+const RW_FREQ_ORIGIN = 0x900000;
+let resourceRadio = null;
+let toolbox = null;
+let logoTool = null;
+let logoBusy = false;
 
 function log(message) {
   const item = document.createElement('li');
@@ -82,6 +94,10 @@ function refresh() {
   $('changeCount').textContent = count ? `${count} changed block${count === 1 ? '' : 's'}` : 'No changes';
   $('write').disabled = busy || !connected || !$('riskAcknowledged').checked || !count;
   $('radioMode').textContent = edited ? `${modeName(edited)} image` : 'No image';
+  $('logoCard').hidden = !(toolbox && connected);
+  $('toolboxNote').hidden = !toolbox;
+  if (toolbox) $('toolboxNote').innerHTML = '<strong>H9 Toolbox Firmware detected.</strong> Reads use the fast path (checked against normal reads), and you can change the boot logo below.';
+  logoTool?.refresh();
   $('imageInfo').textContent = edited ? `${IMAGE_SIZE.toLocaleString()} bytes · ${modeName(edited)} · ${backupSaved ? 'Original backup saved' : 'Original backup available to save'}` : 'No radio image loaded.';
 }
 function escapeHtml(str) { return str.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
@@ -91,7 +107,9 @@ function validateImage(bytes) {
   if (!same(bytes.slice(0, 7), Uint8Array.of(0x54, 0x44, 0x48, 0x39, 0xff, 0xff, 0xff)) || !modeNames[bytes[7]]) throw new Error('This is not a TD-H9 Normal, HAM, or GMRS image.');
 }
 function onNotification(event) {
-  incoming.push(...new Uint8Array(event.target.value.buffer, event.target.value.byteOffset, event.target.value.byteLength));
+  const bytes = new Uint8Array(event.target.value.buffer, event.target.value.byteOffset, event.target.value.byteLength);
+  resourceRadio?.receive(bytes.slice());
+  incoming.push(...bytes);
   if (incomingWake) { incomingWake(); incomingWake = null; }
 }
 async function readExact(length, timeoutMs = 2500) {
@@ -153,11 +171,66 @@ async function readBlock(address) {
   if (previousMode !== readReplyMode) log(`Read reply: ${readReplyMode === 'yes' ? '37 bytes (checksum)' : '36 bytes (no checksum)'}.`);
   return reply.data;
 }
+// One status read at the H9 Toolbox service address, as the first read of a
+// session. Stock firmware returns ordinary clone bytes there (or nothing).
+async function probeToolbox() {
+  try {
+    const state = parseStatus(await readBlock(statusAddress(0)), 0);
+    if (state.version !== 2 || !state.ready) return { status: null, resync: false };
+    log('H9 Toolbox Firmware detected: boot-logo service ready.');
+    return { status: state, resync: false };
+  } catch (error) {
+    return { status: null, resync: error.message.startsWith('Radio timed out') };
+  }
+}
+// Bulk-read the clone image from rw_freq, then compare four blocks with the
+// normal clone read. Returns null (after logging why) to fall back.
+async function fastImage(ident) {
+  try {
+    startProgress('Reading the radio (fast)');
+    const result = await resourceRadio.readRange(RW_FREQ_ORIGIN, MEM_SIZE, fraction => showProgress(Math.round(fraction * MEM_SIZE), MEM_SIZE));
+    const samples = [0, MEM_SIZE - BLOCK, ...[0, 1].map(() => Math.floor(Math.random() * (MEM_SIZE / BLOCK)) * BLOCK)];
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await enterProgramming();
+    try {
+      for (const address of samples) {
+        const normal = await readBlock(address);
+        if (!same(normal, result.bytes.subarray(address, address + BLOCK))) throw new Error(`fast and normal reads differ at 0x${address.toString(16)}`);
+      }
+    } finally { await exitProgramming(); }
+    const image = new Uint8Array(IMAGE_SIZE);
+    image.set(ident);
+    image.set(result.bytes, 8);
+    log(`Fast read: ${MEM_SIZE.toLocaleString()} bytes in ${result.seconds.toFixed(1)} s; ${samples.length} blocks match the normal read.`);
+    return image;
+  } catch (error) {
+    log(`Fast read not used (${error.message}); using the standard read.`);
+    await exitProgramming();
+    return null;
+  }
+}
+// startProgress(label) begins a timed step; showProgress adds the
+// percentage and, after a couple of seconds, the time left at the measured
+// rate (as on the firmware update page).
+let progressStep = { label: '', began: 0 };
+function startProgress(label) {
+  progressStep = { label, began: performance.now() };
+  showProgress(0, 1);
+}
+function formatDuration(seconds) {
+  const whole = Math.max(1, Math.ceil(seconds));
+  return whole < 90 ? `${whole} s` : `${Math.floor(whole / 60)} min ${String(whole % 60).padStart(2, '0')} s`;
+}
 function showProgress(done, total) {
   $('progressWrap').hidden = false;
   const percent = Math.round(done * 100 / total);
+  const elapsed = (performance.now() - progressStep.began) / 1000;
+  const parts = [`${percent}%`];
+  if (progressStep.label) parts.push(progressStep.label);
+  if (done >= total && done > 0) parts.push(`done in ${formatDuration(elapsed)}`);
+  else if (done > 0 && elapsed >= 2) parts.push(`about ${formatDuration(elapsed * (total - done) / done)} left`);
   $('progressBar').style.width = `${percent}%`;
-  $('progressLabel').textContent = `${percent}%`;
+  $('progressLabel').textContent = parts.join(' · ');
 }
 async function work(fn) {
   if (busy) return;
@@ -176,7 +249,7 @@ async function connect() {
     const optionalServices = [...new Set([...profiles.map(p => p.service), ...(extraUuid ? [extraUuid] : [])])];
     status('Choose your TD-H9 in the Bluetooth device picker.');
     device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'TD-H9' }], optionalServices });
-    device.addEventListener('gattserverdisconnected', () => { writeChar = null; notifyChar = null; status('Radio disconnected.'); refresh(); });
+    device.addEventListener('gattserverdisconnected', () => { writeChar = null; notifyChar = null; resourceRadio = null; toolbox = null; status('Radio disconnected.'); refresh(); });
     const server = await device.gatt.connect();
     let services;
     try { services = await server.getPrimaryServices(); }
@@ -207,6 +280,9 @@ async function connect() {
     }
     writeChar = pair.tx; notifyChar = pair.rx;
     incoming = [];
+    resourceRadio = new ResourceRadio({ write: send, log: (message, level) => { if (level !== 'debug') log(message); } });
+    toolbox = null;
+    logoTool?.reset();
     notifyChar.addEventListener('characteristicvaluechanged', onNotification);
     await notifyChar.startNotifications();
     status(`Connected to ${device.name || 'TD-H9'} via ${pair.name}.`);
@@ -214,7 +290,7 @@ async function connect() {
 }
 async function disconnect() {
   if (device?.gatt?.connected) device.gatt.disconnect();
-  writeChar = null; notifyChar = null; incoming = [];
+  writeChar = null; notifyChar = null; incoming = []; resourceRadio = null; toolbox = null;
   status('Radio disconnected.'); refresh();
 }
 async function download() {
@@ -222,16 +298,38 @@ async function download() {
     let entered = false;
     try {
       status('Starting TD-H9 backup…');
-      const ident = await enterProgramming(); entered = true;
-      const image = new Uint8Array(IMAGE_SIZE);
-      image.set(ident);
-      for (let address = 0; address < MEM_SIZE; address += BLOCK) {
-        image.set(await readBlock(address), address + 8);
-        if (address % (BLOCK * 8) === 0 || address + BLOCK === MEM_SIZE) {
-          showProgress(address + BLOCK, MEM_SIZE);
-          await new Promise(resolve => setTimeout(resolve, 0));
+      let ident = await enterProgramming(); entered = true;
+      const began = performance.now();
+      let image = null;
+      const probe = await probeToolbox();
+      if (probe.resync) {
+        // A stock radio may ignore the probe; start a clean session.
+        await exitProgramming(); entered = false;
+        await new Promise(resolve => setTimeout(resolve, 300));
+        ident = await enterProgramming(); entered = true;
+      }
+      toolbox = probe.status;
+      refresh();
+      if (toolbox) {
+        await exitProgramming(); entered = false;
+        image = await fastImage(ident);
+        if (!image) { await new Promise(resolve => setTimeout(resolve, 300)); ident = await enterProgramming(); entered = true; }
+      }
+      if (!image) {
+        startProgress('Reading the radio');
+        image = new Uint8Array(IMAGE_SIZE);
+        image.set(ident);
+        for (let address = 0; address < MEM_SIZE; address += BLOCK) {
+          image.set(await readBlock(address), address + 8);
+          if (address % (BLOCK * 8) === 0 || address + BLOCK === MEM_SIZE) {
+            showProgress(address + BLOCK, MEM_SIZE);
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
         }
       }
+      log(`Read ${IMAGE_SIZE.toLocaleString()} bytes in ${((performance.now() - began) / 1000).toFixed(1)} s.`);
+      $('progressBar').style.width = '100%';
+      $('progressLabel').textContent = `100% · Read complete in ${formatDuration((performance.now() - began) / 1000)}`;
       validateImage(image);
       baseline = image;
       edited = image.slice();
@@ -621,6 +719,7 @@ async function writeChanges() {
       status(`Checking radio before ${addresses.length} block write${addresses.length === 1 ? '' : 's'}…`);
       const ident = await enterProgramming(); entered = true;
       if (!same(ident, baseline.slice(0, 8))) throw new Error(`Radio mode differs from backup (${modeNames[ident[7]]} vs ${modeName(baseline)}). No data written.`);
+      startProgress(`Writing ${addresses.length} changed block${addresses.length === 1 ? '' : 's'}`);
       for (let i = 0; i < addresses.length; i++) {
         const address = addresses[i];
         const original = baseline.slice(address + 8, address + 8 + BLOCK);
@@ -697,4 +796,14 @@ for (const side of ['Tx', 'Rx']) {
 $('editScramble').replaceChildren(new Option('Off', '0'), ...Array.from({ length: 16 }, (_, i) => new Option(`Code ${i + 1}`, String(i + 1))));
 $('riskAcknowledged').addEventListener('change', refresh);
 $('write').addEventListener('click', writeChanges);
+refresh();
+
+logoTool = mountLogoTool($('logoTool'), {
+  onStatus: (message, error) => status(message, error),
+  connection: {
+    session: () => (toolbox && resourceRadio && writeChar ? { radio: resourceRadio, name: device?.name || 'TD-H9' } : null),
+    onBusy: flag => { logoBusy = flag; busy = flag; refresh(); },
+    blocked: () => busy && !logoBusy,
+  },
+});
 refresh();

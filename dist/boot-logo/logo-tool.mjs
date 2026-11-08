@@ -1,16 +1,17 @@
 // Boot-logo tool: connect over Bluetooth, read and save the current logo,
 // convert any PNG/JPG (or a saved .bin) to the radio's 160 x 128 RGB565
 // format, then write and verify it. Mounted by the Boot logo page and by the
-// Firmware update page as its last step.
+// Firmware update page as its last step, and by the Bluetooth programmer on
+// its own connection (the `connection` option).
 import { LOGO_ADDRESS, LOGO_BYTES, LOGO_HEIGHT, LOGO_WIDTH, STOCK_LOGO_SHA256, fitRect, logoFromBin, logoSectorPlan, logoToRgba, rgbaToLogo } from './resource.mjs?v=20261108a';
 import { Stopped, connectBluetooth } from './radio.mjs?v=20261108a';
 
 const MARKUP = `
-  <ol class="instructions">
+  <ol class="instructions" data-id="instructions">
     <li>Install <strong>H9 Toolbox Firmware</strong> on the radio and power it on normally.</li>
     <li>Turn on the radio’s Bluetooth programming mode, then click Connect and choose it from the browser’s device list.</li>
   </ol>
-  <div class="controls"><button class="button primary-button" data-id="connect">Connect Bluetooth</button><button class="button ghost" data-id="disconnect" disabled>Disconnect</button><span class="chip" data-id="state">Disconnected</span></div>
+  <div class="controls" data-id="connectRow"><button class="button primary-button" data-id="connect">Connect Bluetooth</button><button class="button ghost" data-id="disconnect" disabled>Disconnect</button><span class="chip" data-id="state">Disconnected</span></div>
   <div class="logo-pair">
     <figure><canvas data-id="current" width="160" height="128"></canvas><figcaption>On the radio <span data-id="currentInfo">· not read yet</span></figcaption></figure>
     <figure><canvas data-id="next" width="160" height="128"></canvas><figcaption>New logo <span data-id="nextInfo">· choose an image</span></figcaption></figure>
@@ -73,10 +74,17 @@ async function imageToRgba(file, { fit, background, sharp }) {
 }
 
 // onStatus(message, isError) reports to the host page's activity log.
-export function mountLogoTool(root, { onStatus = () => {} } = {}) {
+// connection: a host that already holds the Bluetooth link supplies
+// { session() -> { radio, name } | null, onBusy(flag), blocked() -> bool
+// (the host is using the link) }; the tool then hides
+// its own Connect controls. Returns { refresh, reset } for such a host:
+// refresh after the link changes, reset when a different radio connects.
+export function mountLogoTool(root, { onStatus = () => {}, connection = null } = {}) {
   root.innerHTML = MARKUP;
   const el = id => root.querySelector(`[data-id="${id}"]`);
-  let session = null, busy = false, current = null, next = null, nextSource = null, saved = false;
+  let ownSession = null, busy = false, current = null, next = null, nextSource = null, saved = false;
+  const getSession = () => (connection ? connection.session() : ownSession);
+  if (connection) { el('instructions').hidden = true; el('connectRow').hidden = true; }
   const status = (message, error = false) => onStatus(message, error);
 
   function draw(id, bytes) {
@@ -124,7 +132,7 @@ export function mountLogoTool(root, { onStatus = () => {} } = {}) {
     return `· SHA-256 ${hash.slice(0, 12)}…${hash === STOCK_LOGO_SHA256 ? ' (stock TIDRADIO logo)' : ''}`;
   }
   function refresh() {
-    const connected = Boolean(session);
+    const connected = Boolean(getSession()) && !(!busy && connection?.blocked?.());
     el('connect').disabled = busy || connected;
     el('disconnect').disabled = busy || !connected;
     el('read').disabled = busy || !connected;
@@ -135,14 +143,14 @@ export function mountLogoTool(root, { onStatus = () => {} } = {}) {
     el('write').title = !current ? 'Read the current logo first.' : !saved ? 'Save the current logo first.' : !next ? 'Choose a new image.' : '';
   }
   async function run(task) {
-    busy = true; refresh();
-    try { await task(); } finally { busy = false; refresh(); }
+    busy = true; connection?.onBusy?.(true); refresh();
+    try { await task(); } finally { busy = false; connection?.onBusy?.(false); refresh(); }
   }
 
   async function readCurrent() {
     const began = performance.now();
     const report = timed(began);
-    const result = await session.radio.readRange(LOGO_ADDRESS, LOGO_BYTES, (fraction, rate) =>
+    const result = await getSession().radio.readRange(LOGO_ADDRESS, LOGO_BYTES, (fraction, rate) =>
       report(fraction, `Reading the current logo · ${(rate / 1024).toFixed(1)} KiB/s`));
     current = result.bytes;
     draw('current', current);
@@ -169,24 +177,24 @@ export function mountLogoTool(root, { onStatus = () => {} } = {}) {
 
   el('connect').addEventListener('click', () => run(async () => {
     try {
-      session = await connectBluetooth({
+      ownSession = await connectBluetooth({
         log: (message, level) => { if (level !== 'debug') console[level === 'warn' ? 'warn' : 'info']('[boot-logo]', message); },
-        onDisconnect: () => { session = null; el('state').textContent = 'Disconnected'; status('Radio disconnected.'); refresh(); },
+        onDisconnect: () => { ownSession = null; el('state').textContent = 'Disconnected'; status('Radio disconnected.'); refresh(); },
       });
-      el('state').textContent = `Connected · ${session.name}`;
+      el('state').textContent = `Connected · ${ownSession.name}`;
       saved = false;
-      const service = await session.radio.checkService();
+      const service = await ownSession.radio.checkService();
       if (service.version !== 2) throw new Error('This radio’s firmware cannot write the boot logo. Install H9 Toolbox Firmware first.');
       if (!service.ready) throw new Error('The radio has not finished starting its resource flash. Power-cycle it and connect again.');
-      status(`Connected to ${session.name}; the boot-logo service answered.`);
+      status(`Connected to ${ownSession.name}; the boot-logo service answered.`);
       await readCurrent();
     } catch (error) {
       if (error.name === 'NotFoundError') { status('No radio chosen.'); return; }
-      session?.disconnect(); session = null; el('state').textContent = 'Disconnected';
+      ownSession?.disconnect(); ownSession = null; el('state').textContent = 'Disconnected';
       status(/No resource service/.test(error.message) ? 'This radio’s firmware has no boot-logo service. Install H9 Toolbox Firmware first.' : error.message, true);
     }
   }));
-  el('disconnect').addEventListener('click', () => { session?.disconnect(); session = null; el('state').textContent = 'Disconnected'; refresh(); });
+  el('disconnect').addEventListener('click', () => { ownSession?.disconnect(); ownSession = null; el('state').textContent = 'Disconnected'; refresh(); });
   el('read').addEventListener('click', () => run(async () => {
     try { await readCurrent(); } catch (error) { progress(0, 'Read stopped'); status(`Logo read failed: ${error.message}`, true); }
   }));
@@ -207,9 +215,10 @@ export function mountLogoTool(root, { onStatus = () => {} } = {}) {
     catch (error) { next = null; el('nextInfo').textContent = '· not usable'; status(error.message, true); }
   });
   for (const id of ['file', 'fit', 'background', 'dither', 'sharp']) el(id).addEventListener('change', choose);
-  el('stop').addEventListener('click', () => { if (session) session.radio.stopRequested = true; el('stop').disabled = true; });
+  el('stop').addEventListener('click', () => { const active = getSession(); if (active) active.radio.stopRequested = true; el('stop').disabled = true; });
   el('write').addEventListener('click', () => run(async () => {
     const began = performance.now();
+    const session = getSession();
     session.radio.stopRequested = false;
     showResult(null);
     try {
@@ -246,4 +255,9 @@ export function mountLogoTool(root, { onStatus = () => {} } = {}) {
     }
   }));
   refresh();
+  return {
+    refresh,
+    // A different radio: forget its logo and require a fresh save.
+    reset() { current = null; saved = false; markVerified(false); el('currentInfo').textContent = '· not read yet'; showResult(null); refresh(); },
+  };
 }

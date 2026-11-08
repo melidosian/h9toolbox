@@ -23,6 +23,7 @@
   <script src="../analytics.js"></script>
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../landing.css?v=20261106c">
+  <link rel="stylesheet" href="../boot-logo/logo.css?v=20261108c">
 </head>
 <body>
   <div class="shell">
@@ -72,6 +73,7 @@
             </details>
             <div class="progress-wrap" id="progressWrap" hidden><div class="progress-track"><div id="progressBar"></div></div><span id="progressLabel">0%</span></div>
             <p class="fine" id="imageInfo">No radio image loaded.</p>
+            <p class="toolbox-note" id="toolboxNote" hidden></p>
           </section>
 
           <section class="card channels" aria-labelledby="channels-title">
@@ -131,6 +133,12 @@
             <label class="confirm"><input id="riskAcknowledged" type="checkbox" disabled><span>I have reviewed my channels and settings and am ready to write these changes to my radio.</span></label>
             <div class="controls"><button id="write" class="button write-button" disabled>Write changed blocks</button></div>
           </section>
+
+          <section class="card" id="logoCard" aria-labelledby="logo-title" hidden>
+            <div class="card-head"><div><span class="step">06</span><h2 id="logo-title">Boot logo</h2></div><span class="chip">H9 Toolbox Firmware</span></div>
+            <p class="subtext">This radio runs H9 Toolbox Firmware, so you can replace its startup image on this connection. Read and save the current logo first; choosing that .bin later puts it back.</p>
+            <div class="logo-tool" id="logoTool"></div>
+          </section>
         </div>
 
         <aside class="sidebar">
@@ -149,6 +157,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent TD-H9 programming tool · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">GitHub repository</a> · <a href="https://chirpmyradio.com/issues/12216" target="_blank" rel="noopener noreferrer">Protocol reference</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. Save an untouched backup and review your settings before writing.<br><strong>Analytics:</strong> Google Analytics measures visits and site interactions on h9toolbox.com. H9 Toolbox does not send radio images, channels, or settings to Analytics.</p></footer>
   </div>
-  <script type="module" src="../app.js"></script>
+  <script type="module" src="../app.js?v=20261108c"></script>
 </body>
 </html>
