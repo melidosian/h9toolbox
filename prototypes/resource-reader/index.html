@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TD-H9 resource service</title>
+<style>
+  :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; background:#101820; color:#e9f2f6; }
+  body { max-width: 780px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { line-height: 1.2; }
+  button { background:#16c9c6; border:0; border-radius:.5rem; color:#07171b; font:inherit; font-weight:700; padding:.65rem 1rem; margin:.25rem .25rem .25rem 0; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:default; }
+  select, input { font:inherit; background:#0d141a; color:inherit; border:1px solid #3b5160; border-radius:.4rem; padding:.4rem; }
+  section { background:#1b2832; padding:1rem; border-radius:.75rem; margin:1rem 0; }
+  code, pre { font: .85rem/1.45 ui-monospace, Consolas, monospace; }
+  pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#0d141a; padding:1rem; border-radius:.5rem; max-height:350px; overflow:auto; }
+  progress { width:100%; }
+  .note { color:#b7ced7; }
+  .error { color:#ff9d91; }
+  .logos { display:flex; flex-wrap:wrap; gap:1rem; }
+  .logos figure { margin:0; }
+  .logos canvas { width:320px; max-width:100%; aspect-ratio:160/128; image-rendering:pixelated; background:#000; border:1px solid #3b5160; border-radius:.4rem; }
+  .logos figcaption { font-size:.85rem; color:#b7ced7; }
+</style>
+<main>
+  <h1>TD-H9 resource service (S1/S2)</h1>
+  <p>Reads the radio's 16 MiB resource flash through the S1 or S2 service firmware. Sections 1–3 only send the stock handshake, read (<code>R</code>), and exit (<code>E</code>) commands. Only section 4 writes, and only on an S2 radio.</p>
+  <p class="note">A radio running stock or another firmware fails the service check harmlessly. Disconnect other radio apps first and keep the radio close: a full chip read is about 524,000 Bluetooth round trips.</p>
+  <section>
+    <h2>1. Connect</h2>
+    <button id="connect">Connect TD-H9</button><button id="disconnect" disabled>Disconnect</button>
+    <p id="status" role="status">Disconnected.</p>
+  </section>
+  <section>
+    <h2>2. Check the service</h2>
+    <p>Reads one status block: service version, the stock flash-ready marker, and the chip's JEDEC ID.</p>
+    <button id="check" disabled>Check service</button>
+    <pre id="serviceResult">Not checked.</pre>
+  </section>
+  <section>
+    <h2>3. Read a region</h2>
+    <p><label>Region <select id="region"><option value="chip">Whole chip (16 MiB)</option><option value="custom">Custom range</option></select></label></p>
+    <p id="customRange" hidden><label>Start (hex) <input id="start" value="a00000" size="8"></label> <label>Length (hex) <input id="length" value="a000" size="8"></label></p>
+    <p><label><input type="checkbox" id="verify" checked> Read twice and compare (recommended for a backup)</label></p>
+    <p><label>Bluetooth link during fast reads <select id="fastLink"><option value="fixed" selected>ask for fixed 15 ms, no slave latency</option><option value="range">ask for 15–30 ms, no slave latency</option><option value="off">leave the stock link</option></select></label></p>
+    <p><label><input type="checkbox" id="noResponse"> Write without response (experimental; compare the KiB/s)</label></p>
+    <p><label><input type="checkbox" id="fast" checked> Fast Bluetooth (the radio streams up to 2 KiB per request; needs a 32 KiB aligned start)</label></p>
+    <button id="dump" disabled>Read</button><button id="stop" disabled>Stop</button>
+    <progress id="progress" value="0"></progress>
+    <p id="progressText" class="note">Idle.</p>
+    <button id="downloadBin" disabled>Download .bin</button><button id="downloadManifest" disabled>Download manifest</button>
+    <pre id="dumpResult">No dump yet.</pre>
+  </section>
+  <section>
+    <h2>4. S2 sector write test</h2>
+    <p>Needs the S2 image (service version 2) and two matching dumps of the region first. The test only runs on a fully erased voice, font, or resource sector. It programs a test pattern, reads it back, and erases the sector to <code>0xFF</code> again. The radio refuses every other partition.</p>
+    <p><label>Sector (hex) <input id="sector" size="8" placeholder="a3f000"></label></p>
+    <p id="erasedSectors" class="note">Read a writable region above to find erased sectors.</p>
+    <button id="sectorTest" disabled>Run sector test</button>
+    <progress id="sectorProgress" value="0"></progress>
+    <p id="sectorProgressText" class="note">Idle.</p>
+    <p class="note">If a test stops part-way, erase the sector to return it to <code>0xFF</code>, its state before the test. The radio first checks that the CRC still matches what this page read.</p>
+    <p><label><input type="checkbox" id="eraseConfirm"> I have a matching dump containing this sector</label></p>
+    <button id="eraseSector" disabled>Erase sector</button>
+    <pre id="sectorResult">No write yet.</pre>
+  </section>
+  <section>
+    <h2>5. Boot logo (S2)</h2>
+    <p>The startup logo is a raw 160 × 128 RGB565 (big-endian) image in the first 10 sectors of <code>resource</code>. Read it first. Writing rewrites only the sectors that differ: each is erased only if the radio still holds exactly what was read, every 32-byte block is verified by the radio, and the whole logo is read back at the end. Restore by choosing your resource backup <code>.bin</code> or a downloaded logo.</p>
+    <button id="readLogo" disabled>Read current logo</button><button id="downloadLogo" disabled>Download current logo (.bin)</button>
+    <div class="logos">
+      <figure><canvas id="currentLogo" width="160" height="128"></canvas><figcaption>On the radio <span id="currentLogoInfo"></span></figcaption></figure>
+      <figure><canvas id="nextLogo" width="160" height="128"></canvas><figcaption>To write <span id="nextLogoInfo"></span></figcaption></figure>
+    </div>
+    <p><label>New logo <input type="file" id="logoFile" accept="image/*,.bin"></label> <label>Fit <select id="logoFit"><option value="contain" selected>fit on black</option><option value="cover">fill and crop</option><option value="stretch">stretch</option></select></label></p>
+    <p><label><input type="checkbox" id="logoConfirm"> I have a backup of the current logo (resource dump or downloaded logo)</label></p>
+    <button id="writeLogo" disabled>Write logo</button>
+    <progress id="logoProgress" value="0"></progress>
+    <p id="logoProgressText" class="note">Idle.</p>
+    <pre id="logoResult">No logo action yet.</pre>
+  </section>
+  <section>
+    <h2>Log</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+<script type="module" src="app.mjs?build=logo-3"></script>

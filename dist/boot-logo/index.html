@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#111f2c">
+  <title>Boot logo | H9 Toolbox</title>
+  <link rel="icon" href="../favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../firmware-update/update.css?v=20261108a">
+  <link rel="stylesheet" href="./logo.css?v=20261108b">
+  <script src="../https-redirect.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="mark">H9</span><span><strong>H9 Toolbox</strong><small>BOOT LOGO</small></span></div>
+      <a class="button ghost" href="/firmware/">← Firmware</a>
+    </header>
+    <main class="firmware-main">
+      <section class="intro">
+        <div class="eyebrow">BLUETOOTH · DESKTOP CHROME OR EDGE · EXPERIMENTAL</div>
+        <h1>Boot logo</h1>
+        <p>Replace the TD-H9 startup image with any PNG or JPG. The radio needs H9 Toolbox Firmware, installed from the <a href="/firmware-update/">Firmware update</a> page. The image is converted in your browser and never uploaded.</p>
+      </section>
+      <section class="note warning"><strong>Before you begin</strong>
+        <p>The logo is stored on the radio's separate resource flash, so firmware updates (including a return to stock) keep it. Writing erases and rewrites only the logo's own sectors, each after checking it still holds what was just read, and reads the whole logo back at the end. Save the current logo first: choosing that .bin later puts it back.</p>
+      </section>
+      <section class="card" aria-labelledby="logo-title">
+        <div class="card-head"><div><span class="step">01</span><h2 id="logo-title">Read, choose, and write</h2></div><span class="chip">Bluetooth</span></div>
+        <div class="logo-tool" id="logoTool"></div>
+      </section>
+      <section class="card status-card" aria-live="polite" aria-labelledby="activity-title">
+        <div class="card-head"><div><h2 id="activity-title">Activity</h2></div></div>
+        <div id="status" class="status">Ready. Nothing has been sent to a radio.</div>
+        <ol id="log" class="log"></ol>
+      </section>
+    </main>
+    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. Boot-logo writing has been tested on one TD-H9.</p></footer>
+  </div>
+  <script type="module" src="./page.js?v=20261108b"></script>
+</body>
+</html>
