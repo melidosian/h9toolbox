@@ -112,7 +112,7 @@ function showResult(result) {
   const panel = $('writeResult');
   panel.hidden = !result;
   if (!result) return;
-  panel.classList.toggle('failed', result.failed);
+  panel.classList.toggle('failed', Boolean(result.failed));
   panel.replaceChildren();
   const title = document.createElement('strong'); title.textContent = result.title;
   const body = document.createElement('div');
