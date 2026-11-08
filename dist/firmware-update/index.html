@@ -9,7 +9,8 @@
   <title>Firmware update | H9 Toolbox</title>
   <link rel="icon" href="../favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="../styles.css">
-  <link rel="stylesheet" href="./update.css">
+  <link rel="stylesheet" href="./update.css?v=20261108d">
+  <link rel="stylesheet" href="../boot-logo/logo.css?v=20261108b">
   <script src="../https-redirect.js"></script>
 </head>
 <body>
@@ -22,38 +23,47 @@
       <section class="intro">
         <div class="eyebrow">USB-C · DESKTOP CHROME OR EDGE · EXPERIMENTAL</div>
         <h1>Firmware update</h1>
-        <p>Install the hardware-tested Brick Breaker build or restore official v1.0.38 through the TD-H9 vendor HID recovery mode. The game package downloads from H9 Toolbox and is checked against its exact tested hash. Your radio backup stays in your browser and is never uploaded.</p>
+        <p>Install H9 Toolbox Firmware, or restore official v1.0.38, through the TD-H9 vendor HID recovery mode. H9 Toolbox Firmware is stock v1.0.38 with Brick Breaker (hold Back) and the service that lets you replace the startup image over Bluetooth in step 04 or on the <a href="/boot-logo/">Boot logo</a> page. The package downloads from H9 Toolbox and is checked against its exact hash. Your radio backup stays in your browser and is never uploaded.</p>
       </section>
       <section class="note warning"><strong>Before you begin</strong>
-        <p>This path has restored changed sectors on one TD-H9, but a complete browser firmware update has not yet been verified on hardware. A failed update can leave the radio unable to boot. Keep a reliable recovery method available.</p>
-        <p>Before writing, create and save a recovery backup here or select a raw main-flash backup. The HID backup reconstructs the accessible flash using CRC queries; it can take several minutes. HID cannot read or write the protected first 0x5000 bytes. A Bluetooth channel .img is not a firmware recovery backup.</p>
-        <p>Brick Breaker requires the exact stock v1.0.38 main image. The page refuses to install it over another build. If you update older firmware to v1.0.38, recheck channels and settings afterward.</p>
-      </section>
-      <section class="card" aria-labelledby="files-title">
-        <div class="card-head"><div><span class="step">01</span><h2 id="files-title">Select firmware and backup</h2></div></div>
-        <div class="file-grid">
-          <div class="hosted-package"><strong>Brick Breaker for stock v1.0.38</strong><button class="button primary-button" id="loadBrickBreaker">Load verified Brick Breaker .fw</button><small>Downloads the exact tested package and checks its SHA-256 before any radio access.</small></div>
-          <div class="hosted-package"><strong>Stock Type-C v1.0.38</strong><button class="button ghost" id="loadStockGitHub">Fetch stock .fw from GitHub</button><small>Reads the pinned ZIP from the third-party TDH9 mirror and verifies both the ZIP and extracted firmware hashes.</small><label>Or select a local stock .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label></div>
-          <label class="backup-file">Existing recovery backup, optional (.h9hid or raw .bin)<input id="backupFile" type="file" accept=".h9hid,.bin,application/octet-stream"><small id="backupState">No backup selected. You can create one after connecting.</small></label>
-        </div>
-        <p class="selection-state" id="firmwareState" aria-live="polite">No firmware package selected</p>
-        <p class="fine">You can select a backup before or after firmware. Brick Breaker installation requires a backup matching exact stock v1.0.38. A raw .bin backup checks protected boot bytes. An HID archive contains accessible bytes from 0x5000 onward and an integrity hash; protected boot bytes are unavailable through HID.</p>
+        <p>Install and restore through this page have been tested on one TD-H9 from macOS. A failed update can leave the radio unable to boot. Keep a reliable recovery method available.</p>
+        <p>Before writing, create and save a recovery backup here or select a raw main-flash backup. The HID backup reconstructs flash from CRC queries. On stock or H9 Toolbox firmware it takes a few seconds; on other firmware it can take about an hour. HID cannot read or write the protected first 0x5000 bytes. A Bluetooth channel .img is not a firmware recovery backup.</p>
+        <p>H9 Toolbox Firmware installs over the exact stock v1.0.38 main image or the original Brick Breaker build, and needs a stock v1.0.38 backup as the restore point. The page refuses any other starting image. If you update older firmware to v1.0.38, recheck channels and settings afterward.</p>
       </section>
       <section class="card" aria-labelledby="connect-title">
-        <div class="card-head"><div><span class="step">02</span><h2 id="connect-title">Connect USB HID</h2></div><span class="chip" id="deviceState">Disconnected</span></div>
-        <ol class="instructions"><li>Turn the radio off and connect a data-capable USB-C cable.</li><li>Hold <strong>PTT + 2</strong> while powering on. The screen stays blank and the top LED turns green.</li><li>Click Connect and select the JieLi HID device in the browser chooser.</li></ol>
-        <div class="controls"><button class="button primary-button" id="connect">Connect HID radio</button><button class="button ghost" id="disconnect" disabled>Disconnect</button></div>
-        <div class="controls backup-controls"><button class="button ghost" id="createBackup" disabled>Create and download HID recovery backup</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button><span id="backupHint" class="hint" aria-live="polite">Select a firmware target and connect the radio first.</span></div>
-        <p class="fine">The radio must stay in HID mode throughout backup. The page checks each reconstructed sector and rescans the radio before accepting the archive. A backup made while Brick Breaker is installed preserves that game image; keep your earlier stock backup to restore stock. Confirm the download is saved before proceeding.</p>
+        <div class="card-head"><div><span class="step">01</span><h2 id="connect-title">Connect radio</h2></div><span class="chip" id="deviceState">Disconnected</span></div>
+        <ol class="instructions"><li>Turn the radio off and connect a data-capable USB-C cable.</li><li>Hold <strong>PTT + 2</strong> while powering on. The screen stays blank and the top LED turns green.</li><li>Click <strong>Connect radio</strong> and choose the JieLi HID device in the browser’s list.</li></ol>
+        <div class="controls"><button class="button primary-button" id="connect">Connect radio</button><button class="button ghost" id="disconnect" disabled>Disconnect</button></div>
+        <p class="fine">Keep the radio connected in HID mode until you finish step 03.</p>
       </section>
-      <section class="card" aria-labelledby="inspect-title">
-        <div class="card-head"><div><span class="step">03</span><h2 id="inspect-title">Inspect and update</h2></div></div>
-        <p class="subtext">Inspect reads sector CRCs only. No erase or write is sent until you explicitly start the update.</p>
-        <div class="controls"><button class="button ghost" id="inspect" disabled>Inspect radio</button><span id="planState" class="hint">Select firmware, save a recovery backup, and connect the radio.</span></div>
+      <section class="card" aria-labelledby="files-title">
+        <div class="card-head"><div><span class="step">02</span><h2 id="files-title">Select firmware</h2></div></div>
+        <div class="file-grid">
+          <div class="hosted-package" id="optBuild"><span class="selected-badge">✓ Selected</span><strong>H9 Toolbox Firmware for v1.0.38</strong><button class="button primary-button" id="loadBuild">Load H9 Toolbox Firmware</button><small>Stock v1.0.38 with Brick Breaker and the boot logo service. Checked against its exact hash before any radio access; upgrades the original Brick Breaker directly.</small></div>
+          <div class="hosted-package" id="optStock"><span class="selected-badge">✓ Selected</span><strong>Stock Type-C v1.0.38</strong><button class="button ghost" id="loadStockGitHub">Fetch stock .fw from GitHub</button><small>Reads the pinned ZIP from the third-party TDH9 mirror and verifies both the ZIP and extracted firmware hashes.</small><label>Or select a local stock .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label></div>
+          <label class="backup-file">Restore point, optional: a stock backup (.h9hid or raw .bin)<input id="backupFile" type="file" accept=".h9hid,.bin,application/octet-stream"><small id="backupState">No backup selected. You can create one after connecting.</small></label>
+        </div>
+        <p class="selection-state" id="firmwareState" aria-live="polite">No firmware selected</p>
+        <p class="fine">You usually do not need a file here. If the radio runs stock, its backup is the restore point; if it runs H9 Toolbox Firmware or the original Brick Breaker, the restore point is official stock v1.0.38, rebuilt from verified files. Choose a file only for a radio with other firmware.</p>
+      </section>
+      <section class="card" aria-labelledby="write-title">
+        <div class="card-head"><div><span class="step">03</span><h2 id="write-title">Write firmware</h2></div></div>
+        <p class="subtext">Back up the radio first: the backup downloads a recovery file of its current firmware in a few seconds (stock or H9 Toolbox firmware); keep it. Install then checks every sector on the radio (CRC only, no writes) and builds the exact plan; nothing is erased unless that check passes.</p>
         <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may damage my radio. I saved a recovery backup and have a recovery method.</span></label>
-        <div class="controls"><button class="button write-button" id="flash" disabled>Write verified firmware</button><button class="button ghost" id="restore" disabled>Restore selected backup</button></div>
-        <p class="fine">Restore writes the saved application sectors back through HID and checks their CRCs. The HID archive also preserves accessible settings bytes above 0xDA000, but this page does not write those settings or the protected boot region.</p>
+        <div class="controls write-controls"><button class="button primary-button" id="createBackup" disabled>Backup radio</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button><button class="button ghost" id="flash" disabled>Install firmware</button><button class="button ghost" id="restore" disabled>Restore backup</button></div>
+        <p id="planState" class="hint plan-state" aria-live="polite">Connect the radio in step 01.</p>
+        <p class="fine">Restore writes your restore point’s firmware sectors back and checks their CRCs. Your channels and settings are never changed here; to back them up, use the Bluetooth programmer.</p>
         <div class="progress-wrap"><div class="progress-track"><div id="progress"></div></div><span id="progressText">0%</span></div>
+        <div class="result-panel" id="writeResult" role="status" hidden></div>
+      </section>
+      <section class="card" aria-labelledby="logo-title">
+        <div class="card-head"><div><span class="step">04</span><h2 id="logo-title">Update the boot logo</h2></div><span class="chip">Bluetooth</span></div>
+        <p class="subtext" id="logoGate">Needs H9 Toolbox Firmware on the radio. This opens once the page confirms it is installed; if it already is, open it now.</p>
+        <details class="logo-step" id="logoStep">
+          <summary>Show the boot logo tool</summary>
+          <p class="subtext">After installing H9 Toolbox Firmware, disconnect USB and power-cycle the radio so it starts normally. The logo is written over Bluetooth, sector by sector, and read back to verify. Firmware updates, including a return to stock, keep whatever logo you write here.</p>
+          <div class="logo-tool" id="logoTool"></div>
+        </details>
       </section>
       <section class="card status-card" aria-live="polite" aria-labelledby="activity-title">
         <div class="card-head"><div><h2 id="activity-title">Activity</h2></div></div>
@@ -61,8 +71,8 @@
         <ol id="log" class="log"></ol>
       </section>
     </main>
-    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The HID sector recovery procedure has been tested on a physical TD-H9; this full browser update flow is awaiting hardware validation.</p></footer>
+    <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The full browser install and restore flow has been tested on one TD-H9 from macOS.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=20261106d"></script>
+  <script type="module" src="./update.js?v=20261108k"></script>
 </body>
 </html>

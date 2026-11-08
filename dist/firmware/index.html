@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self'; connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'">
   <meta name="theme-color" content="#0c1822">
-  <meta name="description" content="Build and install the stock-derived TD-H9 Brick Breaker firmware, find the source, and follow the HID recovery process.">
+  <meta name="description" content="Install H9 Toolbox Firmware for the TIDRADIO TD-H9 in your browser: stock v1.0.38 with Brick Breaker and a custom boot logo, with backup and one-click restore.">
   <link rel="canonical" href="https://h9toolbox.com/firmware/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="H9 Toolbox">
   <meta property="og:url" content="https://h9toolbox.com/firmware/">
-  <meta property="og:title" content="TD-H9 firmware &amp; Brick Breaker | H9 Toolbox">
-  <title>TD-H9 firmware &amp; Brick Breaker | H9 Toolbox</title>
+  <meta property="og:title" content="H9 Toolbox Firmware for the TD-H9 | H9 Toolbox">
+  <title>H9 Toolbox Firmware for the TD-H9 | H9 Toolbox</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="/landing.css?v=20261106c">
+  <link rel="stylesheet" href="/landing.css?v=20261108a">
   <script src="/https-redirect.js"></script>
   <script src="/analytics.js"></script>
 </head>
@@ -26,24 +26,24 @@
 
     <main>
       <section class="firmware-hero">
-        <p class="overline"><span class="signal-dot"></span> STOCK-DERIVED FIRMWARE · TD-H9 V1.0.38</p>
-        <h1>Firmware experiments,<br><em>with a way back.</em></h1>
-        <p class="hero-lead">Brick Breaker keeps the stock channel screen and launches when you hold Back. The build source, guided installer, backup checks, and HID recovery tool are available together.</p>
-        <div class="hero-actions"><a class="solid-link" href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research/brick-breaker" target="_blank" rel="noopener noreferrer">View Brick Breaker source ↗</a><a class="subtle-link" href="https://github.com/melidosian/h9toolbox/blob/main/firmware-research/brick-breaker/README.md" target="_blank" rel="noopener noreferrer">Read install &amp; recovery guide ↗</a></div>
+        <p class="overline"><span class="signal-dot"></span> H9 TOOLBOX FIRMWARE · BASED ON STOCK TD-H9 V1.0.38</p>
+        <h1>H9 Toolbox Firmware,<br><em>with a way back.</em></h1>
+        <p class="hero-lead">Stock v1.0.38 with two additions: Brick Breaker (hold Back on the channel screen) and your own startup image. Install it in Chrome or Edge over USB-C, change the boot logo over Bluetooth, and restore stock at any time.</p>
+        <div class="hero-actions"><a class="solid-link" href="/firmware-update/">Install H9 Toolbox Firmware ↗</a><a class="subtle-link" href="/boot-logo/">Change the boot logo ↗</a></div>
       </section>
 
-      <section class="firmware-grid" aria-label="Firmware options">
-        <article class="detail-card feature-detail"><span class="detail-label">BRICK BREAKER / GUIDED INSTALL</span><h2>Build the game from source.</h2><p>The CLI downloads and verifies the pinned Type-C v1.0.38 stock package, patches it with the tested game, creates a fresh backup, and asks before writing. You enter USB Update mode with the 8 key. macOS uses a separate experimental HID install path.</p><div class="mini-stats"><span>5 sectors changed</span><span>Stock UI retained</span><span>Short Back taps preserved</span></div></article>
-        <article class="detail-card"><span class="detail-label">RECOVERY / PTT + 2</span><h2>Keep the backup.</h2><p>The tool saves the radio's main-flash backup before the BR23 write and includes a pinned HID restore command. Recovery requires the backup from your radio and PTT+2 HID mode, with a solid green top LED.</p><a class="text-link" href="https://github.com/melidosian/h9toolbox/blob/main/firmware-research/brick-breaker/README.md#guided-hid-restore" target="_blank" rel="noopener noreferrer">See recovery steps ↗</a></article>
+      <section class="firmware-grid" aria-label="What H9 Toolbox Firmware adds">
+        <article class="detail-card feature-detail"><span class="detail-label">BRICK BREAKER / HOLD BACK</span><h2>A game on your radio.</h2><p>The stock channel screen and controls are unchanged. Hold Back to play Brick Breaker; short Back taps still work as normal. Channels and settings stay as they are, and the Web programmer keeps working.</p><div class="mini-stats"><span>Stock UI retained</span><span>8 sectors changed</span><span>Hash-verified package</span></div></article>
+        <article class="detail-card"><span class="detail-label">BOOT LOGO / BLUETOOTH</span><h2>Your own startup image.</h2><p>Pick any PNG or JPG; it is converted to the radio's 160 × 128 screen in your browser, written over Bluetooth, and read back to verify. Save the current logo first and you can always put it back. The logo stays even if you return to stock.</p><a class="text-link" href="/boot-logo/">Open the boot logo tool ↗</a></article>
       </section>
 
-      <section class="commands" aria-labelledby="commands-title"><div class="section-heading"><span class="note-kicker">GET STARTED</span><h2 id="commands-title">One command to prepare the build.</h2><p>Python 3.11 or newer is required. Run with <code>build</code> first to download, build, and verify the package without touching a radio. Remove <code>build</code> when you are ready for the guided install.</p></div><div class="command-grid"><div class="command-card"><h3>Windows · PowerShell or Command Prompt</h3><pre><code>py -3 -c "import urllib.request as u; exec(u.urlopen('https://raw.githubusercontent.com/melidosian/h9toolbox/main/firmware-research/brick-breaker/bootstrap.py').read().decode())" build</code></pre></div><div class="command-card"><h3>macOS or Linux · Terminal</h3><pre><code>python3 -c "import urllib.request as u; exec(u.urlopen('https://raw.githubusercontent.com/melidosian/h9toolbox/main/firmware-research/brick-breaker/bootstrap.py').read().decode())" build</code></pre></div></div><p class="command-note">Generated firmware and backups stay on your computer. The CLI cannot press the radio's update-mode keys for you.</p></section>
+      <section class="commands" aria-labelledby="install-title"><div class="section-heading"><span class="note-kicker">GET STARTED</span><h2 id="install-title">Install in your browser.</h2><p>Use desktop Chrome or Edge and a data-capable USB-C cable. The installer backs up the radio before anything is written and checks every sector afterwards.</p></div><div class="command-grid"><div class="command-card"><h3>1 · Install the firmware (USB-C)</h3><p>Hold <strong>PTT + 2</strong> while powering on (blank screen, green LED). On the <a href="/firmware-update/">Firmware update</a> page: Connect radio, select H9 Toolbox Firmware, Backup radio, then Install.</p></div><div class="command-card"><h3>2 · Change the boot logo (Bluetooth)</h3><p>Power-cycle the radio and turn on Bluetooth programming mode. Use step 04 on the Firmware update page or the <a href="/boot-logo/">Boot logo</a> page: Connect, save the current logo, choose an image, Write.</p></div></div><p class="command-note">Already running the original Brick Breaker? Install upgrades it directly. To go back, use Restore stock on the same page. Source and build tools are on <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research/resource-service" target="_blank" rel="noopener noreferrer">GitHub ↗</a>.</p></section>
 
-      <section class="compat-note" aria-labelledby="compat-title"><span class="detail-label">PROGRAMMER COMPATIBILITY</span><h2 id="compat-title">Can I still edit channels with Brick Breaker installed?</h2><p>Yes. On the TD-H9 used for the Brick Breaker trial, H9 Toolbox's Web programmer successfully read and wrote radio programming while Brick Breaker was installed. This confirms the combination on one radio; other radios and CHIRP have not been tested with this image. The Web programmer cannot load a <code>.fw</code> file.</p><a class="text-link" href="/programmer/">Open Web programmer ↗</a></section>
+      <section class="compat-note" aria-labelledby="compat-title"><span class="detail-label">RECOVERY</span><h2 id="compat-title">What if something goes wrong?</h2><p>The installer only writes after checking the radio, verifies every sector, and can resume an interrupted install. Restore returns the firmware to stock v1.0.38 through the same PTT + 2 mode. Your channels and settings are never changed by the installer; back them up with the Web programmer if you like.</p><a class="text-link" href="/programmer/">Open Web programmer ↗</a></section>
 
     </main>
 
-    <footer class="site-footer"><span>H9 Toolbox · Independent TD-H9 tools</span><span><a href="/programmer/">Bluetooth programmer</a> · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a></span><p>Brick Breaker was tested on one TD-H9. The macOS HID installer has offline tests but no Mac hardware validation. H9 Toolbox was entirely and responsibly AI generated under human direction.</p></footer>
+    <footer class="site-footer"><span>H9 Toolbox · Independent TD-H9 tools</span><span><a href="/firmware-update/">Firmware update</a> · <a href="/boot-logo/">Boot logo</a> · <a href="/programmer/">Bluetooth programmer</a> · <a href="https://github.com/melidosian/h9toolbox" target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a></span><p>H9 Toolbox Firmware, the browser installer, and the boot logo tool were tested on one TD-H9 from macOS. H9 Toolbox was entirely and responsibly AI generated under human direction.</p></footer>
   </div>
 </body>
 </html>

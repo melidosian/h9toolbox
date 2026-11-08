@@ -24,3 +24,33 @@
 .firmware-main [hidden]{display:none!important}
 .backup-controls{margin-top:16px}
 @media(max-width:620px){.file-grid{grid-template-columns:1fr}.firmware-main .intro{padding:36px 0 12px}}
+.result-panel{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;align-items:start;margin-top:20px;padding:18px 20px;border:1px solid #4fae86;border-radius:10px;background:#173a30;color:#cdeedd}
+.result-panel::before{content:"✓";grid-row:1/span 3;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:#8bdcb6;color:#11302b;font:700 22px 'Space Grotesk',sans-serif}
+.result-panel strong{font:600 17px 'Space Grotesk',sans-serif;color:#e9fff3;letter-spacing:-.01em}
+.result-panel p{margin:2px 0 0;font-size:13px;line-height:1.55}
+.result-panel ol{margin:6px 0 0;padding-left:20px;font-size:13px;line-height:1.6}
+.result-panel .button{justify-self:start;margin-top:10px}
+.result-panel.failed{border-color:#a3665e;background:#3a2524;color:#f3d3cc}
+.result-panel.failed::before{content:"!";background:#f0a596;color:#3a1714}
+.result-panel.failed strong{color:#ffe3dc}
+.logo-pair canvas.verified{outline:3px solid #8bdcb6;outline-offset:2px}
+.verified-badge{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:5px;background:#8bdcb6;color:#11302b;font-size:11px;font-weight:700}
+.logo-step summary{display:inline-flex;align-items:center;gap:8px;cursor:pointer;list-style:none;border:1px solid #42606a;border-radius:8px;padding:10px 15px;font-size:12px;font-weight:700;color:#dbedeb;background:#19303b}
+.logo-step summary::-webkit-details-marker{display:none}
+.logo-step summary::before{content:"▸";transition:transform .15s}
+.logo-step[open] summary::before{transform:rotate(90deg)}
+.logo-step[open] summary{margin-bottom:6px}
+.logo-step summary:hover{border-color:#93dfbe}
+#logoGate.ready{color:#a9e8c8}
+.hosted-package{position:relative;transition:border-color .25s,box-shadow .25s,opacity .25s,transform .25s}
+.hosted-package .selected-badge{position:absolute;top:12px;right:12px;padding:3px 9px;border-radius:999px;background:#8bdcb6;color:#11302b;font-size:11px;font-weight:700;opacity:0;transform:scale(.6);transition:opacity .2s,transform .25s cubic-bezier(.3,1.6,.5,1)}
+.hosted-package.selected{border-color:#8bdcb6;background:#173a30;box-shadow:0 0 0 1px #8bdcb6;animation:package-picked .7s ease-out}
+.hosted-package.selected .selected-badge{opacity:1;transform:scale(1)}
+.file-grid.has-selection .hosted-package:not(.selected){opacity:.55}
+.file-grid.has-selection .hosted-package:not(.selected):hover{opacity:.85}
+@keyframes package-picked{0%{box-shadow:0 0 0 0 #8bdcb6b3;transform:scale(.985)}45%{box-shadow:0 0 0 10px #8bdcb600;transform:scale(1.01)}100%{box-shadow:0 0 0 1px #8bdcb6;transform:scale(1)}}
+.selection-state.chosen{color:#e9fff3;font-weight:700;animation:state-in .4s ease-out}
+@keyframes state-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.hosted-package,.hosted-package .selected-badge{transition:none}.hosted-package.selected,.selection-state.chosen{animation:none}}
+.plan-state{margin:12px 0 0;font-size:12px;color:#9bb5b9;white-space:normal}
+.write-controls .button{transition:background .25s,border-color .25s,color .25s}

@@ -1,4 +1,4 @@
-import { APP_START, FLASH_SIZE, IMAGE_SIZE, SECTOR_SIZE, crc16, scanRadio, sha256 } from './firmware.mjs?v=20261106d';
+import { APP_START, FLASH_SIZE, IMAGE_SIZE, SECTOR_SIZE, crc16, scanRadio, sha256 } from './firmware.mjs?v=20261108c';
 
 const SECTORS = (FLASH_SIZE - APP_START) / SECTOR_SIZE;
 const BOUNDARIES = SECTORS - 1;
@@ -113,7 +113,11 @@ async function collectWindows(hid, crcs, startBoundary, onProgress, cancelled) {
   return rows;
 }
 
-export async function readAccessibleFlash(hid, crcs, knownImages, onProgress = () => {}, cancelled = () => false) {
+// With settings false and a verified known application, only the application
+// area (0x5000..0xD9FFF) is returned: its bytes come from that image, so no
+// shifted-window recovery runs. The settings area above it (38 sectors) costs
+// about 12,000 HID requests to recover and is never written by this page.
+export async function readAccessibleFlash(hid, crcs, knownImages, onProgress = () => {}, cancelled = () => false, { settings = true } = {}) {
   requireValue(crcs.length === SECTORS, 'Incomplete HID sector scan.');
   const sectors = Array(SECTORS).fill(null);
   let seedIndex, startBoundary, method;
@@ -127,6 +131,14 @@ export async function readAccessibleFlash(hid, crcs, knownImages, onProgress = (
     seedIndex = APP_SECTORS - 1;
     startBoundary = seedIndex;
     method = 'verified-known-image-seed';
+    if (!settings) {
+      const application = new Uint8Array(IMAGE_SIZE - APP_START);
+      for (let index = 0; index < APP_SECTORS; index++) application.set(sectors[index], index * SECTOR_SIZE);
+      const after = await scanRadio(hid);
+      requireValue(after.every((value, index) => value === crcs[index]), 'Radio CRCs changed during backup; start again.');
+      onProgress(1, 1);
+      return { accessible: application, method, settings: false };
+    }
   } else {
     seedIndex = await findBlankPair(hid, crcs);
     sectors[seedIndex] = BLANK.slice();
@@ -150,17 +162,21 @@ export async function readAccessibleFlash(hid, crcs, knownImages, onProgress = (
   }
   const after = await scanRadio(hid);
   requireValue(after.every((value, index) => value === crcs[index]), 'Radio CRCs changed during backup; start again.');
-  return { accessible, method };
+  return { accessible, method, settings: true };
 }
 
+// v1 archives hold the whole accessible flash (0x5000..0xFFFFF); v2 archives
+// hold only the application area (0x5000..0xD9FFF), the part this page writes.
 export async function createHidArchive(accessible, method) {
-  requireValue(accessible.length === FLASH_SIZE - APP_START, 'Incomplete accessible flash region.');
+  const full = accessible.length === FLASH_SIZE - APP_START;
+  requireValue(full || accessible.length === IMAGE_SIZE - APP_START, 'Incomplete accessible flash region.');
   const meta = {
-    format: 'h9toolbox-hid-backup-v1',
+    format: full ? 'h9toolbox-hid-backup-v1' : 'h9toolbox-hid-backup-v2',
     radio: 'TD-H9',
     start: APP_START,
     length: accessible.length,
     bootRegion: '0x0000..0x4fff unavailable through HID; not included',
+    ...(full ? {} : { settingsRegion: '0xda000..0xfffff not included (never written by this page)' }),
     method,
     sha256: await sha256(accessible),
   };
@@ -176,9 +192,11 @@ export async function createHidArchive(accessible, method) {
 export async function loadHidArchive(archive, target) {
   requireValue(archive.length >= MAGIC.length + 4 && MAGIC.every((byte, index) => archive[index] === byte), 'Not an H9 HID backup archive.');
   const metaLength = new DataView(archive.buffer, archive.byteOffset).getUint32(MAGIC.length, true);
-  requireValue(metaLength > 0 && metaLength < 4096 && archive.length === MAGIC.length + 4 + metaLength + FLASH_SIZE - APP_START, 'HID backup archive length is invalid.');
+  requireValue(metaLength > 0 && metaLength < 4096 && MAGIC.length + 4 + metaLength <= archive.length, 'HID backup archive length is invalid.');
   const meta = JSON.parse(new TextDecoder().decode(archive.subarray(MAGIC.length + 4, MAGIC.length + 4 + metaLength)));
-  requireValue(meta.format === 'h9toolbox-hid-backup-v1' && meta.start === APP_START && meta.length === FLASH_SIZE - APP_START, 'Unexpected HID backup metadata.');
+  const length = { 'h9toolbox-hid-backup-v1': FLASH_SIZE - APP_START, 'h9toolbox-hid-backup-v2': IMAGE_SIZE - APP_START }[meta.format];
+  requireValue(length && meta.start === APP_START && meta.length === length, 'Unexpected HID backup metadata.');
+  requireValue(archive.length === MAGIC.length + 4 + metaLength + length, 'HID backup archive length is invalid.');
   const accessible = archive.slice(MAGIC.length + 4 + metaLength);
   const hash = await sha256(accessible);
   requireValue(meta.sha256 === hash, 'HID backup archive checksum mismatch.');

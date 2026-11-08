@@ -1,5 +1,10 @@
 # TD-H9 Brick Breaker
 
+> **To install, use H9 Toolbox Firmware:** https://h9toolbox.com/firmware-update/
+> It contains this game unchanged, plus a custom boot logo, and upgrades a
+> radio running the original Brick Breaker directly. The sources and CLI below
+> build the original Brick Breaker image on its own.
+
 This folder is the independently buildable source and tool set for the
 stock-UI Brick Breaker image tested on one TD-H9. On normal boot, the radio
 shows its usual channel screen. Holding **Back** for about one second launches
@@ -30,12 +35,16 @@ active during the game; game-mode transmit inhibition has not been added.
   HID protocol code, and BR23 RAM loader needed to build and recover this
   exact image. Third-party notices are in the tool directories.
 
-The exact hardware-tested Brick Breaker `.fw` is published at
-`dist/firmware-update/brick-breaker-v1.0.38.fw` for the experimental browser
-flasher. A 20 KiB stock-sector seed alongside it lets the browser reconstruct
-and verify the original stock image for fast HID backup. Recreate both hosted
-assets from the pinned local stock and game packages with
-`python publish_browser_assets.py`. Other generated firmware, official inputs,
+The browser flasher no longer hosts this package on its own. It hosts
+**H9 Toolbox Firmware** (`dist/firmware-update/h9-toolbox-firmware-v1.0.38.fw`),
+built by `../resource-service/build.py --stage bb-s2`. That build starts from
+this exact hardware-tested app and adds the resource-flash service in space
+the game leaves free; the game, launcher and hook bytes are unchanged. A
+28 KiB file of this build's differing sectors
+(`brick-breaker-original-sectors.bin`) lets the page recognise, back up, and
+upgrade radios still running this original image. Recreate the hosted assets
+with `python3 -I ../resource-service/publish_browser_assets.py`. Other
+generated firmware, official inputs,
 radio backups, and logs remain outside the public repository. The guided CLI
 downloads the Type-C v1.0.38 ZIP from
 [`teedubyeah/TDH9` at a pinned commit](https://github.com/teedubyeah/TDH9/blob/1ccb67c2684204b0097533486c545607caaf65b8/Firmware/1.0.38/H9_Update-Type-C_1.0.38.zip),
@@ -88,14 +97,14 @@ The hosted build is available through `https://h9toolbox.com/firmware-update/`.
 The page can fetch the pinned Type-C stock v1.0.38 ZIP directly from the
 `teedubyeah/TDH9` GitHub mirror, extract the `.fw` locally, and check both
 published hashes. A local stock `.fw` remains an option.
-On a radio running the exact stock v1.0.38 main image, load the pinned Brick
-Breaker package, connect in PTT+2 HID mode, create and save an `.h9hid` recovery
-backup, inspect the five-sector plan, and only then start installation. The
-browser checks the hosted package, reconstructed stock seed, backup image,
-radio CRC map, and each written sector. The full browser flow still needs a
-physical-radio trial. A radio already running Brick Breaker can make a backup
-of its current game image; it still needs its prior stock backup to use the
-browser Restore button.
+On a radio running exact stock v1.0.38 or this original Brick Breaker, load
+the pinned H9 Toolbox Firmware package, connect in PTT+2 HID mode, select
+a stock backup, inspect the eight-sector plan, and only then start
+installation. The browser checks the hosted package, reconstructed stock and
+original-Brick-Breaker seeds, backup image, radio CRC map, and each written
+sector. A radio running a Brick Breaker build can make a backup of its
+current image; it still needs its prior stock backup to use the browser
+Restore button.
 
 ## Guided HID restore
 

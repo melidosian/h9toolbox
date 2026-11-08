@@ -5,10 +5,30 @@ export const FLASH_SIZE = 0x100000;
 export const SECTOR_SIZE = 4096;
 export const STOCK_PACKAGE_SHA256 = 'c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6';
 export const STOCK_IMAGE_SHA256 = '74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f214d322894d26ce4e648';
-export const BRICK_BREAKER_PACKAGE_SHA256 = '208409d8d7e335904f70f9e28e27e9c413c6296a3d185a69a55707ac8ddaee68';
-export const BRICK_BREAKER_IMAGE_SHA256 = '741bbeb87eb84cd7c6988054c56a267bb73c89bbe5cc74dc4e5bc0d75ce7e193';
-export const BRICK_BREAKER_STOCK_SECTORS_SHA256 = '223c3b5c97cbcd26fd18ba0b20346e12cd2bdba3473672fdd17742115e1581a9';
-export const BRICK_BREAKER_SECTORS = [0x5000, 0x8d000, 0xac000, 0xae000, 0xd9000];
+// Hosted build: the unchanged Brick Breaker plus the resource-flash service
+// used by the Boot logo page (firmware-research/resource-service, stage
+// bb-s2). It replaces the original Brick Breaker package, which is no longer
+// hosted; radios that still run it upgrade directly.
+export const BUILD = {
+  label: 'H9 Toolbox Firmware',
+  packageFile: 'h9-toolbox-firmware-v1.0.38.fw',
+  packageSha256: 'b9d24cb43937621358053356382ab72608bfbab677468febe4db867242098dc5',
+  imageSha256: '83f79fb3281c37ab22a4fd3f154a6c52a50d3cf0d8063b546eb47ce3c603bac6',
+  // Stock bytes of the sectors the build changes: rebuilds exact stock.
+  stockSeedFile: 'h9-toolbox-firmware-stock-sectors.bin',
+  stockSeedSha256: 'ae543e828cc0ad08326c04586d353b83fd44fa975ab72da34297967d631facea',
+  sectors: [0x5000, 0x62000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000],
+};
+// The original Brick Breaker (hardware tested; package 208409d8…): the bytes
+// of the sectors where it differs from BUILD, to recognise and back up radios
+// that still run it.
+export const PREVIOUS = {
+  label: 'original Brick Breaker',
+  seedFile: 'brick-breaker-original-sectors.bin',
+  seedSha256: '1cc3367bfa4760a02b04897afa0e863e4e8a260a220c2883e63a9536de77f30a',
+  imageSha256: '741bbeb87eb84cd7c6988054c56a267bb73c89bbe5cc74dc4e5bc0d75ce7e193',
+  sectors: [0x5000, 0x62000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000],
+};
 const KEY = new Uint8Array([0x4e, 0x61, 0xbc, 0x00]); // 12345678, little endian
 
 export function crc16(bytes) {
@@ -71,28 +91,37 @@ export function loadStockPackage(bytes) {
   return loadPackage(bytes, STOCK_PACKAGE_SHA256, STOCK_IMAGE_SHA256, 'stock');
 }
 
-export function loadBrickBreakerPackage(bytes) {
-  return loadPackage(bytes, BRICK_BREAKER_PACKAGE_SHA256, BRICK_BREAKER_IMAGE_SHA256, 'brick-breaker');
+export function loadBuildPackage(bytes) {
+  return loadPackage(bytes, BUILD.packageSha256, BUILD.imageSha256, 'build');
 }
 
-export async function loadBrickBreakerStockSeed(bytes, gameImage) {
-  requireValue(bytes.length === BRICK_BREAKER_SECTORS.length * SECTOR_SIZE &&
-    await sha256(bytes) === BRICK_BREAKER_STOCK_SECTORS_SHA256, 'Hosted stock seed is corrupt or unexpected.');
-  requireValue(gameImage.length === IMAGE_SIZE && await sha256(gameImage) === BRICK_BREAKER_IMAGE_SHA256,
-    'Brick Breaker image is unexpected.');
-  const stock = gameImage.slice();
-  BRICK_BREAKER_SECTORS.forEach((physical, index) =>
-    stock.set(bytes.subarray(index * SECTOR_SIZE, (index + 1) * SECTOR_SIZE), physical));
-  requireValue(await sha256(stock) === STOCK_IMAGE_SHA256, 'Stock seed does not reconstruct the verified v1.0.38 image.');
-  return stock;
+// Replace `sectors` of a verified image with hosted bytes and check the result.
+async function rebuildImage(base, baseSha256, seed, seedSha256, sectors, resultSha256, label) {
+  requireValue(seed.length === sectors.length * SECTOR_SIZE && await sha256(seed) === seedSha256,
+    `Hosted ${label} sectors are corrupt or unexpected.`);
+  requireValue(base.length === IMAGE_SIZE && await sha256(base) === baseSha256, 'Build image is unexpected.');
+  const image = base.slice();
+  sectors.forEach((physical, index) => image.set(seed.subarray(index * SECTOR_SIZE, (index + 1) * SECTOR_SIZE), physical));
+  requireValue(await sha256(image) === resultSha256, `Hosted sectors do not rebuild the exact ${label} image.`);
+  return image;
 }
 
-export async function verifyBrickBreakerBackup(image) {
+export function loadStockSeed(bytes, buildImage) {
+  return rebuildImage(buildImage, BUILD.imageSha256, bytes, BUILD.stockSeedSha256, BUILD.sectors, STOCK_IMAGE_SHA256, 'stock v1.0.38');
+}
+
+export function loadPreviousImage(bytes, buildImage) {
+  return rebuildImage(buildImage, BUILD.imageSha256, bytes, PREVIOUS.seedSha256, PREVIOUS.sectors, PREVIOUS.imageSha256, PREVIOUS.label);
+}
+
+export async function verifyStockBackup(image) {
   requireValue(image.length === IMAGE_SIZE && await sha256(image) === STOCK_IMAGE_SHA256,
-    'Brick Breaker requires an exact stock v1.0.38 main-firmware backup. No writes allowed.');
+    `${BUILD.label} requires an exact stock v1.0.38 main-firmware backup. No writes allowed.`);
 }
 
-export function classifyBrickBreakerRadio(current, stock, game) {
+// Which known image the radio holds, by sector CRC: `images` is a list of
+// [name, image] pairs.
+export function classifyRadio(current, images) {
   requireValue(current.length === (FLASH_SIZE - APP_START) / SECTOR_SIZE,
     'Incomplete radio CRC scan.');
   const matches = image => {
@@ -102,9 +131,9 @@ export function classifyBrickBreakerRadio(current, stock, game) {
     }
     return true;
   };
-  if (matches(stock)) return 'stock';
-  if (matches(game)) return 'brick-breaker';
-  throw new Error('Radio is neither exact stock v1.0.38 nor the pinned Brick Breaker image. No backup seed accepted.');
+  const found = images.find(([, image]) => image && matches(image));
+  if (found) return found[0];
+  throw new Error(`Radio is neither exact stock v1.0.38, ${BUILD.label}, nor the ${PREVIOUS.label}. No backup seed accepted.`);
 }
 
 export async function loadBackup(bytes, target) {
@@ -228,19 +257,28 @@ export async function scanRadio(hid, onProgress = () => {}) {
   return result;
 }
 
-export function planUpdate(current, backup, target, resumeSector = null) {
+// `known` lists other exact images (the original Brick Breaker) whose sectors
+// the radio may hold instead of the backup's or target's; their sectors are
+// written too.
+export function planUpdate(current, backup, target, resumeSector = null, known = []) {
   const original = expectedCrcs(backup), desired = expectedCrcs(target), changed = [];
+  const others = known.map(expectedCrcs);
   requireValue(current.length === original.length, 'Incomplete radio CRC scan.');
   for (let index = 0; index < current.length; index++) {
     const physical = APP_START + index * SECTOR_SIZE;
     if (physical >= IMAGE_SIZE) continue; // HID cannot back up or verify retained VM bytes.
     const before = backup.subarray(physical, physical + SECTOR_SIZE);
     const after = target.subarray(physical, physical + SECTOR_SIZE);
-    if (!same(before, after)) {
-      requireValue(original[index] !== desired[index], `CRC collision at 0x${physical.toString(16)}; HID cannot verify this sector.`);
+    const otherDiffers = known.some(image => !same(before, image.subarray(physical, physical + SECTOR_SIZE)));
+    if (!same(before, after) || otherDiffers) {
+      const collision = (!same(before, after) && original[index] === desired[index]) ||
+        known.some((image, k) => !same(after, image.subarray(physical, physical + SECTOR_SIZE)) && others[k][index] === desired[index]) ||
+        known.some((image, k) => !same(before, image.subarray(physical, physical + SECTOR_SIZE)) && others[k][index] === original[index]);
+      requireValue(!collision, `CRC collision at 0x${physical.toString(16)}; HID cannot verify this sector.`);
       changed.push(physical);
     }
-    if (current[index] !== original[index] && current[index] !== desired[index] && physical !== resumeSector) {
+    if (current[index] !== original[index] && current[index] !== desired[index] &&
+        !others.some(crcs => crcs[index] === current[index]) && physical !== resumeSector) {
       throw new Error(`Radio differs from the supplied backup at 0x${physical.toString(16)}. No writes allowed.`);
     }
   }

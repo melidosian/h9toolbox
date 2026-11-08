@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, makePacket, parseReply, planUpdate, writeSector } from '../dist/firmware-update/firmware.mjs';
-import { createHidArchive, loadHidArchive, readAccessibleFlash, recoverNextSector, recoverPreviousSector } from '../dist/firmware-update/readback.mjs';
+import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash, recoverNextSector, recoverPreviousSector } from '../dist/firmware-update/readback.mjs';
 
 test('HID init packet matches captured vendor request', () => {
   const body = new Uint8Array(17);
@@ -117,4 +117,38 @@ test('browser readback reconstructs and verifies accessible flash from a known a
   const result = await readAccessibleFlash(hid, sectorCrcs, target);
   assert.equal(result.method, 'verified-official-image-seed');
   assert.deepEqual(result.accessible, accessible);
+});
+
+test('quick backup of a known application skips the settings area and round-trips', async () => {
+  const target = new Uint8Array(IMAGE_SIZE);
+  for (let i = 0; i < target.length; i++) target[i] = (i * 31 + (i >> 9)) & 255;
+  const radio = new Uint8Array(0x100000).fill(0xff);
+  radio.set(target);
+  radio.fill(0x42, 0xe0000, 0xe1000); // settings data the quick backup must not need
+  const sectorCrcs = Array.from({ length: (0x100000 - APP_START) / SECTOR_SIZE },
+    (_, i) => crc16(radio.subarray(APP_START + i * SECTOR_SIZE, APP_START + (i + 1) * SECTOR_SIZE)));
+  let windowRequests = 0;
+  const hid = {
+    async windowCrcs(relative, count) {
+      windowRequests++;
+      return Array.from({ length: count }, (_, i) => {
+        const start = APP_START + relative + i * SECTOR_SIZE;
+        return crc16(radio.subarray(start, start + SECTOR_SIZE));
+      });
+    },
+    async crcs(relative, count) { return sectorCrcs.slice(relative / SECTOR_SIZE, relative / SECTOR_SIZE + count); },
+  };
+  const quick = await readAccessibleFlash(hid, sectorCrcs, target, () => {}, () => false, { settings: false });
+  assert.equal(quick.settings, false);
+  assert.equal(quick.accessible.length, IMAGE_SIZE - APP_START);
+  assert.ok(windowRequests < 120, `quick backup used ${windowRequests} window requests`);
+  const archive = await createHidArchive(quick.accessible, quick.method);
+  const loaded = await loadHidArchive(archive, target);
+  assert.deepEqual(loaded.image, target);
+  const corrupt = archive.slice(); corrupt[corrupt.length - 1] ^= 1;
+  await assert.rejects(loadHidArchive(corrupt, target), /checksum mismatch/);
+  // An unknown application cannot take the shortcut: the known-image check
+  // fails, so readAccessibleFlash falls back to full recovery.
+  const other = target.slice(); other[0x40000] ^= 1;
+  assert.equal(await knownAppMatches(hid, sectorCrcs, other), false);
 });

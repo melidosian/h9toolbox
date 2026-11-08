@@ -16,7 +16,7 @@ TD-H9 owners report successful use of the Bluetooth programmer on several radios
 
 ## GitHub Pages
 
-**Open H9 Toolbox:** https://h9toolbox.com/ · **Bluetooth programmer:** https://h9toolbox.com/programmer/ · **Firmware:** https://h9toolbox.com/firmware/
+**Open H9 Toolbox:** https://h9toolbox.com/ · **Bluetooth programmer:** https://h9toolbox.com/programmer/ · **Firmware:** https://h9toolbox.com/firmware/ · **Install H9 Toolbox Firmware:** https://h9toolbox.com/firmware-update/ · **Boot logo:** https://h9toolbox.com/boot-logo/
 
 The checked-in workflow publishes `dist/` directly to GitHub Pages on each push to `main`, or when **Deploy GitHub Pages** is run manually. GitHub Pages serves the site over HTTPS. Web Bluetooth still requires a supported browser; hosting on Pages does not add iPhone Safari support.
 
