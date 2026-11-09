@@ -1513,4 +1513,31 @@ flash-power question, and asked for more speed.
 - Conclusion: no stock code writes or erases `0xEA000–0xFBFFF`.
 - Remaining unknown: what the official JieLi updater does there.
 
+## 2026-11-09 Far-hello built (offline): C from flash 0xEA000
+
+- `h9_flasher.py write-far`: sector-aligned writes inside `0xEA000–0xFBFFF`
+  only, with a backup of the old bytes, skipped identical sectors and
+  per-sector plus full readback. 3 offline tests (range refusals, untouched
+  neighbours, no rewrite of identical sectors); 18/18 pass (8 skipped,
+  needing stock files).
+- The flash mapping is `CPU = 0x01E00000 + (flash - 0x5000)` (from boot
+  record map base `0x01E00000`, app start `0x5000`, and XIP pointer
+  `0x01EF8000` ↔ `0xFD000`), so `0xEA000` runs at `0x01EE5000`.
+- App-area cipher confirmed against the dump: block key
+  `0xF181 ^ ((flash - 0x5000) >> 2)` decodes flash `0x8D280` to app.bin's
+  `my_app` bytes (base `0x5100` does not).
+- Open question for hardware: whether the mapping decrypts beyond the app
+  image too. RAM holds no copy of the `0xFD000` record (raw or decrypted), so
+  the dumps cannot answer it.
+- `far-hello/`:
+  - Far blob: 1,696 bytes, the `H9X1` header plus C-hello from the
+    post-controller-setup entry (`0x01EE5062`), encrypted per the hypothesis.
+  - H9 Toolbox Firmware gets a 24-byte stub at app+`0xA7E80` (spare
+    `.tables` tail), and the Back-hold launcher jump at app+`0xA9DD2`
+    retargets from `0x01EA7942` to it. The stub falls back to Brick Breaker
+    if the magic does not read back.
+  - Package `e83f1140…`, flash `5af9bdfe…`; reproducible; flasher inspect
+    verified. Changed sectors vs H9 Toolbox: `0x5000`, `0xAC000`,
+    `0xAE000`, `0xD9000`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
