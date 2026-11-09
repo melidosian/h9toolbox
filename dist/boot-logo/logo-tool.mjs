@@ -4,7 +4,7 @@
 // Firmware update page as its last step, and by the Bluetooth programmer on
 // its own connection (the `connection` option).
 import { LOGO_ADDRESS, LOGO_BYTES, LOGO_HEIGHT, LOGO_WIDTH, STOCK_LOGO_SHA256, fitRect, logoFromBin, logoSectorPlan, logoToRgba, rgbaToLogo } from './resource.mjs?v=20261108a';
-import { Stopped, connectBluetooth } from './radio.mjs?v=20261108a';
+import { Stopped, connectBluetooth } from './radio.mjs?v=20261109a';
 
 const MARKUP = `
   <ol class="instructions" data-id="instructions">

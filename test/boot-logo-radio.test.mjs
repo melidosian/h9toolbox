@@ -94,3 +94,13 @@ test('a stopped write resumes from the sectors already done', async () => {
   assert.equal(result.sectors, 6);
   assert.deepEqual(sim.chip.subarray(LOGO_ADDRESS, LOGO_ADDRESS + LOGO_BYTES), next);
 });
+
+test('a session started right after an exit tolerates the late exit acknowledgement', async () => {
+  const sim = new SimulatedRadio();
+  await sim.radio.enterProgramming();
+  await sim.radio.send(Uint8Array.of(0x45)); // exit without waiting, as the programmer did
+  await sim.radio.enterProgramming(); // the late exit 06 arrives ahead of the handshake ACK
+  const status = await sim.radio.selectBank(0);
+  assert.equal(status.version, 2);
+  await sim.radio.leaveProgramming();
+});

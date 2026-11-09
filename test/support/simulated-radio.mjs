@@ -34,11 +34,16 @@ export class SimulatedRadio {
   }
 
   async handle(bytes) {
+    if (this.exitAckPending && !(bytes.length === 1 && bytes[0] === 0x45)) { this.exitAckPending = false; this.notify(Uint8Array.of(6)); }
     const magic = [0x50, 0x56, 0x4f, 0x4a, 0x48, 0x5c, 0x14];
     if (bytes.length === 7 && magic.every((b, i) => bytes[i] === b)) return this.notify(Uint8Array.of(6));
     if (bytes.length === 1 && bytes[0] === 0x02) return this.notify(Uint8Array.of(0x54, 0x44, 0x48, 0x39, 0xff, 0xff, 0xff, 0x4e));
     if (bytes.length === 1 && bytes[0] === 0x06) return this.notify(Uint8Array.of(6));
-    if (bytes.length === 1 && bytes[0] === 0x45) return undefined;
+    // The radio acknowledges an exit (0x45) late: the 06 goes out just
+    // before its reply to the next command. Seen on hardware 2026-11-09: a
+    // session started right after an exit read 06 54 44 48 39 ... as the
+    // identity (the stray 06 was taken as the handshake ACK).
+    if (bytes.length === 1 && bytes[0] === 0x45) { this.exitAckPending = true; return undefined; }
     const address = (bytes[1] << 8) | bytes[2];
     if (bytes[0] === 0x52 && bytes.length === 4) return this.read(address);
     if (bytes[0] === 0x57 && bytes.length === 37) {

@@ -6,9 +6,9 @@ import { parseMHz, standardOffset, planTransmit } from './channel-plan.mjs';
 import { exportChannels, inspectChannelImport, importChannels } from './channels-file.mjs';
 import { serializeChannelsCsv, parseChannelsCsv } from './channels-csv.mjs';
 import { readBlockReply } from './protocol.mjs';
-import { ResourceRadio } from './boot-logo/radio.mjs?v=20261108a';
+import { ResourceRadio } from './boot-logo/radio.mjs?v=20261109a';
 import { parseStatus, statusAddress } from './boot-logo/resource.mjs?v=20261108a';
-import { mountLogoTool } from './boot-logo/logo-tool.mjs?v=20261108d';
+import { mountLogoTool } from './boot-logo/logo-tool.mjs?v=20261109a';
 
 const $ = id => document.getElementById(id);
 const MEM_SIZE = 0x3140;
@@ -144,7 +144,11 @@ async function enterProgramming() {
   await expectAck('Handshake');
   try {
     await send(Uint8Array.of(0x02));
-    const ident = await readExact(8);
+    // Skip a late acknowledgement of a previous exit (0x45): it can arrive
+    // ahead of the identity, which always starts with 'T' (0x54).
+    let first = (await readExact(1))[0];
+    for (let skipped = 0; first === 0x06 && skipped < 4; skipped++) first = (await readExact(1))[0];
+    const ident = Uint8Array.of(first, ...(await readExact(7)));
     if (!same(ident.slice(0, 7), Uint8Array.of(0x54, 0x44, 0x48, 0x39, 0xff, 0xff, 0xff)) || !modeNames[ident[7]]) throw new Error(`Unexpected radio identity: ${hex(ident)}.`);
     await send(Uint8Array.of(0x06));
     await expectAck('Programming mode');
@@ -312,6 +316,9 @@ async function download() {
       refresh();
       if (toolbox) {
         await exitProgramming(); entered = false;
+        // Let the radio's late acknowledgement of the exit arrive before the
+        // fast session starts (it otherwise precedes the next identity).
+        await new Promise(resolve => setTimeout(resolve, 300));
         image = await fastImage(ident);
         if (!image) { await new Promise(resolve => setTimeout(resolve, 300)); ident = await enterProgramming(); entered = true; }
       }
