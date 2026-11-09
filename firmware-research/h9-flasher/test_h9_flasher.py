@@ -42,6 +42,59 @@ class FakeLoader:
         return bytes(self.flash[offset:offset + size])
 
 
+class FarRegionTests(unittest.TestCase):
+    """write-far: only 0xEA000-0xFBFFF, backup first, verified readback."""
+
+    def run_far(self, loader, blob, address, temp):
+        class Device:
+            def __init__(self, path):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        loader.chip_key = lambda: 0xF181
+        blob_path, backup = Path(temp) / "blob.bin", Path(temp) / "far-backup.bin"
+        blob_path.write_bytes(blob)
+        with patch.object(flasher, "load_protocol", return_value=(Device,)), \
+             patch.object(flasher, "require_bootloader"), \
+             patch.object(flasher, "start_loader", return_value=loader):
+            flasher.run_write_far("fake device", blob_path, address, backup)
+        return backup
+
+    def test_writes_only_target_sectors_and_keeps_a_backup(self):
+        loader = FakeLoader(0x100000)
+        loader.flash[0xDA000:0xDA004] = b"\x55\xaa\xaa\x55"  # settings VM stays untouched
+        before = bytes(loader.flash)
+        blob = bytes(range(256)) * 20  # 5,120 bytes -> two sectors
+        with tempfile.TemporaryDirectory() as temp:
+            backup = self.run_far(loader, blob, 0xEA000, temp)
+            self.assertEqual(backup.read_bytes(), before[0xEA000:0xEC000])
+        self.assertEqual(loader.erases, [0xEA000, 0xEB000])
+        self.assertEqual(bytes(loader.flash[0xEA000:0xEA000 + len(blob)]), blob)
+        self.assertEqual(bytes(loader.flash[0xEA000 + len(blob):0xEC000]), b"\xff" * (0xEC000 - 0xEA000 - len(blob)))
+        self.assertEqual(bytes(loader.flash[:0xEA000]), before[:0xEA000])
+        self.assertEqual(bytes(loader.flash[0xEC000:]), before[0xEC000:])
+
+    def test_refuses_addresses_outside_the_far_region(self):
+        for address, size in ((0xE9000, 16), (0xEA800, 16), (0xFB000, 0x1001), (0xFC000, 16), (0xDA000, 16)):
+            loader = FakeLoader(0x100000)
+            with tempfile.TemporaryDirectory() as temp, self.assertRaisesRegex(flasher.FlashError, "within"):
+                self.run_far(loader, b"\0" * size, address, temp)
+            self.assertEqual(loader.erases, [])
+
+    def test_identical_sectors_are_not_rewritten(self):
+        loader = FakeLoader(0x100000)
+        blob = b"\x12" * 4096
+        loader.flash[0xEA000:0xEB000] = blob
+        with tempfile.TemporaryDirectory() as temp:
+            self.run_far(loader, blob, 0xEA000, temp)
+        self.assertEqual(loader.erases, [])
+
+
 class FlashSafetyTests(unittest.TestCase):
     def test_br23_ram_helper_is_sent_without_second_encryption(self):
         writes = []

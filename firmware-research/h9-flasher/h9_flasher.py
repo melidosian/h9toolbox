@@ -313,6 +313,56 @@ def run_dump(device_path: str, output: Path, size: int) -> None:
     print(f"Dump saved (read-only): {output} ({len(data):,} bytes, SHA-256 {sha256(data).hexdigest()})")
 
 
+# Erased main-flash space after the settings VM (2 x 32 KiB at 0xDA000) and
+# before the end of the reserved area; no stock code writes here (see
+# firmware-research/resource-flash-log.md, 2026-11-09).
+FAR_START = 0xEA000
+FAR_END = 0xFC000
+
+
+def run_write_far(device_path: str, blob_path: Path, address: int, backup_path: Path) -> None:
+    """Write raw bytes into the far region only, with a backup and readback.
+
+    The blob is written as-is (already in on-flash form). It is padded with
+    0xFF to whole 4 KiB sectors; sectors already holding the target bytes are
+    skipped.
+    """
+    blob = blob_path.read_bytes()
+    if not blob:
+        raise FlashError("Far blob is empty")
+    padded = blob + b"\xff" * (-len(blob) % ERASE_SIZE)
+    end = address + len(padded)
+    if address % ERASE_SIZE or address < FAR_START or end > FAR_END:
+        raise FlashError(f"Far writes must be sector-aligned within 0x{FAR_START:X}-0x{FAR_END:X}")
+    if backup_path.exists():
+        raise FlashError(f"Refusing to overwrite {backup_path}")
+    protocol = load_protocol()
+    with protocol[0](device_path) as device:
+        require_bootloader(device)
+        loader = start_loader(device, protocol)
+        print(f"Chip key: 0x{loader.chip_key():04X}")
+        current = b"".join(loader.flash_read(page, TRANSFER_SIZE) for page in range(address, end, TRANSFER_SIZE))
+        if len(current) != len(padded):
+            raise FlashError("Short read of the far region")
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_bytes(current)
+        print(f"Far region backup: {backup_path} (0x{address:X}-0x{end:X}, SHA-256 {sha256(current).hexdigest()})")
+        changed = [o for o in range(0, len(padded), ERASE_SIZE) if current[o:o + ERASE_SIZE] != padded[o:o + ERASE_SIZE]]
+        print(f"Updating {len(changed)} of {len(padded) // ERASE_SIZE} far sectors", flush=True)
+        for o in changed:
+            loader.flash_erase_sector(address + o)
+            for page in range(o, o + ERASE_SIZE, TRANSFER_SIZE):
+                loader.flash_write(address + page, padded[page:page + TRANSFER_SIZE])
+            sector = b"".join(loader.flash_read(address + page, TRANSFER_SIZE) for page in range(o, o + ERASE_SIZE, TRANSFER_SIZE))
+            if sector != padded[o:o + ERASE_SIZE]:
+                raise FlashError(f"Far sector readback mismatch at 0x{address + o:X}")
+            print(f"Verified far sector 0x{address + o:X}", flush=True)
+        verified = b"".join(loader.flash_read(page, TRANSFER_SIZE) for page in range(address, end, TRANSFER_SIZE))
+    if verified != padded:
+        raise FlashError("Far region readback differs from the blob")
+    print(f"Far region verified: 0x{address:X}-0x{end:X}, blob SHA-256 {sha256(blob).hexdigest()}")
+
+
 def flash_image(loader, image: bytes, current: bytes) -> None:
     if len(image) != len(current) or len(image) % ERASE_SIZE:
         raise FlashError("Flash image/current contents have incompatible lengths")
@@ -429,6 +479,12 @@ def main() -> int:
     dump.add_argument("--device", required=True)
     dump.add_argument("--output", required=True, type=Path)
     dump.add_argument("--size", type=lambda v: int(v, 0), default=0x100000)
+    far = sub.add_parser("write-far", help="Write a raw blob into the far region 0xEA000-0xFBFFF (backup + readback)")
+    far.add_argument("blob", type=Path)
+    far.add_argument("--device", required=True)
+    far.add_argument("--address", type=lambda v: int(v, 0), default=FAR_START)
+    far.add_argument("--backup", required=True, type=Path)
+    far.add_argument("--yes", action="store_true", help="Acknowledge that this erases and writes far-region sectors")
     flash = sub.add_parser("flash", help="Back up, erase, write, and verify the supplied v1.0.38 firmware")
     flash.add_argument("firmware", type=Path)
     flash.add_argument("--device", required=True)
@@ -470,6 +526,10 @@ def main() -> int:
                         if args.stock_base else checked_firmware(args.firmware))
             run_flash(args.device, firmware, args.backup, write=False,
                       custom=bool(args.stock_base))
+        elif args.command == "write-far":
+            if not args.yes:
+                raise FlashError("Add --yes to write the far region")
+            run_write_far(args.device, args.blob, args.address, args.backup)
         elif args.command == "dump":
             run_dump(args.device, args.output, args.size)
         elif args.command in ("flash", "resume", "restore"):
