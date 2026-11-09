@@ -2615,4 +2615,20 @@ flash-power question, and asked for more speed.
 - Build 24: key 8 makes PA0 and PA3 outputs and drives them high (plus
   PC0/2/3 as before).
 
+## 2026-11-09 SOUND WORKS inside the Doom firmware (build 24)
+
+- Build 24 on hardware (far `ca94236b…`): key 7 plays the stock voice
+  prompt "zero"; key 6 plays our square wave (through stock's DAC write)
+  and the prompt. First audio from our own code in the Doom firmware.
+- Cause of builds 14–23's silence: the speaker amplifier enable PA3 was
+  configured as an input (PA DIR bit 3 = 1). The radio app sets it as an
+  output at start-up; stock's speaker writer (app+`0x52228`) only writes
+  OUT. The user pointed back to the pin-3 speaker finding.
+- Working recipe so far: PA3 output and high; DAC rate and start through
+  stock (`0x433C8`, `0x43434`); PCM through stock's write (`0x43598`,
+  128 bytes per call). Still to establish:
+  - which other steps are needed (key 9 mode 3, PA0, PC0/2/3, volume,
+    a stock tone first)
+  - how to feed Doom's mixer
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
