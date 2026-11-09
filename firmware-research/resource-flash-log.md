@@ -2192,4 +2192,10 @@ flash-power question, and asked for more speed.
   outside), and stock state that `my_app` initialises needs an explicit
   replacement.
 
+- Run 2 flash. Both sessions were entered through our own recovery: hold 3
+  for 2 s on the "NO PACK" screen, then hold 3 at power-on (`td_main`'s
+  check). Both gave `4C4A:2342`. Far blob `4cbf79bb…` (13 of 18 sectors
+  changed). Main: backup `702d8eb6…` (run-1 image), 17 sectors, readback
+  `b964ab70…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
