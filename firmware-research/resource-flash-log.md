@@ -2159,4 +2159,12 @@ flash-power question, and asked for more speed.
   - frame rate
   - key codes other than 3
 
+## 2026-11-09 First-pass Doom firmware flashed
+
+- `write-far` of `h9_doom_far_0xEA000.bin`: 18 sectors `0xEA000–0xFBFFF`
+  (backup `99db53dc…`: the trap monitor plus erased sectors), verified
+  `49bfa937…`.
+- Main: hold-8 from H9 Toolbox + far launcher (backup `5af9bdfe…`), 23
+  sectors, readback `702d8eb6…`. Run result: pending.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
