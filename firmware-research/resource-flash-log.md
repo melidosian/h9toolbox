@@ -1460,4 +1460,9 @@ flash-power question, and asked for more speed.
   largest all-zero RAM runs at idle: 12,086 B at `0x19B7A`, 7,422 B at
   `0xE832`, 5,136 B at `0x145E0` (zero at idle, not proven unused).
 
+## 2026-11-09 H9 Toolbox Firmware restored after the RAM probe
+
+- Hold-8 flash. Backup `h9-before-h9tb-after-ram-20261109.bin` = `ba05f7c8…`
+  (the RAM-read build, as expected); 8 sectors; readback `83f79fb3…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
