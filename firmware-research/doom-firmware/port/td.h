@@ -17,6 +17,9 @@ void h9_spi2_setup(void);
 void h9_irq_off(void);  // ROM 0x02001634
 void h9_irq_on(void);   // ROM 0x02001650
 void h9_speaker_gate(unsigned source, unsigned on);  // stock app+0x5224C
+void h9_dac_rate(void *dac, unsigned rate);  // stock app+0x433C8
+void h9_dac_start(void *dac);                // stock app+0x43434
+void h9_dac_write128(const void *pcm);       // stock app+0x43598: 128 bytes
 void h9_nor_read_raw(void *buffer, uint32_t chip_address, uint32_t length);
 
 // Stock key byte values (RAM 0xC3AF). Digits read as the digit + 2 (key test,

@@ -134,6 +134,28 @@ h9_speaker_gate:
     call r4
     {pc, r14-r4} = [sp++]
 
+/* Stock DAC driver on its handle (0x11AD0+6636), as the key-tone set-up at
+ * app+0x611C8 uses it: rate (app+0x433C8, from the table at 0x01EB0BB0),
+ * start (app+0x43434), write 128 bytes (app+0x43598). */
+    .globl h9_dac_rate
+h9_dac_rate:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e434c8
+    call r4
+    {pc, r14-r4} = [sp++]
+    .globl h9_dac_start
+h9_dac_start:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e43534
+    call r4
+    {pc, r14-r4} = [sp++]
+    .globl h9_dac_write128
+h9_dac_write128:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e43698
+    call r4
+    {pc, r14-r4} = [sp++]
+
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:

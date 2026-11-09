@@ -2477,4 +2477,23 @@ flash-power question, and asked for more speed.
   DAC on our own 1024-sample buffer (DMA bit `0x100` only).
 - Package `d7d54200…`, flash `f3581298…`, far `f1e70228…`.
 
+- Build 14 on hardware (photos): before any key, CON ends `…19F`, ADR is
+  about `0xE5Ex`, LEN is `0x100`, HRP/SWP are small and do not move, AMP
+  is 0. Key 1 sets AMP to 1 (the gate works). Keys 2 and 5 gave no sound;
+  after 5, ADR is our buffer, LEN `0x200`, HRP/SWP 0 and still not moving.
+  The DAC is stopped inside Doom, and its registers alone do not start it.
+- Stock's start sequence (key-tone set-up, app+`0x611C8`), on the handle at
+  `0x11AD0+6636`:
+  1. `0x433C8(dac, 8000)` sets the rate. It looks the rate up in the table
+     at `0x01EB0BB0`: 96000, 88200, 64000, 48000, 44100, 32000, 24000,
+     22050, 16000, 12000, 11025, 8000.
+  2. `0x43434(dac)` starts the DAC.
+  3. `0x43598(pcm)` writes 128 bytes through the handle at `[0x12B48]`;
+     it only writes when the state byte (`+97`) is 2 or 3.
+  4. `0x43656` runs last.
+- Build 15 (hold 4 probe): 1 amplifier on; 2 rate 11025 and start; 5 while
+  held, stream a 690 Hz square wave; 6 all of these plus a 1 s tone. The
+  screen also shows the state byte and the write count.
+- Package `821f2270…`, flash `822e7c45…`, far `26c5ae81…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

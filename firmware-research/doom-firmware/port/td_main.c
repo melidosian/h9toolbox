@@ -216,17 +216,19 @@ static void upload_mode(const char *why)
     }
 }
 
-// Audio probe (hold 4 at power-on; build 14). The BR23 DAC at 0x1E2F00 as
-// stock's audio_dac_start (app+0x43434) programs it: +0 CON (|= 0x110 to
-// run), +4 ring buffer address, +8 length (samples per channel), +12 0x3C,
-// +16 / +20 hardware read / software write pointers, +40 / +44 volume.
-// Shows them live with the speaker amplifier byte (0x11B4D bit 0).
+// Audio probe (hold 4 at power-on; builds 14-15). The BR23 DAC at 0x1E2F00:
+// +0 CON, +4 ring buffer, +8 length, +16 / +20 hardware read / software
+// write pointers, +40 volume. Build 14 showed it stopped inside Doom (HRP
+// never moves) and that writing the registers alone does not start it, so
+// build 15 drives stock's DAC driver on stock's handle instead:
 //   1: speaker amplifier on (stock gate, source 1)
-//   2: square wave into the ring buffer the DAC already has
-//   5: start the DAC on our own buffer (DMA bit 0x100 only, no interrupt)
+//   2: rate 11025 Hz and start (stock app+0x433C8, app+0x43434)
+//   5: while held, stream a square wave through stock's write (app+0x43598)
+//   6: all of it: amplifier, rate, start, then a 1 s tone
 // Stays until power-off; hold 3 for 2 s enters the USB loader.
 #define DAC ((volatile uint32_t *)0x1E2F00)
-static int16_t probe_ring[1024];
+#define DAC_HANDLE ((void *)(0x11AD0 + 6636))
+#define DAC_STATE (*(volatile uint8_t *)(0x11AD0 + 6636 + 97))
 
 static void hex_at(unsigned x, unsigned y, uint32_t v)
 {
@@ -238,21 +240,22 @@ static void hex_at(unsigned x, unsigned y, uint32_t v)
     td_text(x, y, s, YELLOW, BLACK);
 }
 
-static void square(volatile int16_t *ring, unsigned samples)
+// 64 mono samples (128 bytes), about 690 Hz at 11025 Hz.
+static void tone_chunk(int16_t *out, unsigned *phase)
 {
-    // about 500 Hz at 16 kHz, half amplitude
-    for (unsigned i = 0; i < samples; i++)
-        ring[i] = (i / 16) & 1 ? 12000 : -12000;
+    for (unsigned i = 0; i < 64; i++, (*phase)++)
+        out[i] = (*phase / 8) & 1 ? 12000 : -12000;
 }
 
 static void audio_probe(void)
 {
-    static const char *names[] = { "CON", "ADR", "LEN", "C", "HRP", "SWP", "18", "VOL", "2C" };
-    static const unsigned regs[] = { 0, 1, 2, 3, 4, 5, 6, 10, 11 };
+    static const char *names[] = { "CON", "ADR", "LEN", "HRP", "SWP", "VOL" };
+    static const unsigned regs[] = { 0, 1, 2, 4, 5, 10 };
+    int16_t chunk[64];
+    unsigned phase = 0, last = 0, did = 0;
+    uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE", GREEN, BLACK);
-    unsigned last = 0, did = 0;
-    uint32_t shown = 0, since = 0;
+    td_text(0, 0, "AUDIO PROBE 2", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -262,38 +265,52 @@ static void audio_probe(void)
                 h9_speaker_gate(1, 1);
                 did = 1;
             } else if (key == TD_KEY_2) {
-                uint32_t adr = DAC[1], len = DAC[2];
-                if (adr >= 0x1000 && adr < 0x30000 && len && len <= 4096)
-                    square((volatile int16_t *)adr, len);
+                h9_dac_rate(DAC_HANDLE, 11025);
+                h9_dac_start(DAC_HANDLE);
                 did = 2;
-            } else if (key == TD_KEY_5) {
-                square(probe_ring, 1024);
-                DAC[0] &= ~0x110u;
-                DAC[1] = (uint32_t)(uintptr_t)probe_ring;
-                DAC[2] = 512;
-                DAC[4] = 0;
-                DAC[5] = 0;
-                DAC[3] = 0x3C;
-                DAC[0] |= 0x100;
-                did = 5;
+            } else if (key == TD_KEY_6) {
+                h9_speaker_gate(1, 1);
+                h9_dac_rate(DAC_HANDLE, 11025);
+                h9_dac_start(DAC_HANDLE);
+                uint32_t start = td_ticks();
+                while (td_ticks() - start < 100) {
+                    tone_chunk(chunk, &phase);
+                    h9_dac_write128(chunk);
+                    writes++;
+                }
+                did = 6;
             }
+        }
+        if (key == TD_KEY_5) {
+            tone_chunk(chunk, &phase);
+            h9_dac_write128(chunk);
+            writes++;
+            did = 5;
+            if (td_ticks() - shown < 25)
+                continue;  // keep the stream fed; redraw at most 4 times a second
         }
         if (key == TD_KEY_3 && td_ticks() - since >= 200)
             usb_loader();
         if (td_ticks() - shown >= 25) {
             shown = td_ticks();
-            for (unsigned i = 0; i < 9; i++) {
+            for (unsigned i = 0; i < 6; i++) {
                 unsigned y = 12 + 10 * i;
                 td_text(0, y, names[i], WHITE, BLACK);
                 hex_at(40, y, DAC[regs[i]]);
             }
-            td_text(0, 104, "AMP", WHITE, BLACK);
-            hex_at(40, 104, *(volatile uint8_t *)0x11B4D);
+            td_text(0, 74, "STATE", WHITE, BLACK);
+            hex_at(48, 74, DAC_STATE);
+            td_text(0, 84, "WRITES", WHITE, BLACK);
+            hex_at(56, 84, writes);
+            td_text(0, 94, "AMP", WHITE, BLACK);
+            hex_at(40, 94, *(volatile uint8_t *)0x11B4D);
             td_text(112, 104, "DID", WHITE, BLACK);
-            td_text(144, 104, did == 1 ? "1" : did == 2 ? "2" : did == 5 ? "5" : "-", GREEN, BLACK);
-            td_text(0, 116, "1AMP 2SQ 5DAC", WHITE, BLACK);
+            char d[2] = { (char)('0' + did), 0 };
+            td_text(144, 104, did ? d : "-", GREEN, BLACK);
+            td_text(0, 116, "1AMP 2GO 5SQ 6ALL", WHITE, BLACK);
         }
-        h9_delay(10);
+        if (key != TD_KEY_5)
+            h9_delay(10);
     }
 }
 
