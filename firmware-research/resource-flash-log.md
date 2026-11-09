@@ -2075,4 +2075,14 @@ flash-power question, and asked for more speed.
 - Checked by decode: hook → cave, cave → far `h9_main`, stubs →
   `far_trap`.
 
+## 2026-11-09 Cave trap test boots: my_app replaced, 62 KB block trapped
+
+- Far monitor `243cc128…`, firmware `cave+traps` (readback `d8afb645…`,
+  20 sectors from stock).
+- Power-on: "TRAP TEST" and "NO TRAP SEEN" on black (the "N"s are missing:
+  the monitor's font has no N; cosmetic), with the LED blinking each second.
+- The startup in the cave, the far-region monitor, and stock's remaining
+  tasks booted with the whole `my_app`-only block trapped: no code reached
+  it during boot. The run-time soak is in progress.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
