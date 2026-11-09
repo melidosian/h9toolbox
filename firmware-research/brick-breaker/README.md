@@ -55,32 +55,42 @@ extracts only the firmware file, then checks its SHA-256:
 c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6
 ```
 
-## One-command guided install
+## Guided install from a pinned checkout
 
-Python 3.11 or newer and a USB data cable are required. On Windows, paste this
-into PowerShell or Command Prompt:
+The web flasher above is the current install path. To build the original Brick
+Breaker image from source, use Python 3.11 or newer, Git, and a USB data cable.
+Download the reviewed revision and inspect its source before running it. On
+Windows, use PowerShell or Command Prompt:
 
 ```powershell
-py -3 -c "import urllib.request as u; exec(u.urlopen('https://raw.githubusercontent.com/melidosian/h9toolbox/main/firmware-research/brick-breaker/bootstrap.py').read().decode())"
+git clone https://github.com/melidosian/h9toolbox.git
+cd h9toolbox
+git checkout e845406350bc513dde70b1661f756429e32791e3
+py -3 firmware-research/brick-breaker/cli.py build
 ```
 
-On macOS or Linux, paste this into a terminal:
+On macOS or Linux:
 
 ```sh
-python3 -c "import urllib.request as u; exec(u.urlopen('https://raw.githubusercontent.com/melidosian/h9toolbox/main/firmware-research/brick-breaker/bootstrap.py').read().decode())"
+git clone https://github.com/melidosian/h9toolbox.git
+cd h9toolbox
+git checkout e845406350bc513dde70b1661f756429e32791e3
+python3 firmware-research/brick-breaker/cli.py build
 ```
 
-The bootstrap copies this source folder into `~/TD-H9-Brick-Breaker/<commit>`
-and creates an isolated Python environment with `hidapi==0.15.0` for recovery.
-The CLI downloads and checks stock, builds and checks the exact tested package,
-then prompts you to put the radio in USB Update mode (power on, hold **8**).
+The `build` step does not access the radio. After reviewing its output and the
+recovery steps below, run the same `cli.py` with `install` to start the guided
+installation. The CLI downloads and checks stock, builds and checks the exact
+tested package, then prompts you to put the radio in USB Update mode (power on,
+hold **8**).
 It identifies the single BR23 updater, saves and verifies a fresh backup, and
 requires typing `FLASH` before writing the five changed sectors. On Windows,
 one Administrator prompt covers backup and flash. Linux needs access to the
 radio's `/dev/sg*` device, usually through an elevated terminal or a suitable
 udev rule. The complete main image is read back after the write.
 
-On macOS, the CLI uses PTT+2 HID mode instead of BR23 SCSI. Its backup is
+On macOS, install `hidapi==0.15.0` in the Python environment before running
+`install` or `restore`. The CLI uses PTT+2 HID mode instead of BR23 SCSI. Its backup is
 reconstructed from CRC windows: it checks the exact stock main region and
 recovers the accessible settings tail. The protected boot region comes from
 the pinned stock package. This HID install path has passed synthetic offline
@@ -108,9 +118,11 @@ Restore button.
 
 ## Guided HID restore
 
-From the copied source folder, run `cli.py restore` with its `.venv` Python,
-or run the same bootstrap one-liner with `restore` appended after the closing
-quote. The CLI selects the latest backup in that package folder; pass
+From the same checked-out source, run `cli.py restore` with the Python used for
+the build. Install `hidapi==0.15.0` in that Python environment first. Existing
+downloads under `~/TD-H9-Brick-Breaker/<commit>` can still run their local
+`cli.py restore` with their `.venv` Python. The CLI selects the latest backup
+in that package folder; pass
 `--backup PATH` to choose a different backup. It verifies the pinned package,
 backup and live HID CRC map, then requires typing `RESTORE`. Enter HID mode by
 powering off and then on while holding **PTT+2** with the data cable connected;
