@@ -2017,4 +2017,26 @@ flash-power question, and asked for more speed.
   - If it starts and then freezes, the switch happens elsewhere at run
     time.
 
+## 2026-11-09 Probe: data reads of the far region are plain at boot
+
+- `c-hello --source probe.c` (cave at `my_app` entry, package `a6fe83ae…`,
+  readback `660c7e26…`) reads through the mapping, every second, with the
+  encrypted monitor in the far region.
+- Readings: F0 `5A7D3BC9`, F1 `9158ACD6`, F2 `ED5ED8C0` (exactly the
+  **raw stored** bytes), A1 `6C15EA81` (correct app word), stable from
+  UP 9 to 21 s (photos).
+- So data reads of `0xEA000` are plain from boot, and nothing switches
+  them during that time.
+- Yet the plain monitor did not start at boot (run 3). The remaining
+  hypothesis: **instruction fetches** from the far region are decrypted at
+  boot while data reads are plain.
+  - Plain code then decrypts to garbage.
+  - Encrypted code runs, but its tables (font, panel init) read as garbage
+    data; a garbage init table can hang startup before the LED code.
+  - Late in boot (far-hello), plain code executed, so the instruction path
+    must change at some point.
+- Next: probe 2 calls a constant-returning far function stored plain
+  (`0xEA100`, returns `11111111`) or encrypted (`0xEA200`, returns
+  `22222222`), chosen by key, one per boot.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
