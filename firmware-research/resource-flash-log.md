@@ -1971,4 +1971,27 @@ flash-power question, and asked for more speed.
 - Discriminating builds: the redirect without traps, and traps with a
   trampoline at `my_app`'s own entry (`0x88180`) instead of the redirect.
 
+## 2026-11-09 Trap test run 2 (trampoline + traps): also black
+
+- `my_app`'s own entry jumped to the far monitor (`r3 = 0x01EE5008; goto
+  r3` at app+`0x88180`, the task table untouched), with the rest of the
+  block trapped. Package `70f054a2…`, readback `9ab18126…`, 24 sectors.
+- Power-on: black screen, no LED. The Mac then showed `4C4A:4155`;
+  whether the user had entered PTT+2 is unconfirmed. HID inspect found
+  exactly 19 trampoline-build sectors; restore returned all 213 to stock.
+- **The cause is not the task-table redirect.** What both runs share,
+  unlike C-hello (which ran): the startup code runs from the far region at
+  boot, and the block is trapped.
+- **Diagnostics were ambiguous:**
+  - The trap handler did not light anything.
+  - The monitor drew only after its key scan, and C-hello's LED setup
+    leaves the LED off.
+  - So "black, no LED" could not separate "never ran" from "trapped".
+- **Fixed:**
+  - The monitor (`6660f504…`) turns the LED on and paints the screen blue
+    first.
+  - `far_trap` lights the LED solid before calling the USB loader.
+  - New mode `trampoline-only` (no traps, package `110bfe1f…`) tests
+    whether the far monitor starts at boot at all.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

@@ -25,6 +25,8 @@ Modes (run 1, "redirect+traps", gave a black screen with no LED):
                   `r3 = 0x01EE5008; goto r3`, the rest of the block is
                   trapped (C-hello hooked the same entry and ran)
   redirect-only   task entry redirected, no traps
+  trampoline-only the trampoline without traps: does the far monitor run
+                  when started at boot (C-hello ran from the app cave)?
 """
 
 from __future__ import annotations
@@ -50,7 +52,7 @@ MAGIC = 0x31583948
 TASK_ENTRY = 0x5FFCE          # r0 = 0x01E88280 (my_app) before the task launch
 TASK_ORIGINAL = bytes.fromhex("c0ff8082e801")
 MY_APP = 0x88180
-MODES = ("redirect+traps", "trampoline", "redirect-only")
+MODES = ("redirect+traps", "trampoline", "redirect-only", "trampoline-only")
 BLOCK = ((0x79E32, 0x7D64E), (0x7D69E, 0x890E4))
 STUB_EVERY = 1024
 STUB_BYTES = 14
@@ -74,9 +76,21 @@ h9_enter_usb_loader:
 h9_usb_loader_returned:
     goto h9_usb_loader_returned
 
-/* Trap handler: r0 = the stub's address. Record it and enter the USB loader. */
+/* Trap handler: r0 = the stub's address. Light the GPIO9 LED solid (so a
+ * trap is visible even if the USB loader cannot start in this context),
+ * record the address and enter the USB loader. */
     .globl far_trap
 far_trap:
+    r7 = 0x001e5000
+    r1 = [r7+0]
+    r1 = r1 | 0x200
+    [r7+0] = r1
+    r1 = [r7+12]
+    r1 = r1 | 0x200
+    [r7+12] = r1
+    r1 = [r7+8]
+    r1 = r1 & ~0x200
+    [r7+8] = r1
     r1 = 0x0001e4f0
     r2 = 0x50415254
     [r1+0] = r2
@@ -183,18 +197,19 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     ranges = list(BLOCK)
     if mode in ("redirect+traps", "redirect-only"):
         patched[TASK_ENTRY + 2:TASK_ENTRY + 6] = entry_address.to_bytes(4, "little")
-    if mode == "trampoline":
+    if mode in ("trampoline", "trampoline-only"):
         jump = assemble(asm, elf, f"    r3 = 0x{entry_address:08x}\n    goto r3\n")
         patched[MY_APP:MY_APP + len(jump)] = jump
         first, last = BLOCK[1]
         ranges = [BLOCK[0], (first, MY_APP), (MY_APP + len(jump), last)]
     fills = []
-    if mode != "redirect-only":
+    if mode not in ("redirect-only", "trampoline-only"):
         for start, end in ranges:
             data_fill = trap_fill(asm, elf, objdump, table, start, end, symbols["far_trap"])
             patched[start:end] = data_fill
             fills.append({"start": hex(start), "end": hex(end), "stubs": -(-(end - start) // STUB_EVERY)})
-    tag = {"redirect+traps": "", "trampoline": "_trampoline", "redirect-only": "_redirect_only"}[mode]
+    tag = {"redirect+traps": "", "trampoline": "_trampoline", "redirect-only": "_redirect_only",
+           "trampoline-only": "_trampoline_only"}[mode]
     raw = output / f"h9_trap_test{tag}_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)
 
@@ -226,7 +241,7 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     manifest = {
         "kind": "trap_test_my_app_only_block", "mode": mode,
         "task_entry_patch": ({"offset": hex(TASK_ENTRY + 2), "old": "0x01e88280", "new": hex(entry_address)}
-                             if mode != "trampoline" else None),
+                             if not mode.startswith("trampoline") else None),
         "trapped": fills, "far_trap": hex(symbols["far_trap"]), "monitor_main": hex(symbols["h9_main"]),
         "monitor_bytes": len(plain), "monitor_sha256": sha256(plain).hexdigest(),
         "app_sha256": sha256(patched).hexdigest(),

@@ -110,6 +110,10 @@ static void usb(void)
 
 void h9_main(void)
 {
+    /* 0. Alive: LED on and a blue screen before anything else, so a black
+     *    screen with no LED means this code never ran. */
+    h9_led(1);
+    fill(0, 0, WIDTH, HEIGHT, 0x001f);
     /* 1. Recovery key at power-on, checked for about 0.3 s. */
     for (unsigned i = 0; i < 30; i++) {
         if (h9_key() == RECOVERY_KEY) usb();
