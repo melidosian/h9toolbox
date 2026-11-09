@@ -1246,4 +1246,13 @@ flash-power question, and asked for more speed.
 - The fallback after the failure worked: 300 ms wait, then a clean standard
   read. That suggests the real ACK arrives within 300 ms.
 
+## 2026-11-09 Hardware: programmer fast read works (after the late-ACK fix)
+
+- Live programmer, H9 Toolbox Firmware radio: detection, fixed 15 ms link
+  requested and restored, **fast read 12,608 bytes in 3.8 s, 4 of 4
+  cross-check blocks match the normal read**, whole read 4.7 s (the standard
+  read took 15.7 s, so 3.3x faster). About 1.5 s of the fast read is the
+  deliberate wait for macOS to apply the faster link, worth more on large
+  reads than on this 12 KiB image.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
