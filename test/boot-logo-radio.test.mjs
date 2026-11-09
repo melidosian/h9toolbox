@@ -120,3 +120,33 @@ test('a session started right after an exit tolerates the late exit acknowledgem
   assert.equal(status.version, 2);
   await sim.radio.leaveProgramming();
 });
+
+test('writes use the fast link and check status every 16 blocks', async () => {
+  const sim = new SimulatedRadio();
+  sim.chip.set(logoPattern(9), LOGO_ADDRESS);
+  const current = (await sim.radio.readRange(LOGO_ADDRESS, LOGO_BYTES)).bytes;
+  const next = current.slice();
+  next.fill(0x42, 0x3000, 0x4000); // exactly one sector changes
+  sim.linkRequests = [];
+  const before = sim.statusReads;
+  await sim.radio.writeLogo(current, next);
+  // erase check + begin check + 8 block checks, plus the read-back's bank selects
+  const readBack = LOGO_BYTES / 0x8000 + 1;
+  assert.ok(sim.statusReads - before <= 10 + readBack + 1, `status reads ${sim.statusReads - before}`);
+  assert.equal(sim.linkRequests[0], 18);
+  assert.deepEqual(sim.chip.subarray(LOGO_ADDRESS, LOGO_ADDRESS + LOGO_BYTES), next);
+});
+
+test('a block that fails mid-sector stops the write at the next checkpoint', async () => {
+  const sim = new SimulatedRadio();
+  sim.chip.set(logoPattern(10), LOGO_ADDRESS);
+  const current = (await sim.radio.readRange(LOGO_ADDRESS, LOGO_BYTES)).bytes;
+  const next = logoPattern(11);
+  sim.failProgramAt = LOGO_ADDRESS + 5 * 32; // sixth block of the first sector
+  sim.linkRequests = [];
+  await assert.rejects(sim.radio.writeLogo(current, next), /Program 0xa00000\+0x0\.\.0x200: radio reports (not armed|program verify failed)/);
+  assert.deepEqual(sim.linkRequests, [18, 17], 'fast link requested, then restored after the failure');
+  // Nothing after the failed block was written, and later sectors were untouched.
+  assert.ok(sim.chip.subarray(LOGO_ADDRESS + 6 * 32, LOGO_ADDRESS + 0x1000).every(b => b === 0xff));
+  assert.deepEqual(sim.chip.subarray(LOGO_ADDRESS + 0x1000, LOGO_ADDRESS + LOGO_BYTES), logoPattern(10).subarray(0x1000));
+});

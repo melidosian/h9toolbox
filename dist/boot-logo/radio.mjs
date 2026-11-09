@@ -18,6 +18,7 @@ const WRITE = '0000ff02-0000-1000-8000-00805f9b34fb';
 const NOTIFY = '0000ff01-0000-1000-8000-00805f9b34fb';
 const MAX_RETRIES = 5;
 const ERASED_CRC = 0xe03e;
+const CHECK_EVERY = 16; // blocks between write-status checks (SECTOR / BLOCK = 128)
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 export class BulkUnsupported extends Error {}
@@ -323,16 +324,26 @@ export class ResourceRadio {
   async writeLogo(current, next, onProgress = () => {}) {
     const plan = logoSectorPlan(current, next);
     if (!plan.length) return { sectors: 0, bytes: current };
-    // Work units weighted by measured time: about 1 s per erase, 70 ms per
-    // verified block, about 9 s for the 40 KiB read-back.
+    // Work units weighted by time: an erase costs about as much as 14 blocks;
+    // the 40 KiB read-back about as much as one sector of blocks.
     const ERASE_UNITS = 14, VERIFY_UNITS = 128;
     const writeUnits = plan.reduce((sum, entry) => sum + ERASE_UNITS + (entry.erasedTarget ? 0 : SECTOR / BLOCK), 0);
     const total = writeUnits + VERIFY_UNITS;
     let done = 0;
     const advance = (units, text) => { done += units; onProgress(done / total, text); };
     let armed = false;
+    let linkRequested = false;
     await this.enterProgramming();
     try {
+      // Same fixed 15 ms, latency-0 link as fast reads: every block is a
+      // Bluetooth round trip, so the link interval sets the write speed. The
+      // read-back below restores the stock link when it finishes.
+      const link = parseBulkReply(await this.readBlock(LINK_FIXED_ADDRESS));
+      if (link) {
+        linkRequested = link.status === 0;
+        this.log(`Requested a fixed 15 ms, latency-0 link for writing: ${link.statusText}.`, link.status === 0 ? 'info' : 'warn');
+        await sleep(this.linkDelayMs);
+      }
       for (const [index, entry] of plan.entries()) {
         this.checkStop();
         const label = `0x${entry.address.toString(16)}`;
@@ -347,10 +358,16 @@ export class ResourceRadio {
         await this.sendWrite(controlFrame(OP.program, entry.address));
         armed = true;
         await this.expectWrite(entry.address, `Begin ${label}`, state => state.programming && state.pointer === entry.address);
+        // The radio verifies every block itself (program, read back, compare)
+        // and refuses all later blocks after a failure, so checking its status
+        // every 16 blocks (512 bytes, and always at the sector's last block)
+        // still catches any failure, at a sixth of the round trips.
         for (let offset = 0; offset < SECTOR; offset += BLOCK) {
           await this.sendWrite(dataFrame(data.subarray(offset, offset + BLOCK)));
-          await this.expectWrite(entry.address, `Program ${label}+0x${offset.toString(16)}`,
-            state => state.pointer === entry.address + offset + BLOCK && state.programming === (offset + BLOCK < SECTOR));
+          if ((offset / BLOCK) % CHECK_EVERY === CHECK_EVERY - 1) {
+            await this.expectWrite(entry.address, `Program ${label}+0x${(offset + BLOCK - CHECK_EVERY * BLOCK).toString(16)}..0x${(offset + BLOCK).toString(16)}`,
+              state => state.pointer === entry.address + offset + BLOCK && state.programming === (offset + BLOCK < SECTOR));
+          }
           advance(1, `${where}: ${offset + BLOCK} of ${SECTOR} bytes`);
         }
         armed = false;
@@ -358,6 +375,7 @@ export class ResourceRadio {
       }
     } catch (error) {
       if (armed) { try { await this.sendWrite(controlFrame(OP.disarm)); } catch { /* reported by caller */ } }
+      if (linkRequested) { try { await this.readBlock(LINK_STOCK_ADDRESS); } catch { /* the link resets on disconnect */ } }
       await this.leaveProgramming();
       throw error;
     }

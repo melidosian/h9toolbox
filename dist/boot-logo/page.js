@@ -1,4 +1,4 @@
-import { mountLogoTool } from './logo-tool.mjs?v=20261109a';
+import { mountLogoTool } from './logo-tool.mjs?v=20261109b';
 
 const $ = id => document.getElementById(id);
 function status(message, error = false) {

@@ -27,6 +27,8 @@ export class SimulatedRadio {
     this.cursor = null;
     this.write = { result: 0xfe, programming: false, pointer: 0, end: 0, ops: 0, crc: 0 };
     this.linkRequests = [];
+    this.statusReads = 0;
+    this.failProgramAt = null; // chip address whose program-verify fails once
     this.erases = 0;
     this.radio = new ResourceRadio({ write: bytes => this.handle(Uint8Array.from(bytes)), linkDelayMs: 0 });
   }
@@ -114,6 +116,7 @@ export class SimulatedRadio {
       return this.reply(address, data);
     }
     if (address >= 0x4000 && address < 0x8000) {
+      this.statusReads++;
       this.bank = (address - 0x4000) >> 5;
       this.cursor = this.bank << 15;
       this.cursorRam = false;
@@ -153,6 +156,7 @@ export class SimulatedRadio {
       } else return fail(12);
     } else {
       if (!w.programming) return fail(7);
+      if (this.failProgramAt === w.pointer) { this.failProgramAt = null; return fail(11); } // fault injection
       if (!this.chip.subarray(w.pointer, w.pointer + 32).every(b => b === 0xff)) return fail(10);
       this.chip.set(payload, w.pointer);
       w.pointer += 32;

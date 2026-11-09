@@ -6,9 +6,9 @@ import { parseMHz, standardOffset, planTransmit } from './channel-plan.mjs';
 import { exportChannels, inspectChannelImport, importChannels } from './channels-file.mjs';
 import { serializeChannelsCsv, parseChannelsCsv } from './channels-csv.mjs';
 import { readBlockReply } from './protocol.mjs';
-import { ResourceRadio } from './boot-logo/radio.mjs?v=20261109a';
+import { ResourceRadio } from './boot-logo/radio.mjs?v=20261109b';
 import { parseStatus, statusAddress } from './boot-logo/resource.mjs?v=20261108a';
-import { mountLogoTool } from './boot-logo/logo-tool.mjs?v=20261109a';
+import { mountLogoTool } from './boot-logo/logo-tool.mjs?v=20261109b';
 
 const $ = id => document.getElementById(id);
 const MEM_SIZE = 0x3140;
