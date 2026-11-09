@@ -17,7 +17,14 @@ far_trap stores "TRAP" and the stub address at RAM 0x1E4F0 and calls ROM
 0x02000D68, so a trap puts the radio in the USB loader (4C4A:2342).
 
     export JIELI_TOOLCHAIN=~/path/to/jieli-linux-toolchains-20260730.1
-    python3 -I build.py --stock-image <app.bin> --stock-package <TD-H9-V1.0.38.fw>
+    python3 -I build.py --stock-image <app.bin> --stock-package <TD-H9-V1.0.38.fw> [--mode M]
+
+Modes (run 1, "redirect+traps", gave a black screen with no LED):
+  redirect+traps  task entry redirected, block trapped (run 1)
+  trampoline      no redirect: my_app's own entry (app+0x88180) gets
+                  `r3 = 0x01EE5008; goto r3`, the rest of the block is
+                  trapped (C-hello hooked the same entry and ran)
+  redirect-only   task entry redirected, no traps
 """
 
 from __future__ import annotations
@@ -42,6 +49,8 @@ FAR_LIMIT = 0xFC000 - 0xEA000
 MAGIC = 0x31583948
 TASK_ENTRY = 0x5FFCE          # r0 = 0x01E88280 (my_app) before the task launch
 TASK_ORIGINAL = bytes.fromhex("c0ff8082e801")
+MY_APP = 0x88180
+MODES = ("redirect+traps", "trampoline", "redirect-only")
 BLOCK = ((0x79E32, 0x7D64E), (0x7D69E, 0x890E4))
 STUB_EVERY = 1024
 STUB_BYTES = 14
@@ -129,7 +138,7 @@ def trap_fill(asm, elf, objdump, table, start: int, end: int, handler: int) -> b
     return bytes(out)
 
 
-def build(stock_image: Path, stock_package: Path, output: Path) -> dict:
+def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "redirect+traps") -> dict:
     stock = stock_image.read_bytes()
     if sha256(stock).hexdigest() != STOCK_SHA256:
         raise ValueError("Expected the exact official v1.0.38 main application")
@@ -171,17 +180,26 @@ def build(stock_image: Path, stock_package: Path, output: Path) -> dict:
 
     patched = bytearray(stock)
     entry_address = FAR_ADDRESS + 8  # header jump to hello_display_hook
-    patched[TASK_ENTRY + 2:TASK_ENTRY + 6] = entry_address.to_bytes(4, "little")
+    ranges = list(BLOCK)
+    if mode in ("redirect+traps", "redirect-only"):
+        patched[TASK_ENTRY + 2:TASK_ENTRY + 6] = entry_address.to_bytes(4, "little")
+    if mode == "trampoline":
+        jump = assemble(asm, elf, f"    r3 = 0x{entry_address:08x}\n    goto r3\n")
+        patched[MY_APP:MY_APP + len(jump)] = jump
+        first, last = BLOCK[1]
+        ranges = [BLOCK[0], (first, MY_APP), (MY_APP + len(jump), last)]
     fills = []
-    for start, end in BLOCK:
-        data_fill = trap_fill(asm, elf, objdump, table, start, end, symbols["far_trap"])
-        patched[start:end] = data_fill
-        fills.append({"start": hex(start), "end": hex(end), "stubs": -(-(end - start) // STUB_EVERY)})
-    raw = output / "h9_trap_test_NOT_FOR_FLASH.raw"
+    if mode != "redirect-only":
+        for start, end in ranges:
+            data_fill = trap_fill(asm, elf, objdump, table, start, end, symbols["far_trap"])
+            patched[start:end] = data_fill
+            fills.append({"start": hex(start), "end": hex(end), "stubs": -(-(end - start) // STUB_EVERY)})
+    tag = {"redirect+traps": "", "trampoline": "_trampoline", "redirect-only": "_redirect_only"}[mode]
+    raw = output / f"h9_trap_test{tag}_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)
 
-    package = output / "h9_trap_test_OFFLINE_EXPERIMENT.fw"
-    rebuilt = output / "h9_trap_test_REBUILD_CHECK.fw"
+    package = output / f"h9_trap_test{tag}_OFFLINE_EXPERIMENT.fw"
+    rebuilt = output / f"h9_trap_test{tag}_REBUILD_CHECK.fw"
     destination = rebuilt if package.exists() else package
     if destination.exists():
         raise ValueError(f"Refusing to overwrite {destination}")
@@ -200,14 +218,15 @@ def build(stock_image: Path, stock_package: Path, output: Path) -> dict:
     original = parse_firmware(stock_package).image
     target = parse_firmware(package).image
     changed = [o for o in range(0, len(original), 4096) if original[o:o + 4096] != target[o:o + 4096]]
-    expected = {0x5000, 0xD9000, (TASK_ENTRY + 0x5100) & ~0xFFF}
+    expected = {0x5000, 0xD9000, (TASK_ENTRY + 0x5100) & ~0xFFF, (MY_APP + 0x5100) & ~0xFFF}
     for start, end in BLOCK:
         expected |= set(range((start + 0x5100) & ~0xFFF, end + 0x5100, 0x1000))
     if set(changed) - expected:
         raise ValueError(f"Unexpected sectors changed: {[hex(x) for x in sorted(set(changed) - expected)]}")
     manifest = {
-        "kind": "trap_test_my_app_only_block",
-        "task_entry_patch": {"offset": hex(TASK_ENTRY + 2), "old": "0x01e88280", "new": hex(entry_address)},
+        "kind": "trap_test_my_app_only_block", "mode": mode,
+        "task_entry_patch": ({"offset": hex(TASK_ENTRY + 2), "old": "0x01e88280", "new": hex(entry_address)}
+                             if mode != "trampoline" else None),
         "trapped": fills, "far_trap": hex(symbols["far_trap"]), "monitor_main": hex(symbols["h9_main"]),
         "monitor_bytes": len(plain), "monitor_sha256": sha256(plain).hexdigest(),
         "app_sha256": sha256(patched).hexdigest(),
@@ -216,7 +235,7 @@ def build(stock_image: Path, stock_package: Path, output: Path) -> dict:
         "changed_flash_sectors": [hex(o) for o in changed],
         "hardware_observation": "Not yet flashed",
     }
-    (output / "h9_trap_test-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (output / f"h9_trap_test{tag}-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest
 
 
@@ -225,8 +244,9 @@ def main() -> int:
     parser.add_argument("--stock-image", type=Path, required=True)
     parser.add_argument("--stock-package", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "build")
+    parser.add_argument("--mode", choices=MODES, default="redirect+traps")
     args = parser.parse_args()
-    print(json.dumps(build(args.stock_image.resolve(), args.stock_package.resolve(), args.output.resolve()), indent=2))
+    print(json.dumps(build(args.stock_image.resolve(), args.stock_package.resolve(), args.output.resolve(), args.mode), indent=2))
     print("Offline build only; not hardware tested")
     return 0
 
