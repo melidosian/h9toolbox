@@ -2426,4 +2426,31 @@ flash-power question, and asked for more speed.
   calling `0x01E2D87A`). Package `95d61c9f…`, flash `77bcfaa7…`, far
   `77bfb6a0…`.
 
+- Build 11 on hardware: boot loop (hold 3 at power-on still reached USB).
+  Mode 3's call tree (841 functions) never enters the Doom regions.
+  Likely cause: heap exhaustion. Stock's allocation-failure path
+  `0x4A574` jumps to ROM `0x0200000A` (reset). Stock runs Bluetooth with
+  288/527 heap blocks used; Doom's heap is 209 blocks with 167 used, so
+  the Bluetooth start-up's buffers do not fit beside Doom's 40 KB RAM block.
+- Build 12 (recovery): build 11 without the mode request. Package
+  `2d3f03ce…`, flash `58b134bd…` (built, not flashed; superseded by 13).
+
+## 2026-11-09 Build 13: boot-key Bluetooth upload mode
+
+- The user's idea: open Bluetooth only when a boot key is held.
+- Stock heap init (app+`0x5FA7C`): 128-byte blocks; free-bit bitmap at
+  `0x1D7D0` (a set bit is free), summary bits at `0x1D7D0+192`, header at
+  `0x1D898` (block total at `0x1D8AA`, used at `0x1D8A8`). It frees blocks
+  `0x1E4D8`–end (stock end `0x2BF00`, Doom's patched end `0x22000`) and
+  `0x2D27F`–`0x2FF80`.
+- Hold 2 at power-on (or no complete pack): Doom does not start.
+  `upload_mode` hands blocks `0x22000–0x2BF00` (318) back with interrupts
+  off (ROM `0x02001634`/`0x02001650`), adds them to the total, writes
+  request 3 and posts the `0xFFFF` event. After that nothing in the Doom
+  RAM block is used. The screen refreshes the mode, `+360` and heap counts
+  every second; hold 3 enters USB.
+- Normal power-on: Doom, with no mode request; the build 9–11 diagnostic
+  is removed.
+- Host test ok. Package `8da0f5c9…`, flash `60245a85…`, far `94a64b21…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

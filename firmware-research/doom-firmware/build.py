@@ -110,6 +110,21 @@ h9_post_core_event:
     call r4
     {pc, r14-r4} = [sp++]
 
+/* void h9_irq_off(void) / h9_irq_on(void): ROM 0x02001634 / 0x02001650, the
+ * interrupt guard the S2 resource service uses around SPI access. */
+    .globl h9_irq_off
+h9_irq_off:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x02001634
+    call r4
+    {pc, r14-r4} = [sp++]
+    .globl h9_irq_on
+h9_irq_on:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x02001650
+    call r4
+    {pc, r14-r4} = [sp++]
+
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:

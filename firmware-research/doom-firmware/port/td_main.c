@@ -152,17 +152,45 @@ static void key_test(void)
     }
 }
 
-// No complete pack: wait while the H9 Toolbox upload page writes one over
-// Bluetooth (prototypes/data-upload), checking the directory every 3 s.
-static void wait_for_upload(int why, uint32_t *address, uint32_t *length)
+// Bluetooth upload mode (hold 2 at power-on, or no game data). Doom does not
+// start: its RAM block (0x22000-0x2BF00, taken from the end of the stock heap
+// at boot) goes back to the heap, so the Bluetooth stack has stock's heap,
+// then app_core is asked for mode 3 (stock's running mode, which starts the
+// Bluetooth stack; build 11 showed the switch works but ran out of heap
+// beside Doom). From here on nothing in the RAM block (.data/.bss) is used.
+//
+// Stock heap (app+0x5FA9E): 128-byte blocks, a free-bit per block at
+// 0x1D7D0 (word block/32), a summary bit per word at 0x1D7D0+192, the block
+// total at 0x1D8AA and the used count at 0x1D8A8.
+#define HEAP_BITS ((volatile uint32_t *)0x1D7D0)
+#define HEAP_SUMMARY ((volatile uint32_t *)(0x1D7D0 + 192))
+#define HEAP_USED (*(volatile uint16_t *)0x1D8A8)
+#define HEAP_TOTAL (*(volatile uint16_t *)0x1D8AA)
+#define CORE ((volatile uint8_t *)0x11AD0)
+
+static void heap_give_back(void)
+{
+    h9_irq_off();
+    for (uint32_t block = 0x22000 >> 7; block < (0x2BF00 >> 7); block++) {
+        HEAP_BITS[block >> 5] |= 1u << (block & 31);
+        HEAP_SUMMARY[block >> 10] |= 1u << ((block >> 5) & 31);
+    }
+    HEAP_TOTAL = (uint16_t)(HEAP_TOTAL + ((0x2BF00 - 0x22000) >> 7));
+    h9_irq_on();
+}
+
+static void upload_mode(const char *why)
 {
     td_fill(0, 0, TD_W, TD_H, BLACK);
     td_text(0, 0, "H9 DOOM", YELLOW, BLACK);
-    td_text(0, 20, why == -2 ? "UPLOAD NOT DONE" : why == -1 ? "NO GAME DATA" : "DATA DAMAGED", RED, BLACK);
-    td_text(0, 40, "WAITING FOR", WHITE, BLACK);
-    td_text(0, 52, "BLUETOOTH UPLOAD", WHITE, BLACK);
+    td_text(0, 14, "BLUETOOTH UPLOAD", GREEN, BLACK);
+    td_text(0, 28, why, WHITE, BLACK);
+    heap_give_back();
+    CORE[100] = 3;                  // request mode 3
+    h9_post_core_event(0xFFFF, 0);  // wake app_core (it applies requests after a message)
     td_text(0, 108, "HOLD 3: USB", YELLOW, BLACK);
-    uint32_t checked = td_ticks(), since = 0, dots = 0;
+    td_text(0, 118, "POWER OFF WHEN DONE", WHITE, BLACK);
+    uint32_t shown = 0, since = 0;
     int held = 0;
     for (;;) {
         if (h9_key() == TD_KEY_3) {
@@ -172,17 +200,17 @@ static void wait_for_upload(int why, uint32_t *address, uint32_t *length)
         } else {
             held = 0;
         }
-        if (td_ticks() - checked >= 300) {
-            checked = td_ticks();
-            td_fill(0, 72, TD_W, 10, BLACK);
-            td_text(8 * (dots++ % 18), 72, ".", GREEN, BLACK);
-            if (!td_pack_find(address, length)) {
-                td_text(0, 88, "DATA FOUND", GREEN, BLACK);
-                h9_delay(1000);
-                td_fill(0, 0, TD_W, TD_H, BLACK);
-                td_text(0, 0, "H9 DOOM", YELLOW, BLACK);
-                return;
-            }
+        if (td_ticks() - shown >= 100) {
+            shown = td_ticks();
+            td_fill(0, 48, TD_W, 50, BLACK);
+            td_text(0, 48, "MODE", WHITE, BLACK);
+            number(40, 48, CORE[101], YELLOW);
+            td_text(72, 48, "BT", WHITE, BLACK);
+            number(96, 48, *(volatile uint32_t *)(0x11AD0 + 360) & 0xFFFFF, YELLOW);
+            td_text(0, 62, "HEAP", WHITE, BLACK);
+            number(40, 62, HEAP_USED, YELLOW);
+            td_text(88, 62, "/", WHITE, BLACK);
+            number(96, 62, HEAP_TOTAL, YELLOW);
         }
         h9_delay(10);
     }
@@ -201,13 +229,17 @@ void td_main(void)
     td_fill(0, 0, TD_W, TD_H, BLACK);
 
     // 2. Power-on keys, checked for about 0.3 s: 3 = USB loader, Menu = key
-    //    test (shows the stock key byte of each button, to map the controls).
+    //    test (shows the stock key byte of each button, to map the controls),
+    //    2 = Bluetooth upload mode (after the resource flash set-up).
+    int upload_kept = 0;
     for (int i = 0; i < 30; i++) {
         unsigned key = h9_key();
         if (key == TD_KEY_3)
             usb_loader();
         if (key == TD_KEY_MENU)
             key_test();
+        if (key == TD_KEY_2)
+            upload_kept = 1;
         h9_delay(10);
     }
 
@@ -219,36 +251,6 @@ void td_main(void)
     td_text(96, 14, "/", WHITE, BLACK);
     number(104, 14, *(volatile uint16_t *)0x1d8aa, WHITE);
 #endif
-    // Bluetooth diagnostic (builds 9-10): the system core's mode state (stock,
-    // running: mode 3, +360 set, 0xC11A = 98), shown for 6 s.
-#ifndef TD_HOST
-    {
-        volatile uint8_t *core = (volatile uint8_t *)0x11AD0;
-        td_text(0, 56, "MODE", WHITE, BLACK);
-        number(40, 56, core[101], YELLOW);
-        td_text(72, 56, "REQ", WHITE, BLACK);
-        number(104, 56, core[100], YELLOW);
-        td_text(0, 70, "P360", WHITE, BLACK);
-        uint32_t p = *(volatile uint32_t *)(0x11AD0 + 360);
-        number(40, 70, p & 0xFFFFF, YELLOW);
-        td_text(0, 84, "C11A", WHITE, BLACK);
-        number(40, 84, *(volatile uint8_t *)0xC11A, YELLOW);
-        td_text(72, 84, "B108", WHITE, BLACK);
-        number(112, 84, core[108], YELLOW);
-        td_text(0, 98, "B120", WHITE, BLACK);
-        number(40, 98, core[120], YELLOW);
-        // Build 10: request mode 3 (stock's running mode, which starts the
-        // Bluetooth stack); Doom alone stays in the start-up mode 10.
-        core[100] = 3;
-        h9_post_core_event(0xFFFF, 0);  // build 11: wake app_core so it applies the request
-        h9_delay(2000);
-        td_text(0, 112, "AFTER", GREEN, BLACK);
-        number(48, 112, core[101], GREEN);
-        number(80, 112, *(volatile uint32_t *)(0x11AD0 + 360) & 0xFFFFF, GREEN);
-        h9_delay(6000);
-        td_fill(0, 56, TD_W, 72, BLACK);
-    }
-#endif
     uint32_t address, length;
     td_nor_setup();
     // The H9 Toolbox upload service (in this image) and the stock partition
@@ -257,9 +259,11 @@ void td_main(void)
 #ifndef TD_HOST
     *(volatile uint16_t *)0x12234 = 0x5AA5;
 #endif
+    if (upload_kept)
+        upload_mode("HELD 2");
     int found = td_pack_find(&address, &length);
     if (found)
-        wait_for_upload(found, &address, &length);
+        upload_mode(found == -1 ? "NO GAME DATA" : found == -2 ? "UPLOAD NOT DONE" : "DATA DAMAGED");
     td_text(0, 28, "PACK", WHITE, BLACK);
     number(48, 28, length, WHITE);
 
