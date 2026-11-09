@@ -1610,4 +1610,16 @@ flash-power question, and asked for more speed.
   radio). `write-far` replaced the far sector (backup = run-2 hello blob,
   `e5e8929a…`); verified `4bb075d7…`. Behaviour: pending.
 
+- **Far logo on hardware: C reads the resource flash correctly.** Holding
+  Back drew the user's logo from the 16 MiB chip; readouts SHOW 4, RD128 2,
+  RD512 2, SUM 5977, identical after a reboot. The byte sum of
+  `0xA00000–0xA09FFF` in the user's 16 MiB dump
+  (`td-h9-resource-chip-0x0-2026-11-09.bin`) is 3,872,601 = `5977` mod
+  65536: an exact match, and both plain reads agreed with the streamed one.
+- Speeds (10 ms ticks, ±1 tick):
+  - read: 40,960 B in about 20 ms (10–30 ms), roughly 1.4–4 MB/s, and the
+    same for 128- and 512-byte calls (per-call overhead is small)
+  - read and draw a full screen: about 40 ms (30–50 ms), roughly 20–33
+    full frames/s streamed straight from the resource flash
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
