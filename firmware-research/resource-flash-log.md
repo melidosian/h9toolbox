@@ -1309,4 +1309,28 @@ flash-power question, and asked for more speed.
   showed the expected panel, gradient, square movement and TICK line. The
   `H9_HOST_TEST` hook leaves the radio build byte-identical.
 
+## 2026-11-09 C-hello on hardware: first speed measurements
+
+- Flashed via the passwordless sudo rule. Backup `h9-before-c-hello-20261109.bin`
+  (`83f79fb3…`, i.e. H9 Toolbox Firmware); 8 sectors updated; readback
+  verified `941e2586…`. The first C firmware boots and runs on the radio.
+- Readings: FILL 2, SQ 0, LOOP 199,873, DLY 10. TICK advanced 3,000 in a
+  30 s stopwatch run.
+- Tick: the counter at `0x1D8B0` runs at 100 Hz (10 ms per tick).
+- Display: a full 160×128 RGB565 write (40,960 B in 128-byte transfers plus
+  windows) takes 2 ticks, i.e. 10–30 ms: about 33–100 full frames/s of raw
+  throughput, 1.4–4 MB/s. The stage-18 assembly fill (about 9.5 s) was
+  limited by its per-pixel path, not the LCD bus.
+- Small writes: sixteen 16×16 squares (8 KiB, 16 windows) take under one tick.
+- CPU: the busy loop is 5 instructions per iteration (taken branch, load from
+  `0x1D8B0`, add, sub, compare-branch; checked with `objdump -d` on
+  `build/main.o`). 199,873 iterations per 10 ms = about 20 M iterations/s,
+  so about 100 M simple instructions/s, timer interrupts included. The clock
+  is at least about 100 MHz, more if loads or taken branches cost extra
+  cycles.
+- Delay: `h9_delay(100)` took 10 ticks = 100 ms, so its unit is 1 ms.
+- Doom: neither CPU (about 100 MIPS, fixed-point game) nor display (tens of
+  frames/s) looks like the limit. RAM (about 192 KiB total, shared with
+  stock) and code space remain the constraints.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
