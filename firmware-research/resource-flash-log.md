@@ -1548,4 +1548,18 @@ flash-power question, and asked for more speed.
   4 sectors updated (as predicted); readback `5af9bdfe…`. Behaviour on
   Back-hold: pending.
 
+## 2026-11-09 Far-hello run 1: Brick Breaker (encrypted blob not visible)
+
+- With the encrypted blob at `0xEA000`, holding Back started Brick Breaker:
+  the stub's magic check failed, and the radio did not crash (fallback
+  worked as designed).
+- So the CPU mapping does not show `0xEA000` decrypted with the app-area
+  stream. The likely reason: JieLi leaves the reserved area (`0xDA000`
+  onward) unencrypted. The VM and the `0xFD000` record are stored in plain
+  form, and `0xFD000` is read through the mapping (`0x01EF8000`).
+- Next: write the same program unencrypted
+  (`h9_far_hello_0xEA000_unencrypted.bin`, `504c3661…`). The main firmware is
+  unchanged (package `e83f1140…`). If Brick Breaker appears again, the
+  mapping does not cover `0xEA000` as assumed.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

@@ -2,9 +2,9 @@
 """Build the far-region test: C-hello running from main flash 0xEA000,
 launched from H9 Toolbox Firmware by holding Back (the Brick Breaker key).
 
-Two outputs, flashed separately in hold-8 mode:
-  - h9_far_hello_0xEA000.bin: the program in on-flash (encrypted) form, for
-    `h9_flasher.py write-far`. Flash 0xEA000 is outside the settings VM (two
+Outputs, flashed separately in hold-8 mode:
+  - h9_far_hello_0xEA000_unencrypted.bin / _encrypted.bin: the program in
+    the two candidate on-flash forms, for `h9_flasher.py write-far`. Flash 0xEA000 is outside the settings VM (two
     32 KiB banks at 0xDA000) and maps to 0x01EE5000.
   - h9_far_hello_OFFLINE_EXPERIMENT.fw: H9 Toolbox Firmware with two changes:
     a 24-byte stub in the spare tail of the .tables cave (app+0xA7E80), and
@@ -147,9 +147,10 @@ def build(stock_package: Path, output: Path) -> dict:
     blob = flash_form(plain, FAR_FLASH)
     if flash_form(blob, FAR_FLASH)[:len(plain)] != plain:
         raise ValueError("Far encryption does not round-trip")
-    (output / "h9_far_hello_plain_NOT_FOR_FLASH.bin").write_bytes(plain)
-    blob_path = output / "h9_far_hello_0xEA000.bin"
-    blob_path.write_bytes(blob)
+    # Two candidate on-flash forms for write-far. Hardware run 1 (encrypted)
+    # fell back to Brick Breaker, so the magic did not read back that way.
+    (output / "h9_far_hello_0xEA000_encrypted.bin").write_bytes(blob)
+    (output / "h9_far_hello_0xEA000_unencrypted.bin").write_bytes(plain)
 
     # Stub and launcher retarget in H9 Toolbox Firmware.
     stub_obj = output / "stub.o"
@@ -205,7 +206,8 @@ def build(stock_package: Path, output: Path) -> dict:
         "far_cpu_address": hex(FAR_ADDRESS),
         "far_plain_bytes": len(plain),
         "far_plain_sha256": sha256(plain).hexdigest(),
-        "far_blob_sha256": sha256(blob).hexdigest(),
+        "far_encrypted_sha256": sha256(blob).hexdigest(),
+        "far_unencrypted_sha256": sha256(plain).hexdigest(),
         "far_h9_main": hex(symbols["h9_main"]),
         "stub_offset": hex(STUB_OFFSET),
         "stub_hex": stub.hex(),
