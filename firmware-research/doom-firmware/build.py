@@ -156,6 +156,15 @@ h9_dac_write128:
     call r4
     {pc, r14-r4} = [sp++]
 
+/* void h9_play_tone(unsigned n): stock app+0x5231A, the key-tone request
+ * (speaker gate, tone file n from the language table, signal key_tone). */
+    .globl h9_play_tone
+h9_play_tone:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e5241a
+    call r4
+    {pc, r14-r4} = [sp++]
+
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:

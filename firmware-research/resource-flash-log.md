@@ -2496,4 +2496,16 @@ flash-power question, and asked for more speed.
   screen also shows the state byte and the write count.
 - Package `821f2270…`, flash `822e7c45…`, far `26c5ae81…`.
 
+- Build 15 on hardware: no sound for any key. After key 6: STATE 3,
+  WRITES about `0x9506C` in 1 s (every write refused: the ring buffer is
+  full), HRP and SWP 0, LEN `0x100`, AMP 1. The driver state is running,
+  but the DAC hardware is not consuming (clock or analog power off).
+- Stock play-tone `0x5231A(n)`: gate (source 3, on), name from the
+  language table (`b[0x11AD0+4326]`, tables at `0x01EAD2B0`/`0x01EB5CA0`),
+  then fills the key-tone block `[0x11AD0+236]` and signals the task.
+- Build 16 probe (hold 4): gives the heap back on entry. Keys 7/8/9 play
+  stock tones 0/1/2. Key 2 toggles page 2, showing `0x1E19C0…+0x14`.
+  Keys 1, 5 and 6 as in build 15.
+- Package `03c3219e…`, flash `558fe241…`, far `8527dc00…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

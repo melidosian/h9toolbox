@@ -225,8 +225,15 @@ static void upload_mode(const char *why)
 //   2: rate 11025 Hz and start (stock app+0x433C8, app+0x43434)
 //   5: while held, stream a square wave through stock's write (app+0x43598)
 //   6: all of it: amplifier, rate, start, then a 1 s tone
+// Build 15 on hardware: state 3 but HRP never moves and every write is
+// refused (the hardware is not consuming). Build 16 adds stock's key-tone
+// player (app+0x5231A), which runs the whole stock path, with the heap given
+// back first (the decoder allocates):
+//   7 / 8 / 9: stock tone 0 / 1 / 2
+//   2: page 2, the second audio block at 0x1E19C0
 // Stays until power-off; hold 3 for 2 s enters the USB loader.
 #define DAC ((volatile uint32_t *)0x1E2F00)
+#define CYAN_ 0x07ff
 #define DAC_HANDLE ((void *)(0x11AD0 + 6636))
 #define DAC_STATE (*(volatile uint8_t *)(0x11AD0 + 6636 + 97))
 
@@ -252,10 +259,11 @@ static void audio_probe(void)
     static const char *names[] = { "CON", "ADR", "LEN", "HRP", "SWP", "VOL" };
     static const unsigned regs[] = { 0, 1, 2, 4, 5, 10 };
     int16_t chunk[64];
-    unsigned phase = 0, last = 0, did = 0;
+    unsigned phase = 0, last = 0, did = 0, page = 0;
+    heap_give_back();  // Doom does not start from here; the tone decoder allocates
     uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 2", GREEN, BLACK);
+    td_text(0, 0, "AUDIO PROBE 3", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -265,9 +273,11 @@ static void audio_probe(void)
                 h9_speaker_gate(1, 1);
                 did = 1;
             } else if (key == TD_KEY_2) {
-                h9_dac_rate(DAC_HANDLE, 11025);
-                h9_dac_start(DAC_HANDLE);
-                did = 2;
+                page ^= 1;
+                td_fill(0, 12, TD_W, 90, BLACK);
+            } else if (key >= 9 && key <= 11) {  // keys 7, 8, 9
+                h9_play_tone(key - 9);
+                did = key - 2;
             } else if (key == TD_KEY_6) {
                 h9_speaker_gate(1, 1);
                 h9_dac_rate(DAC_HANDLE, 11025);
@@ -293,10 +303,21 @@ static void audio_probe(void)
             usb_loader();
         if (td_ticks() - shown >= 25) {
             shown = td_ticks();
-            for (unsigned i = 0; i < 6; i++) {
-                unsigned y = 12 + 10 * i;
-                td_text(0, y, names[i], WHITE, BLACK);
-                hex_at(40, y, DAC[regs[i]]);
+            if (page) {
+                volatile uint32_t *ana = (volatile uint32_t *)0x1E19C0;
+                for (unsigned i = 0; i < 6; i++) {
+                    unsigned y = 12 + 10 * i;
+                    char n[3] = { "0123456789ABCDEF"[(i * 4) >> 4], "0123456789ABCDEF"[(i * 4) & 15], 0 };
+                    td_text(0, y, "A", CYAN_, BLACK);
+                    td_text(8, y, n, CYAN_, BLACK);
+                    hex_at(40, y, ana[i]);
+                }
+            } else {
+                for (unsigned i = 0; i < 6; i++) {
+                    unsigned y = 12 + 10 * i;
+                    td_text(0, y, names[i], WHITE, BLACK);
+                    hex_at(40, y, DAC[regs[i]]);
+                }
             }
             td_text(0, 74, "STATE", WHITE, BLACK);
             hex_at(48, 74, DAC_STATE);
@@ -307,7 +328,7 @@ static void audio_probe(void)
             td_text(112, 104, "DID", WHITE, BLACK);
             char d[2] = { (char)('0' + did), 0 };
             td_text(144, 104, did ? d : "-", GREEN, BLACK);
-            td_text(0, 116, "1AMP 2GO 5SQ 6ALL", WHITE, BLACK);
+            td_text(0, 116, "1AMP 2PG 6ALL 789", WHITE, BLACK);
         }
         if (key != TD_KEY_5)
             h9_delay(10);
