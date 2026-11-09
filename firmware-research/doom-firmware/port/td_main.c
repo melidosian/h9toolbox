@@ -246,6 +246,9 @@ static void upload_mode(const char *why)
 // 0x0E41E1xx. Bit 24 is set by stock's analog power-up (app+0x4B8DA).
 // Build 20: pages D / A / G as in the reference (key 2), and
 //   8: DAC CON |= bit 24      9: app+0x520CE(1)
+// Build 20 on hardware: silent; CON still 0x0E...; GPIO differs from the
+// reference: PA OUT 0x2208 (PA0 low), PA DIR 0x06BE, PC DIR 0xFFFF.
+// Build 21: key 8 also sets PA0 high and PC0/PC2/PC3 as low outputs.
 // Stays until power-off; hold 3 for 2 s enters the USB loader.
 #define DAC ((volatile uint32_t *)0x1E2F00)
 #define CYAN_ 0x07ff
@@ -278,7 +281,7 @@ static void audio_probe(void)
     heap_give_back();  // Doom does not start from here; the tone decoder allocates
     uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 7", GREEN, BLACK);
+    td_text(0, 0, "AUDIO PROBE 8", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -293,7 +296,15 @@ static void audio_probe(void)
             } else if (key == 9) {  // key 7
                 h9_play_tone(0);
                 did = 7;
-            } else if (key == 10) {  // key 8: DAC CON bit 24 (set in the working radio, clear in Doom)
+            } else if (key == 10) {  // key 8: the working radio's pin state (receive) + CON bit 24
+                // Reference vs build 20: PA OUT 0x2209 vs 0x2208 (PA0 high);
+                // PC DIR 0xFFF2 vs 0xFFFF (PC0, PC2, PC3 outputs, driven low).
+                volatile uint32_t *pa = (volatile uint32_t *)0x1E5000;
+                volatile uint32_t *pc = (volatile uint32_t *)0x1E5080;
+                pa[0] |= 1u;          // PA OUT bit 0 high
+                pa[2] &= ~1u;         // PA DIR bit 0 output
+                pc[0] &= ~0xDu;       // PC OUT 0, 2, 3 low
+                pc[2] &= ~0xDu;       // PC DIR 0, 2, 3 output
                 DAC[0] |= 0x1000000u;
                 did = 8;
             } else if (key == 11) {  // key 9: app+0x520CE(1)
@@ -360,7 +371,7 @@ static void audio_probe(void)
             td_text(112, 104, "DID", WHITE, BLACK);
             char d[2] = { (char)('0' + did), 0 };
             td_text(144, 104, did ? d : "-", GREEN, BLACK);
-            td_text(0, 116, "2PG 7VOICE 8BIT24", WHITE, BLACK);
+            td_text(0, 116, "2PG 7VOICE 8PINS", WHITE, BLACK);
         }
         h9_delay(10);
     }

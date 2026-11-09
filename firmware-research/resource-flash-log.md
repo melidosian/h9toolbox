@@ -2575,4 +2575,12 @@ flash-power question, and asked for more speed.
   CON bit 24. Key 9 calls `0x520CE(1)`. Key 7 plays the voice prompt.
   Package `cf5c7b22…`, flash `e62da654…`, far `698374d2…`.
 
+- Build 20 on hardware: silent. Doom vs the reference:
+  - DAC CON `0x0E41E19x` (bit 24 still clear after key 8)
+  - `0x1E19C0` `06A41903` vs `06A41403`; `+C` `00030000` vs `00010000`
+  - GPIO PA OUT `2208` vs `2209` (PA0 low); PA DIR `06BE` vs `DC56`;
+    PB OUT `0BC?` vs `08C4`; PC OUT `6?0?`; PC DIR `FFFF` vs `FFF2`
+- Build 21: key 8 drives PA0 high (output) and PC0/PC2/PC3 low (outputs),
+  the reference receive state, then retries CON bit 24.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
