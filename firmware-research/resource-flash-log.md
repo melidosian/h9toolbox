@@ -2292,4 +2292,16 @@ flash-power question, and asked for more speed.
 - Build 6 flashed through hold-3: far blob `1bdf7edd…` (12 of 17 sectors),
   main 16 sectors, readback `e9e2e4d2…`.
 
+## 2026-11-09 Brightness: backlight already at stock's maximum; gamma lift (build 7)
+
+- The user found build 6 brighter but asked for more.
+- Stock reads the saved level (settings item 3229) and clamps it: `if (level
+  >= 5) level = 4` (app+`0x72022`). Its top duty is therefore 4 × 2000 +
+  2000 = 10000, which the Doom firmware already uses.
+- Build 7 lifts the image instead: a gamma curve (exponent 0.6) applied to
+  the pump palette after each `pal_read` (`I_SetPalette`).
+  - Host test still runs 175 tics, visibly brighter
+    (`host-evidence/e1m1-host-gamma.png`).
+  - Package `6db162a6…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

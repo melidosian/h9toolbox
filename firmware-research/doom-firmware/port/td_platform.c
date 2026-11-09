@@ -149,10 +149,20 @@ void I_UpdateNoBlit(void)
 
 // The renderer's palette hook, then the palette into the pump LUT, as the
 // device does it.
+// Gamma lift for the TD-H9 panel (Doom's palette is dark and the backlight
+// is already at stock's top step, duty 10000): out = max * (in / max) ^ 0.6
+// per RGB565 channel.
+static const uint8_t gamma5[32] = { 0, 4, 6, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 18, 19, 20, 21, 22, 22, 23, 24, 25, 25, 26, 27, 27, 28, 29, 29, 30, 30, 31 };
+static const uint8_t gamma6[64] = { 0, 5, 8, 10, 12, 14, 15, 17, 18, 20, 21, 22, 23, 24, 26, 27, 28, 29, 30, 31, 32, 33, 34, 34, 35, 36, 37, 38, 39, 40, 40, 41, 42, 43, 44, 44, 45, 46, 47, 47, 48, 49, 49, 50, 51, 51, 52, 53, 54, 54, 55, 55, 56, 57, 57, 58, 59, 59, 60, 61, 61, 62, 62, 63 };
+
 void I_SetPalette(int palette)
 {
     R_PaletteChanged();
     pal_read(palette, pump_lut);
+    for (int i = 0; i < 256; i++) {
+        uint16_t c = pump_lut[i];
+        pump_lut[i] = (uint16_t)(gamma5[c >> 11] << 11 | gamma6[(c >> 5) & 63] << 5 | gamma5[c & 31]);
+    }
 }
 
 void I_FinishUpdate(void)
