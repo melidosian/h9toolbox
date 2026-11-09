@@ -2289,4 +2289,7 @@ flash-power question, and asked for more speed.
 - The host test walks forward with key 2. Package `91514524…` (flash
   `e9e2e4d2…`), far blob `1bdf7edd…`.
 
+- Build 6 flashed through hold-3: far blob `1bdf7edd…` (12 of 17 sectors),
+  main 16 sectors, readback `e9e2e4d2…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
