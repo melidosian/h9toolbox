@@ -2253,4 +2253,8 @@ flash-power question, and asked for more speed.
 - `PAR_Init` exists only in DMC100's host build, so its wrap was removed.
 - Rebuilt: package `1789f4a3…` (flash `cb01527b…`), far blob `8fbb46ed…`.
 
+- Run 4 flashed through hold-3 recovery: far blob `8fbb46ed…` (12 of 17
+  sectors; `0xFB000` keeps unused bytes from the previous blob), main 15
+  sectors, readback `cb01527b…`. Result: pending.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
