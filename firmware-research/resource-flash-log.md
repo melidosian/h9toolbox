@@ -1827,4 +1827,21 @@ flash-power question, and asked for more speed.
 - Upload times at this rate: E1M1S about 20 min of writing; E1 (3.71 MiB)
   about 73 min.
 
+## 2026-11-09 E1M1S uploaded and verified on hardware
+
+- Upload record:
+  - `freedoom E1M1S`, 1,056,192 B, SHA-256 `06442c61…` (matches the pack)
+  - one segment, `resource` at `0xA20000`; directory at `0xA1F000`
+  - 259 sectors (directory plus 258 data sectors; no erases needed),
+    1,060,864 B programmed in 1,352 s = **785 B/s (0.77 KiB/s)**
+  - 1,708 s (28.5 min) in all
+  - verified, marked complete
+- Phases:
+  - pre-check read of 1,060,864 B: 10:59:50 → 11:03:06 (about 3 min 15 s
+    including connect and link changes)
+  - writing: 11:03:06 → 11:25:39
+  - read-back: 11:25:39 → 11:28:30 (about 2 min 50 s, about 6.2 KiB/s)
+  - COMPLETE block: 11:28:31–11:28:39
+- Stock-firmware check with the data present: pending.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
