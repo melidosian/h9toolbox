@@ -61,6 +61,20 @@ C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as",
 # Split point in c-hello/entry.s: after the stock controller setup, where the
 # Brick Breaker launcher also enters (the radio has already run that setup).
 SPLIT = "    r0 = 1\n    r3 = 0x01e4c2da\n    call r3\n"
+# Programs that can be placed in the far region (C source, relative to RESEARCH).
+PROGRAMS = {"hello": "c-hello/main.c", "logo": "far-hello/logo.c"}
+# Extra C API for far programs (JieLi clang ABI: r0-r3 arguments, r0 result).
+FAR_API = """
+/* int h9_res_read(partition, offset, buffer, length): stock resource-flash
+ * partition read 0x01E52CB2 (0 filesystem ... 5 resource ... 6 record). */
+    .section .text,"ax",@progbits
+    .globl h9_res_read
+h9_res_read:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e52cb2
+    call r4
+    {pc, r14-r4} = [sp++]
+"""
 HEADER = f"""    .section .far_header,"ax",@progbits
     .globl far_header
 far_header:
@@ -100,7 +114,7 @@ def link(ld, elf, script: Path, output: Path, objects: list[Path]):
     return elf.read(data)
 
 
-def build(stock_package: Path, output: Path) -> dict:
+def build(stock_package: Path, output: Path, program: str = "hello") -> dict:
     if sha256(stock_package.read_bytes()).hexdigest() != STOCK_PACKAGE_SHA256:
         raise ValueError("Expected the exact official v1.0.38 .fw package")
     base = BASE_RAW.read_bytes()
@@ -118,11 +132,11 @@ def build(stock_package: Path, output: Path) -> dict:
     entry = (C_HELLO / "entry.s").read_text(encoding="utf-8")
     if entry.count(SPLIT) != 1:
         raise ValueError("c-hello/entry.s split point not found exactly once")
-    entry = HEADER + entry.replace(SPLIT, SPLIT + "    .globl far_after_stock_setup\nfar_after_stock_setup:\n")
+    entry = HEADER + entry.replace(SPLIT, SPLIT + "    .globl far_after_stock_setup\nfar_after_stock_setup:\n") + FAR_API
     entry_obj = output / "far_entry.o"
     entry_obj.write_bytes(asm.assemble_source(entry, filename="far_entry.s"))
     c_obj = output / "main.o"
-    result = subprocess.run([str(H9CC), "clang", *C_FLAGS, "-c", "c-hello/main.c",
+    result = subprocess.run([str(H9CC), "clang", *C_FLAGS, "-c", PROGRAMS[program],
                              "-o", str(c_obj.relative_to(RESEARCH))],
                             cwd=RESEARCH, capture_output=True, text=True)
     if result.returncode:
@@ -132,7 +146,7 @@ def build(stock_package: Path, output: Path) -> dict:
                      if s.name.startswith((".data", ".bss", ".sdata", ".sbss")) and len(s.data or b"")]
     if data_sections:
         raise ValueError(f"C code has data sections (no RAM is set aside for them): {data_sections}")
-    far = link(ld, elf, ROOT / "far.ld", output / "h9_far_hello.elf", [entry_obj, c_obj])
+    far = link(ld, elf, ROOT / "far.ld", output / f"h9_far_{program}.elf", [entry_obj, c_obj])
     header, text = section(far, ".far_header"), section(far, ".text")
     if header.addr != FAR_ADDRESS or len(header.data) != 16 or text.addr != FAR_ADDRESS + 16:
         raise ValueError("Far program layout differs from header (16 bytes) + text at 0x01EE5000")
@@ -149,8 +163,9 @@ def build(stock_package: Path, output: Path) -> dict:
         raise ValueError("Far encryption does not round-trip")
     # Two candidate on-flash forms for write-far. Hardware run 1 (encrypted)
     # fell back to Brick Breaker, so the magic did not read back that way.
-    (output / "h9_far_hello_0xEA000_encrypted.bin").write_bytes(blob)
-    (output / "h9_far_hello_0xEA000_unencrypted.bin").write_bytes(plain)
+    (output / f"h9_far_{program}_0xEA000_encrypted.bin").write_bytes(blob)
+    # Hardware run 2: the far region is not decrypted; this is the form to flash.
+    (output / f"h9_far_{program}_0xEA000.bin").write_bytes(plain)
 
     # Stub and launcher retarget in H9 Toolbox Firmware.
     stub_obj = output / "stub.o"
@@ -199,7 +214,9 @@ def build(stock_package: Path, output: Path) -> dict:
     if flash_form(bytes(patched[start - APP_FLASH:end - APP_FLASH]), start) != target[start:end]:
         raise ValueError("Cipher check against the repacked app failed")
     manifest = {
-        "kind": "far_region_c_hello_experiment",
+        "kind": "far_region_c_experiment",
+        "program": program,
+        "c_source": PROGRAMS[program],
         "base": "H9 Toolbox Firmware (resource-service bb-s2)",
         "base_flash_sha256": BASE_FLASH_SHA256,
         "far_flash_offset": hex(FAR_FLASH),
@@ -209,6 +226,7 @@ def build(stock_package: Path, output: Path) -> dict:
         "far_encrypted_sha256": sha256(blob).hexdigest(),
         "far_unencrypted_sha256": sha256(plain).hexdigest(),
         "far_h9_main": hex(symbols["h9_main"]),
+        "far_h9_res_read": hex(symbols["h9_res_read"]),
         "stub_offset": hex(STUB_OFFSET),
         "stub_hex": stub.hex(),
         "launcher_jump_offset": hex(LAUNCHER_JUMP),
@@ -222,7 +240,7 @@ def build(stock_package: Path, output: Path) -> dict:
         "changed_flash_sectors_vs_h9_toolbox": [hex(o) for o in SECTORS_FROM_BASE],
         "hardware_observation": "Not yet flashed",
     }
-    (output / "h9_far_hello-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (output / f"h9_far_{program}-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest
 
 
@@ -230,8 +248,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--stock-package", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "build")
+    parser.add_argument("--program", choices=sorted(PROGRAMS), default="hello")
     args = parser.parse_args()
-    print(json.dumps(build(args.stock_package.resolve(), args.output.resolve()), indent=2))
+    print(json.dumps(build(args.stock_package.resolve(), args.output.resolve(), args.program), indent=2))
     print("Offline build only; not hardware tested")
     return 0
 
