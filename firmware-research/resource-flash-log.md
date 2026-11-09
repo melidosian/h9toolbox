@@ -1376,4 +1376,18 @@ flash-power question, and asked for more speed.
   confirms the HID restore. 8 sectors were updated; readback verified
   `83f79fb3…`.
 
+## 2026-11-09 Dead-code estimate corrected: about 96 KB, not 389 KB
+
+- The first `reachability.py` pass put the `app_core` task entry
+  (app+`0x066648`, passed as an immediate at app+`0x05FFC4`) inside its
+  largest "dead" run (75.7 KB at `0x65EE0`). A trap test there would have
+  fired at boot.
+- Corrected roots: 32-bit values that point at a function prologue (673).
+  About 96 KB not reached; largest run 8,174 B at app+`0x538E0`. With every
+  pointer-like word as a root: 77 KB (floor). Details in
+  `takeover/DESIGN.md`.
+- Consequence: the other stock tasks keep most code live, so replacing
+  `my_app` alone frees little flash. That fits the user's wish to keep
+  Bluetooth (the `btstack` task) anyway.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

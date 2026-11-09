@@ -16,23 +16,30 @@ interrupt handling we still depend on.
   flash reader/writer, and (while it stays useful) the Bluetooth service.
 - Anything those reach, directly or through interrupts and ROM callbacks.
 
-## Phase 1: find dead code (offline, done as a first estimate)
+## Phase 1: find dead code (offline estimate)
 
 [`reachability.py`](reachability.py) walks the stock call index from the
-reset entry, cuts edges out of `my_app`, and treats every function whose
-address appears in the image as live (48 such). First result:
+reset entry, cuts edges out of `my_app`, and treats address-taken functions
+as live.
 
-- 1,560 call-index functions: 682 live, 878 not reached.
-- About **389 KB not reached** out of 811 KB of flash code below the RAM-code
-  image. Largest contiguous candidate runs: 75,748 B at app+`0x65EE0`,
-  32,760 B at `0x1C65C`, 23,902 B at `0x2642A`, 17,212 B at `0x33DE`,
-  16,974 B at `0x46326`, …
-
-This is an estimate, not proof. The index resolves only direct calls (1,477
-indirect jumps are unresolved), extents run from one call target to the next
-(so they include inline data), and the ROM can call back into the app
-through tables set up at run time. Large candidate runs may be the Bluetooth
-stack, audio or the scheduler, which the kept code may still need.
+- **First pass (wrong):** 389 KB not reached; largest run 75,748 B at
+  app+`0x65EE0`. That run contains the `app_core` task entry
+  (app+`0x066648`). Task entries are passed to the task launcher as
+  immediates and never called directly, and the first pass only counted
+  pointers to functions already in the call index. It would have trapped at
+  boot.
+- **Corrected:** pointers count as roots when they land on a function
+  prologue (register push). Result: 2,186 starts, 1,847 live, about
+  **96 KB not reached**. Largest runs: 8,174 B at app+`0x538E0`, 5,752 at
+  `0x2E91A`, 4,962 at `0x192E6`, 4,690 at `0x5B192`, 4,552 at `0x64CC4`.
+- Accepting every pointer-like word (no prologue check) leaves 77 KB, which
+  is a floor.
+- Lesson: `app_core` and the other stock tasks (`btstack`, `audio_dec`,
+  `ui`, …) reach most of the code. Replacing `my_app` alone frees little
+  flash. Large flash for our code needs either cutting tasks we do not need
+  (patching their launch) or space outside the app (`0xDA000–0xFFFFF`,
+  which holds the retained VM settings and is not yet mapped).
+- Still an estimate: unresolved indirect jumps and ROM callbacks remain.
 
 ## Phase 2: prove regions unused on hardware ("trap test")
 
