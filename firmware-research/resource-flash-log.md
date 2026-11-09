@@ -2332,4 +2332,19 @@ flash-power question, and asked for more speed.
   - (b) is the real route. It needs the DAC output API and must check that
     the audio pipeline is initialised without `my_app`.
 
+## 2026-11-09 One-session install: `flash --far`
+
+- The user asked for a single flash.
+- `h9_flasher.py flash … --far <blob> --far-backup <file>` writes and
+  verifies the main image, then backs up, writes and verifies the far region
+  (`0xEA000`) in the same RAM-helper session. If the main image already
+  matches, only the far region is written.
+- `write_far_with_loader` is shared with `write-far`. Far writes are
+  refused with resume and restore.
+- 2 new tests (one session; refusal with recovery). All flasher tests pass.
+- Bluetooth cannot replace USB for code: the CPU executes from main flash,
+  and the S2 service writes only the resource chip. A main-flash writer over
+  Bluetooth would be possible but risky. Game data already goes over
+  Bluetooth once per pack.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

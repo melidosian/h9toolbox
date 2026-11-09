@@ -95,6 +95,45 @@ class FarRegionTests(unittest.TestCase):
         self.assertEqual(loader.erases, [])
 
 
+class OneSessionTests(unittest.TestCase):
+    """flash --far: the main image and the far region in one RAM-helper session."""
+
+    def test_main_then_far_in_one_session(self):
+        import struct
+        loader = FakeLoader(0x100000)
+        loader.chip_key = lambda: 0xF181
+        sessions = []
+
+        class Device:
+            def __init__(self, path):
+                sessions.append(path)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        image = bytearray(b"\x11" * 0x10000)
+        firmware = flasher.Firmware("pkg", "img", bytes(image), flasher.FlashHeader(b"V", b"P", 0x100000), 0xF181)
+        blob = bytes(range(256)) * 20
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(flasher, "load_protocol", return_value=(Device,)), \
+             patch.object(flasher, "require_bootloader"), \
+             patch.object(flasher, "start_loader", return_value=loader), \
+             patch.object(flasher, "parse_flash_header", return_value=firmware.header), \
+             patch.object(flasher, "ensure_backup_manifest"):
+            flasher.run_flash("fake", firmware, Path(temp) / "b.bin", custom=True,
+                              far=(blob, Path(temp) / "far.bin"))
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(bytes(loader.flash[:0x10000]), bytes(image))
+        self.assertEqual(bytes(loader.flash[0xEA000:0xEA000 + len(blob)]), blob)
+
+    def test_far_rejected_with_recovery(self):
+        with self.assertRaisesRegex(flasher.FlashError, "normal flash"):
+            flasher.run_flash("fake", None, Path("x"), recover=True, far=(b"1", Path("y")))
+
+
 class FlashSafetyTests(unittest.TestCase):
     def test_br23_ram_helper_is_sent_without_second_encryption(self):
         writes = []

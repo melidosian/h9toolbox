@@ -320,14 +320,8 @@ FAR_START = 0xEA000
 FAR_END = 0xFC000
 
 
-def run_write_far(device_path: str, blob_path: Path, address: int, backup_path: Path) -> None:
-    """Write raw bytes into the far region only, with a backup and readback.
-
-    The blob is written as-is (already in on-flash form). It is padded with
-    0xFF to whole 4 KiB sectors; sectors already holding the target bytes are
-    skipped.
-    """
-    blob = blob_path.read_bytes()
+def check_far(blob: bytes, address: int, backup_path: Path) -> bytes:
+    """The padded blob, after the region and backup-path checks (no device needed)."""
     if not blob:
         raise FlashError("Far blob is empty")
     padded = blob + b"\xff" * (-len(blob) % ERASE_SIZE)
@@ -336,31 +330,50 @@ def run_write_far(device_path: str, blob_path: Path, address: int, backup_path: 
         raise FlashError(f"Far writes must be sector-aligned within 0x{FAR_START:X}-0x{FAR_END:X}")
     if backup_path.exists():
         raise FlashError(f"Refusing to overwrite {backup_path}")
+    return padded
+
+
+def write_far_with_loader(loader, blob: bytes, address: int, backup_path: Path) -> None:
+    """Back up, write and verify the far region through an open RAM-helper session."""
+    padded = check_far(blob, address, backup_path)
+    end = address + len(padded)
+    current = b"".join(loader.flash_read(page, TRANSFER_SIZE) for page in range(address, end, TRANSFER_SIZE))
+    if len(current) != len(padded):
+        raise FlashError("Short read of the far region")
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    backup_path.write_bytes(current)
+    print(f"Far region backup: {backup_path} (0x{address:X}-0x{end:X}, SHA-256 {sha256(current).hexdigest()})")
+    changed = [o for o in range(0, len(padded), ERASE_SIZE) if current[o:o + ERASE_SIZE] != padded[o:o + ERASE_SIZE]]
+    print(f"Updating {len(changed)} of {len(padded) // ERASE_SIZE} far sectors", flush=True)
+    for o in changed:
+        loader.flash_erase_sector(address + o)
+        for page in range(o, o + ERASE_SIZE, TRANSFER_SIZE):
+            loader.flash_write(address + page, padded[page:page + TRANSFER_SIZE])
+        sector = b"".join(loader.flash_read(address + page, TRANSFER_SIZE) for page in range(o, o + ERASE_SIZE, TRANSFER_SIZE))
+        if sector != padded[o:o + ERASE_SIZE]:
+            raise FlashError(f"Far sector readback mismatch at 0x{address + o:X}")
+        print(f"Verified far sector 0x{address + o:X}", flush=True)
+    verified = b"".join(loader.flash_read(page, TRANSFER_SIZE) for page in range(address, end, TRANSFER_SIZE))
+    if verified != padded:
+        raise FlashError("Far region readback differs from the blob")
+    print(f"Far region verified: 0x{address:X}-0x{end:X}, blob SHA-256 {sha256(blob).hexdigest()}")
+
+
+def run_write_far(device_path: str, blob_path: Path, address: int, backup_path: Path) -> None:
+    """Write raw bytes into the far region only, with a backup and readback.
+
+    The blob is written as-is (already in on-flash form). It is padded with
+    0xFF to whole 4 KiB sectors; sectors already holding the target bytes are
+    skipped.
+    """
+    blob = blob_path.read_bytes()
+    check_far(blob, address, backup_path)
     protocol = load_protocol()
     with protocol[0](device_path) as device:
         require_bootloader(device)
         loader = start_loader(device, protocol)
         print(f"Chip key: 0x{loader.chip_key():04X}")
-        current = b"".join(loader.flash_read(page, TRANSFER_SIZE) for page in range(address, end, TRANSFER_SIZE))
-        if len(current) != len(padded):
-            raise FlashError("Short read of the far region")
-        backup_path.parent.mkdir(parents=True, exist_ok=True)
-        backup_path.write_bytes(current)
-        print(f"Far region backup: {backup_path} (0x{address:X}-0x{end:X}, SHA-256 {sha256(current).hexdigest()})")
-        changed = [o for o in range(0, len(padded), ERASE_SIZE) if current[o:o + ERASE_SIZE] != padded[o:o + ERASE_SIZE]]
-        print(f"Updating {len(changed)} of {len(padded) // ERASE_SIZE} far sectors", flush=True)
-        for o in changed:
-            loader.flash_erase_sector(address + o)
-            for page in range(o, o + ERASE_SIZE, TRANSFER_SIZE):
-                loader.flash_write(address + page, padded[page:page + TRANSFER_SIZE])
-            sector = b"".join(loader.flash_read(address + page, TRANSFER_SIZE) for page in range(o, o + ERASE_SIZE, TRANSFER_SIZE))
-            if sector != padded[o:o + ERASE_SIZE]:
-                raise FlashError(f"Far sector readback mismatch at 0x{address + o:X}")
-            print(f"Verified far sector 0x{address + o:X}", flush=True)
-        verified = b"".join(loader.flash_read(page, TRANSFER_SIZE) for page in range(address, end, TRANSFER_SIZE))
-    if verified != padded:
-        raise FlashError("Far region readback differs from the blob")
-    print(f"Far region verified: 0x{address:X}-0x{end:X}, blob SHA-256 {sha256(blob).hexdigest()}")
+        write_far_with_loader(loader, blob, address, backup_path)
 
 
 def flash_image(loader, image: bytes, current: bytes) -> None:
@@ -385,7 +398,13 @@ def flash_image(loader, image: bytes, current: bytes) -> None:
 
 def run_flash(device_path: str, firmware: Firmware, backup_path: Path, *,
               write: bool = True, recover: bool = False, restore: bool = False,
-              custom: bool = False) -> None:
+              custom: bool = False, far: tuple[bytes, Path] | None = None) -> None:
+    """far: (blob, backup path) to write to FAR_START in the same session, after
+    the main image is verified (or already matches)."""
+    if far is not None:
+        if not write or recover:
+            raise FlashError("A far write goes with a normal flash only")
+        check_far(far[0], FAR_START, far[1])
     if restore and not recover:
         raise FlashError("Restore requires recovery checks")
     if recover:
@@ -443,14 +462,16 @@ def run_flash(device_path: str, firmware: Firmware, backup_path: Path, *,
 
             if current == target:
                 print("Radio already contains the requested image; no erase or write needed.")
-                return
-            erase_started = True
-            flash_image(loader, target, current)
-            verified = read_flash(loader, len(firmware.image))
-            if verified != target:
-                mismatch = next(i for i, (a, b) in enumerate(zip(verified, target)) if a != b)
-                raise FlashError(f"Readback mismatch at flash offset 0x{mismatch:X}")
-            print(f"Readback verified: {sha256(target).hexdigest()}")
+            else:
+                erase_started = True
+                flash_image(loader, target, current)
+                verified = read_flash(loader, len(firmware.image))
+                if verified != target:
+                    mismatch = next(i for i, (a, b) in enumerate(zip(verified, target)) if a != b)
+                    raise FlashError(f"Readback mismatch at flash offset 0x{mismatch:X}")
+                print(f"Readback verified: {sha256(target).hexdigest()}")
+            if far is not None:
+                write_far_with_loader(loader, far[0], FAR_START, far[1])
             print("Restore complete." if restore else "Flash complete.",
                   "Power-cycle the radio to start the firmware.")
     except Exception:
@@ -491,6 +512,8 @@ def main() -> int:
     flash.add_argument("--backup", required=True, type=Path)
     flash.add_argument("--stock-base", type=Path, help="Stock v1.0.38 .fw used to validate an app-only custom image")
     flash.add_argument("--yes", action="store_true", help="Acknowledge that this will erase and rewrite radio flash")
+    flash.add_argument("--far", type=Path, help="Also write this blob at the far region (0xEA000) in the same session")
+    flash.add_argument("--far-backup", type=Path, help="Backup of the far sectors before --far (required with --far)")
     resume = sub.add_parser("resume", help="Retry an interrupted write using the exact backup from this radio")
     resume.add_argument("firmware", type=Path)
     resume.add_argument("--device", required=True)
@@ -537,9 +560,14 @@ def main() -> int:
                 raise FlashError("Add --yes to perform the flash; use inspect or probe first")
             firmware = (checked_custom_firmware(args.firmware, args.stock_base)
                         if args.stock_base else checked_firmware(args.firmware))
+            far = None
+            if getattr(args, "far", None):
+                if not args.far_backup:
+                    raise FlashError("--far needs --far-backup")
+                far = (args.far.read_bytes(), args.far_backup)
             run_flash(args.device, firmware, args.backup,
                       recover=args.command in ("resume", "restore"),
-                      restore=args.command == "restore", custom=bool(args.stock_base))
+                      restore=args.command == "restore", custom=bool(args.stock_base), far=far)
         return 0
     except (RuntimeError, OSError, ValueError) as error:
         print(f"Error: {error}", file=sys.stderr)
