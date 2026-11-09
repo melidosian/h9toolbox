@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  AREAS, DIRECTORY, buildDirectory, parseDirectory, planLayout, restore, sectorPlan, uploadPack,
+  AREAS, DIRECTORY, MUSIC_DIRECTORY, SLOTS, buildDirectory, parseDirectory, planLayout, restore, sectorPlan, uploadPack,
 } from '../prototypes/data-upload/upload.mjs';
 import { SECTOR } from '../dist/boot-logo/resource.mjs';
 import { SimulatedRadio } from './support/simulated-radio.mjs';
@@ -16,7 +16,7 @@ function stockLikeChip(sim) {
 
 test('layout fills resource after the directory, then font, then voice', () => {
   assert.deepEqual(planLayout(10), [{ area: 'resource', address: DIRECTORY + SECTOR, length: 10 }]);
-  const resourceRoom = 0xd00000 - (DIRECTORY + SECTOR);
+  const resourceRoom = MUSIC_DIRECTORY - (DIRECTORY + SECTOR);  // the music slot follows
   const two = planLayout(resourceRoom + 5);
   assert.deepEqual(two.map(s => [s.area, s.address, s.length]), [['resource', 0xa20000, resourceRoom], ['font', 0x717000, 5]]);
   assert.throws(() => planLayout(5 << 20), /larger than the stock-safe space/);
@@ -123,4 +123,24 @@ test('restore returns every written sector to erased, stock data untouched', asy
   assert.equal(result.erased, 7);
   assert.deepEqual(sim.chip, before);
   assert.equal((await restore(sim.radio)).erased, 0);
+});
+
+test('music slot: own directory, last 124 KiB of the resource tail, never touches the game pack', async () => {
+  assert.deepEqual(planLayout(10, SLOTS.music), [{ area: 'music', address: MUSIC_DIRECTORY + SECTOR, length: 10 }]);
+  assert.throws(() => planLayout(200 << 10, SLOTS.music), /music slot/);
+  const sim = new SimulatedRadio();
+  stockLikeChip(sim);
+  const game = pack(2 * SECTOR + 7, 3);
+  await uploadPack(sim.radio, game, { name: 'game' });
+  const song = pack(SECTOR + 33, 9);
+  const manifest = await uploadPack(sim.radio, song, { name: 'E1M1', slot: SLOTS.music });
+  assert.equal(manifest.slot, 'music');
+  assert.equal(parseDirectory(sim.chip.subarray(MUSIC_DIRECTORY, MUSIC_DIRECTORY + SECTOR)).complete, true);
+  assert.deepEqual(sim.chip.subarray(MUSIC_DIRECTORY + SECTOR, MUSIC_DIRECTORY + SECTOR + song.length), song);
+  // the game pack is untouched by the music upload and by a music restore
+  assert.deepEqual(sim.chip.subarray(0xa20000, 0xa20000 + game.length), game);
+  await restore(sim.radio, { slot: SLOTS.music });
+  assert.ok(sim.chip.subarray(MUSIC_DIRECTORY, 0xd00000).every(b => b === 0xff));
+  assert.deepEqual(sim.chip.subarray(0xa20000, 0xa20000 + game.length), game);
+  assert.equal(parseDirectory(sim.chip.subarray(DIRECTORY, DIRECTORY + SECTOR)).complete, true);
 });

@@ -1,5 +1,5 @@
 import { connectBluetooth } from '../../dist/boot-logo/radio.mjs?v=up2';
-import { planLayout, restore, uploadPack } from './upload.mjs?v=up2';
+import { SLOTS, planLayout, restore, uploadPack } from './upload.mjs?v=up3';
 
 const $ = id => document.getElementById(id);
 let session = null, busy = false, pack = null, manifest = null;
@@ -39,8 +39,9 @@ $('file').addEventListener('change', async () => {
   $('plan').replaceChildren();
   if (pack) {
     try {
-      const rows = [['Area', 'Chip address', 'Bytes'], ['resource (directory)', '0xa1f000', '4,096'],
-        ...planLayout(pack.length).map(s => [s.area, `0x${s.address.toString(16)}`, s.length.toLocaleString()])];
+      const slot = SLOTS[$('slot').value];
+      const rows = [['Area', 'Chip address', 'Bytes'], [`${slot.name} (directory)`, `0x${slot.directory.toString(16)}`, '4,096'],
+        ...planLayout(pack.length, slot).map(s => [s.area, `0x${s.address.toString(16)}`, s.length.toLocaleString()])];
       $('plan').replaceChildren(...rows.map((cells, i) => {
         const row = document.createElement('tr');
         for (const text of cells) { const cell = document.createElement(i ? 'td' : 'th'); cell.textContent = text; row.append(cell); }
@@ -51,6 +52,7 @@ $('file').addEventListener('change', async () => {
   }
   refresh();
 });
+$('slot').addEventListener('change', () => $('file').dispatchEvent(new Event('change')));
 $('connect').addEventListener('click', () => run(async () => {
   session = await connectBluetooth({
     log: (message, level) => { if (level !== 'debug') log(message, level === 'error'); },
@@ -66,7 +68,7 @@ $('upload').addEventListener('click', () => run(async () => {
   manifest = null;
   $('result').textContent = '';
   const name = $('name').value.trim() || 'pack';
-  manifest = await uploadPack(session.radio, pack, { name, onProgress: progress(performance.now()) });
+  manifest = await uploadPack(session.radio, pack, { name, slot: SLOTS[$('slot').value], onProgress: progress(performance.now()) });
   manifest.uploaded = new Date().toISOString();
   const rate = (manifest.writeBytesPerSecond / 1024).toFixed(2);
   $('result').innerHTML = `<span class="ok">Uploaded and verified.</span> ${manifest.bytes.toLocaleString()} bytes; wrote ${manifest.sectorsWritten} sectors in ${(manifest.writeSeconds / 60).toFixed(1)} min (${rate} KiB/s); ${(manifest.totalSeconds / 60).toFixed(1)} min in all.`;
@@ -81,7 +83,7 @@ $('saveManifest').addEventListener('click', () => {
 });
 for (const [id, deep] of [['restore', false], ['deep', true]]) {
   $(id).addEventListener('click', () => run(async () => {
-    const result = await restore(session.radio, { deep, onProgress: progress(performance.now()) });
+    const result = await restore(session.radio, { deep, slot: SLOTS[$('slot').value], onProgress: progress(performance.now()) });
     $('result').textContent = result.note ?? `Restored: erased ${result.erased} sector(s)${result.name ? ` of "${result.name}"` : ''}; read back as erased.`;
     log($('result').textContent);
   }));

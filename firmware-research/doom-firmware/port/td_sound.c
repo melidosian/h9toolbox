@@ -24,8 +24,9 @@
 #include "platform.h"
 
 #include "td.h"
+#include "td_music.h"
 
-enum { RATE = 11025, STEPS = 140, LEAD = RATE / 5, CHUNK = 64, RING = 4096 };
+enum { RATE = 11025, STEPS = 140, LEAD = RATE / 5, CHUNK = TD_MUSIC_CHUNK, RING = 4096 };
 #define PIT_HZ 1193181u
 #define DAC_HANDLE ((void *)(0x11AD0 + 6636))
 
@@ -156,10 +157,15 @@ void td_sound_pump(void)
     int32_t due = (int32_t)(elapsed * RATE / 100) + LEAD;
     if (due - written > RING)   // fell behind (a long load): restart the lead
         written = due - LEAD;
-    static int16_t chunk[CHUNK];  // static: the pump runs inside the renderer's deep stack
+    // static: the pump runs inside the renderer's deep stack
+    static int16_t chunk[CHUNK];
+    static int32_t mix[CHUNK];
     for (unsigned n = 0; written + CHUNK <= due && n < 8; n++) {
         for (unsigned i = 0; i < CHUNK; i++)
-            chunk[i] = next_sample();
+            mix[i] = next_sample();
+        td_music_chunk(mix);  // the music under the effects (td_music.c)
+        for (unsigned i = 0; i < CHUNK; i++)
+            chunk[i] = (int16_t)(mix[i] > 32767 ? 32767 : mix[i] < -32768 ? -32768 : mix[i]);
         h9_dac_write128(chunk);
         written += CHUNK;
     }

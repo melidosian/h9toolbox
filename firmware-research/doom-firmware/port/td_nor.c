@@ -109,14 +109,14 @@ static uint32_t rd32(const uint8_t *p)
     return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24;
 }
 
-// The pack's chip address and length from a COMPLETE directory with one
-// segment. 0 on success, a negative code otherwise.
-int td_pack_find(uint32_t *address, uint32_t *length)
+// The data's chip address and length from the COMPLETE upload directory at
+// `directory` (one segment). 0 on success, a negative code otherwise.
+int td_dir_find(uint32_t directory, uint32_t *address, uint32_t *length)
 {
     uint8_t d[128];
     uint8_t done[16];
-    nor_read(TD_DIRECTORY, d, sizeof d);
-    nor_read(TD_DIRECTORY + 0x1000 - 32, done, sizeof done);
+    nor_read(directory, d, sizeof d);
+    nor_read(directory + 0x1000 - 32, done, sizeof done);
     if (memcmp(d, "H9DATA01", 8))
         return -1;  // no upload
     if (memcmp(done, "H9DATA-COMPLETE", 15))
@@ -132,6 +132,11 @@ int td_pack_find(uint32_t *address, uint32_t *length)
     if (*address < TD_RESOURCE_ORIGIN || *address + *length > TD_RESOURCE_END || (*address & 0xFFF))
         return -5;
     return 0;
+}
+
+int td_pack_find(uint32_t *address, uint32_t *length)
+{
+    return td_dir_find(TD_DIRECTORY, address, length);
 }
 
 // ---- FAT12 lookups of the data layer

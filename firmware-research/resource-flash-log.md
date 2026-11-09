@@ -2651,4 +2651,30 @@ flash-power question, and asked for more speed.
   effects play through the TD-H9 speaker during the game.
 - Next request: music.
 
+## 2026-11-09 Music (route A: chiptune player), build 26
+
+- The user chose route A (on-radio chiptune) over pre-rendered audio.
+- `doom-firmware/music.py` converts MIDI to H9MU (header + events in
+  64-sample chunks): 7 square voices allocated offline (oldest stolen), 1
+  drum voice; volume = velocity × channel volume, 0–15. Freedoom
+  `D_E1M1` (MIDI, 50,124 B, 18 tracks) → `E1M1.h9mu` 28,652 B, 130.6 s,
+  3,746 notes (403 stolen), 1,737 drum hits. Output is kept outside the
+  repo (`doom-packs/music/`).
+- `port/td_music.c`: the player. Square voices; drums are noise
+  (hats/snare/cymbals with decays) or a low square (kick/toms). Events are
+  read from the chip 256 B at a time, and the song loops. `td_sound.c`
+  mixes one chunk under the effects, clipped.
+- `test/music_wav.c` builds the same player on the host: preview
+  `E1M1-radio-preview.wav`, peak 11,196, no clipping.
+- Music slot: its own upload directory at `0xCE0000`, data
+  `0xCE1000–0xD00000` (124 KiB). The game slot's resource area now ends at
+  `0xCE0000`; the E1M1S pack (1 MB at `0xA20000`) is unaffected.
+  `td_dir_find()` generalises `td_pack_find()`. The status screen shows
+  MUSIC ON / NO MUSIC.
+- Uploader: `SLOTS` (game, music), with the slot passed to planLayout,
+  buildDirectory, uploadPack and restore; a slot selector on the page. A
+  new test checks that a music upload and restore leave the game pack
+  intact. 10/10 pass.
+- Build 26: package `5080287d…`, flash `610f1b4d…`, far `fd471ac0…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

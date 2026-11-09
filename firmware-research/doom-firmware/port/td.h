@@ -39,6 +39,10 @@ enum { TD_W = 160, TD_H = 128 };
 // Resource flash: the upload directory and the pack (prototypes/data-upload).
 #define TD_RESOURCE_ORIGIN 0xA00000u
 #define TD_RESOURCE_END 0xD00000u
+// Music slot: its own upload directory, data from the next sector (124 KiB).
+// The game pack's area ends here (prototypes/data-upload: slot "music").
+#define TD_MUSIC_DIRECTORY 0xCE0000u
+int td_dir_find(uint32_t directory, uint32_t *address, uint32_t *length);
 #define TD_DIRECTORY 0xA1F000u
 
 #ifdef TD_HOST

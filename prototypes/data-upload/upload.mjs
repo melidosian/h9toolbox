@@ -10,8 +10,9 @@
 //   - everything written is read back and compared;
 //   - restore erases exactly what the directory lists (or, deep, every
 //     non-erased sector of the three tails), returning them to 0xFF.
-// Layout: a 4 KiB directory sector at 0xA1F000, the pack from 0xA20000 on,
-// continuing into the font and then the voice tail if it is larger.
+// Layout: game slot: a 4 KiB directory sector at 0xA1F000, the pack from
+// 0xA20000 to 0xCE0000, continuing into the font and then the voice tail if it
+// is larger. Music slot: directory 0xCE0000, data 0xCE1000-0xD00000.
 // Order: the directory is written first with its last 32-byte block left
 // erased ("in progress"); it claims the sectors, so an interrupted upload
 // resumes where it stopped. After the pack is written and verified, that
@@ -33,6 +34,23 @@ export const AREAS = [
   { name: 'voice', start: 0x3a7000, end: 0x400000 },
 ];
 export const DIRECTORY = 0xa1f000;
+// Upload slots, each with its own directory sector. The game pack fills the
+// resource tail up to the music slot, then the font and voice tails; music
+// (an H9MU song for the Doom firmware, doom-firmware/music.py) gets the last
+// 128 KiB of the resource tail. A slot only claims or erases what its own
+// directory lists.
+export const MUSIC_DIRECTORY = 0xce0000;
+export const SLOTS = {
+  game: {
+    name: 'game', directory: DIRECTORY,
+    areas: [
+      { name: 'resource', start: DIRECTORY + 0x1000, end: MUSIC_DIRECTORY },
+      { name: 'font', start: 0x717000, end: 0x800000 },
+      { name: 'voice', start: 0x3a7000, end: 0x400000 },
+    ],
+  },
+  music: { name: 'music', directory: MUSIC_DIRECTORY, areas: [{ name: 'music', start: MUSIC_DIRECTORY + 0x1000, end: 0xd00000 }] },
+};
 export const MAGIC = 'H9DATA01';
 export const COMPLETE = 'H9DATA-COMPLETE';
 export const COMPLETE_OFFSET = SECTOR - BLOCK;
@@ -46,21 +64,21 @@ export function inAreas(start, end) {
   return AREAS.some(area => start >= area.start && end <= area.end);
 }
 
-// Chip ranges for a pack of `length` bytes, in order: resource (after the
-// directory sector), then font, then voice. Each segment is whole sectors.
-export function planLayout(length) {
+// Chip ranges for a pack of `length` bytes in a slot's areas, in order (for
+// the game slot: resource after the directory sector, then font, then voice).
+export function planLayout(length, slot = SLOTS.game) {
   if (!(length > 0)) throw new Error('The pack is empty.');
   const segments = [];
   let left = length;
-  for (const [index, area] of AREAS.entries()) {
-    const start = index === 0 ? DIRECTORY + SECTOR : area.start;
+  for (const area of slot.areas) {
+    const start = area.start;
     const room = area.end - start;
     const take = Math.min(left, room);
     if (take > 0) segments.push({ area: area.name, address: start, length: take });
     left -= take;
     if (!left) return segments;
   }
-  throw new Error(`The pack (${length.toLocaleString()} bytes) is larger than the stock-safe space.`);
+  throw new Error(`The pack (${length.toLocaleString()} bytes) is larger than the stock-safe space of the ${slot.name} slot.`);
 }
 
 export async function sha256(bytes) {
@@ -69,8 +87,8 @@ export async function sha256(bytes) {
 
 // Directory sector: magic, version, pack length, SHA-256, name, segments,
 // CRC-16 of everything before it; the rest of the sector stays 0xFF.
-export async function buildDirectory(pack, name) {
-  const segments = planLayout(pack.length);
+export async function buildDirectory(pack, name, slot = SLOTS.game) {
+  const segments = planLayout(pack.length, slot);
   const sector = new Uint8Array(SECTOR).fill(0xff);
   const view = new DataView(sector.buffer);
   sector.set(new TextEncoder().encode(MAGIC), 0);
@@ -214,8 +232,8 @@ export function completeBlock() {
 }
 
 const sameBytes = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
-const rangesOf = dir => [...dir.segments.map(s => ({ address: s.address, length: Math.ceil(s.length / SECTOR) * SECTOR })),
-  { address: DIRECTORY, length: SECTOR }];
+const rangesOf = (dir, slot) => [...dir.segments.map(s => ({ address: s.address, length: Math.ceil(s.length / SECTOR) * SECTOR })),
+  { address: slot.directory, length: SECTOR }];
 
 async function programBlock(radio, address, block) {
   await radio.sendWrite(controlFrame(OP.program, address));
@@ -226,10 +244,10 @@ async function programBlock(radio, address, block) {
 
 // Upload `pack` (Uint8Array). onProgress(fraction, phase, bytesPerSecond).
 // Returns a manifest for the record.
-export async function uploadPack(radio, pack, { name = 'pack', onProgress = () => {}, now = () => Date.now() } = {}) {
-  const { sector: directory, segments } = await buildDirectory(pack, name);
+export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game, onProgress = () => {}, now = () => Date.now() } = {}) {
+  const { sector: directory, segments } = await buildDirectory(pack, name, slot);
   const digest = await sha256(pack);
-  const regions = [{ area: 'resource', address: DIRECTORY, length: SECTOR },
+  const regions = [{ area: `${slot.name} directory`, address: slot.directory, length: SECTOR },
     ...segments.map(s => ({ ...s, length: Math.ceil(s.length / SECTOR) * SECTOR }))];
   let offset = 0;
   const targets = regions.map((region, i) => {
@@ -245,12 +263,12 @@ export async function uploadPack(radio, pack, { name = 'pack', onProgress = () =
   const same = previous && previous.length === pack.length && sameBytes(previous.sha256, digest);
   if (previous && !same) {
     radio.log(`Replacing the previous upload "${previous.name}": erasing its ${previous.segments.length} range(s) first.`);
-    await restore(radio, { onProgress: f => onProgress(0.2 * f, 'Erasing the previous upload') });
+    await restore(radio, { slot, onProgress: f => onProgress(0.2 * f, 'Erasing the previous upload') });
     current = await readRanges(radio, regions, f => onProgress(0.2 * f, 'Checking target sectors'));
   } else if (same) {
     radio.log(`Resuming "${previous.name}" (${previous.complete ? 'already complete' : 'in progress'}).`);
   }
-  const owned = same ? address => rangesOf(previous).some(r => address >= r.address && address < r.address + r.length)
+  const owned = same ? address => rangesOf(previous, slot).some(r => address >= r.address && address < r.address + r.length)
     : () => false;
   // A complete directory differs from `directory` only in its last block.
   const dirTarget = same && previous.complete ? current[0] : directory;
@@ -282,15 +300,15 @@ export async function uploadPack(radio, pack, { name = 'pack', onProgress = () =
     throw new Error('Directory read-back differs.');
   }
   if (!parseDirectory(check[0]).complete) {
-    await withWriteLink(radio, () => programBlock(radio, DIRECTORY + COMPLETE_OFFSET, completeBlock()));
-    const [dir] = await readRanges(radio, [{ address: DIRECTORY, length: SECTOR }], () => {});
+    await withWriteLink(radio, () => programBlock(radio, slot.directory + COMPLETE_OFFSET, completeBlock()));
+    const [dir] = await readRanges(radio, [{ address: slot.directory, length: SECTOR }], () => {});
     if (!parseDirectory(dir)?.complete) throw new Error('The directory did not read back as complete.');
   }
   onProgress(1, 'Done');
   return {
-    kind: 'td-h9-data-upload', name, bytes: pack.length,
+    kind: 'td-h9-data-upload', slot: slot.name, name, bytes: pack.length,
     sha256: Array.from(digest, b => b.toString(16).padStart(2, '0')).join(''),
-    directory: hex(DIRECTORY), segments: segments.map(s => ({ area: s.area, address: hex(s.address), length: s.length })),
+    directory: hex(slot.directory), segments: segments.map(s => ({ area: s.area, address: hex(s.address), length: s.length })),
     sectorsWritten: sectors, bytesProgrammed: programmed, writeSeconds,
     writeBytesPerSecond: Math.round(programmed / Math.max(0.001, writeSeconds)),
     totalSeconds: (now() - started) / 1000, verified: true, complete: true,
@@ -299,8 +317,8 @@ export async function uploadPack(radio, pack, { name = 'pack', onProgress = () =
 
 // Erase what the directory lists (or, with deep, every non-erased sector in
 // the three tails), then confirm 0xFF by read-back.
-export async function restore(radio, { deep = false, onProgress = () => {} } = {}) {
-  const [dirSector] = await readRanges(radio, [{ address: DIRECTORY, length: SECTOR }], () => {});
+export async function restore(radio, { deep = false, slot = SLOTS.game, onProgress = () => {} } = {}) {
+  const [dirSector] = await readRanges(radio, [{ address: slot.directory, length: SECTOR }], () => {});
   const dir = parseDirectory(dirSector);
   let ranges;
   if (deep) {
@@ -310,7 +328,7 @@ export async function restore(radio, { deep = false, onProgress = () => {} } = {
       if (isErased(dirSector)) return { erased: 0, note: 'No upload directory; nothing to restore.' };
       throw new Error('The directory sector holds unknown data. Use a deep restore.');
     }
-    ranges = rangesOf(dir);
+    ranges = rangesOf(dir, slot);
   }
   const current = await readRanges(radio, ranges, f => onProgress(0.5 * f, 'Reading'));
   const plans = ranges.map((r, i) => sectorPlan(r.address, current[i], new Uint8Array(r.length).fill(0xff), () => true));

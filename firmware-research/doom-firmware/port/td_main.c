@@ -23,6 +23,8 @@
 #include "dmcdat.h"
 
 #include "td.h"
+#include "td_music.h"
+#include "nor.h"
 
 extern uint8_t __data_load[], __data_start[], __data_end[], __bss_start[], __bss_end[];
 
@@ -464,6 +466,14 @@ void td_main(void)
     S_PcsInit(img_read, img.sect[DMC_SECT_SOUNDS].off, img.sect[DMC_SECT_SOUNDS].size);
     td_sound_init();
     td_text(0, 56, img.sect[DMC_SECT_SOUNDS].size ? "SOUND ON" : "NO SOUNDS", GREEN, BLACK);
+    // 6. Music: an H9MU song in the music slot (doom-firmware/music.py).
+    {
+        uint32_t song, song_length;
+        int music = td_dir_find(TD_MUSIC_DIRECTORY, &song, &song_length);
+        if (!music)
+            music = td_music_start(nor_read, song, song_length);
+        td_text(0, 70, music ? "NO MUSIC" : "MUSIC ON", music ? WHITE : GREEN, BLACK);
+    }
 
     myargc = 4;
     myargv = args;
