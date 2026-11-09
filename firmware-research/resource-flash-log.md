@@ -1748,4 +1748,17 @@ flash-power question, and asked for more speed.
   (2,948 KiB), at about 9–12 min estimated upload. Visual quality on the
   160×128 panel is still to be judged.
 
+## 2026-11-09 DMC100 engine on Pi32v2: 112 KB core
+
+- DMC100's size-gate set, built with JieLi clang and linked with
+  `--gc-sections`: code 80,036 B, rodata 31,842 B, data 240 B, bss
+  13,396 B.
+- Before gc, Pi32v2 is 119,415 B against Cortex-M4's 126,403 B (5.5%
+  smaller).
+- A complete port (with front end and platform) is estimated at 140–170 KB.
+- Free main flash outside the app today: 76 KiB (`0xEA000–0xFCFFF`). The
+  Doom firmware therefore needs roughly 70–100 KB more. Options: DMC100-style
+  code overlays loaded from the resource chip into RAM, reclaiming stock
+  code and assets only `my_app` uses, or a from-scratch image.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

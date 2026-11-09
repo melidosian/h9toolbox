@@ -90,6 +90,32 @@ strip renderer.
 - Upload estimate over Bluetooth at 1.5–2 KB/s (write speed not yet timed):
   about 25–30 minutes for E1M1, 32–42 minutes for E1.
 
+### Engine size on the TD-H9's CPU (measured)
+
+DMC100-Doom's "ARM size gate" set (81 files: engine without the WAD code,
+data layer, strip renderer, trig decoder, object store, libc and platform
+stubs, generated tables), compiled with JieLi clang (`-target pi32v2
+-mcpu=r3 -Oz -ffunction-sections -fdata-sections -ffreestanding`), all
+compile cleanly. Linked with JieLi `ld --gc-sections` (its `size.ld`,
+addresses moved), with no undefined symbols:
+
+| Section | Bytes |
+|---|---:|
+| code | 80,036 |
+| constants | 31,842 |
+| data | 240 |
+| bss | 13,396 |
+
+- The same objects before dead-code removal: Pi32v2 119,415 B
+  code+constants against **126,403 B for Cortex-M4 Thumb-2** (Apple clang,
+  same flags). Pi32v2 is about 5.5% smaller.
+- Not counted: the front end (menus, intermission, finale, saves; overlays
+  in DMC100), input and our platform layer.
+- DMC100 ships 99 KB resident plus 42 KB of overlays, so a complete
+  TD-H9 port is probably 140–170 KB of code and constants.
+- RAM follows DMC100's 32 KB design (static data plus frame region plus
+  level arena).
+
 Earlier raw-WAD estimate, kept for comparison (`wad_tool.py`):
 
 - Target: shareware `doom1.wad` (4,196,020 bytes) or the free Freedoom.
