@@ -2520,4 +2520,9 @@ flash-power question, and asked for more speed.
   then our 1 s square wave through the stock write. Package `54499096…`,
   flash `0de721ed…`, far `1e116744…`.
 
+- Build 17 on hardware: key 5 alone does not crash and gives no sound.
+  Key 6 alone crashes: our writes collided with the playing stock tone.
+- Build 18: key 6 plays the stock tone, waits 1.5 s, re-gates the
+  amplifier, sets rate 11025 and starts (stock), then streams 1 s.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

@@ -267,7 +267,7 @@ static void audio_probe(void)
     heap_give_back();  // Doom does not start from here; the tone decoder allocates
     uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 4", GREEN, BLACK);
+    td_text(0, 0, "AUDIO PROBE 5", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -288,9 +288,15 @@ static void audio_probe(void)
             } else if (key == TD_KEY_6) {
                 // build 17: wake the hardware the way stock's tone player does
                 // (HRP moved only after it), then stream our tone into it
+                // build 18: build 17 wrote while the stock tone was still
+                // playing and crashed; wait for it to end, then start the DAC
+                // (the driver stops it after a tone; writes need state 2/3)
                 h9_speaker_gate(1, 1);
                 h9_play_tone(0);
-                h9_delay(30);
+                h9_delay(1500);
+                h9_speaker_gate(1, 1);
+                h9_dac_rate(DAC_HANDLE, 11025);
+                h9_dac_start(DAC_HANDLE);
                 uint32_t start = td_ticks();
                 while (td_ticks() - start < 100) {
                     tone_chunk(chunk, &phase);
