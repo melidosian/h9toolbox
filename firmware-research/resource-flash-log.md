@@ -2101,4 +2101,14 @@ flash-power question, and asked for more speed.
   - The trap stubs stay in the Doom build's safety design only until Doom
     code replaces them.
 
+## 2026-11-09 Back to H9 Toolbox through our own USB trigger
+
+- Holding 3 on the cave trap monitor entered the USB loader (`4C4A:2342`
+  "BR23UBOOT1.00"). From there `h9_flasher.py flash` reinstalled H9 Toolbox
+  with the far launcher. The backup was the cave trap image (`d8afb645…`),
+  24 sectors were written, and the readback is `5af9bdfe…`.
+- The cave-hosted recovery trigger works for a full reflash with
+  `my_app` replaced. No PTT+2 and no stock hold-8 were needed. The far
+  region still holds the trap monitor (harmless on H9 Toolbox).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
