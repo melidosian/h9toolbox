@@ -2390,4 +2390,22 @@ flash-power question, and asked for more speed.
 - Fallback that works today: upload with H9 Toolbox Firmware, then flash
   Doom (the pack survives).
 
+## 2026-11-09 Bluetooth start-up path in stock (static + stock RAM)
+
+- `app_core` (app+`0x66648`) runs a mode state machine: current mode at
+  RAM `0x11AD0+101`, requested mode at `+100` (copied and cleared at
+  app+`0x6336C`). Jump table at app+`0x667F2`: mode 1 → `0x63390`,
+  2 → `0x633BE`, **3 → `0x63C9A`**, 4 → `0x65700`, 5 → `0x6616A`,
+  10 → `0x6261E`.
+- Stock RAM (idle dump): mode 3, request 0, `+360` = `0x01EB2C90`,
+  `0xC11A` = 98, `0x12234` = `0x5AA5`.
+- Mode 3 (`0x63C9A`) runs the Bluetooth stack start-up (`0x634EC`,
+  `0x15598`, `0x181B4…0x1835C`, which name the `btstack` task) when flag
+  bit 2 at `0xC118` is set and `0x630EE` (`[0x11AD0+764]` and `+108`
+  bit 2) agrees. Bit 2 is set at app+`0x8A1D6` and app+`0x8DC6C`.
+- The request writer was not found statically (likely through a pointer).
+- Build 9 (diagnostic) shows mode, request, `+360`, `0xC11A`, `+108` and
+  `+120` inside Doom for 6 s. Package `ea2cdadf…`, flash `97c32338…`, far
+  `e8fe7394…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

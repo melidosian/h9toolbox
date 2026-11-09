@@ -219,6 +219,28 @@ void td_main(void)
     td_text(96, 14, "/", WHITE, BLACK);
     number(104, 14, *(volatile uint16_t *)0x1d8aa, WHITE);
 #endif
+    // Bluetooth diagnostic (build 9): the system core's mode state (stock,
+    // running: mode 3, +360 set, 0xC11A = 98), shown for 6 s.
+#ifndef TD_HOST
+    {
+        volatile uint8_t *core = (volatile uint8_t *)0x11AD0;
+        td_text(0, 56, "MODE", WHITE, BLACK);
+        number(40, 56, core[101], YELLOW);
+        td_text(72, 56, "REQ", WHITE, BLACK);
+        number(104, 56, core[100], YELLOW);
+        td_text(0, 70, "P360", WHITE, BLACK);
+        uint32_t p = *(volatile uint32_t *)(0x11AD0 + 360);
+        number(40, 70, p & 0xFFFFF, YELLOW);
+        td_text(0, 84, "C11A", WHITE, BLACK);
+        number(40, 84, *(volatile uint8_t *)0xC11A, YELLOW);
+        td_text(72, 84, "B108", WHITE, BLACK);
+        number(112, 84, core[108], YELLOW);
+        td_text(0, 98, "B120", WHITE, BLACK);
+        number(40, 98, core[120], YELLOW);
+        h9_delay(6000);
+        td_fill(0, 56, TD_W, 52, BLACK);
+    }
+#endif
     uint32_t address, length;
     td_nor_setup();
     // The H9 Toolbox upload service (in this image) and the stock partition
