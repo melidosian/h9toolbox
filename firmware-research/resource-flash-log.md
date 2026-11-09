@@ -2347,4 +2347,25 @@ flash-power question, and asked for more speed.
   Bluetooth would be possible but risky. Game data already goes over
   Bluetooth once per pack.
 
+## 2026-11-09 Build 8: Bluetooth upload inside Doom (offline)
+
+- The Doom image is now built on H9 Toolbox Firmware (app `1334a32c…`)
+  instead of stock, so it carries the S2 upload service and its
+  clone-protocol hooks.
+- Byte comparison with H9 Toolbox: every service byte is unchanged. That
+  covers the hooks at app+`0x5D018`/`0x5D122`, `.s2` at `0xA51A8`, the
+  tables at `0xA7E50`, and the reader at `0xA9D9E–0xAA178`. Only Brick
+  Breaker's game in the cave is replaced, by the startup (748 B, below the
+  tables).
+- The service's stock calls are all outside the Doom regions (`0x4FF06`,
+  `0x4FF22`, `0x50000`, `0x5006E`, `0x50286`, `0x50316`, `0x52CB2`,
+  `0x5D2E0`, `0x16652`). Its readiness check (and the partition reader's)
+  wants RAM `0x12234` = `0x5AA5`; `td_main` sets it after `td_nor_setup`.
+- No complete pack now shows "WAITING FOR BLUETOOTH UPLOAD" and re-checks
+  the directory every 3 s; once the pack is complete it starts the game.
+  Hold 3 for 2 s still enters the USB loader.
+- Includes the gamma lift and the WASD controls. Host test ok. Package
+  `add5a849…` (flash `0fff5d8c…`), far blob `173587a0…`.
+- Open: whether the clone protocol session answers with `my_app` replaced.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

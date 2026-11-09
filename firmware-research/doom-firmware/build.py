@@ -39,6 +39,15 @@ RESEARCH = ROOT.parent
 TOOLS = RESEARCH / "brick-breaker" / "tools"
 ISA = TOOLS / "pi32v2-isa"
 STOCK_SHA256 = "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3"
+# Base app: H9 Toolbox Firmware (stock + Brick Breaker + the S2 resource
+# service). Its Bluetooth upload service then works inside the Doom firmware
+# (td_main sets the ready marker after setting up the resource flash). The
+# startup overwrites Brick Breaker's game in the cave; the service's tables
+# right after it (app+0xA7E50) stay. The Brick Breaker launcher hook
+# (app+0x88906, in the unused R2B range) is never reached: my_app is replaced.
+H9TB_RAW = RESEARCH / "resource-service" / "build" / "h9_toolbox_firmware_NOT_FOR_FLASH.raw"
+H9TB_APP_SHA256 = "1334a32c9ec3191ea0c8ca3f657331a5c5ce110a71185db1d075e7cd5d4a5ead"
+H9TB_TABLES = 0xA7E50
 STOCK_PACKAGE_SHA256 = "c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6"
 IMAGE_BASE = 0x01E00100
 MY_APP = 0x88180
@@ -245,6 +254,9 @@ def build(dmc: Path, stock_image: Path, stock_package: Path, toolchain: Path, ou
         raise ValueError("Heap-end instruction differs from the pinned one")
     if stock[CAVE:CAVE + CAVE_SIZE] != b"\xff" * CAVE_SIZE:
         raise ValueError("Cave is not erased in stock")
+    base = H9TB_RAW.read_bytes()
+    if sha256(base).hexdigest() != H9TB_APP_SHA256:
+        raise ValueError("H9 Toolbox Firmware base app differs from the pinned build")
     mount = Path(os.path.commonpath([dmc, ROOT]))
     out.mkdir(parents=True, exist_ok=True)
     objs = compile_all(dmc, mount, toolchain, out) + [entry_object(out)]
@@ -275,13 +287,15 @@ def build(dmc: Path, stock_image: Path, stock_package: Path, toolchain: Path, ou
     if len(far) > FAR_SIZE:
         raise ValueError("far region overflow")
 
-    patched = bytearray(stock)
+    patched = bytearray(base)
     hook = bytes(next(s for s in elf.read(asm.assemble_source(
         f'    .section .text,"ax",@progbits\n    call {CAVE - MY_APP - 4}\n')).sections if s.name == ".text").data)
     patched[MY_APP:MY_APP + 4] = hook
     cave = bytes(sec[".cave"].data)
     if sec[".cave"].addr != IMAGE_BASE + CAVE or program.entry != IMAGE_BASE + CAVE:
         raise ValueError("startup is not at the cave start")
+    if CAVE + len(cave) > H9TB_TABLES:
+        raise ValueError("startup would overwrite the resource service tables")
     patched[CAVE:CAVE + len(cave)] = cave
     for name, origin, length in REGIONS[1:]:
         data = region_bytes(name)
@@ -304,13 +318,15 @@ def build(dmc: Path, stock_image: Path, stock_package: Path, toolchain: Path, ou
     from h9_flasher import parse_firmware  # noqa: E402
     original, target = parse_firmware(stock_package).image, parse_firmware(package).image
     changed = [o for o in range(0, len(original), 4096) if original[o:o + 4096] != target[o:o + 4096]]
-    allowed = {0x5000, 0xD9000, (HEAP_END_SITE + 0x5100) & ~0xFFF, (CAVE + 0x5100) & ~0xFFF,
+    allowed = {0x5000, 0xD9000, 0x62000, 0xAA000, 0xAE000, 0xAF000,  # + H9 Toolbox's own sectors
+                (HEAP_END_SITE + 0x5100) & ~0xFFF, (CAVE + 0x5100) & ~0xFFF,
                (CAVE + CAVE_SIZE + 0x5100) & ~0xFFF} | set(range((0x79E32 + 0x5100) & ~0xFFF, 0x890E4 + 0x5100, 0x1000))
     if set(changed) - allowed:
         raise ValueError(f"unexpected sectors: {[hex(c) for c in sorted(set(changed) - allowed)]}")
     manifest = {
         "kind": "td_h9_doom_firmware_first_pass",
         "engine": "DMC100-Doom 0cdc78e (GPL-2.0-or-later) size-gate set + TD-H9 port/",
+        "base": "H9 Toolbox Firmware app 1334a32c (Bluetooth upload service included)",
         "cave_bytes": len(cave), "regions_bytes": used, "regions_capacity": {n: l for n, _, l in REGIONS},
         "far_blob_bytes": len(far), "data_bytes": len(data_bytes),
         "ram": {"core": hex(RAM_BASE), "bss_end": hex(bss_end), "frame_start": hex(frame),

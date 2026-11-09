@@ -152,6 +152,42 @@ static void key_test(void)
     }
 }
 
+// No complete pack: wait while the H9 Toolbox upload page writes one over
+// Bluetooth (prototypes/data-upload), checking the directory every 3 s.
+static void wait_for_upload(int why, uint32_t *address, uint32_t *length)
+{
+    td_fill(0, 0, TD_W, TD_H, BLACK);
+    td_text(0, 0, "H9 DOOM", YELLOW, BLACK);
+    td_text(0, 20, why == -2 ? "UPLOAD NOT DONE" : why == -1 ? "NO GAME DATA" : "DATA DAMAGED", RED, BLACK);
+    td_text(0, 40, "WAITING FOR", WHITE, BLACK);
+    td_text(0, 52, "BLUETOOTH UPLOAD", WHITE, BLACK);
+    td_text(0, 108, "HOLD 3: USB", YELLOW, BLACK);
+    uint32_t checked = td_ticks(), since = 0, dots = 0;
+    int held = 0;
+    for (;;) {
+        if (h9_key() == TD_KEY_3) {
+            if (!held) { held = 1; since = td_ticks(); }
+            if (td_ticks() - since >= 200)
+                usb_loader();
+        } else {
+            held = 0;
+        }
+        if (td_ticks() - checked >= 300) {
+            checked = td_ticks();
+            td_fill(0, 72, TD_W, 10, BLACK);
+            td_text(8 * (dots++ % 18), 72, ".", GREEN, BLACK);
+            if (!td_pack_find(address, length)) {
+                td_text(0, 88, "DATA FOUND", GREEN, BLACK);
+                h9_delay(1000);
+                td_fill(0, 0, TD_W, TD_H, BLACK);
+                td_text(0, 0, "H9 DOOM", YELLOW, BLACK);
+                return;
+            }
+        }
+        h9_delay(10);
+    }
+}
+
 static char *args[] = { "doom", "-warp", "1", "1", 0 };
 
 void td_main(void)
@@ -185,9 +221,15 @@ void td_main(void)
 #endif
     uint32_t address, length;
     td_nor_setup();
+    // The H9 Toolbox upload service (in this image) and the stock partition
+    // reader it uses check the marker stock my_app sets once the resource
+    // flash is up; td_nor_setup did that set-up.
+#ifndef TD_HOST
+    *(volatile uint16_t *)0x12234 = 0x5AA5;
+#endif
     int found = td_pack_find(&address, &length);
     if (found)
-        td_fatal("NO PACK", found == -1 ? "UPLOAD E1M1 FIRST" : found == -2 ? "UPLOAD NOT DONE" : "DIRECTORY BAD");
+        wait_for_upload(found, &address, &length);
     td_text(0, 28, "PACK", WHITE, BLACK);
     number(48, 28, length, WHITE);
 
