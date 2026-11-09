@@ -23,6 +23,7 @@ void h9_dac_write128(const void *pcm);       // stock app+0x43598: 128 bytes
 void h9_play_tone(unsigned n);               // stock app+0x5231A
 void h9_audio_volume(unsigned state, unsigned level);  // stock app+0x60DDA
 void h9_audio_route(unsigned on);            // stock app+0x520CE
+void h9_dac_analog_on(void);                 // stock app+0x4B82E..0x4B914 (tail)
 void h9_nor_read_raw(void *buffer, uint32_t chip_address, uint32_t length);
 
 // Stock key byte values (RAM 0xC3AF). Digits read as the digit + 2 (key test,

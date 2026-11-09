@@ -182,6 +182,18 @@ h9_audio_route:
     call r4
     {pc, r14-r4} = [sp++]
 
+/* void h9_dac_analog_on(void): the tail of stock's DAC analog power-up,
+ * app+0x4B82E..0x4B914 (block 0x1F1700 enables, 16 table words, ROM
+ * 0x02003DD8, then DAC CON bit 24). Its own epilogue is "sp += 16;
+ * {pc, r15-r4} = [sp++]", so the wrapper builds that frame and jumps in;
+ * stock's epilogue then returns to our caller. */
+    .globl h9_dac_analog_on
+h9_dac_analog_on:
+    [--sp] = {rets, r15-r4}
+    sp += -16
+    r3 = 0x01e4b92e
+    goto r3
+
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:

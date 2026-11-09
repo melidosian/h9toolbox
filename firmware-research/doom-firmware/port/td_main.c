@@ -249,6 +249,10 @@ static void upload_mode(const char *why)
 // Build 20 on hardware: silent; CON still 0x0E...; GPIO differs from the
 // reference: PA OUT 0x2208 (PA0 low), PA DIR 0x06BE, PC DIR 0xFFFF.
 // Build 21: key 8 also sets PA0 high and PC0/PC2/PC3 as low outputs.
+// Build 21 on hardware: pins match the reference (PA OUT 0x2209 with key 1),
+// still silent; CON bit 24 does not stay set (it reads like an analog-ready
+// status). Build 22: key 9 runs stock's analog power-up tail
+// (app+0x4B82E..0x4B914) through h9_dac_analog_on.
 // Stays until power-off; hold 3 for 2 s enters the USB loader.
 #define DAC ((volatile uint32_t *)0x1E2F00)
 #define CYAN_ 0x07ff
@@ -281,7 +285,7 @@ static void audio_probe(void)
     heap_give_back();  // Doom does not start from here; the tone decoder allocates
     uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 8", GREEN, BLACK);
+    td_text(0, 0, "AUDIO PROBE 9", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -307,8 +311,8 @@ static void audio_probe(void)
                 pc[2] &= ~0xDu;       // PC DIR 0, 2, 3 output
                 DAC[0] |= 0x1000000u;
                 did = 8;
-            } else if (key == 11) {  // key 9: app+0x520CE(1)
-                h9_audio_route(1);
+            } else if (key == 11) {  // key 9: stock DAC analog power-up tail (build 22)
+                h9_dac_analog_on();
                 did = 9;
             } else if (key == TD_KEY_5) {
                 for (unsigned state = 0; state <= 4; state++)
@@ -371,7 +375,7 @@ static void audio_probe(void)
             td_text(112, 104, "DID", WHITE, BLACK);
             char d[2] = { (char)('0' + did), 0 };
             td_text(144, 104, did ? d : "-", GREEN, BLACK);
-            td_text(0, 116, "2PG 7VOICE 8PINS", WHITE, BLACK);
+            td_text(0, 116, "1 8 9 7  2PG", WHITE, BLACK);
         }
         h9_delay(10);
     }

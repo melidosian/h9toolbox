@@ -2583,4 +2583,14 @@ flash-power question, and asked for more speed.
 - Build 21: key 8 drives PA0 high (output) and PC0/PC2/PC3 low (outputs),
   the reference receive state, then retries CON bit 24.
 
+- Build 21 on hardware: with keys 1 and 8, PA OUT = `2209` and PC DIR =
+  `FFF2` (the reference), but still silent.
+- `0x42E24` (called by DAC start) writes CON bit 24 itself (with bit 26,
+  from a config flag at `[[dac+4]+8]` bit 20), yet Doom reads bit 24 as 0.
+  It behaves like an analog-ready status bit.
+- Build 22: key 9 runs stock's analog power-up tail app+`0x4B82E..0x4B914`
+  (block `0x1F1700`, table `0x01EB0D14`, ROM `0x02003DD8`, CON bit 24)
+  through a wrapper that builds the function's frame and jumps in.
+  Package `bd5fa92d…`, flash `b0b1feb9…`, far `aa8a9d3b…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
