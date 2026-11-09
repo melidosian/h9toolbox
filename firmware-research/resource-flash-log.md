@@ -1849,4 +1849,30 @@ flash-power question, and asked for more speed.
   normal, and a Bluetooth programmer read worked. The resource-chip rule
   "stock still boots and works" holds on hardware.
 
+## 2026-11-09 Free block refined; trap-test safety question
+
+- `callgraph.py --needed` subtracts everything the replacement startup
+  calls. C-hello's stock calls are taken from `entry.s`, `logo.c` and
+  `far-hello/build.py`.
+  - 39 functions (18,574 B) are needed. Four of them were `my_app`-only:
+    `0x789EA`, `0x79BE4` (pin helper), `0x79C6E`, `0x79CC6` (backlight PWM
+    setup, called at app+`0x8841E` by stock and by C-hello).
+- **Free block now two runs:** app+`0x79E32–0x7D64E` (14,364 B) and
+  `0x7D69E–0x890E4` (47,686 B), about 62 KB. The 80 B between them is used
+  elsewhere.
+  - `my_app`'s entry `0x88180` lies in the second run. The Doom firmware
+    should redirect the task-table entry (immediate `0x01E88280` at
+    app+`0x5FFD0`) instead of hooking there.
+- **Safety question before trapping the block:**
+  - With `my_app` replaced, hold-8 is gone, so PTT+2 is the only recovery.
+  - PTT+2 worked under C-hello, so its code is not `my_app`-only on
+    hardware. A static misclassification (code reached only through a jump
+    table) could still put part of it inside the block, and a trap there
+    would leave no USB recovery.
+- **Hold-8 entry:** `my_app` startup (app+`0x88180–0x88900`) shows no
+  direct key-decoder call. It calls the delay, pin helper, controller
+  setup, backlight and four partition reads, then reaches the key handler
+  (`0x524A0`) only in the main loop (`0x8890A` …). The hold-8 path is not
+  located yet.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

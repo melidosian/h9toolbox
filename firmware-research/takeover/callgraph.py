@@ -29,7 +29,11 @@ Conservative for reclaiming:
   computed addresses outside these patterns. Trap tests on hardware are the
   proof.
 
-    python3 -I callgraph.py <stock app.bin> [--json out.json]
+    python3 -I callgraph.py <stock app.bin> [--json out.json] [--needed 0x01e4c2da,...]
+
+--needed lists stock functions (CPU addresses) the replacement program
+calls. Everything they reach is subtracted from the free set, because the
+replacement still runs it.
 """
 
 from __future__ import annotations
@@ -57,6 +61,8 @@ def prologue(app: bytes, v: int) -> bool:
 def main() -> int:
     app = Path(sys.argv[1]).read_bytes()
     out_json = Path(sys.argv[sys.argv.index("--json") + 1]) if "--json" in sys.argv else None
+    needed = ([int(a, 16) - BASE for a in sys.argv[sys.argv.index("--needed") + 1].split(",")]
+              if "--needed" in sys.argv else [])
     sys.path.insert(0, str(ISA))
     from pi32v2isa import objdump, table  # noqa: E402
     decoder = objdump.decoder_for(table.load(), mcpu="r3")
@@ -68,7 +74,7 @@ def main() -> int:
         v = struct.unpack_from("<I", app, i)[0] - BASE
         if 0 <= v < code_end and v % 2 == 0 and (v in index or prologue(app, v)):
             pointers.add(v)
-    starts = {s for s in index if s < code_end} | {0, MY_APP} | pointers
+    starts = {s for s in index if s < code_end} | {0, MY_APP} | pointers | {n for n in needed if 0 <= n < code_end}
 
     def sweep(start: int, end: int) -> set[int]:
         found, pos = set(), start
@@ -115,7 +121,8 @@ def main() -> int:
     roots = {0} | pointers
     with_app = reach(roots | {MY_APP})
     without_app = reach(roots - {MY_APP}, skip={MY_APP})
-    only_app = with_app - without_app
+    kept = reach({n for n in needed if n in edges})
+    only_app = with_app - without_app - kept
     dead = set(ordered) - with_app
     size = lambda fs: sum(extent[f] for f in fs)
 
@@ -138,6 +145,8 @@ def main() -> int:
         "functions": len(ordered), "pointer_roots": len(pointers), "direct_call_edges": sum(map(len, edges.values())),
         "my_app_extent": extent[MY_APP],
         "reachable_with_my_app_bytes": size(with_app),
+        "needed_by_replacement": {"functions": len(kept), "bytes": size(kept),
+                                  "inside_my_app_only": sorted(hex(f) for f in kept & (with_app - without_app))},
         "my_app_only": {"functions": len(only_app), "bytes": size(only_app)},
         "unreached": {"functions": len(dead), "bytes": size(dead)},
         "free_in_doom_firmware_bytes": size(free),
