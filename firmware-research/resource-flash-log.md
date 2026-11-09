@@ -2543,4 +2543,7 @@ flash-power question, and asked for more speed.
   tone 0. Keys 8/9 call `0x520CE(1)`/`(0)`. Key 6 sets the volume, then
   as build 18.
 
+- Confirmed by the user: key beeps play in H9 Toolbox Firmware (speaker
+  path works with the radio app). Build 19 flashed for the volume test.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
