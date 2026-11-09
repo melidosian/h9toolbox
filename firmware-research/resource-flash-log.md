@@ -1713,4 +1713,21 @@ flash-power question, and asked for more speed.
   episode does not. Wall patches are the largest part (about 1.0–1.4 MB per
   map).
 
+## 2026-11-09 DMC100-Doom converter: all of episode 1 in 3.71 MiB
+
+- Downloaded DMC100-Doom (`0cdc78e`, 739 KB tarball, SHA-256
+  `5328fbdb…`, GPL-2.0-or-later), outside the repo. Its `oracle/fetch.sh`
+  cloned doomgeneric `dcb7a8d` (verified).
+- Its converter on our Freedoom zip (same SHA-256 it pins):
+  - E1M1 pack: 2,802,000 B
+  - E1 pack: 3,890,048 B (`DOOM.DAT` 3,031,040 + `DOOMX.DAT` 859,072)
+  - Generated tables are compressed (`finesine` 4,302 B against 40 KB raw);
+    info tables are about 4 KB.
+- On macOS, Mach-O's leading underscore hid the `A_*` action symbols from
+  its `nm` regex. An `llvm-nm` wrapper that strips it fixed this with no
+  source change. `test_maps` (E1M1, E1), `test_trig` and
+  `test_determinism` pass.
+- E1 (3,799 KiB) fits in the `resource` and `font` tails (3,880 KiB). The
+  pack must be split across the two ranges.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

@@ -62,7 +62,35 @@ firmware (H9 Toolbox) with the data present and check:
 
 Repeat once on exact stock v1.0.38.
 
-## Game data
+## Game data: the DMC100-Doom converter (measured 2026-11-09)
+
+[ArturBieniek4/DMC100-Doom](https://github.com/ArturBieniek4/DMC100-Doom)
+(GPL-2.0-or-later, commit `0cdc78e`, kept outside this repo) is the
+clamp-meter port from the article. Its converter (`tools/conv`, Python)
+turns Freedoom 0.13.0's `freedoom1.wad` into compact packs for a 160-column
+strip renderer.
+
+| Pack | Bytes | Notes |
+|---|---:|---|
+| E1M1 | 2,802,000 | one map with menus and the title |
+| E1 (9 maps) | 3,890,048 | `DOOM.DAT` 3,031,040 + `DOOMX.DAT` 859,072; maps 97–431 KB each |
+
+- **Fit:** E1 needs 3,799 KiB. `resource` (2,948 KiB) plus `font`
+  (932 KiB) give 3,880 KiB, so the **whole first episode fits** in the
+  stock-safe tails without touching `voice`.
+- **Split point:** `DOOM.DAT` is 12 KiB larger than the `resource` tail,
+  so our data layer maps pack offsets onto the two chip ranges.
+- **Running it on macOS** needed only tool paths, no source changes:
+  - `HOSTCC=clang`
+  - Xcode's `llvm-dwarfdump`, `llvm-size`
+  - an `llvm-nm` wrapper that strips Mach-O's leading `_`
+  - its `oracle/fetch.sh` checkout of doomgeneric `dcb7a8d`
+- Its tests pass: `test_maps` (E1M1 and all 9 E1 maps), `test_trig`,
+  `test_determinism`.
+- Upload estimate over Bluetooth at 1.5–2 KB/s (write speed not yet timed):
+  about 25–30 minutes for E1M1, 32–42 minutes for E1.
+
+Earlier raw-WAD estimate, kept for comparison (`wad_tool.py`):
 
 - Target: shareware `doom1.wad` (4,196,020 bytes) or the free Freedoom.
 - The first firmware has no sound, so the sound and music lumps can be left
