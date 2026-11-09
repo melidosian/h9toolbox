@@ -1941,4 +1941,14 @@ flash-power question, and asked for more speed.
   verified.
 - 20 sectors changed: `0x5000`, `0x65000`, `0x7E000–0x8E000`, `0xD9000`.
 
+## 2026-11-09 Trap test flashed
+
+- The monitor was written with `write-far` through the USB loader that our
+  own ROM call had entered (`eda71511…`; backup = the keys program). The
+  ROM-call path gives a full flashing session (RAM helper, read, erase,
+  write), not only enumeration.
+- Main: hold-8 from H9 Toolbox + far launcher (backup `5af9bdfe…`); 25
+  sectors (undoing H9 Toolbox and applying the trap image); readback
+  `f70b4400…`. Run results: pending.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
