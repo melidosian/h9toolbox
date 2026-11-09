@@ -2647,4 +2647,8 @@ flash-power question, and asked for more speed.
   - The status screen shows SOUND ON / NO SOUNDS.
 - Host test ok. Package `271ca1bc…`, flash `1f20d50f…`, far `77d51a1b…`.
 
+- Build 25 on hardware (user: "i hear it!"): Doom's PC-speaker sound
+  effects play through the TD-H9 speaker during the game.
+- Next request: music.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
