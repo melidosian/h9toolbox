@@ -1681,4 +1681,11 @@ flash-power question, and asked for more speed.
 - `restore`: 8 sectors written highest first (`0x5000` last); rescan: all
   213 app sectors match stock v1.0.38. Boot check: pending.
 
+- Stock booted after the HID restore. The hold-8 backup before reinstalling
+  H9 Toolbox hashed `74243eae…` (exact stock), an independent full-image
+  confirmation of the HID restore. H9 Toolbox reinstalled (8 sectors,
+  readback `83f79fb3…`).
+- The full recovery loop is proven on hardware: custom firmware → PTT+2
+  restore → stock → hold-8 → H9 Toolbox.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
