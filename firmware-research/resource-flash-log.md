@@ -2531,4 +2531,16 @@ flash-power question, and asked for more speed.
   backup of build 18 saved) so the user can turn key beeps on. Then Doom
   build 18 goes back, and the probe tests stock tones with beeps enabled.
 
+- Build 18 again, with key beeps turned on in H9 Toolbox: still silent
+  (keys 1, 7, 6).
+- Radio-app-only audio calls (the `my_app` block): `0x5224C` ×24,
+  `0x523C6` ×21, `0x5231A` ×3, `0x520CE` ×2, `0x52228` ×2, `0x60DDA` ×1.
+- `0x60DDA(state, level)` is app_audio_set_volume: state 0–4, level
+  clamped to 30, stored at `0x11AD0+4404…`. Stock start-up calls (3, 15)
+  and the key-tone set-up calls (1, beep setting); `my_app` calls
+  (2, `b[+70]`) at app+`0x82140`. Doom never sets the volume.
+- Build 19 probe: key 5 sets volume 30 for states 0–4. Key 7 plays stock
+  tone 0. Keys 8/9 call `0x520CE(1)`/`(0)`. Key 6 sets the volume, then
+  as build 18.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

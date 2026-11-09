@@ -235,6 +235,12 @@ static void upload_mode(const char *why)
 // 3, but are silent (key beeps are off in the radio's settings). Build 17:
 //   5: DAC digital volume register (+40) to 0x4000 per channel
 //   6: amplifier, a stock tone to wake the hardware, then our 1 s tone
+// Builds 17-18 on hardware: silent (the volume register write did not stick).
+// Build 19: the radio app sets the volume through app_audio_set_volume
+// (app+0x60DDA, state 2, its setting) and Doom never did:
+//   5: volume 30 for audio states 0-4 (stock)
+//   7: stock tone 0; 8 / 9: app+0x520CE(1) / (0)
+//   6: volume 30, then as before
 // Stays until power-off; hold 3 for 2 s enters the USB loader.
 #define DAC ((volatile uint32_t *)0x1E2F00)
 #define CYAN_ 0x07ff
@@ -267,7 +273,7 @@ static void audio_probe(void)
     heap_give_back();  // Doom does not start from here; the tone decoder allocates
     uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 5", GREEN, BLACK);
+    td_text(0, 0, "AUDIO PROBE 6", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -279,11 +285,15 @@ static void audio_probe(void)
             } else if (key == TD_KEY_2) {
                 page ^= 1;
                 td_fill(0, 12, TD_W, 90, BLACK);
-            } else if (key >= 9 && key <= 11) {  // keys 7, 8, 9
-                h9_play_tone(key - 9);
+            } else if (key == 9) {  // key 7
+                h9_play_tone(0);
+                did = 7;
+            } else if (key == 10 || key == 11) {  // keys 8 / 9: audio route on / off
+                h9_audio_route(key == 10);
                 did = key - 2;
             } else if (key == TD_KEY_5) {
-                DAC[10] = 0x40004000u;  // digital volume, both channels at 0x4000
+                for (unsigned state = 0; state <= 4; state++)
+                    h9_audio_volume(state, 30);
                 did = 5;
             } else if (key == TD_KEY_6) {
                 // build 17: wake the hardware the way stock's tone player does
@@ -291,6 +301,8 @@ static void audio_probe(void)
                 // build 18: build 17 wrote while the stock tone was still
                 // playing and crashed; wait for it to end, then start the DAC
                 // (the driver stops it after a tone; writes need state 2/3)
+                for (unsigned state = 0; state <= 4; state++)
+                    h9_audio_volume(state, 30);
                 h9_speaker_gate(1, 1);
                 h9_play_tone(0);
                 h9_delay(1500);
@@ -335,7 +347,7 @@ static void audio_probe(void)
             td_text(112, 104, "DID", WHITE, BLACK);
             char d[2] = { (char)('0' + did), 0 };
             td_text(144, 104, did ? d : "-", GREEN, BLACK);
-            td_text(0, 116, "1AMP 2PG 5VOL 6TN 789", WHITE, BLACK);
+            td_text(0, 116, "1AMP 5VOL 6TN 7 8 9", WHITE, BLACK);
         }
         h9_delay(10);
     }

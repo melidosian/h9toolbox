@@ -165,6 +165,23 @@ h9_play_tone:
     call r4
     {pc, r14-r4} = [sp++]
 
+/* void h9_audio_volume(unsigned state, unsigned level): stock app+0x60DDA,
+ * app_audio_set_volume (state 0-4, level clamped to 30). The radio app calls
+ * it for state 2 with its volume setting; Doom never did. */
+    .globl h9_audio_volume
+h9_audio_volume:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e60eda
+    call r4
+    {pc, r14-r4} = [sp++]
+/* void h9_audio_route(unsigned on): stock app+0x520CE (radio-app-only call). */
+    .globl h9_audio_route
+h9_audio_route:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e521ce
+    call r4
+    {pc, r14-r4} = [sp++]
+
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:
