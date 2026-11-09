@@ -2717,4 +2717,15 @@ flash-power question, and asked for more speed.
   `nor_read`), to tell synchronous chip reads (about 2 MB/s) from
   computation. Package `a0ef2f0e…`, flash `ad38a922…`, far `e21a7b9a…`.
 
+- Build 30 on hardware: wall 24 fps / 60 ms / 5 KB a frame; far view
+  8 fps / 140 ms / 75 KB a frame.
+- Stock's chip read (app+`0x4FE22`) takes its SPI DMA path (`0x4C25A`)
+  only for n ≥ 16 into a 4-byte-aligned buffer. Otherwise it moves one byte
+  at a time (register write plus wait call `0x4BC0E`), with interrupts
+  off for the whole read.
+- Build 31: `nor_read` sends short or unaligned reads through a 512-byte
+  aligned bounce buffer (at least 16 bytes read), so all reads take the DMA
+  path; the chip's last bytes keep the byte path. Package `3df78498…`,
+  flash `a3da97eb…`, far `6f12d13c…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

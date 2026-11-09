@@ -42,12 +42,41 @@ void td_nor_setup(void)
 
 uint32_t td_nor_bytes;  // build 30: bytes read, for the frame readout
 
+// Stock's read (app+0x4FE22) uses the SPI DMA only for reads of 16 bytes or
+// more into a 4-byte-aligned buffer; anything else goes a byte at a time
+// through a register write and a wait call. Build 31: short or unaligned
+// reads go through an aligned bounce buffer, so every read takes the DMA
+// path (build 30: a far view read 75 KB a frame).
+static uint8_t bounce[512] __attribute__((aligned(4)));
+
+static void read_dma(uint32_t phys, void *dst, uint32_t n)
+{
+    uint8_t *out = dst;
+    if (!((uintptr_t)out & 3) && n >= 16) {
+        h9_nor_read_raw(out, phys, n);
+        return;
+    }
+    while (n) {
+        uint32_t take = n < sizeof bounce ? n : sizeof bounce;
+        uint32_t get = take < 16 ? 16 : take;
+        if (phys + get > 0x1000000u) {
+            h9_nor_read_raw(out, phys, take);  // the chip's last bytes: stock's byte path
+        } else {
+            h9_nor_read_raw(bounce, phys, get);
+            memcpy(out, bounce, take);
+        }
+        out += take;
+        phys += take;
+        n -= take;
+    }
+}
+
 void nor_read(uint32_t phys, void *dst, uint32_t n)
 {
     if (phys >= 0x1000000u || n > 0x1000000u - phys)
         td_fatal("NOR READ", "outside the chip");
     if (n)
-        h9_nor_read_raw(dst, phys, n);
+        read_dma(phys, dst, n);
     td_nor_bytes += n;
     nor_stats.sync++;
     td_nor_reads++;
