@@ -1465,4 +1465,30 @@ flash-power question, and asked for more speed.
 - Hold-8 flash. Backup `h9-before-h9tb-after-ram-20261109.bin` = `ba05f7c8…`
   (the RAM-read build, as expected); 8 sectors; readback `83f79fb3…`.
 
+## 2026-11-09 VM init caps the settings area at 64 KiB
+
+- VM init is at app+`0x08C9D4`:
+  - It asks the flash driver (ioctl `0x40045602`) for the reserved area:
+    start at `[sp+4]`, length at `[sp+12]`. On hardware these are `0xDA000`
+    and `0x22000`, matching the boot info at RAM `0xE2A0`.
+  - It then clamps the length: `if (len >= 0x10000) len = 0x10000`
+    (app+`0x08C9F2`).
+  - With the 4 KiB-aligned start, it halves that into the two bank
+    descriptors at `0x13E68` (`[+0]` = start, `[+4]` = len/2, then bank B at
+    start + len/2). This matches the hardware readout: 2 × `0x8000` at
+    `0xDA000`/`0xE2000`.
+  - The other path (mode 1) aligns to 512 bytes and caps at 8 KiB.
+- All VM reads, writes, defragmentation and format work through those bank
+  descriptors (code at app+`0x0621xx–0x062Axx` and `0x08CAxx–0x08CCxx`
+  indexes them; the bank is chosen by bit 1 of `0x13ED5`). Nothing in the
+  VM code addresses the remaining reserved length.
+- Conclusion: `0xEA000–0xFBFFF` (72 KiB, 18 sectors) is outside the VM as
+  stock computes it. `0xFC000` (4 KiB) is outside the reserved area entirely.
+- Residual risks, not yet checked:
+  - Other users of the boot-info record (9 more code sites load RAM
+    `0xE2A0`) might use the reserved tail.
+  - The official JieLi updater may erase the whole reserved area. Our
+    flasher writes only up to `0xDA000`.
+- Writing there needs a flasher mode for sectors beyond the app image.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
