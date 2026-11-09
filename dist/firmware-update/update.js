@@ -1,7 +1,7 @@
 import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, writeSector } from './firmware.mjs?v=20261108c';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261108c';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261108c';
-import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=20261109a';
+import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=20261109b';
 
 const $ = id => document.getElementById(id);
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
