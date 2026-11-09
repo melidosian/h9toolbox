@@ -83,7 +83,7 @@ Results (stock v1.0.38):
 | Region | Size | Status |
 |---|---:|---|
 | far region `0xEA000–0xFCFFF` | 76 KiB | proven on hardware (C runs there) |
-| `my_app`-only block app+`0x79CC6–0x890E4` | ~62 KB | static evidence; trap test next |
+| `my_app`-only block app+`0x79E32–0x7D64E`, `0x7D69E–0x890E4` | ~62 KB | **trap-tested on hardware 2026-11-09** (713 s, no trap) |
 | **total** | **~138 KB** | |
 
 - **Fits the core:** the DMC100 engine core is 112 KB on Pi32v2, plus our

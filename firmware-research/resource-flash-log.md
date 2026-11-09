@@ -2085,4 +2085,20 @@ flash-power question, and asked for more speed.
   tasks booted with the whole `my_app`-only block trapped: no code reached
   it during boot. The run-time soak is in progress.
 
+- **Soak passed:** at 713 s of uptime, with keys pressed and USB plugged
+  and unplugged during the run, it showed "NO TRAP SEEN". The LED never went
+  solid, there was no freeze or reset, and the USB loader never appeared on
+  its own.
+- **Proven on hardware:** with `my_app` replaced, nothing executes in
+  app+`0x79E32–0x7D64E` (14,364 B) or `0x7D69E–0x890E4` minus the 4-byte
+  hook (47,682 B).
+- **Flash available to the Doom firmware:** ~62 KB in place of the radio UI
+  code, plus the far region `0xEA000–0xFCFFF` (76 KiB), plus the app cave
+  for the startup.
+- Caveats:
+  - Coverage is what ran in 12 minutes (boot, idle, keys, USB plug). Rare
+    stock paths (low battery, charging edge cases) were not exercised.
+  - The trap stubs stay in the Doom build's safety design only until Doom
+    code replaces them.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
