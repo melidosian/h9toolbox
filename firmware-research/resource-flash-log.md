@@ -2059,4 +2059,20 @@ flash-power question, and asked for more speed.
     entry.
   - Everything else in the far region, called after startup.
 
+## 2026-11-09 Trap test in the cave architecture (built)
+
+- `trap-test/build.py --mode cave+traps`:
+  - The 4-byte `call` hook at `my_app` entry (as C-hello) leads to the
+    startup (C-hello `entry.s`, section renamed `.cave`) in the app cave:
+    716 B at `0x01EA78F0`.
+  - The startup calls the far monitor `h9_main` (`0x01EE51CA`).
+  - The monitor (868 B, `243cc128…`) and `far_trap` (`0x01EE501A`) are in
+    the far region, stored plain.
+  - The block is trapped except the hook bytes (15 + 43 + 4 stubs).
+  - Package `07225154…`.
+- `--mode cave-only` (`b9638439…`) is the same without traps, for
+  separating causes if needed.
+- Checked by decode: hook → cave, cave → far `h9_main`, stubs →
+  `far_trap`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

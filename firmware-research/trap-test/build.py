@@ -27,6 +27,12 @@ Modes (run 1, "redirect+traps", gave a black screen with no LED):
   redirect-only   task entry redirected, no traps
   trampoline-only the trampoline without traps: does the far monitor run
                   when started at boot (C-hello ran from the app cave)?
+                  Run 3: no. Probe 2: far code runs when *called* after a
+                  startup that ran in the app image.
+  cave+traps      startup (C-hello entry.s) in the app cave via the 4-byte
+                  call hook at my_app's entry; monitor and far_trap in the
+                  far region; block trapped except the hook bytes
+  cave-only       the same without traps
 """
 
 from __future__ import annotations
@@ -52,7 +58,9 @@ MAGIC = 0x31583948
 TASK_ENTRY = 0x5FFCE          # r0 = 0x01E88280 (my_app) before the task launch
 TASK_ORIGINAL = bytes.fromhex("c0ff8082e801")
 MY_APP = 0x88180
-MODES = ("redirect+traps", "trampoline", "redirect-only", "trampoline-only")
+MODES = ("redirect+traps", "trampoline", "redirect-only", "trampoline-only", "cave+traps", "cave-only")
+CAVE = 0xA77F0
+CAVE_SIZE = 1704
 BLOCK = ((0x79E32, 0x7D64E), (0x7D69E, 0x890E4))
 STUB_EVERY = 1024
 STUB_BYTES = 14
@@ -164,7 +172,13 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     sys.path.insert(0, str(ISA))
     from pi32v2isa import asm, elf, ld, objdump, table  # noqa: E402
 
-    entry = HEADER + (RESEARCH / "c-hello" / "entry.s").read_text(encoding="utf-8") + FAR_API
+    startup = (RESEARCH / "c-hello" / "entry.s").read_text(encoding="utf-8")
+    cave_mode = mode.startswith("cave")
+    if cave_mode:
+        if startup.count('.section .text,"ax",@progbits') != 1:
+            raise ValueError("entry.s section directive not found exactly once")
+        startup = startup.replace('.section .text,"ax",@progbits', '.section .cave,"ax",@progbits')
+    entry = HEADER + startup + FAR_API
     entry_obj = output / "monitor_entry.o"
     entry_obj.write_bytes(asm.assemble_source(entry, filename="monitor_entry.s"))
     c_obj = output / "monitor.o"
@@ -176,20 +190,30 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     if [s.name for s in c_program.sections if s.name.startswith((".data", ".bss", ".sdata", ".sbss")) and len(s.data or b"")]:
         raise ValueError("C code has data sections")
     linked = output / "h9_trap_monitor.elf"
-    state, data = ld.link(ld.parse_args(["-T", str(RESEARCH / "far-hello" / "far.ld"), "-o", str(linked),
-                                         str(entry_obj), str(c_obj)]))
+    script = ROOT / "cave.ld" if cave_mode else RESEARCH / "far-hello" / "far.ld"
+    state, data = ld.link(ld.parse_args(["-T", str(script), "-o", str(linked), str(entry_obj), str(c_obj)]))
     if data is None or state.errors:
         raise RuntimeError(f"Pi32 linker failed: {state.errors}")
     linked.write_bytes(data)
     far = elf.read(data)
     header, text = section(far, ".far_header"), section(far, ".text")
-    if header.addr != FAR_ADDRESS or text.addr != FAR_ADDRESS + 16 or far.entry != FAR_ADDRESS:
+    if header.addr != FAR_ADDRESS or text.addr != FAR_ADDRESS + 16:
         raise ValueError("Far layout differs from header + text at 0x01EE5000")
+    cave_code = b""
+    if cave_mode:
+        cave_section = section(far, ".cave")
+        cave_code = bytes(cave_section.data)
+        if cave_section.addr != IMAGE_BASE + CAVE or len(cave_code) > CAVE_SIZE:
+            raise ValueError(f"Cave code ({len(cave_code)} B) is not at the cave or does not fit")
+        if stock[CAVE:CAVE + CAVE_SIZE] != b"\xff" * CAVE_SIZE:
+            raise ValueError("Cave is not erased in stock")
+    elif far.entry != FAR_ADDRESS:
+        raise ValueError("Far program entry is not its header")
     plain = bytes(header.data) + bytes(text.data)
     if len(plain) > FAR_LIMIT:
         raise ValueError("Monitor too large")
     symbols = {s.name: s.value for s in far.symbols if s.name}
-    blob = output / "h9_trap_monitor_0xEA000.bin"
+    blob = output / ("h9_trap_monitor_cave_0xEA000.bin" if cave_mode else "h9_trap_monitor_0xEA000.bin")
     blob.write_bytes(plain)
     # Same bytes in the app-area cipher (key 0xF181 ^ ((flash - 0x5000) >> 2)):
     # runs 1-3 showed plain far code does not run when started at boot.
@@ -198,26 +222,35 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     encrypted = flash_form(plain, 0xEA000)
     if flash_form(encrypted, 0xEA000)[:len(plain)] != plain:
         raise ValueError("cipher does not round-trip")
-    (output / "h9_trap_monitor_0xEA000_encrypted.bin").write_bytes(encrypted)
+    if not cave_mode:
+        (output / "h9_trap_monitor_0xEA000_encrypted.bin").write_bytes(encrypted)
 
     patched = bytearray(stock)
     entry_address = FAR_ADDRESS + 8  # header jump to hello_display_hook
     ranges = list(BLOCK)
     if mode in ("redirect+traps", "redirect-only"):
         patched[TASK_ENTRY + 2:TASK_ENTRY + 6] = entry_address.to_bytes(4, "little")
+    if cave_mode:
+        hook = assemble(asm, elf, f"    call {CAVE - MY_APP - 4}\n")
+        if len(hook) != 4:
+            raise ValueError("hook call is not 4 bytes")
+        patched[MY_APP:MY_APP + 4] = hook
+        patched[CAVE:CAVE + len(cave_code)] = cave_code
+        first, last = BLOCK[1]
+        ranges = [BLOCK[0], (first, MY_APP), (MY_APP + 4, last)]
     if mode in ("trampoline", "trampoline-only"):
         jump = assemble(asm, elf, f"    r3 = 0x{entry_address:08x}\n    goto r3\n")
         patched[MY_APP:MY_APP + len(jump)] = jump
         first, last = BLOCK[1]
         ranges = [BLOCK[0], (first, MY_APP), (MY_APP + len(jump), last)]
     fills = []
-    if mode not in ("redirect-only", "trampoline-only"):
+    if mode not in ("redirect-only", "trampoline-only", "cave-only"):
         for start, end in ranges:
             data_fill = trap_fill(asm, elf, objdump, table, start, end, symbols["far_trap"])
             patched[start:end] = data_fill
             fills.append({"start": hex(start), "end": hex(end), "stubs": -(-(end - start) // STUB_EVERY)})
     tag = {"redirect+traps": "", "trampoline": "_trampoline", "redirect-only": "_redirect_only",
-           "trampoline-only": "_trampoline_only"}[mode]
+           "trampoline-only": "_trampoline_only", "cave+traps": "_cave", "cave-only": "_cave_only"}[mode]
     raw = output / f"h9_trap_test{tag}_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)
 
@@ -241,7 +274,8 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     original = parse_firmware(stock_package).image
     target = parse_firmware(package).image
     changed = [o for o in range(0, len(original), 4096) if original[o:o + 4096] != target[o:o + 4096]]
-    expected = {0x5000, 0xD9000, (TASK_ENTRY + 0x5100) & ~0xFFF, (MY_APP + 0x5100) & ~0xFFF}
+    expected = {0x5000, 0xD9000, (TASK_ENTRY + 0x5100) & ~0xFFF, (MY_APP + 0x5100) & ~0xFFF,
+                (CAVE + 0x5100) & ~0xFFF, (CAVE + CAVE_SIZE + 0x5100) & ~0xFFF}
     for start, end in BLOCK:
         expected |= set(range((start + 0x5100) & ~0xFFF, end + 0x5100, 0x1000))
     if set(changed) - expected:
@@ -251,6 +285,7 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
         "task_entry_patch": ({"offset": hex(TASK_ENTRY + 2), "old": "0x01e88280", "new": hex(entry_address)}
                              if not mode.startswith("trampoline") else None),
         "trapped": fills, "far_trap": hex(symbols["far_trap"]), "monitor_main": hex(symbols["h9_main"]),
+        "cave_bytes": len(cave_code),
         "monitor_bytes": len(plain), "monitor_sha256": sha256(plain).hexdigest(),
         "monitor_encrypted_sha256": sha256(encrypted).hexdigest(),
         "app_sha256": sha256(patched).hexdigest(),
