@@ -2111,4 +2111,20 @@ flash-power question, and asked for more speed.
   `my_app` replaced. No PTT+2 and no stock hold-8 were needed. The far
   region still holds the trap monitor (harmless on H9 Toolbox).
 
+## 2026-11-09 E1M1S pack renders in DMC100's host engine
+
+- DMC100's host engine (`build/host/dmcdoom`) needs GNU ld `--wrap`, which
+  Apple's linker lacks. It is built in a new local image `h9-jieli-dev`
+  (`h9-jieli` plus Debian `build-essential`, GCC 12.2; Dockerfile at
+  `~/Documents/ChatGPT/TID-H9/docker-h9-dev`). The macOS LLVM wrappers
+  (`llvm-nm` without the leading `_`, `llvm-dwarfdump`, `llvm-size`,
+  `llvm-objdump`) are now kept in `~/Documents/ChatGPT/TID-H9/mac-llvm-tools`.
+- `tests/host/mknor.py build/packs/E1M1S` gives a meter NOR image; the
+  image check is ok. `dmcdoom --nor … --low-detail --verify -warp 1 1 --tics
+  140 --frame-out …` rendered E1M1 at tics 35/70/105: the start room with
+  textures, sprites and the status bar.
+- The exact pack on the radio's resource chip (1,056,192 B, `06442c61…`)
+  is valid game data for this engine. The port work is now the TD-H9
+  platform layer.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
