@@ -185,7 +185,8 @@ void I_SetPalette(int palette)
 void I_FinishUpdate(void)
 {
     pump_sync(0);  // send any held columns before the readout is drawn
-    static uint32_t second_start, last_frame, frames, slowest, shown_fps, shown_slow;
+    static uint32_t second_start, last_frame, frames, slowest, shown_fps, shown_slow, bytes_start, shown_kb;
+    extern uint32_t td_nor_bytes;
     uint32_t now = td_ticks();
     if (last_frame && (now - last_frame) * 10u > slowest)
         slowest = (now - last_frame) * 10u;
@@ -193,19 +194,25 @@ void I_FinishUpdate(void)
     frames++;
     if (now - second_start >= 100) {
         shown_fps = frames * 100u / (now - second_start);
+        shown_kb = frames ? (td_nor_bytes - bytes_start) / frames / 1024u : 0;  // chip KB per frame
+        bytes_start = td_nor_bytes;
         shown_slow = slowest;
         frames = 0;
         slowest = 0;
         second_start = now;
     }
-    char s[8];
+    char s[11];
     s[0] = (char)('0' + shown_fps / 10 % 10);
     s[1] = (char)('0' + shown_fps % 10);
     s[2] = ' ';
     s[3] = (char)('0' + shown_slow / 100 % 10);
     s[4] = (char)('0' + shown_slow / 10 % 10);
     s[5] = (char)('0' + shown_slow % 10);
-    s[6] = 0;
+    s[6] = ' ';
+    s[7] = (char)('0' + shown_kb / 100 % 10);
+    s[8] = (char)('0' + shown_kb / 10 % 10);
+    s[9] = (char)('0' + shown_kb % 10);
+    s[10] = 0;
     td_text(0, 0, s, 0xffe0, 0x0000);
 }
 

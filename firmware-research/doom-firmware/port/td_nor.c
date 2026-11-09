@@ -40,12 +40,15 @@ void td_nor_setup(void)
     h9_spi2_setup();
 }
 
+uint32_t td_nor_bytes;  // build 30: bytes read, for the frame readout
+
 void nor_read(uint32_t phys, void *dst, uint32_t n)
 {
     if (phys >= 0x1000000u || n > 0x1000000u - phys)
         td_fatal("NOR READ", "outside the chip");
     if (n)
         h9_nor_read_raw(dst, phys, n);
+    td_nor_bytes += n;
     nor_stats.sync++;
     td_nor_reads++;
     td_trace_counters(0);

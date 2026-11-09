@@ -2710,4 +2710,11 @@ flash-power question, and asked for more speed.
   transfers. Flushed on `pump_end`/`pump_sync`/a column break; the frame
   readout flushes first. Host render intact.
 
+- Build 29 on hardware: up close to a wall about 24 fps, slowest 60 ms (was
+  about 10–12 fps); a far view is still 8–14 fps, up to 140 ms. The panel
+  batching works; far views are bound by drawing and chip reads.
+- Build 30: the readout adds chip KB per frame (`td_nor_bytes` counted in
+  `nor_read`), to tell synchronous chip reads (about 2 MB/s) from
+  computation. Package `a0ef2f0e…`, flash `ad38a922…`, far `e21a7b9a…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
