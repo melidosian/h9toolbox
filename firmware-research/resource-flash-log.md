@@ -1761,4 +1761,42 @@ flash-power question, and asked for more speed.
   code overlays loaded from the resource chip into RAM, reclaiming stock
   code and assets only `my_app` uses, or a from-scratch image.
 
+## 2026-11-09 Data uploader (offline)
+
+- `prototypes/data-upload/` (page, plus `upload.mjs`): Bluetooth upload of
+  a data pack through the S2 write service, under the doom-firmware rules.
+  - **Layout:** a directory sector at `0xA1F000`, the pack from `0xA20000`,
+    spilling into the font tail and then the voice tail.
+  - **Directory:** magic `H9DATA01`, length, SHA-256, name, segments,
+    CRC-16. It is written first with its last 32-byte block erased (in
+    progress, claiming the sectors). After the pack is read back and
+    matches, that block is programmed with `H9DATA-COMPLETE` (no erase
+    needed). Readers must require it.
+  - **Safety rules:**
+    - Only the gold-dump erased tails can be written; anything else is
+      refused.
+    - Non-erased data is overwritten only when a matching in-progress or
+      complete directory owns it.
+    - A different pack first restores (erases) the previous one.
+    - Already-erased sectors are programmed without an erase.
+  - **Reads** start at the 32 KiB bank boundary so bulk reads work.
+  - **Restore** erases the ranges the directory lists (or, deep, every
+    non-erased sector of the three tails) and reads them back as `0xFF`.
+  - **Timing:** write seconds and bytes per second go into the upload record
+    (the first real measurement of Bluetooth write speed).
+- `test/data-upload.test.mjs`: 8 tests on the simulated radio:
+  - layout, directory round-trip and corruption
+  - refusals outside the areas and of foreign data
+  - upload with stock data untouched and no erases on blank sectors
+  - idempotent re-upload and replacement
+  - interrupted upload resumes, rewriting only the failed sector and the
+    one after it
+  - deep restore clears stray data
+  - restore returns the chip byte for byte
+- Full suite: 93/94 pass. The failure is the known, pre-existing
+  browser-readback seed test on `main`.
+- Pack staged for the user (outside the repo):
+  `~/Documents/ChatGPT/TID-H9/doom-packs/freedoom-E1M1S-DOOM.DAT`
+  (1,056,192 B, SHA-256 `06442c61…`).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

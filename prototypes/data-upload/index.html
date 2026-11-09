@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TD-H9 data upload (research)</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem auto; max-width: 960px; padding: 0 1rem; background: #0f1b24; color: #e3ece9; }
+  section { border: 1px solid #2f4652; border-radius: .6rem; padding: 1rem 1.2rem; margin: 1rem 0; background: #152631; }
+  button { font: inherit; padding: .45rem .9rem; margin: .2rem .3rem .2rem 0; border-radius: .4rem; border: 1px solid #5a8a7a; background: #1f3d36; color: #e3ece9; cursor: pointer; }
+  button.danger { border-color: #a5584e; background: #3d1f1c; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  input[type=text] { font: inherit; padding: .35rem .5rem; border-radius: .35rem; border: 1px solid #3b5160; background: #0e1c26; color: inherit; }
+  table { border-collapse: collapse; font-size: 13px; }
+  th, td { border-bottom: 1px solid #2f4652; padding: .3rem .6rem; text-align: left; }
+  .note { color: #a6bec5; font-size: 13px; }
+  .ok { color: #8bdcb6; font-weight: 700; }
+  progress { width: 100%; }
+  pre { background: #0b151c; border-radius: .4rem; padding: .7rem; max-height: 16rem; overflow: auto; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>TD-H9 data upload <small class="note">research build only</small></h1>
+<p class="note">Writes a game-data pack (for example the Freedoom E1M1 pack for the Doom firmware) to the radio's 16 MiB resource flash over Bluetooth. Needs H9 Toolbox Firmware. Only the erased tails of <code>resource</code>, <code>font</code> and <code>voice</code> are used; stock never writes or reads there. Restore erases exactly what was written. Rules: <code>firmware-research/doom-firmware/README.md</code>.</p>
+<section>
+  <button id="connect">Connect Bluetooth</button><button id="disconnect" disabled>Disconnect</button> <span id="state">Disconnected</span>
+</section>
+<section>
+  <h2>Upload a pack</h2>
+  <p><input type="file" id="file"> <label>Name <input type="text" id="name" value="freedoom E1M1S" size="24"></label></p>
+  <table id="plan"></table>
+  <p><button id="upload" disabled>Upload and verify</button> <button id="stop" disabled>Stop</button></p>
+  <progress id="progress" value="0"></progress>
+  <p id="progressText" class="note">Idle.</p>
+  <p id="result"></p>
+  <button id="saveManifest" disabled>Save upload record (.json)</button>
+</section>
+<section>
+  <h2>Restore</h2>
+  <p class="note">Erases the uploaded pack and its directory back to 0xFF, as the chip was before. Deep restore checks every sector of all three tails (about 4 MiB to read: slow).</p>
+  <button id="restore" class="danger" disabled>Restore (erase the upload)</button>
+  <button id="deep" class="danger" disabled>Deep restore</button>
+</section>
+<section><h2>Log</h2><pre id="log"></pre></section>
+<script type="module" src="app.mjs"></script>
+</body>
+</html>
