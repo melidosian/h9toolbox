@@ -2546,4 +2546,12 @@ flash-power question, and asked for more speed.
 - Confirmed by the user: key beeps play in H9 Toolbox Firmware (speaker
   path works with the radio app). Build 19 flashed for the volume test.
 
+- Build 19 on hardware: silent for every key (1/5/7, 6, 8 then 7).
+- Changed approach: measure the working state. `far-hello/audio.c` (far
+  program, 1,768 B, `2902e2f7…`) runs inside H9 Toolbox Firmware
+  (Back-hold), where key beeps play. It shows the DAC block, the
+  `0x1E19C0` block and GPIO ports A–D OUT/DIR, live and as a snapshot
+  taken 60 ms into stock tone 0 (key 7). Install: H9 Toolbox
+  (`5af9bdfe…`) + `--far` this program, one session.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

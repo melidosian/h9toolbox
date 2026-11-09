@@ -62,7 +62,8 @@ C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as",
 # Brick Breaker launcher also enters (the radio has already run that setup).
 SPLIT = "    r0 = 1\n    r3 = 0x01e4c2da\n    call r3\n"
 # Programs that can be placed in the far region (C source, relative to RESEARCH).
-PROGRAMS = {"hello": "c-hello/main.c", "logo": "far-hello/logo.c", "keys": "far-hello/keys.c"}
+PROGRAMS = {"hello": "c-hello/main.c", "logo": "far-hello/logo.c", "keys": "far-hello/keys.c",
+            "audio": "far-hello/audio.c"}
 # Extra C API for far programs (JieLi clang ABI: r0-r3 arguments, r0 result).
 FAR_API = """
 /* int h9_res_read(partition, offset, buffer, length): stock resource-flash
@@ -72,6 +73,14 @@ FAR_API = """
 h9_res_read:
     [--sp] = {rets, r14-r4}
     r4 = 0x01e52cb2
+    call r4
+    {pc, r14-r4} = [sp++]
+
+/* void h9_play_tone(unsigned n): stock app+0x5231A, the key-tone request. */
+    .globl h9_play_tone
+h9_play_tone:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e5241a
     call r4
     {pc, r14-r4} = [sp++]
 
