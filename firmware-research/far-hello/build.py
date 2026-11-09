@@ -62,7 +62,7 @@ C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as",
 # Brick Breaker launcher also enters (the radio has already run that setup).
 SPLIT = "    r0 = 1\n    r3 = 0x01e4c2da\n    call r3\n"
 # Programs that can be placed in the far region (C source, relative to RESEARCH).
-PROGRAMS = {"hello": "c-hello/main.c", "logo": "far-hello/logo.c"}
+PROGRAMS = {"hello": "c-hello/main.c", "logo": "far-hello/logo.c", "keys": "far-hello/keys.c"}
 # Extra C API for far programs (JieLi clang ABI: r0-r3 arguments, r0 result).
 FAR_API = """
 /* int h9_res_read(partition, offset, buffer, length): stock resource-flash
@@ -74,6 +74,16 @@ h9_res_read:
     r4 = 0x01e52cb2
     call r4
     {pc, r14-r4} = [sp++]
+
+/* void h9_enter_usb_loader(void): what stock's boot-key handler does on the
+ * 8 key (app+0x7D54E): call ROM 0x02000D68, expected to enter the mask-ROM
+ * USB loader (BR23UBOOT1.00, 4C4A:2342). Stock loops if it returns. */
+    .globl h9_enter_usb_loader
+h9_enter_usb_loader:
+    r3 = 0x02000d68
+    call r3
+h9_usb_loader_returned:
+    goto h9_usb_loader_returned
 """
 HEADER = f"""    .section .far_header,"ax",@progbits
     .globl far_header
