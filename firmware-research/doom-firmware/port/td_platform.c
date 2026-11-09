@@ -93,6 +93,7 @@ void I_InitTimer(void)
 void I_WaitVBL(int count)
 {
     (void)count;
+    I_UpdateSound();  // as s_pcspk.h asks: a sound started before a wait plays
 }
 
 void I_InitGraphics(void)
@@ -124,6 +125,7 @@ void I_StartTic(void)
 {
     static int down;
     td_tic_calls++;
+    td_sound_pump();
     int key = key_for(h9_key());
     if (key == down)
         return;
@@ -169,46 +171,8 @@ void I_FinishUpdate(void)
 {
 }
 
-void I_InitSound(boolean use_sfx_prefix)
-{
-    (void)use_sfx_prefix;
-}
-
-void I_UpdateSound(void)
-{
-}
-
-int I_GetSfxLumpNum(sfxinfo_t *sfxinfo)
-{
-    (void)sfxinfo;
-    return 0;
-}
-
-int I_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep)
-{
-    (void)sfxinfo;
-    (void)vol;
-    (void)sep;
-    return channel;
-}
-
-void I_StopSound(int handle)
-{
-    (void)handle;
-}
-
-boolean I_SoundIsPlaying(int handle)
-{
-    (void)handle;
-    return false;
-}
-
-void I_UpdateSoundParams(int handle, int vol, int sep)
-{
-    (void)handle;
-    (void)vol;
-    (void)sep;
-}
+// Sound: DMC100's port/game/s_pcspk.c (the I_* sound interface) with the
+// TD-H9 stepper in td_sound.c.
 
 // Front end: stubbed as in DMC100's size build (no overlays in this pass).
 fe_state_t fe;
@@ -252,11 +216,6 @@ int II_PadAxis(int v, int max)
 {
     (void)max;
     return v;
-}
-
-void snd_volume(int vol)
-{
-    (void)vol;
 }
 
 int settings_save(const void *src, uint32_t size, uint16_t version)

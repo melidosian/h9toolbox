@@ -19,6 +19,8 @@
 #include "d_main.h"
 #include "img.h"
 #include "m_argv.h"
+#include "s_pcspk.h"
+#include "dmcdat.h"
 
 #include "td.h"
 
@@ -457,6 +459,11 @@ void td_main(void)
         td_fatal("PACK CHECK", why[-e <= 6 ? -e : 0]);
     }
     td_text(0, 42, "PACK OK", GREEN, BLACK);
+
+    // 5. Sound: the pack's PC-speaker effects through the DAC (td_sound.c).
+    S_PcsInit(img_read, img.sect[DMC_SECT_SOUNDS].off, img.sect[DMC_SECT_SOUNDS].size);
+    td_sound_init();
+    td_text(0, 56, img.sect[DMC_SECT_SOUNDS].size ? "SOUND ON" : "NO SOUNDS", GREEN, BLACK);
 
     myargc = 4;
     myargv = args;

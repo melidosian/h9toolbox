@@ -77,6 +77,7 @@ static void put_column(unsigned px, const uint8_t *col, int h, int y0)
 void pump_submit(const uint8_t *cols, int ncols)
 {
     td_pump_strips++;
+    td_sound_pump();  // keep the DAC fed while the frame is drawn
     for (int k = 0; k < ncols; k++, column++) {
         const uint8_t *col = cols + k * win_h;
         int sx = win_x0 + (win_double ? 2 * column : column);

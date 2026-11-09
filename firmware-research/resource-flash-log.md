@@ -2631,4 +2631,20 @@ flash-power question, and asked for more speed.
     a stock tone first)
   - how to feed Doom's mixer
 
+## 2026-11-09 Build 25: Doom sound effects (PC speaker through the DAC)
+
+- DMC100's `port/game/s_pcspk.c` (Chocolate Doom PC-speaker semantics)
+  replaces the sound stubs. The pack's SOUNDS section (section 8, DP lumps)
+  holds the tone bytes.
+- `port/td_sound.c` is the TD-H9 stepper behind `snd_play/stop/busy/volume`:
+  - 140 steps/s; each byte is a PIT divisor (Chocolate Doom table), turned
+    into a square wave in 11025 Hz 16-bit mono PCM.
+  - Output goes through stock's DAC write (128 B per call).
+  - It keeps about 200 ms ahead of the 100 Hz tick, topped up from every
+    renderer strip, every input poll and `I_WaitVBL`.
+  - Init (after the pack checks): PA3 output and high, speaker gate,
+    volume 30, rate 11025, start.
+  - The status screen shows SOUND ON / NO SOUNDS.
+- Host test ok. Package `271ca1bc…`, flash `1f20d50f…`, far `77d51a1b…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

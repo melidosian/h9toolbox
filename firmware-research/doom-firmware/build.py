@@ -210,6 +210,7 @@ def sources(dmc: Path) -> list[Path]:
     out += [p for p in sorted((dmc / "port/data").glob("*.c")) if p.name not in ("fat12.c", "fat_write.c")]
     out += sorted((dmc / "port/render").glob("*.c")) + [dmc / "port/math/trig.c"]
     out += sorted((dmc / "port/obj").glob("*.c")) + [dmc / "engine/stub/stub_libc.c"]
+    out += [dmc / "port/game/s_pcspk.c"]  # PC-speaker effects; the TD-H9 stepper is port/td_sound.c
     out += [dmc / "gen" / n for n in ("info.c", "colormap.c", "trig_tables.c", "view.c")]
     out += sorted((ROOT / "port").glob("*.c"))
     return out
