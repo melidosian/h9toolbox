@@ -2525,4 +2525,10 @@ flash-power question, and asked for more speed.
 - Build 18: key 6 plays the stock tone, waits 1.5 s, re-gates the
   amplifier, sets rate 11025 and starts (stock), then streams 1 s.
 
+- Build 18 on hardware: no sound. After key 6: STATE 2, WRITES about
+  `0x315xx`, HRP = SWP (`…26`, static), VOL still `FBAD022C`.
+- Reference check: H9 Toolbox Firmware reflashed (flash `5af9bdfe…`;
+  backup of build 18 saved) so the user can turn key beeps on. Then Doom
+  build 18 goes back, and the probe tests stock tones with beeps enabled.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
