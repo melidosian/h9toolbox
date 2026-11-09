@@ -1591,4 +1591,10 @@ flash-power question, and asked for more speed.
   far location. Planning figure: roughly 75–86% of the CPU is available
   while the radio runs underneath.
 
+- **Bluetooth works while the far program runs:** with C-hello on screen
+  (started from the far region), the user's Bluetooth read from h9toolbox.com
+  completed. The resource service (and `btstack`) keep running alongside
+  code launched this way, so assets can go to the 16 MiB chip while our
+  program is active. Read duration was not recorded.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
