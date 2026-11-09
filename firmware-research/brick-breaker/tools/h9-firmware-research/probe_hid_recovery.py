@@ -22,6 +22,10 @@ REPORT_DESCRIPTOR = bytes.fromhex(
     "06 00 ff 09 01 a1 01 09 02 15 00 26 ff 00 75 08 95 40 "
     "81 02 09 03 15 00 26 ff 00 75 08 95 40 91 02 c0"
 )
+# macOS hidapi rebuilds the descriptor from parsed elements and writes
+# Logical Minimum 0 as a 2-byte item (16 00 00); the meaning is identical.
+REPORT_DESCRIPTORS = (REPORT_DESCRIPTOR,
+                      REPORT_DESCRIPTOR.replace(b"\x15\x00", b"\x16\x00\x00"))
 CAPTURED_PACKET = bytes.fromhex(
     "aa5513008e61dd703e3ed8693c3ed4652f05bc004e61bcb538"
 )
@@ -118,7 +122,7 @@ def main() -> int:
     try:
         device.open_path(devices[0]["path"])
         descriptor = bytes(device.get_report_descriptor())
-        if descriptor != REPORT_DESCRIPTOR:
+        if descriptor not in REPORT_DESCRIPTORS:
             raise RuntimeError("Unexpected HID report descriptor; no request sent")
         print(f"Device: {VID:04X}:{PID:04X}; 64-byte HID input/output")
         print(f"Sending one app_dir_head identification request: "

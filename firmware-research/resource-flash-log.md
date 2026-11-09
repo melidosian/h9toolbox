@@ -1333,4 +1333,40 @@ flash-power question, and asked for more speed.
   frames/s) looks like the limit. RAM (about 192 KiB total, shared with
   stock) and code space remain the constraints.
 
+## 2026-11-09 C-hello blocks hold-8 update mode; PTT+2 HID still works
+
+- With C-hello running, holding 8 at power-on no longer enters the
+  `4C4A:2342` BR23UBOOT update mode; the user reports hold-8 only works from
+  the normal firmware. The hold-8 check therefore lives in app code that
+  C-hello's stage-23 takeover never returns to (C-hello loops forever).
+- PTT+2 at power-on still enumerates as `4C4A:4155` "USB Composite Device"
+  (HID updater), so recovery remains possible over HID.
+- The web flasher cannot be used: C-hello's sectors (`0x5000`, `0x8D000`,
+  `0xAC000`, `0xD9000`) match neither stock, H9 Toolbox nor Brick Breaker,
+  so `planUpdate` refuses ("Radio differs from the supplied backup").
+- Route back: `resource-service/restore_hid.py restore` with the stock
+  restore point and the H9 Toolbox package. Its pinned 8-sector set covers
+  all four C-hello sectors, so it restores stock; then reinstall H9 Toolbox.
+- `restore_hid.py` needs the `hid` module (PyPI `hidapi`); the `h9usb` venv
+  did not have it.
+- Rule for future takeover images: keep an exit to update mode (for example,
+  a key that returns to the stock boot path), or document PTT+2 HID as the
+  only recovery.
+
+## 2026-11-09 C-hello removed over PTT+2 HID (stock restored)
+
+- `hidapi==0.15.0` installed in `~/h9usb` (with the user's approval).
+- The first `restore_hid.py inspect` failed with "Unexpected HID report
+  descriptor". macOS hidapi rebuilds the descriptor from parsed elements and
+  encodes Logical Minimum 0 as `16 00 00` instead of `15 00`; the meaning is
+  identical. `probe_hid_recovery.py` now has `REPORT_DESCRIPTORS` accepting
+  exactly the original and that one re-encoding;
+  `restore_logo_over_hid.py` uses it.
+- Inspect: `0x5000`, `0x8D000`, `0xAC000` and `0xD9000` were not stock (the
+  C-hello sectors). The other 209 accessible sectors matched stock.
+- Restore wrote those four sectors from the stock restore point
+  (`74243eae…`); each was verified by CRC, and a full rescan showed all 213
+  accessible sectors at stock. Next: reinstall H9 Toolbox Firmware via
+  hold-8.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

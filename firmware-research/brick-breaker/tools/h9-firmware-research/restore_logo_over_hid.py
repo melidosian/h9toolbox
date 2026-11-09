@@ -20,7 +20,7 @@ import hid
 
 from flash_internal_logo_probe import load_plan
 from probe_hid_recovery import (APP_START, BLOCK_SIZE, FLASH_SIZE,
-                                REPORT_DESCRIPTOR, VID, PID,
+                                REPORT_DESCRIPTORS, VID, PID,
                                 exchange, fetch_crcs, init_packet, make_packet)
 
 
@@ -48,7 +48,7 @@ def open_radio():
                 if platform.system() != "Darwin":
                     raise
             else:
-                if actual_descriptor != REPORT_DESCRIPTOR:
+                if actual_descriptor not in REPORT_DESCRIPTORS:
                     raise RuntimeError("Unexpected HID report descriptor")
         body = exchange(device, init_packet(), 0xC0, show_raw=False)
         if len(body) != 16:
