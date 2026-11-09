@@ -285,7 +285,7 @@ static void audio_probe(void)
     heap_give_back();  // Doom does not start from here; the tone decoder allocates
     uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 10", GREEN, BLACK);
+    td_text(0, 0, "AUDIO PROBE 11", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -305,8 +305,12 @@ static void audio_probe(void)
                 // PC DIR 0xFFF2 vs 0xFFFF (PC0, PC2, PC3 outputs, driven low).
                 volatile uint32_t *pa = (volatile uint32_t *)0x1E5000;
                 volatile uint32_t *pc = (volatile uint32_t *)0x1E5080;
-                pa[0] |= 1u;          // PA OUT bit 0 high
-                pa[2] &= ~1u;         // PA DIR bit 0 output
+                // Build 24: PA3 is the speaker amplifier enable (stock writer
+                // app+0x52228, pin 3 of bank 0x1E5000). The reference has PA DIR
+                // 0xDC56 (PA3 output); Doom had 0x06BE (PA3 input), so the stock
+                // writer's OUT bit never reached the pin.
+                pa[0] |= 0x9u;        // PA OUT bits 0 and 3 high
+                pa[2] &= ~0x9u;       // PA DIR bits 0 and 3 output
                 pc[0] &= ~0xDu;       // PC OUT 0, 2, 3 low
                 pc[2] &= ~0xDu;       // PC DIR 0, 2, 3 output
                 DAC[0] |= 0x1000000u;
@@ -386,7 +390,7 @@ static void audio_probe(void)
             td_text(112, 104, "DID", WHITE, BLACK);
             char d[2] = { (char)('0' + did), 0 };
             td_text(144, 104, did ? d : "-", GREEN, BLACK);
-            td_text(0, 116, "9 WAIT 1 7  2PG", WHITE, BLACK);
+            td_text(0, 116, "1 8 7  6TONE 2PG", WHITE, BLACK);
         }
         h9_delay(10);
     }

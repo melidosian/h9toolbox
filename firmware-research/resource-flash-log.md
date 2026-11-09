@@ -2606,4 +2606,13 @@ flash-power question, and asked for more speed.
   back. The screen shows the mode. Package `8e991a03…`, flash `c3d54677…`,
   far `766f3f33…`.
 
+- Build 23 on hardware: mode 3 reached (M = 03), still silent.
+- The user recalled the speaker GPIO (`main-speaker-gate.md`: PA3, written
+  by app+`0x52228`). Rechecked direction as well as output: the reference
+  PA DIR is `DC56` (PA3 output); Doom's is `06BE` (PA3 input; JieLi DIR 1 =
+  input). Stock's writer only sets OUT, so in Doom the amplifier enable was
+  never driven.
+- Build 24: key 8 makes PA0 and PA3 outputs and drives them high (plus
+  PC0/2/3 as before).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
