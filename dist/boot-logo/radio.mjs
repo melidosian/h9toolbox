@@ -101,7 +101,12 @@ export class ResourceRadio {
     await this.send(MAGIC);
     await this.expectAck('Handshake');
     await this.send(Uint8Array.of(0x02));
-    const ident = await this.readExact(8);
+    // The radio acknowledges an exit (0x45) late; when a session starts right
+    // after another, that 06 can land in front of the identity. A real
+    // identity starts with 'T' (0x54), so skip leading 06 bytes.
+    let first = (await this.readExact(1))[0];
+    for (let skipped = 0; first === 0x06 && skipped < 4; skipped++) first = (await this.readExact(1))[0];
+    const ident = Uint8Array.of(first, ...(await this.readExact(7)));
     if (!IDENTITY.every((byte, index) => ident[index] === byte) || ![0x4e, 0x48, 0x47].includes(ident[7])) {
       throw new Error(`Unexpected TD-H9 identity: ${hex(ident)}.`);
     }

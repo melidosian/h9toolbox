@@ -110,3 +110,13 @@ test('research RAM read streams RAM, re-selects RAM after a retry, and is refuse
   await assert.rejects(normal.radio.readRam(0, 0x8000), /no RAM read/);
   await assert.rejects(sim.radio.readRam(0x2c000, 0x8000), /32 KiB-aligned/);
 });
+
+test('a session started right after an exit tolerates the late exit acknowledgement', async () => {
+  const sim = new SimulatedRadio();
+  await sim.radio.enterProgramming();
+  await sim.radio.send(Uint8Array.of(0x45)); // exit without waiting, as the programmer did
+  await sim.radio.enterProgramming(); // the late exit 06 arrives ahead of the handshake ACK
+  const status = await sim.radio.selectBank(0);
+  assert.equal(status.version, 2);
+  await sim.radio.leaveProgramming();
+});
