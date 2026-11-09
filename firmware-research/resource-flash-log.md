@@ -1673,4 +1673,12 @@ flash-power question, and asked for more speed.
   sectors (`0x5000`, `0x62000`, `0x8D000`, `0xAA000`, `0xAC000`, `0xAE000`,
   `0xAF000`, `0xD9000`).
 
+## 2026-11-09 General PTT+2 restore works on hardware
+
+- Radio on H9 Toolbox + far launcher, PTT+2 mode (`4C4A:4155`).
+  `restore_stock.py inspect --known <far-launcher .fw>`: 205 stock, 8
+  differ, exactly the predicted set.
+- `restore`: 8 sectors written highest first (`0x5000` last); rescan: all
+  213 app sectors match stock v1.0.38. Boot check: pending.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
