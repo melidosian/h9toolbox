@@ -285,7 +285,7 @@ static void audio_probe(void)
     heap_give_back();  // Doom does not start from here; the tone decoder allocates
     uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 9", GREEN, BLACK);
+    td_text(0, 0, "AUDIO PROBE 10", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -311,8 +311,14 @@ static void audio_probe(void)
                 pc[2] &= ~0xDu;       // PC DIR 0, 2, 3 output
                 DAC[0] |= 0x1000000u;
                 did = 8;
-            } else if (key == 11) {  // key 9: stock DAC analog power-up tail (build 22)
-                h9_dac_analog_on();
+            } else if (key == 11) {  // key 9: app_core mode 3, as upload mode does (build 23)
+                // Build 22's key 9 (stock app+0x4B82E tail) froze: that code is
+                // the built-in FM receiver's init (ops table "fm_inside" at
+                // app+0xA14), and CON bit 24 is its analog link, not the
+                // speaker path. The working radio runs in mode 3; Doom stays
+                // in mode 10. The heap was given back on entry.
+                CORE[100] = 3;
+                h9_post_core_event(0xFFFF, 0);
                 did = 9;
             } else if (key == TD_KEY_5) {
                 for (unsigned state = 0; state <= 4; state++)
@@ -370,12 +376,17 @@ static void audio_probe(void)
             hex_at(48, 74, DAC_STATE);
             td_text(0, 84, "WRITES", WHITE, BLACK);
             hex_at(56, 84, writes);
+            td_text(112, 74, "M", WHITE, BLACK);
+            {
+                char m[3] = { (char)('0' + CORE[101] / 10), (char)('0' + CORE[101] % 10), 0 };
+                td_text(128, 74, m, YELLOW, BLACK);
+            }
             td_text(0, 94, "AMP", WHITE, BLACK);
             hex_at(40, 94, *(volatile uint8_t *)0x11B4D);
             td_text(112, 104, "DID", WHITE, BLACK);
             char d[2] = { (char)('0' + did), 0 };
             td_text(144, 104, did ? d : "-", GREEN, BLACK);
-            td_text(0, 116, "1 8 9 7  2PG", WHITE, BLACK);
+            td_text(0, 116, "9 WAIT 1 7  2PG", WHITE, BLACK);
         }
         h9_delay(10);
     }

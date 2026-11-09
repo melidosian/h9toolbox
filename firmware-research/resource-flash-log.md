@@ -2593,4 +2593,17 @@ flash-power question, and asked for more speed.
   through a wrapper that builds the function's frame and jumps in.
   Package `bd5fa92d…`, flash `b0b1feb9…`, far `aa8a9d3b…`.
 
+- Build 22 on hardware: key 9 freezes the radio; no audio.
+- The function holding the bit-24 code starts at app+`0x4AEAC` (frame
+  `{rets, r15-r4}`, sp -16). It allocates 6040 + 36 + 4096 heap bytes
+  (`[0x11AD0+800/812/804]`) and is entry 0 of an ops table at app+`0xA14`
+  (`0x4AEAC`, `0x4BA5C`, `0x4BB4A`, `0x4BB7E`, `0x4BB88`, then the name
+  `fm_inside`). It is the built-in FM receiver's init; the table is used at
+  app+`0x661A0` (app_core). CON bit 24 is FM's analog link, not the
+  speaker path.
+- Build 23: probe key 9 requests app_core mode 3 (stock's running mode)
+  with the `0xFFFF` event, as upload mode does; the heap is already given
+  back. The screen shows the mode. Package `8e991a03…`, flash `c3d54677…`,
+  far `766f3f33…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
