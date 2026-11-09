@@ -1577,4 +1577,11 @@ flash-power question, and asked for more speed.
 - Pending: the C-hello readouts in this mode, and whether Bluetooth (the
   resource service) still answers while it runs.
 
+- Far-hello readout: LOOP 172,022 per tick, against 199,873 for C-hello
+  replacing `my_app` at boot: 14% fewer iterations. The 5-instruction loop
+  fits in cache either way. The likely cause is that the whole stock system
+  (`app_core`, `btstack`, audio and timer interrupts) now runs alongside, not
+  the far-flash location. Not yet separated (an A/B run of the same build
+  from the app cave would settle it).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
