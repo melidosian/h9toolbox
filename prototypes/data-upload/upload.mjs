@@ -261,12 +261,13 @@ export async function uploadPack(radio, pack, { name = 'pack', onProgress = () =
   if (sectors) {
     await withWriteLink(radio, async () => {
       for (const [i, plan] of plans.entries()) {
-        const result = await writePlan(radio, plan, i ? targets[i] : dirTarget, () => {
+        // Count each programmed sector as it completes, so the live rate is right.
+        await writePlan(radio, plan, i ? targets[i] : dirTarget, entry => {
           written += 1;
+          if (entry.program) programmed += SECTOR;
           const seconds = Math.max(0.001, (now() - writeStart) / 1000);
           onProgress(0.2 + 0.6 * written / sectors, `Writing sector ${written} of ${sectors}`, programmed / seconds);
         });
-        programmed += result.programmed;
       }
     });
   }

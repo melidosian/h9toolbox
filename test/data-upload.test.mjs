@@ -49,6 +49,7 @@ test('upload writes the pack and directory, verifies, and leaves stock data alon
   assert.equal(manifest.verified, true);
   assert.equal(manifest.sectorsWritten, 5);                 // directory + 4 data sectors
   assert.equal(manifest.complete, true);
+  assert.equal(manifest.bytesProgrammed, 5 * SECTOR);
   assert.equal(parseDirectory(sim.chip.subarray(DIRECTORY, DIRECTORY + SECTOR)).complete, true);
   assert.deepEqual(sim.chip.subarray(0xa20000, 0xa20000 + data.length), data);
   assert.equal(parseDirectory(sim.chip.subarray(DIRECTORY, DIRECTORY + SECTOR)).name, 'test pack');
@@ -58,6 +59,20 @@ test('upload writes the pack and directory, verifies, and leaves stock data alon
     if (sim.chip.subarray(a, a + SECTOR).some((b, i) => b !== before[a + i])) changed.push(a);
   }
   assert.deepEqual(changed, [0xa1f000, 0xa20000, 0xa21000, 0xa22000, 0xa23000]);
+});
+
+test('the live write rate counts every programmed sector as it completes', async () => {
+  const sim = new SimulatedRadio();
+  stockLikeChip(sim);
+  let clock = 0;
+  const rates = [];
+  await uploadPack(sim.radio, pack(4 * SECTOR), {
+    name: 'rate', now: () => (clock += 250),
+    onProgress: (fraction, phase, rate) => { if (rate !== undefined && phase.startsWith('Writing')) rates.push(rate); },
+  });
+  assert.equal(rates.length, 5);
+  assert.ok(rates.every(r => r > 0));
+  assert.ok(rates.at(-1) > rates[0] * 0.5, `rate should not decay toward zero: ${rates}`);
 });
 
 test('re-upload of the same pack writes nothing; a new pack replaces the old one', async () => {
