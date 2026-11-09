@@ -1,0 +1,18 @@
+--- a/tools/conv/pack.py
++++ b/tools/conv/pack.py
+@@ -28,6 +28,15 @@
+     "E1": {"maps": E1, "base": 1, "mips": 1, "greedy": True, "xshift": 1,
+            "ui_exclude": ("HELP1", "CREDIT"), "ui_half": ("TITLEPIC", "WIMAP0"), "demo": True,
+            "doomx": True},
++    # TD-H9: E1M1 with the E1 graphics settings (half-res base textures, half-width
++    # title/intermission, no help/credits), greedy upgrades into spare space.
++    "E1M1H": {"maps": ["E1M1"], "base": 1, "mips": 1, "greedy": True, "xshift": 1,
++              "ui_exclude": ("HELP1", "CREDIT"), "ui_half": ("TITLEPIC", "WIMAP0"), "demo": False,
++              "doomx": False},
++    # TD-H9: the same with no greedy upgrades (smallest E1M1).
++    "E1M1S": {"maps": ["E1M1"], "base": 1, "mips": 1, "greedy": False, "xshift": 1,
++              "ui_exclude": ("HELP1", "CREDIT"), "ui_half": ("TITLEPIC", "WIMAP0"), "demo": False,
++              "doomx": False},
+     "E1A": {"maps": E1[:5], "base": 1, "mips": 1, "greedy": True, "xshift": 1,
+             "ui_exclude": ("HELP1", "CREDIT"), "ui_half": ("TITLEPIC", "WIMAP0"), "demo": False,
+             "doomx": False},

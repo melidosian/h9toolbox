@@ -1730,4 +1730,22 @@ flash-power question, and asked for more speed.
 - E1 (3,799 KiB) fits in the `resource` and `font` tails (3,880 KiB). The
   pack must be split across the two ranges.
 
+## 2026-11-09 E1M1 with E1 graphics settings: 1.01 MiB
+
+- Two extra pack entries in DMC100-Doom's `tools/conv/pack.py`, kept as
+  `doom-firmware/patches/dmc100-e1m1h-pack.patch`:
+  - `E1M1H`: the E1 settings (`base` 1 = half-resolution base textures,
+    `mips` 1, `xshift` 1 = half-width UI, no HELP1/CREDIT, half-width
+    TITLEPIC/WIMAP0) with `greedy` upgrades on.
+  - `E1M1S`: the same with `greedy` off.
+- Sizes:
+  - E1M1H: 2,263,744 B. Greedy re-upgraded 113 textures to full resolution
+    to fill DMC100's 3,031,040-byte drive, which is its capacity, not ours.
+  - **E1M1S: 1,056,192 B** (textures 346,736, patches 505,280, map
+    120,592).
+- Both pass `test_maps`; `test_determinism` still passes.
+- E1M1S is the first-upload candidate: it fits easily in the `resource` tail
+  (2,948 KiB), at about 9–12 min estimated upload. Visual quality on the
+  160×128 panel is still to be judged.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
