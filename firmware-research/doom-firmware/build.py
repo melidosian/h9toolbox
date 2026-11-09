@@ -125,6 +125,15 @@ h9_irq_on:
     call r4
     {pc, r14-r4} = [sp++]
 
+/* void h9_speaker_gate(unsigned source, unsigned on): stock app+0x5224C,
+ * the speaker amplifier arbiter (source 1 uses the request directly). */
+    .globl h9_speaker_gate
+h9_speaker_gate:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e5234c
+    call r4
+    {pc, r14-r4} = [sp++]
+
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:

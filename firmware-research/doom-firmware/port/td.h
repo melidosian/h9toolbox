@@ -16,6 +16,7 @@ void h9_post_core_event(unsigned code, unsigned value);  // stock app+0x2D77A: e
 void h9_spi2_setup(void);
 void h9_irq_off(void);  // ROM 0x02001634
 void h9_irq_on(void);   // ROM 0x02001650
+void h9_speaker_gate(unsigned source, unsigned on);  // stock app+0x5224C
 void h9_nor_read_raw(void *buffer, uint32_t chip_address, uint32_t length);
 
 // Stock key byte values (RAM 0xC3AF). Digits read as the digit + 2 (key test,

@@ -2458,4 +2458,23 @@ flash-power question, and asked for more speed.
   radio is reachable from the data-upload page. Uploading inside the Doom
   firmware works via the boot key.
 
+## 2026-11-09 Sound step 2: the DAC (static) and the build 14 audio probe
+
+- Audio MMIO: `0x1E2F00` (DAC) and `0x1E19C0`. The DAC driver is at
+  app+`0x43100–0x43880`.
+- Stock `audio_dac_start` (app+`0x43434`, handle at `0x11AD0`+6636)
+  writes:
+  - `+4` the ring buffer address
+  - `+8` its length in samples per channel (bytes / 2 / channels)
+  - `+16`/`+20` set to 0 (hardware read / software write pointers)
+  - `+0` |= `0x100`, then `+12` = `0x3C`, then `+0` |= `0x110`
+  - `+40` the volume (L | R << 16) and `+44`
+- Speaker amplifier: `0x5224C(source, on)`; source 1 passes the request
+  straight to the GPIO writer (state byte `0x11B4D` bit 0).
+- Build 14: hold 4 at power-on gives an audio probe instead of Doom. It
+  shows the live DAC registers and the amplifier byte. Key 1: amplifier
+  on. Key 2: square wave into the existing ring buffer. Key 5: start the
+  DAC on our own 1024-sample buffer (DMA bit `0x100` only).
+- Package `d7d54200…`, flash `f3581298…`, far `f1e70228…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

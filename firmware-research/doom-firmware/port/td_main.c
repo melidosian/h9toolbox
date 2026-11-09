@@ -216,6 +216,87 @@ static void upload_mode(const char *why)
     }
 }
 
+// Audio probe (hold 4 at power-on; build 14). The BR23 DAC at 0x1E2F00 as
+// stock's audio_dac_start (app+0x43434) programs it: +0 CON (|= 0x110 to
+// run), +4 ring buffer address, +8 length (samples per channel), +12 0x3C,
+// +16 / +20 hardware read / software write pointers, +40 / +44 volume.
+// Shows them live with the speaker amplifier byte (0x11B4D bit 0).
+//   1: speaker amplifier on (stock gate, source 1)
+//   2: square wave into the ring buffer the DAC already has
+//   5: start the DAC on our own buffer (DMA bit 0x100 only, no interrupt)
+// Stays until power-off; hold 3 for 2 s enters the USB loader.
+#define DAC ((volatile uint32_t *)0x1E2F00)
+static int16_t probe_ring[1024];
+
+static void hex_at(unsigned x, unsigned y, uint32_t v)
+{
+    static const char digits[] = "0123456789ABCDEF";
+    char s[9];
+    for (int i = 0; i < 8; i++)
+        s[i] = digits[(v >> (28 - 4 * i)) & 15];
+    s[8] = 0;
+    td_text(x, y, s, YELLOW, BLACK);
+}
+
+static void square(volatile int16_t *ring, unsigned samples)
+{
+    // about 500 Hz at 16 kHz, half amplitude
+    for (unsigned i = 0; i < samples; i++)
+        ring[i] = (i / 16) & 1 ? 12000 : -12000;
+}
+
+static void audio_probe(void)
+{
+    static const char *names[] = { "CON", "ADR", "LEN", "C", "HRP", "SWP", "18", "VOL", "2C" };
+    static const unsigned regs[] = { 0, 1, 2, 3, 4, 5, 6, 10, 11 };
+    td_fill(0, 0, TD_W, TD_H, BLACK);
+    td_text(0, 0, "AUDIO PROBE", GREEN, BLACK);
+    unsigned last = 0, did = 0;
+    uint32_t shown = 0, since = 0;
+    for (;;) {
+        unsigned key = h9_key();
+        if (key != last) {
+            last = key;
+            since = td_ticks();
+            if (key == TD_KEY_1) {
+                h9_speaker_gate(1, 1);
+                did = 1;
+            } else if (key == TD_KEY_2) {
+                uint32_t adr = DAC[1], len = DAC[2];
+                if (adr >= 0x1000 && adr < 0x30000 && len && len <= 4096)
+                    square((volatile int16_t *)adr, len);
+                did = 2;
+            } else if (key == TD_KEY_5) {
+                square(probe_ring, 1024);
+                DAC[0] &= ~0x110u;
+                DAC[1] = (uint32_t)(uintptr_t)probe_ring;
+                DAC[2] = 512;
+                DAC[4] = 0;
+                DAC[5] = 0;
+                DAC[3] = 0x3C;
+                DAC[0] |= 0x100;
+                did = 5;
+            }
+        }
+        if (key == TD_KEY_3 && td_ticks() - since >= 200)
+            usb_loader();
+        if (td_ticks() - shown >= 25) {
+            shown = td_ticks();
+            for (unsigned i = 0; i < 9; i++) {
+                unsigned y = 12 + 10 * i;
+                td_text(0, y, names[i], WHITE, BLACK);
+                hex_at(40, y, DAC[regs[i]]);
+            }
+            td_text(0, 104, "AMP", WHITE, BLACK);
+            hex_at(40, 104, *(volatile uint8_t *)0x11B4D);
+            td_text(112, 104, "DID", WHITE, BLACK);
+            td_text(144, 104, did == 1 ? "1" : did == 2 ? "2" : did == 5 ? "5" : "-", GREEN, BLACK);
+            td_text(0, 116, "1AMP 2SQ 5DAC", WHITE, BLACK);
+        }
+        h9_delay(10);
+    }
+}
+
 static char *args[] = { "doom", "-warp", "1", "1", 0 };
 
 void td_main(void)
@@ -230,7 +311,8 @@ void td_main(void)
 
     // 2. Power-on keys, checked for about 0.3 s: 3 = USB loader, Menu = key
     //    test (shows the stock key byte of each button, to map the controls),
-    //    2 = Bluetooth upload mode (after the resource flash set-up).
+    //    2 = Bluetooth upload mode (after the resource flash set-up),
+    //    4 = audio probe.
     int upload_kept = 0;
     for (int i = 0; i < 30; i++) {
         unsigned key = h9_key();
@@ -240,6 +322,8 @@ void td_main(void)
             key_test();
         if (key == TD_KEY_2)
             upload_kept = 1;
+        if (key == TD_KEY_4)
+            audio_probe();
         h9_delay(10);
     }
 
