@@ -1369,4 +1369,11 @@ flash-power question, and asked for more speed.
   accessible sectors at stock. Next: reinstall H9 Toolbox Firmware via
   hold-8.
 
+## 2026-11-09 H9 Toolbox Firmware reinstalled after C-hello
+
+- Hold-8 worked again from stock. The pre-flash backup
+  `h9-before-h9tb-20261109.bin` hashed to `74243eae…` (exact stock), which
+  confirms the HID restore. 8 sectors were updated; readback verified
+  `83f79fb3…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
