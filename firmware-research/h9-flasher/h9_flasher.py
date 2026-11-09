@@ -291,6 +291,28 @@ def read_flash(loader, size: int) -> bytes:
     return bytes(data)
 
 
+def run_dump(device_path: str, output: Path, size: int) -> None:
+    """Read-only: load the RAM helper and read `size` bytes from flash offset 0.
+
+    Covers the whole 1 MiB chip, including the area past the app image
+    (0xDA000 onward, retained settings) that backups do not include. Sends no
+    erase or write commands.
+    """
+    if size <= 0 or size > 0x100000 or size % ERASE_SIZE:
+        raise FlashError("Dump size must be a multiple of 4 KiB, at most 1 MiB")
+    if output.exists():
+        raise FlashError(f"Refusing to overwrite {output}")
+    protocol = load_protocol()
+    with protocol[0](device_path) as device:
+        require_bootloader(device)
+        loader = start_loader(device, protocol)
+        print(f"Chip key: 0x{loader.chip_key():04X}")
+        data = read_flash(loader, size)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(data)
+    print(f"Dump saved (read-only): {output} ({len(data):,} bytes, SHA-256 {sha256(data).hexdigest()})")
+
+
 def flash_image(loader, image: bytes, current: bytes) -> None:
     if len(image) != len(current) or len(image) % ERASE_SIZE:
         raise FlashError("Flash image/current contents have incompatible lengths")
@@ -403,6 +425,10 @@ def main() -> int:
     backup.add_argument("--device", required=True)
     backup.add_argument("--backup", required=True, type=Path)
     backup.add_argument("--stock-base", type=Path, help="Stock v1.0.38 .fw used to validate an app-only custom image")
+    dump = sub.add_parser("dump", help="Read-only: read the whole SPI NOR (default 1 MiB) to a file")
+    dump.add_argument("--device", required=True)
+    dump.add_argument("--output", required=True, type=Path)
+    dump.add_argument("--size", type=lambda v: int(v, 0), default=0x100000)
     flash = sub.add_parser("flash", help="Back up, erase, write, and verify the supplied v1.0.38 firmware")
     flash.add_argument("firmware", type=Path)
     flash.add_argument("--device", required=True)
@@ -444,6 +470,8 @@ def main() -> int:
                         if args.stock_base else checked_firmware(args.firmware))
             run_flash(args.device, firmware, args.backup, write=False,
                       custom=bool(args.stock_base))
+        elif args.command == "dump":
+            run_dump(args.device, args.output, args.size)
         elif args.command in ("flash", "resume", "restore"):
             if not args.yes:
                 raise FlashError("Add --yes to perform the flash; use inspect or probe first")
