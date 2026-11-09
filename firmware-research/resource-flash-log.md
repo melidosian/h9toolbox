@@ -1815,4 +1815,16 @@ flash-power question, and asked for more speed.
 - Next proof: a trap test of the block with `my_app` replaced (the Doom
   firmware condition).
 
+## 2026-11-09 First real Bluetooth write speed (E1M1S upload)
+
+- The data-upload page, E1M1S pack (1,056,192 B, 258 data sectors plus the
+  directory). The live rate first showed 0.02 KiB/s: a display bug (bytes
+  were added only when a region finished), fixed in `6e12a9e`.
+- Measured by the sector counter: 61 → 74 of 259 in 60 s = 13 sectors/min
+  = **about 0.87 KiB/s** (~4.6 s per 4 KiB sector: 128 acknowledged
+  32-byte block writes plus 8 status reads on the 15 ms link). That is about
+  half the earlier 1.5–2 KiB/s estimate.
+- Upload times at this rate: E1M1S about 20 min of writing; E1 (3.71 MiB)
+  about 73 min.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
