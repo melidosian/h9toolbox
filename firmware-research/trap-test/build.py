@@ -191,6 +191,14 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     symbols = {s.name: s.value for s in far.symbols if s.name}
     blob = output / "h9_trap_monitor_0xEA000.bin"
     blob.write_bytes(plain)
+    # Same bytes in the app-area cipher (key 0xF181 ^ ((flash - 0x5000) >> 2)):
+    # runs 1-3 showed plain far code does not run when started at boot.
+    sys.path.insert(0, str(RESEARCH / "far-hello"))
+    from build import flash_form  # noqa: E402
+    encrypted = flash_form(plain, 0xEA000)
+    if flash_form(encrypted, 0xEA000)[:len(plain)] != plain:
+        raise ValueError("cipher does not round-trip")
+    (output / "h9_trap_monitor_0xEA000_encrypted.bin").write_bytes(encrypted)
 
     patched = bytearray(stock)
     entry_address = FAR_ADDRESS + 8  # header jump to hello_display_hook
@@ -244,6 +252,7 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
                              if not mode.startswith("trampoline") else None),
         "trapped": fills, "far_trap": hex(symbols["far_trap"]), "monitor_main": hex(symbols["h9_main"]),
         "monitor_bytes": len(plain), "monitor_sha256": sha256(plain).hexdigest(),
+        "monitor_encrypted_sha256": sha256(encrypted).hexdigest(),
         "app_sha256": sha256(patched).hexdigest(),
         "package_sha256": sha256(package.read_bytes()).hexdigest(),
         "flash_sha256": sha256(target).hexdigest(),

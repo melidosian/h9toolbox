@@ -1994,4 +1994,27 @@ flash-power question, and asked for more speed.
   - New mode `trampoline-only` (no traps, package `110bfe1f…`) tests
     whether the far monitor starts at boot at all.
 
+## 2026-11-09 Run 3 (trampoline-only, no traps): black — far code cannot start at boot
+
+- New monitor `6660f504…` (LED on and blue screen first). Firmware
+  `trampoline-only` (`110bfe1f…`, readback `131f0f78…`, 3 sectors from
+  stock): `my_app`'s entry jumps to `0x01EE5008`, with no traps anywhere.
+- Power-on: black, no LED. **The traps were not the cause.** Code in the
+  far region does not run when started at `my_app` entry, although it ran
+  when launched later from the running radio (far-hello).
+- Combined evidence:
+  - plain far code fails at boot
+  - plain far code works late
+  - encrypted far code failed late (far-hello run 1)
+- Hypothesis: the mapping decrypts `0xEA000` like the app area until
+  something during normal operation (possibly `my_app`) switches the
+  reserved range to plain. App+`0x4F31C` is only an argument wrapper used
+  by the VM write path (callers in `0x62xxx`, `0x8CBxx`), not that switch.
+- Test: the same firmware with the monitor stored encrypted
+  (`h9_trap_monitor_0xEA000_encrypted.bin`, `1738454f…`).
+  - If it shows the blue screen, encrypted far code is the right form for
+    the Doom firmware, where `my_app` never runs.
+  - If it starts and then freezes, the switch happens elsewhere at run
+    time.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
