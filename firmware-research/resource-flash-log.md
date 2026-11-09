@@ -1951,4 +1951,24 @@ flash-power question, and asked for more speed.
   sectors (undoing H9 Toolbox and applying the trap image); readback
   `f70b4400…`. Run results: pending.
 
+## 2026-11-09 Trap test run 1: black screen, no LED; recovered by PTT+2
+
+- Power-on gave a black screen with no LED. The monitor turns the LED on
+  first, so it never ran (or something trapped before it started). No
+  `4C4A:2342` appeared, and holding 3 at power-on did nothing (that check
+  is in the monitor).
+- **PTT+2 still worked with this build:** `restore_stock.py inspect` found
+  exactly the 20 trap-build sectors, and `restore` returned all 213 to
+  stock.
+- Next diagnostic: `trap-test/read_record.py` reads RAM `0x1E4F0` through
+  the mask-ROM loader (hold-8 from stock) to see whether a trap stub
+  recorded itself.
+- Hypotheses:
+  1. the task launcher rejects or mishandles an entry outside the app image
+     (`0x01EE5008`)
+  2. code before the `my_app` task (`app_core` or initializers) reaches the
+     block, so a trap fired where the ROM USB-loader call could not run
+- Discriminating builds: the redirect without traps, and traps with a
+  trampoline at `my_app`'s own entry (`0x88180`) instead of the redirect.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
