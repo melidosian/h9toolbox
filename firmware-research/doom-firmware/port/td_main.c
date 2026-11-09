@@ -120,6 +120,38 @@ void td_fatal(const char *what, const char *detail)
     }
 }
 
+// Key test: the key byte of whatever is pressed, and the last eight codes
+// seen. Stays until power-off (hold 3 for 2 s: USB loader).
+static void key_test(void)
+{
+    td_fill(0, 0, TD_W, TD_H, BLACK);
+    td_text(0, 0, "KEY TEST", YELLOW, BLACK);
+    td_text(0, 108, "HOLD 3: USB", WHITE, BLACK);
+    while (h9_key() == TD_KEY_MENU)
+        h9_delay(10);
+    unsigned last = ~0u, seen[8] = { 0 }, n = 0;
+    uint32_t since = 0;
+    for (;;) {
+        unsigned key = h9_key();
+        if (key != last) {
+            last = key;
+            td_fill(0, 24, TD_W, 12, BLACK);
+            td_text(0, 24, "NOW", WHITE, BLACK);
+            number(40, 24, key, GREEN);
+            if (key) {
+                seen[n++ % 8] = key;
+                td_fill(0, 44, TD_W, 24, BLACK);
+                for (unsigned i = 0; i < 8 && i < n; i++)
+                    number(40 * (i % 4), 44 + 12 * (i / 4), seen[(n - 1 - i) % 8], i ? WHITE : YELLOW);
+            }
+            since = td_ticks();
+        }
+        if (key == TD_KEY_3 && td_ticks() - since >= 200)
+            usb_loader();
+        h9_delay(10);
+    }
+}
+
 static char *args[] = { "doom", "-warp", "1", "1", 0 };
 
 void td_main(void)
@@ -132,10 +164,14 @@ void td_main(void)
     h9_led(1);
     td_fill(0, 0, TD_W, TD_H, BLACK);
 
-    // 2. Recovery key, checked for about 0.3 s.
+    // 2. Power-on keys, checked for about 0.3 s: 3 = USB loader, Menu = key
+    //    test (shows the stock key byte of each button, to map the controls).
     for (int i = 0; i < 30; i++) {
-        if (h9_key() == TD_KEY_3)
+        unsigned key = h9_key();
+        if (key == TD_KEY_3)
             usb_loader();
+        if (key == TD_KEY_MENU)
+            key_test();
         h9_delay(10);
     }
 

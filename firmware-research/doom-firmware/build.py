@@ -144,8 +144,14 @@ def entry_object(out: Path) -> Path:
     sys.path.insert(0, str(ISA))
     from pi32v2isa import asm  # noqa: E402
     text = (RESEARCH / "c-hello" / "entry.s").read_text(encoding="utf-8")
+    # Backlight: stock's duty is saved level (RAM 0x12BAA) * 2000 + 2000, and
+    # the level is loaded by stock my_app, which never runs here, so the panel
+    # came up at the minimum (run 4: "turn the brightness up"). Use the top
+    # step, 10000.
+    brightness = ("    r1 = 0x12baa\n    r1 = b[r1+0] (u)\n    r1 = r1 * 0x7d0\n    r1 = r1 + 2000\n",
+                  "    r1 = 10000\n")
     for old, new in (('.section .text,"ax",@progbits', '.section .cave,"ax",@progbits'),
-                     ("    call h9_main\n", "    call td_main\n")):
+                     ("    call h9_main\n", "    call td_main\n"), brightness):
         if text.count(old) != 1:
             raise ValueError(f"entry.s: {old!r} not found exactly once")
         text = text.replace(old, new)

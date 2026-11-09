@@ -2266,4 +2266,17 @@ flash-power question, and asked for more speed.
 - User feedback: no sound (expected: sound is stubbed in this pass), and the
   backlight is dim.
 
+## 2026-11-09 Doom build 5: full backlight, key test (offline)
+
+- **Backlight:** the cave startup set the PWM duty to stock's formula,
+  saved level (RAM `0x12BAA`) × 2000 + 2000. That level is loaded only by
+  stock `my_app`, so the panel came up at the minimum. Fixed at the top
+  step, 10000.
+- **Key test:** holding Menu at power-on shows the stock key byte of each
+  button (live, plus the last eight) instead of starting the game. It is for
+  mapping 2/4/5/6 to WASD-style movement as the user asked; only button 3
+  = 5 is known. Hold 3 for 2 s still enters the USB loader.
+- Host test still runs 140 tics. Package `a0e36c1e…` (flash `8347117c…`),
+  far blob `6dae58ac…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
