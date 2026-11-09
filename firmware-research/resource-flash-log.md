@@ -1415,4 +1415,22 @@ flash-power question, and asked for more speed.
   coefficient and bitmap tables. The VM init (code using the `55AAAA55`
   magic near app+`0x62378`) is the next place to read for its length.
 
+## 2026-11-09 Settings VM: two banks described in RAM
+
+- The VM code near app+`0x062376` (loads magic `0x55AAAA55`) keeps its
+  state at RAM `0x11AD0+0x2398` = `0x13E68`: two 12-byte bank descriptors
+  (bank A at `0x13E68`, bank B at `0x13E74`). The bank is selected by bit 1
+  of byte `0x13ED5`; word 0 of a descriptor is the bank's flash address.
+  App+`0x062408` copies the live bank into the other (defragmentation) and
+  checks a second magic `0xDDEEBB77`.
+- No static writer of the descriptors was found in app+`0x61000–0x64000`. The
+  addresses are probably computed at run time (possibly from boot
+  information the loader passes). Reading `0x13E68–0x13E7F` on a running
+  radio with the RAMREAD research build (`s2-ram`) would give both banks'
+  addresses and sizes directly.
+- Why it matters even for a Doom-only build: `app_core` and Bluetooth keep
+  running and own the VM; a VM format or defragmentation erases its whole
+  allotted area. Code placed in erased sectors must sit outside both banks,
+  or the VM length must be patched smaller.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
