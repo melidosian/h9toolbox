@@ -1622,4 +1622,17 @@ flash-power question, and asked for more speed.
   - read and draw a full screen: about 40 ms (30–50 ms), roughly 20–33
     full frames/s streamed straight from the resource flash
 
+## 2026-11-09 Doom size check (offline): unmodified doomgeneric does not fit
+
+- doomgeneric `e257a09` (GPL-2.0, downloaded 3.1 MB tarball, kept outside
+  the repo) compiles cleanly with JieLi clang `-Oz` (72 files).
+- Totals before linking: code 115,130 B, rodata 100,755 B (66,820 B trig
+  tables), init data 60,030 B (40,236 B `info.o`), bss 243,693 B (134,152 B
+  `r_plane`), plus a 6 MiB zone heap by default.
+- Against 72 KiB far flash and about 31 KB free RAM (130 KB more with
+  `my_app`'s RAM), it is about 4× over on flash and far over on RAM. A
+  fitting port must render at 160×128, read the WAD in place from the
+  resource flash, constify tables, and get more main flash. Details in
+  `takeover/DOOM-SIZE.md`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
