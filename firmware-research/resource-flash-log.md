@@ -1390,4 +1390,29 @@ flash-power question, and asked for more speed.
   `my_app` alone frees little flash. That fits the user's wish to keep
   Bluetooth (the `btstack` task) anyway.
 
+## 2026-11-09 Main flash tail mapped (read-only 1 MiB dump)
+
+- `h9_flasher.py dump` (new, read-only) read the whole 1 MiB SPI NOR in
+  hold-8 mode. The dump is private (`~/h9-backups/h9-main-flash-full-20261109.bin`,
+  `45276aeb…`) because the settings area holds the radio's Bluetooth name and
+  settings; it is not committed. The first `0xDA000` bytes hash `83f79fb3…`
+  (H9 Toolbox Firmware), as expected.
+- Flash file table (decoded with key `0xFFFF`): `uboot.boot` at `0xA0`,
+  `isd_config.ini` at `0x45B0` (0x71 bytes: SPI 2_3_0_0, RESET PB01_00_0,
+  UPDATE_JUMP 0, PSRAM 0, VLVD 4, EOFFSET 0; no VM size), `app_dir_head` at
+  `0x5000`, `key_mac` at `0xFF000` (4 KiB).
+- Tail by 4 KiB sector:
+  - `0xD8000–0xD9FFF`: end of the app and package metadata (known).
+  - `0xDA000`: settings VM, magic `55 AA AA 55`, 2,369 bytes used; contains
+    the Bluetooth name `TD-H9-0536`.
+  - `0xDB000–0xFCFFF`: **34 sectors (139,264 B) erased**.
+  - `0xFD000`: 10 bytes (`f7 66 60 00 b3 f3 70 0b cc ce`), role unknown
+    (possibly Bluetooth pairing/address data).
+  - `0xFE000–0xFFFFF`: erased; `0xFF000` is the reserved `key_mac` entry.
+- Not yet known: how large the VM area is. JieLi's VM is log-structured and
+  may grow into erased sectors after it, so "erased now" is not proof of
+  "free". Searches for `0xDA000`/`0x24000`/`0xFE000` immediates hit only
+  coefficient and bitmap tables. The VM init (code using the `55AAAA55`
+  magic near app+`0x62378`) is the next place to read for its length.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
