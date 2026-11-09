@@ -48,10 +48,16 @@ void I_Quit(void)
     td_fatal("QUIT", "");
 }
 
+// The zone (engine/z_zone.c, as in DMC100's host build): Z_Init writes its
+// header at the base, so it must be real memory (NULL wrote over the RAM code
+// at address 0: Doom run 2 hung there). Only small tables are allocated
+// (the sound channels of S_Init), so 1 KiB is plenty.
+static byte zone[1024] __attribute__((aligned(8)));
+
 byte *I_ZoneBase(int *size)
 {
-    *size = 0;
-    return NULL;
+    *size = sizeof zone;
+    return zone;
 }
 
 void I_Tactile(int on, int off, int total)
@@ -211,19 +217,21 @@ void M_Ticker(void)
 {
 }
 
+// No menu in the first pass: DMC100's menu responder opens the menu on any
+// button (its title-loop behaviour), which took every key away from the game.
 boolean M_Responder(event_t *ev)
 {
-    return M_OvlResponder(ev);
+    (void)ev;
+    return false;
 }
 
 void M_StartControlPanel(void)
 {
-    M_OvlOpen();
 }
 
 void M_Drawer(void)
 {
-    M_OvlDrawer();
+    // no menu in the first pass (DMC100's drawer draws its menu whenever called)
 }
 
 volatile pad_t dmc_pad;

@@ -26,7 +26,11 @@ enum { TD_W = 160, TD_H = 128 };
 #define TD_RESOURCE_END 0xD00000u
 #define TD_DIRECTORY 0xA1F000u
 
+#ifdef TD_HOST
+uint32_t td_ticks(void);  // test/td_host.c
+#else
 static inline uint32_t td_ticks(void) { return *(volatile uint32_t *)0x1d8b0; }
+#endif
 
 // td_main.c
 void td_fatal(const char *what, const char *detail) __attribute__((noreturn));

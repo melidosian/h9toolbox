@@ -54,7 +54,7 @@ REGIONS = [  # name, CPU origin, length; filled in this order (largest first)
 ]
 FRAME_MAX, TIC_OFFSET, ARENA_MIN = 15208, 6912, 3848
 # Start-up stages traced on screen by port/td_trace.c (diagnostic).
-WRAPS = ("V_Init", "PAR_Init", "R_Init", "P_Init", "S_Init", "D_CheckNetGame", "HU_Init", "ST_Init",
+WRAPS = ("V_Init", "R_Init", "P_Init", "S_Init", "D_CheckNetGame", "HU_Init", "ST_Init",
          "G_InitNew", "P_SetupLevel", "TryRunTics", "R_RenderPlayerView")
 C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as", "-ffunction-sections", "-fdata-sections",
            "-ffreestanding", "-fno-common", "-fwrapv", "-fsigned-char", "-std=gnu11", "-w"]

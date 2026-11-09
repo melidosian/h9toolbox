@@ -31,10 +31,12 @@ volatile struct nor_stats nor_stats;
 // reads go to the lower-level stock SPI2 read instead.
 void td_nor_setup(void)
 {
+#ifndef TD_HOST
     volatile uint32_t *bank1 = (volatile uint32_t *)0x001e5040;
     bank1[3] |= 0x80;   // +0x0C input enable
     bank1[2] &= ~0x80u; // +0x08 direction: output
     bank1[0] |= 0x80;   // +0x00 high: deselected
+#endif
     h9_spi2_setup();
 }
 

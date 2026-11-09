@@ -90,7 +90,6 @@ static void done(void)
     }
 
 WRAP0(V_Init)
-WRAP0(PAR_Init)
 WRAP0(R_Init)
 WRAP0(P_Init)
 WRAP0(D_CheckNetGame)

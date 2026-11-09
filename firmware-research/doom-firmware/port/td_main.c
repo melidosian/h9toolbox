@@ -124,9 +124,11 @@ static char *args[] = { "doom", "-warp", "1", "1", 0 };
 
 void td_main(void)
 {
-    // 1. The C runtime of the RAM block.
+    // 1. The C runtime of the RAM block (the host test's runtime does this).
+#ifndef TD_HOST
     memcpy(__data_start, __data_load, (size_t)(__data_end - __data_start));
     memset(__bss_start, 0, (size_t)(__bss_end - __bss_start));
+#endif
     h9_led(1);
     td_fill(0, 0, TD_W, TD_H, BLACK);
 
@@ -140,9 +142,11 @@ void td_main(void)
     // 3. Status.
     td_text(0, 0, "H9 DOOM", YELLOW, BLACK);
     td_text(0, 14, "HEAP", WHITE, BLACK);
+#ifndef TD_HOST
     number(48, 14, *(volatile uint16_t *)0x1d8a8, WHITE);
     td_text(96, 14, "/", WHITE, BLACK);
     number(104, 14, *(volatile uint16_t *)0x1d8aa, WHITE);
+#endif
     uint32_t address, length;
     td_nor_setup();
     int found = td_pack_find(&address, &length);

@@ -2222,4 +2222,35 @@ flash-power question, and asked for more speed.
   - Package `1b69ecc1…`, far blob `5bca4550…`; wraps confirmed in
     `D_DoomMain`'s disassembly.
 
+## 2026-11-09 Doom hang found and fixed; E1M1 runs in the host test
+
+- Trace run on hardware: bottom line R1 T0 S0 and no stage names, so it
+  stopped in `D_DoomMain` before `V_Init`. The only call there is
+  `Z_Init()`.
+- **Cause:** `I_ZoneBase` (copied from DMC100's size-only stub) returned
+  NULL. `Z_Init` writes the zone header at the returned base, so it wrote
+  over the RAM-resident code at address 0. (DMC100's device firmware
+  replaces `z_zone.c`; its host build, whose path this build follows
+  because `DMC_FW` is not defined, uses a real zone.) Fixed with a 1 KiB
+  static zone; only the sound channels are allocated.
+- **Host test** (`test/host_test.py`, `test/td_host.c`): the exact firmware
+  source set compiled with gcc in `h9-jieli-dev` (`-DTD_HOST`).
+  - Stand-ins: LCD as a 160x128 framebuffer with window checks, the
+    resource flash as a 16 MiB image holding the uploader's directory plus
+    the E1M1S pack, scripted keys.
+  - RAM symbols are set on host arrays with `.set`.
+  - Harness traps: the engine's stub headers hid `fopen`, so the harness
+    compiles separately; DMC100's libc stubs replace glibc's `free` on the
+    host, so they are left out there.
+- Under AddressSanitizer it ran 175 tics with no errors and rendered E1M1
+  at 160x128 with the status bar; holding Up walks forward
+  (`host-evidence/e1m1-host-final.png`).
+- Two further fixes found by it:
+  - `M_Responder` forwarded keys to DMC100's menu, which opens on any
+    button.
+  - `M_Drawer` always drew the menu.
+  - With no menu in this pass, both are now no-ops.
+- `PAR_Init` exists only in DMC100's host build, so its wrap was removed.
+- Rebuilt: package `1789f4a3…` (flash `cb01527b…`), far blob `8fbb46ed…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
