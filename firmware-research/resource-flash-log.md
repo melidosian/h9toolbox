@@ -1223,4 +1223,27 @@ flash-power question, and asked for more speed.
   pairs that look like growing logs) and the rest of `rw_freq` (one block at
   `0x905000`) are stock-owned: their erased space is not usable for our data.
 
+## 2026-11-09 Hardware: the radio acknowledges an exit late (programmer fast read fix)
+
+- The live programmer detected H9 Toolbox Firmware but its fast read failed
+  with "Unexpected TD-H9 identity: 06 54 44 48 39 ff ff ff" and fell back to
+  the standard read (15.7 s).
+- Cause: **the radio sends an `06` for the exit command `0x45`, late.** The
+  programmer exited its detection session and started the fast session
+  immediately. The late `06` was taken as the handshake ACK, so the real
+  handshake ACK sat in front of the 8-byte identity. Pages that wait 300 ms
+  after an exit never saw it, and the earlier simulator never acknowledged
+  exits.
+- Fix (`6124475`, live; cherry-picked here as `ea6c93f`):
+  - wait 300 ms between the detection and fast sessions
+  - both Bluetooth sessions skip up to four stray leading `06` bytes before
+    the identity (which always starts with `T`, `0x54`)
+  - the simulator queues the exit ACK ahead of its next reply; a regression
+    test reproduces the exact hardware error without the fix and passes
+    with it
+  - a browser run of the real programmer against that simulator: fast read,
+    15 requests, 4/4 cross-check blocks matching
+- The fallback after the failure worked: 300 ms wait, then a clean standard
+  read. That suggests the real ACK arrives within 300 ms.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
