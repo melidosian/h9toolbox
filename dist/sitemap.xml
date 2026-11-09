@@ -2,11 +2,22 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://h9toolbox.com/</loc>
+    <lastmod>2026-11-08</lastmod>
   </url>
   <url>
     <loc>https://h9toolbox.com/programmer/</loc>
+    <lastmod>2026-11-08</lastmod>
   </url>
   <url>
     <loc>https://h9toolbox.com/firmware/</loc>
+    <lastmod>2026-11-08</lastmod>
+  </url>
+  <url>
+    <loc>https://h9toolbox.com/firmware-update/</loc>
+    <lastmod>2026-11-08</lastmod>
+  </url>
+  <url>
+    <loc>https://h9toolbox.com/boot-logo/</loc>
+    <lastmod>2026-11-08</lastmod>
   </url>
 </urlset>
