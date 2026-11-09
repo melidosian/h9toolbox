@@ -64,6 +64,8 @@ void I_Tactile(int on, int off, int total)
 // Doom tics are 1/35 s; the stock counter runs at 100 Hz.
 int I_GetTime(void)
 {
+    td_time_calls++;
+    td_trace_counters(0);
     return (int)(td_ticks() * 35u / 100u);
 }
 
@@ -113,6 +115,7 @@ static int key_for(unsigned code)
 void I_StartTic(void)
 {
     static int down;
+    td_tic_calls++;
     int key = key_for(h9_key());
     if (key == down)
         return;

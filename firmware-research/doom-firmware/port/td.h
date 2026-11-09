@@ -33,6 +33,10 @@ void td_fatal(const char *what, const char *detail) __attribute__((noreturn));
 void td_fill(unsigned x0, unsigned y0, unsigned w, unsigned h, uint16_t color);
 void td_text(unsigned x, unsigned y, const char *s, uint16_t fg, uint16_t bg);
 
+// td_trace.c (diagnostic counters, drawn until the first frame)
+extern volatile uint32_t td_nor_reads, td_pump_strips, td_time_calls, td_tic_calls;
+void td_trace_counters(int force);
+
 // td_nor.c
 void td_nor_setup(void);
 int td_pack_find(uint32_t *address, uint32_t *length);

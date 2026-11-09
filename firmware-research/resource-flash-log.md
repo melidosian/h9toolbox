@@ -2207,4 +2207,19 @@ flash-power question, and asked for more speed.
   (26,752 B), 167 used (21,376 B), 42 free (5,376 B), with `my_app` not
   running. The stock tasks fit, with little margin.
 
+- **Run 2 then stayed on "PACK OK":** no frame, no red error, no reset, so
+  it hangs or stops inside `D_DoomMain` before the first strip.
+- Trace build (`port/td_trace.c`): GNU ld `--wrap` on `V_Init`, `R_Init`,
+  `P_Init`, `S_Init`, `D_CheckNetGame`, `HU_Init`, `ST_Init`, `G_InitNew`,
+  `P_SetupLevel`, `TryRunTics` and `R_RenderPlayerView` (`PAR_Init` was not
+  wrapped).
+  - Each stage shows its name and stack address, with a green dot when
+    done.
+  - Counters (NOR reads R, I_GetTime calls T, I_StartTic calls S) refresh
+    every 0.5 s until the first strip.
+  - JieLi clang 4.0.1 segfaults on `__builtin_frame_address`, so the stack
+    address comes from a local's address.
+  - Package `1b69ecc1…`, far blob `5bca4550…`; wraps confirmed in
+    `D_DoomMain`'s disassembly.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

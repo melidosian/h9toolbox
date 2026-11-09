@@ -53,6 +53,9 @@ REGIONS = [  # name, CPU origin, length; filled in this order (largest first)
     ("R2B", IMAGE_BASE + 0x88184, 0x890E4 - 0x88184),
 ]
 FRAME_MAX, TIC_OFFSET, ARENA_MIN = 15208, 6912, 3848
+# Start-up stages traced on screen by port/td_trace.c (diagnostic).
+WRAPS = ("V_Init", "PAR_Init", "R_Init", "P_Init", "S_Init", "D_CheckNetGame", "HU_Init", "ST_Init",
+         "G_InitNew", "P_SetupLevel", "TryRunTics", "R_RenderPlayerView")
 C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as", "-ffunction-sections", "-fdata-sections",
            "-ffreestanding", "-fno-common", "-fwrapv", "-fsigned-char", "-std=gnu11", "-w"]
 INCLUDES = ["engine/stub/include", "engine", "port/data", "port/render", "port/obj", "port/math", "platform",
@@ -182,7 +185,8 @@ def link(mount: Path, toolchain: Path, out: Path, objs: list[Path], text: str, n
     ld.write_text(text)
     elf_path, map_path = out / f"{name}.elf", out / f"{name}.map"
     rel = lambda p: f"/w/{p.relative_to(mount)}"
-    docker(mount, toolchain, f"/opt/jieli/pi32v2/bin/ld --gc-sections -T {rel(ld)} -Map {rel(map_path)} "
+    wraps = " ".join(f"--wrap={w}" for w in WRAPS)
+    docker(mount, toolchain, f"/opt/jieli/pi32v2/bin/ld --gc-sections {wraps} -T {rel(ld)} -Map {rel(map_path)} "
                              f"-o {rel(elf_path)} " + " ".join(rel(o) for o in objs))
     undefined = docker(mount, toolchain, f"/opt/jieli/pi32v2/bin/nm -u {rel(elf_path)}").strip()
     if undefined:

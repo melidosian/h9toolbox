@@ -158,7 +158,6 @@ void td_main(void)
         td_fatal("PACK CHECK", why[-e <= 6 ? -e : 0]);
     }
     td_text(0, 42, "PACK OK", GREEN, BLACK);
-    h9_delay(500);
 
     myargc = 4;
     myargv = args;

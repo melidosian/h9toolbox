@@ -45,6 +45,8 @@ void nor_read(uint32_t phys, void *dst, uint32_t n)
     if (n)
         h9_nor_read_raw(dst, phys, n);
     nor_stats.sync++;
+    td_nor_reads++;
+    td_trace_counters(0);
 }
 
 int nor_read_async(uint32_t phys, void *dst, uint32_t n, int prio)
