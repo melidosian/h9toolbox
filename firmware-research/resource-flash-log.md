@@ -1799,4 +1799,20 @@ flash-power question, and asked for more speed.
   `~/Documents/ChatGPT/TID-H9/doom-packs/freedoom-E1M1S-DOOM.DAT`
   (1,056,192 B, SHA-256 `06442c61…`).
 
+## 2026-11-09 Flash for Doom: a 62 KB my_app-only block
+
+- `takeover/callgraph.py`: whole-image call graph (3,507 functions, 8,227
+  direct calls, iterated call-target discovery). `my_app`-only code totals
+  69,136 B, mostly the contiguous block app+`0x79CC6–0x890E4` (~62 KB).
+- **No real references in from elsewhere:** the only outside word pointing
+  into the block that is a real reference is the task table's `my_app`
+  entry. The rest are clock constants (`0x01E84800` = 32 MHz), odd values
+  and table/instruction bytes.
+- **Needed helpers sit outside it:** every stock helper the C programs need
+  is outside the block.
+- **Budget:** 76 KiB far region + ~62 KB block = ~138 KB against a 112 KB
+  engine core plus ~10 KB platform. The front end goes to overlays.
+- Next proof: a trap test of the block with `my_app` replaced (the Doom
+  firmware condition).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

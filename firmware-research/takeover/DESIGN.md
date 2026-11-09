@@ -41,6 +41,57 @@ as live.
   which holds the retained VM settings and is not yet mapped).
 - Still an estimate: unresolved indirect jumps and ROM callbacks remain.
 
+## Phase 1b: code only `my_app` needs (for the Doom firmware)
+
+[`callgraph.py`](callgraph.py) builds a whole-image call graph instead of
+using the incomplete call index:
+
+- It linearly decodes every function extent and collects all direct `call`
+  targets, iterating until no new targets appear: 3,507 functions, 8,227
+  direct call edges.
+- Roots: the reset entry and the 673 prologue pointers.
+- "my_app only" = reachable with `my_app` minus reachable without it.
+
+Results (stock v1.0.38):
+
+| Set | Functions | Bytes |
+|---|---:|---:|
+| reachable with `my_app` | | 696,576 |
+| **`my_app` only** | 185 | **69,136** |
+| unreached | 105 | 114,828 (mostly constant data mis-attributed to the last function before it: 57 KB at `0xB5D70`, 26 KB at `0xAA394`; not usable as is) |
+
+- **The largest `my_app`-only block is contiguous:**
+  app+`0x79CC6–0x890E4`, about **62 KB** (the radio UI and loop, including
+  `my_app` itself at `0x88180`).
+- **Helpers stay outside it.** The stock helpers the C programs use are
+  all outside the block: controller setup `0x4C1DA`, key decoder
+  `0x514AC`, delay `0x515C6`, partition read `0x52BB2`, SPI read
+  `0x4FE22`, LCD submit `0x4BB8E`/`0x4BC0E`. So is the pin helper
+  `0x79BE4`, which is `my_app`-only but just before the block.
+- **Outside references into the block:** 15 words point into it.
+  - One is the task table's `my_app` entry (app+`0x5FFD0`), which the Doom
+    firmware replaces.
+  - The other 14 are coincidences: clock-frequency constants (32, 96, 100,
+    120, 160, 240 MHz in a table at `0xD3B9C`; 32,000,000 = `0x01E84800`),
+    odd values, halfword tables, and instruction bytes.
+- **Constant data used only by the block:** 28 data addresses, about 19 KB
+  attributed. 17 KB of that is one pointer table at `0xAA37C` whose real
+  extent is unconfirmed, so it is not counted yet.
+
+### Flash budget for the Doom firmware
+
+| Region | Size | Status |
+|---|---:|---|
+| far region `0xEA000–0xFCFFF` | 76 KiB | proven on hardware (C runs there) |
+| `my_app`-only block app+`0x79CC6–0x890E4` | ~62 KB | static evidence; trap test next |
+| **total** | **~138 KB** | |
+
+- **Fits the core:** the DMC100 engine core is 112 KB on Pi32v2, plus our
+  platform layer (~10 KB), which fits across the two regions.
+- **Front end:** the menus, intermission, finale and saves (~40 KB) become
+  overlays loaded from the resource chip into RAM, as DMC100 does, or move
+  into further reclaimed space once that is proven.
+
 ## Phase 2: prove regions unused on hardware ("trap test")
 
 For a candidate region, build a takeover image (C-hello as the program)
