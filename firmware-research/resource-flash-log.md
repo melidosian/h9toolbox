@@ -2257,4 +2257,13 @@ flash-power question, and asked for more speed.
   sectors; `0xFB000` keeps unused bytes from the previous blob), main 15
   sectors, readback `cb01527b…`. Result: pending.
 
+## 2026-11-09 DOOM RUNS ON THE TD-H9 (run 4)
+
+- The user confirmed "that's working!": the first-pass firmware boots
+  through the cave startup, the status screen and PACK OK, then plays
+  Freedoom E1M1 on the radio's panel, read from the resource chip, with key
+  control.
+- User feedback: no sound (expected: sound is stubbed in this pass), and the
+  backlight is dim.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
