@@ -1902,4 +1902,20 @@ flash-power question, and asked for more speed.
   mask-ROM USB loader (`4C4A:2342`). The next test checks both from a far
   program launched on the running radio, where stock hold-8 is unaffected.
 
+## 2026-11-09 Our code enters the USB loader: ROM 0x02000D68 proven
+
+- Far-keys program (`84be685d…` at `0xEA000`) with H9 Toolbox and the far
+  launcher (`5af9bdfe…`; 4 sectors from H9 Toolbox).
+- **Key byte 5 is the 3 button, not 8.** With 3 held for 2 s, the program
+  called ROM `0x02000D68`. The Mac then enumerated `4C4A:2342`
+  "BR23UBOOT1.00", and `h9_flasher.py probe` answered
+  `BR23 UBOOT1.00 1.00`: the same mask-ROM USB loader hold-8 gives.
+- So any firmware of ours can enter the USB loader by itself (one ROM call,
+  no stock `my_app`). Every Doom build gets an independent recovery path
+  besides PTT+2.
+- Open: stock's handler fires on key byte 5 (button 3) but the user enters
+  this mode by holding 8. Either the boot-time key byte differs from the
+  runtime mapping, or hold-8 reaches `0x7CE14` through the `0xC39D` = 14
+  branch. It does not matter for our own trigger, which we choose.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
