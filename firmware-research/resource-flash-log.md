@@ -1649,4 +1649,28 @@ flash-power question, and asked for more speed.
 - Rules, restore method and the stock-boot checklist:
   `doom-firmware/README.md`.
 
+## 2026-11-09 General PTT+2 restore to stock (offline)
+
+- PTT+2 is the recovery path for the Doom firmware. It survived C-hello's
+  `my_app` replacement; hold-8 did not. Rule: Doom builds take over at the
+  `my_app` entry (as C-hello did), and the first check after flashing any new
+  build is that PTT+2 still enumerates.
+- `hid-recovery/restore_stock.py` restores any main firmware to stock:
+  - It scans all 213 app sectors by CRC against the stock restore point
+    (`74243eae…`) and rewrites the ones that differ.
+  - It always rewrites the sectors any `--known` package changed (against
+    CRC collisions). `--all` rewrites everything.
+  - It writes highest sector first, with the header sector and its first 32
+    bytes last, then rescans and requires all sectors to be stock.
+  - It is resumable, and never writes past `0xD9FFF`.
+  - It uses the proven HID packets (C2/C3/C4) from the logo and C-hello
+    restores.
+- 9 offline tests against a simulated NOR radio pass: arbitrary and 384 KiB
+  changes, header-last ordering, inspect-only, already-stock, known-sector
+  rewrite, `--all`, resume after a simulated USB drop, untouched VM and far
+  region, wrong restore point rejected.
+- `--known` on the far-launcher package and on H9 Toolbox gives the same 8
+  sectors (`0x5000`, `0x62000`, `0x8D000`, `0xAA000`, `0xAC000`, `0xAE000`,
+  `0xAF000`, `0xD9000`).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
