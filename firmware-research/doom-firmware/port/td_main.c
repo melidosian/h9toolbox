@@ -240,6 +240,7 @@ void td_main(void)
         // Build 10: request mode 3 (stock's running mode, which starts the
         // Bluetooth stack); Doom alone stays in the start-up mode 10.
         core[100] = 3;
+        h9_post_core_event(0xFFFF, 0);  // build 11: wake app_core so it applies the request
         h9_delay(2000);
         td_text(0, 112, "AFTER", GREEN, BLACK);
         number(48, 112, core[101], GREEN);

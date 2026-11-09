@@ -99,6 +99,17 @@ h9_nor_read_raw:
     call r4
     {pc, r14-r4} = [sp++]
 
+/* void h9_post_core_event(unsigned code, unsigned value): stock app+0x2D77A
+ * posts a 24-byte event (type 1, code, value) to the app_core task. Any
+ * message makes app_core's mode loop apply a pending mode request; code
+ * 0xFFFF is ignored by its event handler (app+0x6315C). */
+    .globl h9_post_core_event
+h9_post_core_event:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e2d87a
+    call r4
+    {pc, r14-r4} = [sp++]
+
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:

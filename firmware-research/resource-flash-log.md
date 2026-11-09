@@ -2415,4 +2415,15 @@ flash-power question, and asked for more speed.
 - Build 10: `td_main` writes request 3 (`0x11AD0+100`) after the
   diagnostic and shows the mode and `+360` 2 s later ("AFTER").
 
+- Build 10 on hardware: AFTER 10 0. The request alone is not applied.
+- Cause: mode 10's loop (app+`0x665B2`) blocks in the message wait
+  `0x2D750` and runs the request-apply function `0x63354` only after a
+  message arrives. Stock's `0x2D77A(code, value)` posts a 24-byte event
+  (type 1, magic `0x4B450000`, code at +10, value at +12) to task
+  `app_core` (name at `0x01EB1C36`). Code `0xFFFF` is ignored by the
+  event handler (`0x63110`, check at app+`0x6315C`).
+- Build 11: request 3, then `h9_post_core_event(0xFFFF, 0)` (wrapper
+  calling `0x01E2D87A`). Package `95d61c9f…`, flash `77bcfaa7…`, far
+  `77bfb6a0…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

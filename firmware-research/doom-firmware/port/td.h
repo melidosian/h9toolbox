@@ -12,6 +12,7 @@ void h9_delay(unsigned ms);
 void h9_led(unsigned on);
 int h9_res_read(unsigned partition, uint32_t offset, void *buffer, unsigned length);
 void h9_enter_usb_loader(void);  // ROM 0x02000D68, does not return
+void h9_post_core_event(unsigned code, unsigned value);  // stock app+0x2D77A: event to app_core
 void h9_spi2_setup(void);
 void h9_nor_read_raw(void *buffer, uint32_t chip_address, uint32_t length);
 

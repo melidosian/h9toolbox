@@ -87,6 +87,7 @@ void h9_delay(unsigned ms) { now += ms / 10 ? ms / 10 : 1; }
 void h9_led(unsigned on) { (void)on; }
 void h9_spi2_setup(void) {}
 void h9_enter_usb_loader(void) { puts("USB loader"); exit(4); }
+void h9_post_core_event(unsigned code, unsigned value) { (void)code; (void)value; }
 int h9_res_read(unsigned p, uint32_t o, void *b, unsigned n) { (void)p; (void)o; (void)b; (void)n; exit(5); }
 
 void h9_nor_read_raw(void *buffer, uint32_t addr, uint32_t length)
