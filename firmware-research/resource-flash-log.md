@@ -1136,7 +1136,7 @@ flash-power question, and asked for more speed.
   - probable main stack `0x2C000–0x2D1FF`
   - retained record `0x2FF80+`
 - **No large fixed region is unused**; free RAM is the heap's free blocks.
-  The used-block counter is the halfword at `0x1D7D0 + 216`.
+  The used-block counter is the halfword at `0x1D7D0 + 216` (`0x1D8A8`); the total is at `0x1D8AA`.
 - The block allocator is RAM code `0x166A`; no direct callers, so its
   calling convention is unconfirmed.
 - Design (`resource-loader/DESIGN.md`): reserve a fixed RAM slot by lowering
@@ -1161,5 +1161,39 @@ flash-power question, and asked for more speed.
   bytes. Our Python Pi32v2 objdump decodes it identically and our linker
   places it at `0x29F00`, so loader modules can be written in C and linked
   with the existing build tools. No compiled C has run on the radio yet.
+
+## 2026-11-08 Phase 0 research image: S2 + RAM read (offline, not yet flashed)
+
+- `resource_service.s` gains `.ifdef RAMREAD`:
+  - Bulk slot 19 turns the cursor set by the last status read into a RAM
+    cursor (tag `0xB8`); bulk slots then copy RAM words instead of calling
+    the chip reader, limited to `0x30000`.
+  - Its 252-byte frame keeps the tag at `[sp+248]`.
+  - Status 5 if no bank was selected; normal builds answer slot 19 with
+    status 4.
+  - S1, S2 and H9 Toolbox Firmware rebuild byte-identical (RAMREAD is not
+    defined for them).
+- Stage `s2-ram`: package `eb281b43…`, flash `ba05f7c8…`, first cave
+  1,088 bytes, same 6 sectors as S2. Flasher inspection verified; HID
+  restore plan pinned and validated; disassembly reviewed.
+- Shared modules: `RAM_SELECT_ADDRESS`, a `cursorRam` flag in
+  `parseBulkReply`, and `ResourceRadio.readRam()`, which re-selects RAM after
+  any retry. The simulator gained `ramread` and `dropBulk` fault injection.
+  Its bulk-slot rule was fixed: only slots 0–4 and 8–12 stream; others answer
+  status 4, as in the firmware.
+- `prototypes/ram-probe/`:
+  - **Heap now** reads `0x18000–0x1D8BF` and parses the heap control
+    block: used at `0x1D8A8`, total at `0x1D8AA`, bitmap bits set = free,
+    bounds at +200/+204.
+  - Checks bounds `0x1E500`/`0x2FF80`, total 527, and bitmap vs counter.
+  - Labelled history with the lowest free value highlighted, a 15 s watch,
+    and a 192 KiB dump.
+- **Correction:** heap part 2 starts at `0x2D200`, not `0x2D280`. The stock
+  setup rounds `0x2D27F >> 7` down (block `0x5A4`), so 436 + 91 = 527
+  blocks. `main-ram-map.md` and the counter addresses were fixed too (the map
+  said `0x1D8A6`/`0x1D8A8`).
+- Tests: 8 radio tests, including RAM read with a forced retry; 2 heap tests
+  against the stock heap setup. Browser check with a simulated radio: 40/527
+  used, all checks ok.
 
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

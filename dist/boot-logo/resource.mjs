@@ -161,6 +161,11 @@ export const LINK_FAST_ADDRESS = BULK_BASE + 16 * BLOCK;
 export const LINK_STOCK_ADDRESS = BULK_BASE + 17 * BLOCK;
 // Slot 18 asks for a fixed 15 ms, latency-0 link (S1 v5 and later).
 export const LINK_FIXED_ADDRESS = BULK_BASE + 18 * BLOCK;
+// Slot 19 (research builds with RAMREAD only): switch the cursor set by the
+// last status read to RAM, so bulk slots stream RAM (0x00000-0x2FFFF). Other
+// builds answer it with status 4 (bad slot).
+export const RAM_SELECT_ADDRESS = BULK_BASE + 19 * BLOCK;
+export const RAM_SIZE = 0x30000;
 
 export function bulkSlotAddress(sizeIndex, wait = false) {
   if (!Number.isInteger(sizeIndex) || sizeIndex < 0 || sizeIndex >= BULK_SIZES.length) throw new Error('Bad bulk size index.');
@@ -186,7 +191,8 @@ export function parseBulkReply(bytes) {
     capacity: (counts >>> 12) & 0x3ff,
     waitRecoveries: counts >>> 22,
     cursor: cursor & 0xffffff,
-    cursorValid: cursor >>> 24 === 0xb7,
+    cursorValid: cursor >>> 24 === 0xb7 || cursor >>> 24 === 0xb8,
+    cursorRam: cursor >>> 24 === 0xb8,
   };
 }
 

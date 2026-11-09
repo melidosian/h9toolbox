@@ -9,10 +9,15 @@ import { ResourceRadio } from '../../dist/boot-logo/radio.mjs';
 // slots, and guarded sector erase/program. Without it, it behaves like stock
 // firmware: every R address is an ordinary clone read. Clone reads come from
 // the rw_freq partition at chip 0x900000, as in the stock handler.
+// With `ramread` it also implements research slot 19 (stream `this.ram`).
 // `deliver(bytes)` receives each notification (default: this.radio).
 export class SimulatedRadio {
-  constructor({ mtu = 182, bulk = true, service = true, deliver = null } = {}) {
+  constructor({ mtu = 182, bulk = true, service = true, ramread = false, deliver = null } = {}) {
     this.chip = new Uint8Array(0x1000000).fill(0xff);
+    this.ram = new Uint8Array(0x30000);
+    this.ramread = ramread;
+    this.cursorRam = false;
+    this.dropBulk = 0; // set to n to drop the reply to the n-th next bulk request
     this.mtu = mtu;
     this.bulk = bulk;
     this.service = service;
@@ -71,8 +76,16 @@ export class SimulatedRadio {
       let status = 0, start = 0, count = 0;
       if (k === 17 || k === 18) {
         this.linkRequests.push(k);
-      } else if (k % 8 < 5) {
+      } else if (k === 19 && this.ramread) {
+        if (this.cursor === null) status = 5;
+        else { this.cursorRam = true; start = this.cursor; }
+      } else if ((k < 5 || (k >= 8 && k < 13)) && this.cursor !== null && this.cursorRam && this.cursor >= 0x30000) {
+        status = 0;
+      } else if ((k < 5 || (k >= 8 && k < 13)) && this.dropBulk > 0 && --this.dropBulk === 0) {
+        return undefined; // fault injection: this bulk request gets no reply at all
+      } else if (k < 5 || (k >= 8 && k < 13)) {
         const size = BULK_SIZES[k % 8];
+        const source = this.cursorRam ? this.ram : this.chip;
         if (this.cursor === null) status = 5;
         else {
           start = this.cursor;
@@ -81,7 +94,7 @@ export class SimulatedRadio {
             const n = Math.min(size, 2048 - count);
             const packet = new Uint8Array(4 + n);
             packet.set([0xb7, 0x5a, seq++ & 255, n]);
-            packet.set(this.chip.subarray(start + count, start + count + n), 4);
+            packet.set(source.subarray(start + count, start + count + n), 4);
             this.notify(packet);
             count += n;
           }
@@ -92,12 +105,13 @@ export class SimulatedRadio {
       data.set([0x48, 0x39, 0x42, 0x4b]);
       words.setUint32(4, (start | (status << 24)) >>> 0, true);
       words.setUint32(8, (count | (494 << 12)) >>> 0, true);
-      words.setUint32(12, ((this.cursor ?? 0) | (0xb7 << 24)) >>> 0, true);
+      words.setUint32(12, ((this.cursor ?? 0) | ((this.cursorRam ? 0xb8 : 0xb7) << 24)) >>> 0, true);
       return this.reply(address, data);
     }
     if (address >= 0x4000 && address < 0x8000) {
       this.bank = (address - 0x4000) >> 5;
       this.cursor = this.bank << 15;
+      this.cursorRam = false;
       const w = this.write;
       data.set([0x48, 0x39, 0x52, 0x53, 2, 0xc8, 0x40, 0x18, 1, this.bank & 255, this.bank >> 8, 0x5a,
         w.result, w.programming ? 2 : 0, w.pointer & 255, (w.pointer >> 8) & 255, w.pointer >> 16, w.ops & 255, w.crc & 255, w.crc >> 8]);

@@ -40,6 +40,13 @@
  * pages already treat as "switch to no-wait"), and puts the code in .svc and
  * the byte tables in .tables so the linker can place them in separate caves.
  * Every other reply byte is unchanged.
+ *
+ * RAMREAD (research builds only): slot 19 turns the cursor set by the last
+ * status read into a RAM cursor (tag 0xB8 instead of 0xB7), so bulk slots
+ * stream RAM bytes (0x00000-0x2FFFF) instead of chip bytes, for measuring
+ * the stock RAM map and heap use. The reply's start word carries the cursor
+ * (status 5 if no bank was selected). The next status read restores chip
+ * mode.
  */
     .ifdef COMPACT
     .section .svc,"ax",@progbits
@@ -165,9 +172,32 @@ bulk_slot:
     .endif
     if (r7 == 17) goto bulk_link_stock
     if (r7 == 18) goto bulk_link_fixed
+    .ifdef RAMREAD
+    if (r7 == 19) goto bulk_ram_select
+    .endif
     r0 = r7
     call bulk_send
     goto bulk_reply
+    .ifdef RAMREAD
+bulk_ram_select:
+    r0 = 0x0001e4fc
+    r1 = [r0+0]
+    r2 = r1 >> 24
+    r3 = 0x05000000
+    if (r2 != 0xb7) goto bulk_ram_result
+    r1 = r1 << 8
+    r1 = r1 >> 8
+    r3 = 0xb8000000
+    r3 = r1 | r3
+    [r0+0] = r3
+    r3 = r1
+bulk_ram_result:
+    r0 = 0x0001e4d8
+    [r0+0] = r3
+    r1 = 0
+    [r0+4] = r1
+    goto bulk_reply
+    .endif
     .ifndef COMPACT
 bulk_link_fast:
     r0 = link_params
@@ -220,7 +250,11 @@ bulk_store:
  * 1023), polls that ended with room (22-31). */
 bulk_send:
     [--sp] = {rets, r11-r4}
+    .ifdef RAMREAD
+    sp += -252
+    .else
     sp += -248
+    .endif
     r6 = 0
     r7 = 0
     r11 = 0
@@ -245,7 +279,12 @@ bulk_slot_size:
     r0 = 0x0001e4fc
     r6 = [r0+0]
     r1 = r6 >> 24
+    .ifdef RAMREAD
+    [sp+248] = r1
+    if (r1 == 0xb8) goto bulk_cursor_ok
+    .endif
     if (r1 != 0xb7) goto bulk_no_cursor
+bulk_cursor_ok:
     r6 = r6 << 8
     r6 = r6 >> 8
     r3 = 0x01e50286
@@ -262,6 +301,12 @@ bulk_packet:
     if (r7 >= r0) goto bulk_done
     r0 = r6 + r7
     r1 = 0x01000000
+    .ifdef RAMREAD
+    r2 = [sp+248]
+    if (r2 != 0xb8) goto bulk_limit
+    r1 = 0x00030000
+bulk_limit:
+    .endif
     if (r0 >= r1) goto bulk_done
     .ifdef COMPACT
     r3 = 0x01e50286
@@ -322,6 +367,16 @@ bulk_read:
     r0 = r0 + r10
     r1 = sp + 4
     r1 = r1 + r10
+    .ifdef RAMREAD
+    r2 = [sp+248]
+    if (r2 != 0xb8) goto bulk_read_chip
+    r2 = [r0+0]
+    [r1+0] = r2
+    r2 = [r0+4]
+    [r1+4] = r2
+    goto bulk_read_ok
+bulk_read_chip:
+    .endif
     r2 = 8
     call chip_read
     if (r0 == 0) goto bulk_read_ok
@@ -346,7 +401,12 @@ bulk_sent:
     goto bulk_packet
 bulk_done:
     r0 = r6 + r7
+    .ifdef RAMREAD
+    r1 = [sp+248]
+    r1 = r1 << 24
+    .else
     r1 = 0xb7000000
+    .endif
     r0 = r0 | r1
     r1 = 0x0001e4fc
     [r1+0] = r0
@@ -360,7 +420,11 @@ bulk_result:
     [r1+0] = r0
     r0 = r11 | r7
     [r1+4] = r0
+    .ifdef RAMREAD
+    sp += 252
+    .else
     sp += 248
+    .endif
     {pc, r11-r4} = [sp++]
 
 /* Slot 16: ask the central for a 15-30 ms connection interval with slave

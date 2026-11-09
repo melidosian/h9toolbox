@@ -6,7 +6,7 @@
 // simulated radio; connectBluetooth() wires it to Web Bluetooth.
 import { readBlockReply } from '../protocol.mjs';
 import {
-  BANK_SIZE, BLOCK, BULK_HEADER, BULK_SIZES, LINK_FIXED_ADDRESS, LINK_STOCK_ADDRESS, LOGO_ADDRESS,
+  BANK_SIZE, BLOCK, BULK_HEADER, BULK_SIZES, LINK_FIXED_ADDRESS, LINK_STOCK_ADDRESS, LOGO_ADDRESS, RAM_SELECT_ADDRESS, RAM_SIZE,
   LOGO_BYTES, OP, SECTOR, assembleBulk, bulkSlotAddress, controlFrame, crc16, dataFrame, hex,
   logoSectorPlan, parseBulkReply, parseStatus, readPlan, statusAddress,
 } from './resource.mjs?v=20261108a';
@@ -183,7 +183,17 @@ export class ResourceRadio {
 
   // Bulk read: the radio streams up to 2 KiB per request from the cursor set
   // by the bank-select status read; every byte is matched to its report.
-  async readFast(start, length, onProgress) {
+  // Select the bank for `pos`; in RAM mode also switch its cursor to RAM.
+  async selectCursor(pos, ram) {
+    await this.selectBank(pos / BANK_SIZE);
+    if (!ram) return;
+    const reply = parseBulkReply(await this.readBlock(RAM_SELECT_ADDRESS));
+    if (!reply || reply.status !== 0 || reply.start !== pos) {
+      throw new BulkUnsupported(`This firmware has no RAM read (slot 19: ${reply ? reply.statusText : 'no bulk reply'}).`);
+    }
+  }
+
+  async readFast(start, length, onProgress, { ram = false } = {}) {
     if (start % BANK_SIZE) throw new BulkUnsupported('Fast read needs a 32 KiB aligned start.');
     const output = new Uint8Array(length);
     const end = start + length;
@@ -191,7 +201,7 @@ export class ResourceRadio {
     let pos = start, retries = 0, linkRequested = false, sizesChecked = false;
     this.notificationSizes = [];
     await this.enterProgramming();
-    await this.selectBank(pos / BANK_SIZE);
+    await this.selectCursor(pos, ram);
     const link = parseBulkReply(await this.readBlock(LINK_FIXED_ADDRESS));
     if (link) {
       linkRequested = link.status === 0;
@@ -233,7 +243,7 @@ export class ResourceRadio {
           }
           output.set(data.subarray(0, Math.min(data.length, end - pos)), pos - start);
           pos += data.length;
-          if (!reply.cursorValid || reply.cursor !== (pos & 0xffffff)) throw new Error('Radio cursor disagrees with the bytes received.');
+          if (!reply.cursorValid || reply.cursorRam !== ram || reply.cursor !== (pos & 0xffffff)) throw new Error('Radio cursor disagrees with the bytes received.');
           retries = 0;
           const doneBytes = Math.min(pos, end) - start;
           onProgress(doneBytes / length, doneBytes / ((performance.now() - began) / 1000));
@@ -245,7 +255,7 @@ export class ResourceRadio {
           await this.leaveProgramming();
           await this.enterProgramming();
           pos = Math.floor(pos / BANK_SIZE) * BANK_SIZE;
-          await this.selectBank(pos / BANK_SIZE);
+          await this.selectCursor(pos, ram);
         }
       }
     } finally {
@@ -257,6 +267,14 @@ export class ResourceRadio {
     }
     await this.leaveProgramming();
     return { bytes: output, seconds: (performance.now() - began) / 1000, method: 'fast' };
+  }
+
+  // Research builds only: read RAM (32 KiB-aligned start, inside 0x00000-0x2FFFF).
+  async readRam(start, length, onProgress = () => {}) {
+    if (start % BANK_SIZE || length <= 0 || length % BLOCK || start + length > RAM_SIZE) {
+      throw new Error('RAM reads need a 32 KiB-aligned start inside 0x00000-0x2FFFF.');
+    }
+    return this.readFast(start, length, onProgress, { ram: true });
   }
 
   // onProgress(fraction, bytesPerSecond)

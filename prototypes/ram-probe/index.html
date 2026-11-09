@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TD-H9 RAM probe (research)</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem auto; max-width: 960px; padding: 0 1rem; background: #0f1b24; color: #e3ece9; }
+  section { border: 1px solid #2f4652; border-radius: .6rem; padding: 1rem 1.2rem; margin: 1rem 0; background: #152631; }
+  button { font: inherit; padding: .45rem .9rem; margin: .2rem .3rem .2rem 0; border-radius: .4rem; border: 1px solid #5a8a7a; background: #1f3d36; color: #e3ece9; cursor: pointer; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  input[type=text] { font: inherit; padding: .35rem .5rem; border-radius: .35rem; border: 1px solid #3b5160; background: #0e1c26; color: inherit; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid #2f4652; padding: .3rem .4rem; text-align: left; }
+  tr.low td { color: #ffd089; font-weight: 700; }
+  .note { color: #a6bec5; font-size: 13px; }
+  .error { color: #ff9d91; }
+  #map { display: grid; grid-template-columns: repeat(64, 1fr); gap: 1px; margin-top: .6rem; }
+  #map i { aspect-ratio: 1; background: #8bdcb6; }
+  #map i.used { background: #c4574a; }
+  progress { width: 100%; }
+  pre { background: #0b151c; border-radius: .4rem; padding: .7rem; max-height: 14rem; overflow: auto; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>TD-H9 RAM probe <small class="note">research build only</small></h1>
+<p class="note">Needs the research firmware <code>h9_resource_service_s2_ramread</code> (S2 plus RAM read). Reads RAM over Bluetooth; nothing is written. See <code>firmware-research/resource-loader/DESIGN.md</code>.</p>
+<section>
+  <button id="connect">Connect Bluetooth</button><button id="disconnect" disabled>Disconnect</button> <span id="state">Disconnected</span>
+</section>
+<section>
+  <h2>Heap</h2>
+  <p><label>State label <input type="text" id="label" value="idle" size="28"></label>
+  <button id="sample" disabled>Heap now</button>
+  <label><input type="checkbox" id="watch" disabled> Watch every 15 s</label></p>
+  <p id="summary" class="note">No reading yet.</p>
+  <div id="map" aria-label="Heap blocks: green free, red used"></div>
+  <table><thead><tr><th>Time</th><th>Label</th><th>Used blocks</th><th>Free</th><th>Checks</th></tr></thead><tbody id="history"></tbody></table>
+  <button id="saveHistory" disabled>Save history (.json)</button>
+</section>
+<section>
+  <h2>Full RAM dump</h2>
+  <button id="dump" disabled>Dump RAM (192 KiB)</button>
+  <progress id="progress" value="0"></progress>
+  <p id="progressText" class="note">Idle.</p>
+</section>
+<section><h2>Log</h2><pre id="log"></pre></section>
+<script type="module" src="app.mjs"></script>
+</body>
+</html>

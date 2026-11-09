@@ -94,3 +94,19 @@ test('a stopped write resumes from the sectors already done', async () => {
   assert.equal(result.sectors, 6);
   assert.deepEqual(sim.chip.subarray(LOGO_ADDRESS, LOGO_ADDRESS + LOGO_BYTES), next);
 });
+
+test('research RAM read streams RAM, re-selects RAM after a retry, and is refused by normal builds', async () => {
+  const sim = new SimulatedRadio({ ramread: true });
+  for (let i = 0; i < sim.ram.length; i++) sim.ram[i] = (i * 5 + (i >> 9)) & 255;
+  sim.chip.fill(0x77, 0x18000, 0x20000); // chip bytes at the same addresses must not leak in
+  const result = await sim.radio.readRam(0x18000, 0x8000);
+  assert.deepEqual(result.bytes, sim.ram.subarray(0x18000, 0x20000));
+  sim.dropBulk = 3; // the third request times out; the retry must return to RAM mode
+  const whole = await sim.radio.readRam(0, 0x30000);
+  assert.deepEqual(whole.bytes, sim.ram);
+  assert.equal(sim.dropBulk, 0);
+  // A normal build answers slot 19 with "bad slot": RAM read is refused.
+  const normal = new SimulatedRadio();
+  await assert.rejects(normal.radio.readRam(0, 0x8000), /no RAM read/);
+  await assert.rejects(sim.radio.readRam(0x2c000, 0x8000), /32 KiB-aligned/);
+});

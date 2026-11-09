@@ -77,6 +77,20 @@ STAGES = {
         "kind": "stock_derived_resource_flash_read_write_service",
         "stage": "S2 guarded sector erase and program",
     },
+    # Research only: S2 plus the RAMREAD bulk slot (stream RAM instead of
+    # chip bytes) for measuring the stock RAM map and heap use. Not hosted.
+    "s2-ram": {
+        "sources": ("resource_service.s", "resource_write.s"),
+        "defines": ("RAMREAD",),
+        "hooks": ((READ_HOOK, "resource_s2_read"), (WRITE_HOOK, "resource_s2_write")),
+        "ram": (range(0x1E4D8, 0x1E500),),
+        "linker": "resource_service_s2.ld",
+        "caves": (MAIN_CAVE, WRITE_CAVE),
+        "sectors": (0x5000, 0x62000, 0xAC000, 0xAE000, 0xAF000, 0xD9000),
+        "name": "h9_resource_service_s2_ramread",
+        "kind": "stock_derived_resource_flash_service_ram_research",
+        "stage": "S2 plus RAM bulk read (research)",
+    },
     "bb-s2": {
         "sources": ("resource_service.s", "resource_write.s"),
         "defines": ("COMPACT",),
