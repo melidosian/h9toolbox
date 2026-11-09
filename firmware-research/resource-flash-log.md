@@ -2748,4 +2748,30 @@ flash-power question, and asked for more speed.
   the hold-4 audio probe and the start-up trace. A release build would
   remove them.
 
+## 2026-11-09 Release 32 (clean) and the slow-upload test
+
+- Removed:
+  - the frame readout and key 8 (panel off)
+  - the hold-4 audio probe and the Menu key test
+  - the heap and pack lines on the status screen
+  - the start-up stage wrappers (`WRAPS = ()`; `td_trace.c` keeps only the
+    counters)
+  - the probe-only stock calls (`h9_play_tone`, `h9_audio_route` and
+    `h9_dac_analog_on`, the FM power-up that froze the radio)
+- Status screen: GAME DATA OK, SOUND ON, MUSIC ON. Keys: 2/5 move, 4/6
+  turn, 1 fire, 3 use, 7 music on/off. At power-on: hold 3 for USB, hold 2
+  for upload mode.
+- Slow upload: build 26's upload mode wrote at 123 B/s, and its 32 KB check
+  read took about 30 s (about 1 KB/s against 6.2 KiB/s in H9 Toolbox), so
+  the whole Bluetooth link is about 6x slower. The clone-protocol handler
+  (`0x5CF18`, hooked at `0x5D018`) is reached from `0x5DBA8`, which is
+  registered at `0x24004` (BT stack context), so no `my_app` task is
+  involved. Release 32's upload mode lets key 5 cycle the wait style of
+  our loop (Y yield 10 ms, B never yield, L yield 200 ms) to test
+  low-power idle or CPU contention.
+- Multi-key input: requested. The stock key byte (`0xC3AF`) holds one key,
+  and no direct writer was found; the keypad hardware (matrix or AD
+  ladder) is still to be identified.
+- Package `a68c4dcd…`, flash `10a741b9…`, far `c1e8c688…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

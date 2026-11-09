@@ -51,7 +51,7 @@ def main() -> int:
     harness = (f"gcc -O1 -g -w -std=gnu11 -DTD_HOST {san}-I{rel(ROOT / 'port')} -c "
                f"{rel(ROOT / 'test' / 'td_host.c')} -o {rel(OUT / 'td_host_main.o')} && ")
     script = (harness + f"gcc -O1 -g -w -fwrapv -fsigned-char -std=gnu11 -DTD_HOST -no-pie {san}{includes} "
-              f"-Wl,{wraps} -o {rel(OUT / 'td_host')} {' '.join(sources)} {rel(OUT / 'td_host_main.o')} && "
+              f"{'-Wl,' + wraps if wraps else ''} -o {rel(OUT / 'td_host')} {' '.join(sources)} {rel(OUT / 'td_host_main.o')} && "
               f"{rel(OUT / 'td_host')} {rel(OUT / 'chip.bin')} {rel(OUT)} {args.tics}")
     r = subprocess.run(["docker", "run", "--rm", "--platform", "linux/amd64", "-v", f"{mount}:/w", "-w", "/w",
                         "h9-jieli-dev", "sh", "-c", script], capture_output=True, text=True)

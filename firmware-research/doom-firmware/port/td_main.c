@@ -4,12 +4,11 @@
 //
 // 1. .data copied from flash, .bss cleared (the engine's fixed core lives in
 //    the RAM block taken from the end of the stock heap).
-// 2. Recovery: the 3 key held at power-on enters the mask-ROM USB loader
-//    (ROM 0x02000D68), the same mode hold-8 gives on stock.
-// 3. A status screen: heap use (stock counters at RAM 0x1D8A8/0x1D8AA) and
-//    the pack found by the upload directory.
-// 4. img_init (the data layer's header and section checks), then
-//    D_DoomMain with -warp 1 1.
+// 2. Power-on keys: 3 enters the mask-ROM USB loader (ROM 0x02000D68, the
+//    mode hold-8 gives on stock); 2 enters Bluetooth upload mode.
+// 3. The pack found by the upload directory (no complete pack: upload mode),
+//    img_init (the data layer's header and section checks), sound and music,
+//    then D_DoomMain with -warp 1 1.
 // A failure stays on screen; hold 3 for 2 s then enters the USB loader.
 
 #include <stdint.h>
@@ -28,7 +27,7 @@
 
 extern uint8_t __data_load[], __data_start[], __data_end[], __bss_start[], __bss_end[];
 
-enum { BLACK = 0x0000, WHITE = 0xffff, YELLOW = 0xffe0, RED = 0xf800, GREEN = 0x07e0 };
+enum { BLACK = 0x0000, WHITE = 0xffff, YELLOW = 0xffe0, RED = 0xf800, GREEN = 0x07e0, CYAN = 0x07ff };
 
 void td_fill(unsigned x0, unsigned y0, unsigned w, unsigned h, uint16_t color)
 {
@@ -83,18 +82,6 @@ void td_text(unsigned x, unsigned y, const char *s, uint16_t fg, uint16_t bg)
     }
 }
 
-static void number(unsigned x, unsigned y, uint32_t v, uint16_t color)
-{
-    char s[11];
-    int i = 10;
-    s[i] = 0;
-    do {
-        s[--i] = (char)('0' + v % 10);
-        v /= 10;
-    } while (v && i);
-    td_text(x, y, s + i, color, BLACK);
-}
-
 static void usb_loader(void)
 {
     td_fill(0, 0, TD_W, TD_H, BLACK);
@@ -124,38 +111,6 @@ void td_fatal(const char *what, const char *detail)
     }
 }
 
-// Key test: the key byte of whatever is pressed, and the last eight codes
-// seen. Stays until power-off (hold 3 for 2 s: USB loader).
-static void key_test(void)
-{
-    td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "KEY TEST", YELLOW, BLACK);
-    td_text(0, 108, "HOLD 3: USB", WHITE, BLACK);
-    while (h9_key() == TD_KEY_MENU)
-        h9_delay(10);
-    unsigned last = ~0u, seen[8] = { 0 }, n = 0;
-    uint32_t since = 0;
-    for (;;) {
-        unsigned key = h9_key();
-        if (key != last) {
-            last = key;
-            td_fill(0, 24, TD_W, 12, BLACK);
-            td_text(0, 24, "NOW", WHITE, BLACK);
-            number(40, 24, key, GREEN);
-            if (key) {
-                seen[n++ % 8] = key;
-                td_fill(0, 44, TD_W, 24, BLACK);
-                for (unsigned i = 0; i < 8 && i < n; i++)
-                    number(40 * (i % 4), 44 + 12 * (i / 4), seen[(n - 1 - i) % 8], i ? WHITE : YELLOW);
-            }
-            since = td_ticks();
-        }
-        if (key == TD_KEY_3 && td_ticks() - since >= 200)
-            usb_loader();
-        h9_delay(10);
-    }
-}
-
 // Bluetooth upload mode (hold 2 at power-on, or no game data). Doom does not
 // start: its RAM block (0x22000-0x2BF00, taken from the end of the stock heap
 // at boot) goes back to the heap, so the Bluetooth stack has stock's heap,
@@ -168,7 +123,6 @@ static void key_test(void)
 // total at 0x1D8AA and the used count at 0x1D8A8.
 #define HEAP_BITS ((volatile uint32_t *)0x1D7D0)
 #define HEAP_SUMMARY ((volatile uint32_t *)(0x1D7D0 + 192))
-#define HEAP_USED (*(volatile uint16_t *)0x1D8A8)
 #define HEAP_TOTAL (*(volatile uint16_t *)0x1D8AA)
 #define CORE ((volatile uint8_t *)0x11AD0)
 
@@ -194,209 +148,35 @@ static void upload_mode(const char *why)
     h9_post_core_event(0xFFFF, 0);  // wake app_core (it applies requests after a message)
     td_text(0, 108, "HOLD 3: USB", YELLOW, BLACK);
     td_text(0, 118, "POWER OFF WHEN DONE", WHITE, BLACK);
-    uint32_t shown = 0, since = 0;
-    int held = 0;
-    for (;;) {
-        if (h9_key() == TD_KEY_3) {
-            if (!held) { held = 1; since = td_ticks(); }
-            if (td_ticks() - since >= 200)
-                usb_loader();
-        } else {
-            held = 0;
-        }
-        if (td_ticks() - shown >= 100) {
-            shown = td_ticks();
-            td_fill(0, 48, TD_W, 50, BLACK);
-            td_text(0, 48, "MODE", WHITE, BLACK);
-            number(40, 48, CORE[101], YELLOW);
-            td_text(72, 48, "BT", WHITE, BLACK);
-            number(96, 48, *(volatile uint32_t *)(0x11AD0 + 360) & 0xFFFFF, YELLOW);
-            td_text(0, 62, "HEAP", WHITE, BLACK);
-            number(40, 62, HEAP_USED, YELLOW);
-            td_text(88, 62, "/", WHITE, BLACK);
-            number(96, 62, HEAP_TOTAL, YELLOW);
-        }
-        h9_delay(10);
-    }
-}
-
-// Audio probe (hold 4 at power-on; builds 14-15). The BR23 DAC at 0x1E2F00:
-// +0 CON, +4 ring buffer, +8 length, +16 / +20 hardware read / software
-// write pointers, +40 volume. Build 14 showed it stopped inside Doom (HRP
-// never moves) and that writing the registers alone does not start it, so
-// build 15 drives stock's DAC driver on stock's handle instead:
-//   1: speaker amplifier on (stock gate, source 1)
-//   2: rate 11025 Hz and start (stock app+0x433C8, app+0x43434)
-//   5: while held, stream a square wave through stock's write (app+0x43598)
-//   6: all of it: amplifier, rate, start, then a 1 s tone
-// Build 15 on hardware: state 3 but HRP never moves and every write is
-// refused (the hardware is not consuming). Build 16 adds stock's key-tone
-// player (app+0x5231A), which runs the whole stock path, with the heap given
-// back first (the decoder allocates):
-//   7 / 8 / 9: stock tone 0 / 1 / 2
-//   2: page 2, the second audio block at 0x1E19C0
-// Build 16 on hardware: stock tones move HRP and raise the amplifier byte to
-// 3, but are silent (key beeps are off in the radio's settings). Build 17:
-//   5: DAC digital volume register (+40) to 0x4000 per channel
-//   6: amplifier, a stock tone to wake the hardware, then our 1 s tone
-// Builds 17-18 on hardware: silent (the volume register write did not stick).
-// Build 19: the radio app sets the volume through app_audio_set_volume
-// (app+0x60DDA, state 2, its setting) and Doom never did:
-//   5: volume 30 for audio states 0-4 (stock)
-//   7: stock tone 0; 8 / 9: app+0x520CE(1) / (0)
-//   6: volume 30, then as before
-// Reference (far-hello/audio.c inside H9 Toolbox, voice prompt audible):
-// DAC CON 0x0F41E1xx, LEN 0x1000, HRP/SWP moving; Doom showed CON
-// 0x0E41E1xx. Bit 24 is set by stock's analog power-up (app+0x4B8DA).
-// Build 20: pages D / A / G as in the reference (key 2), and
-//   8: DAC CON |= bit 24      9: app+0x520CE(1)
-// Build 20 on hardware: silent; CON still 0x0E...; GPIO differs from the
-// reference: PA OUT 0x2208 (PA0 low), PA DIR 0x06BE, PC DIR 0xFFFF.
-// Build 21: key 8 also sets PA0 high and PC0/PC2/PC3 as low outputs.
-// Build 21 on hardware: pins match the reference (PA OUT 0x2209 with key 1),
-// still silent; CON bit 24 does not stay set (it reads like an analog-ready
-// status). Build 22: key 9 runs stock's analog power-up tail
-// (app+0x4B82E..0x4B914) through h9_dac_analog_on.
-// Stays until power-off; hold 3 for 2 s enters the USB loader.
-#define DAC ((volatile uint32_t *)0x1E2F00)
-#define CYAN_ 0x07ff
-#define DAC_HANDLE ((void *)(0x11AD0 + 6636))
-#define DAC_STATE (*(volatile uint8_t *)(0x11AD0 + 6636 + 97))
-
-static void hex_at(unsigned x, unsigned y, uint32_t v)
-{
-    static const char digits[] = "0123456789ABCDEF";
-    char s[9];
-    for (int i = 0; i < 8; i++)
-        s[i] = digits[(v >> (28 - 4 * i)) & 15];
-    s[8] = 0;
-    td_text(x, y, s, YELLOW, BLACK);
-}
-
-// 64 mono samples (128 bytes), about 690 Hz at 11025 Hz.
-static void tone_chunk(int16_t *out, unsigned *phase)
-{
-    for (unsigned i = 0; i < 64; i++, (*phase)++)
-        out[i] = (*phase / 8) & 1 ? 12000 : -12000;
-}
-
-static void audio_probe(void)
-{
-    static const char *names[] = { "CON", "ADR", "LEN", "HRP", "SWP", "VOL" };
-    static const unsigned regs[] = { 0, 1, 2, 4, 5, 10 };
-    int16_t chunk[64];
-    unsigned phase = 0, last = 0, did = 0, page = 0;
-    heap_give_back();  // Doom does not start from here; the tone decoder allocates
-    uint32_t shown = 0, since = 0, writes = 0;
-    td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 11", GREEN, BLACK);
+    // Wait style (key 5 cycles; release 32 test of the slow upload: build 26
+    // uploaded at 123 B/s here against 785 B/s in H9 Toolbox, reads were
+    // about 6x slower too): Y yields 10 ms, B never yields, L yields 200 ms.
+    static const char styles[] = "YBL";
+    unsigned style = 0, last = 0;
+    uint32_t since = 0, shown = 1;
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
             last = key;
             since = td_ticks();
-            if (key == TD_KEY_1) {
-                h9_speaker_gate(1, 1);
-                did = 1;
-            } else if (key == TD_KEY_2) {
-                page = (page + 1) % 3;
-                td_fill(0, 12, TD_W, 90, BLACK);
-            } else if (key == 9) {  // key 7
-                h9_play_tone(0);
-                did = 7;
-            } else if (key == 10) {  // key 8: the working radio's pin state (receive) + CON bit 24
-                // Reference vs build 20: PA OUT 0x2209 vs 0x2208 (PA0 high);
-                // PC DIR 0xFFF2 vs 0xFFFF (PC0, PC2, PC3 outputs, driven low).
-                volatile uint32_t *pa = (volatile uint32_t *)0x1E5000;
-                volatile uint32_t *pc = (volatile uint32_t *)0x1E5080;
-                // Build 24: PA3 is the speaker amplifier enable (stock writer
-                // app+0x52228, pin 3 of bank 0x1E5000). The reference has PA DIR
-                // 0xDC56 (PA3 output); Doom had 0x06BE (PA3 input), so the stock
-                // writer's OUT bit never reached the pin.
-                pa[0] |= 0x9u;        // PA OUT bits 0 and 3 high
-                pa[2] &= ~0x9u;       // PA DIR bits 0 and 3 output
-                pc[0] &= ~0xDu;       // PC OUT 0, 2, 3 low
-                pc[2] &= ~0xDu;       // PC DIR 0, 2, 3 output
-                DAC[0] |= 0x1000000u;
-                did = 8;
-            } else if (key == 11) {  // key 9: app_core mode 3, as upload mode does (build 23)
-                // Build 22's key 9 (stock app+0x4B82E tail) froze: that code is
-                // the built-in FM receiver's init (ops table "fm_inside" at
-                // app+0xA14), and CON bit 24 is its analog link, not the
-                // speaker path. The working radio runs in mode 3; Doom stays
-                // in mode 10. The heap was given back on entry.
-                CORE[100] = 3;
-                h9_post_core_event(0xFFFF, 0);
-                did = 9;
-            } else if (key == TD_KEY_5) {
-                for (unsigned state = 0; state <= 4; state++)
-                    h9_audio_volume(state, 30);
-                did = 5;
-            } else if (key == TD_KEY_6) {
-                // build 17: wake the hardware the way stock's tone player does
-                // (HRP moved only after it), then stream our tone into it
-                // build 18: build 17 wrote while the stock tone was still
-                // playing and crashed; wait for it to end, then start the DAC
-                // (the driver stops it after a tone; writes need state 2/3)
-                for (unsigned state = 0; state <= 4; state++)
-                    h9_audio_volume(state, 30);
-                h9_speaker_gate(1, 1);
-                h9_play_tone(0);
-                h9_delay(1500);
-                h9_speaker_gate(1, 1);
-                h9_dac_rate(DAC_HANDLE, 11025);
-                h9_dac_start(DAC_HANDLE);
-                uint32_t start = td_ticks();
-                while (td_ticks() - start < 100) {
-                    tone_chunk(chunk, &phase);
-                    h9_dac_write128(chunk);
-                    writes++;
-                }
-                did = 6;
+            if (key == TD_KEY_5) {
+                style = (style + 1) % 3;
+                shown = 1;
             }
         }
         if (key == TD_KEY_3 && td_ticks() - since >= 200)
             usb_loader();
-        if (td_ticks() - shown >= 25) {
-            shown = td_ticks();
-            // the same pages as far-hello/audio.c (H9 Toolbox reference)
-            uint32_t address[8];
-            unsigned n = 0;
-            if (page == 0) {
-                static const uint8_t dac[] = { 0x00, 0x04, 0x08, 0x10, 0x14, 0x28 };
-                for (unsigned i = 0; i < sizeof dac; i++) address[n++] = 0x1E2F00 + dac[i];
-            } else if (page == 1) {
-                for (unsigned i = 0; i < 6; i++) address[n++] = 0x1E19C0 + 4 * i;
-            } else {
-                for (unsigned port = 0; port < 3; port++) {
-                    address[n++] = 0x1E5000 + 0x40 * port;
-                    address[n++] = 0x1E5000 + 0x40 * port + 8;
-                }
-            }
-            for (unsigned i = 0; i < n; i++) {
-                unsigned y = 12 + 10 * i;
-                char a[5] = { "0123456789ABCDEF"[(address[i] >> 12) & 15], "0123456789ABCDEF"[(address[i] >> 8) & 15],
-                              "0123456789ABCDEF"[(address[i] >> 4) & 15], "0123456789ABCDEF"[address[i] & 15], 0 };
-                td_text(0, y, a, CYAN_, BLACK);
-                hex_at(40, y, *(volatile uint32_t *)address[i]);
-            }
-            td_text(0, 74, "STATE", WHITE, BLACK);
-            hex_at(48, 74, DAC_STATE);
-            td_text(0, 84, "WRITES", WHITE, BLACK);
-            hex_at(56, 84, writes);
-            td_text(112, 74, "M", WHITE, BLACK);
-            {
-                char m[3] = { (char)('0' + CORE[101] / 10), (char)('0' + CORE[101] % 10), 0 };
-                td_text(128, 74, m, YELLOW, BLACK);
-            }
-            td_text(0, 94, "AMP", WHITE, BLACK);
-            hex_at(40, 94, *(volatile uint8_t *)0x11B4D);
-            td_text(112, 104, "DID", WHITE, BLACK);
-            char d[2] = { (char)('0' + did), 0 };
-            td_text(144, 104, did ? d : "-", GREEN, BLACK);
-            td_text(0, 116, "1 8 7  6TONE 2PG", WHITE, BLACK);
+        if (shown) {
+            char text[8] = { 'W', 'A', 'I', 'T', ' ', styles[style], 0 };
+            td_fill(0, 48, TD_W, 10, BLACK);
+            td_text(0, 48, text, CYAN, BLACK);
+            td_text(0, 62, "5: CHANGE", WHITE, BLACK);
+            shown = 0;
         }
-        h9_delay(10);
+        if (style == 0)
+            h9_delay(10);
+        else if (style == 2)
+            h9_delay(200);
     }
 }
 
@@ -412,32 +192,20 @@ void td_main(void)
     h9_led(1);
     td_fill(0, 0, TD_W, TD_H, BLACK);
 
-    // 2. Power-on keys, checked for about 0.3 s: 3 = USB loader, Menu = key
-    //    test (shows the stock key byte of each button, to map the controls),
-    //    2 = Bluetooth upload mode (after the resource flash set-up),
-    //    4 = audio probe.
+    // 2. Power-on keys, checked for about 0.3 s: 3 = USB loader, 2 =
+    //    Bluetooth upload mode (after the resource flash set-up).
     int upload_kept = 0;
     for (int i = 0; i < 30; i++) {
         unsigned key = h9_key();
         if (key == TD_KEY_3)
             usb_loader();
-        if (key == TD_KEY_MENU)
-            key_test();
         if (key == TD_KEY_2)
             upload_kept = 1;
-        if (key == TD_KEY_4)
-            audio_probe();
         h9_delay(10);
     }
 
     // 3. Status.
     td_text(0, 0, "H9 DOOM", YELLOW, BLACK);
-    td_text(0, 14, "HEAP", WHITE, BLACK);
-#ifndef TD_HOST
-    number(48, 14, *(volatile uint16_t *)0x1d8a8, WHITE);
-    td_text(96, 14, "/", WHITE, BLACK);
-    number(104, 14, *(volatile uint16_t *)0x1d8aa, WHITE);
-#endif
     uint32_t address, length;
     td_nor_setup();
     // The H9 Toolbox upload service (in this image) and the stock partition
@@ -451,8 +219,6 @@ void td_main(void)
     int found = td_pack_find(&address, &length);
     if (found)
         upload_mode(found == -1 ? "NO GAME DATA" : found == -2 ? "UPLOAD NOT DONE" : "DATA DAMAGED");
-    td_text(0, 28, "PACK", WHITE, BLACK);
-    number(48, 28, length, WHITE);
 
     // 4. The data layer's checks, then the game.
     int e = img_init();
@@ -460,19 +226,19 @@ void td_main(void)
         static const char *why[] = { "OK", "FS", "NODATA", "FRAG", "HEADER", "CRC", "DOOMX" };
         td_fatal("PACK CHECK", why[-e <= 6 ? -e : 0]);
     }
-    td_text(0, 42, "PACK OK", GREEN, BLACK);
+    td_text(0, 20, "GAME DATA OK", GREEN, BLACK);
 
     // 5. Sound: the pack's PC-speaker effects through the DAC (td_sound.c).
     S_PcsInit(img_read, img.sect[DMC_SECT_SOUNDS].off, img.sect[DMC_SECT_SOUNDS].size);
     td_sound_init();
-    td_text(0, 56, img.sect[DMC_SECT_SOUNDS].size ? "SOUND ON" : "NO SOUNDS", GREEN, BLACK);
+    td_text(0, 34, img.sect[DMC_SECT_SOUNDS].size ? "SOUND ON" : "NO SOUNDS", GREEN, BLACK);
     // 6. Music: an H9MU song in the music slot (doom-firmware/music.py).
     {
         uint32_t song, song_length;
         int music = td_dir_find(TD_MUSIC_DIRECTORY, &song, &song_length);
         if (!music)
             music = td_music_start(nor_read, song, song_length);
-        td_text(0, 70, music ? "NO MUSIC" : "MUSIC ON", music ? WHITE : GREEN, BLACK);
+        td_text(0, 48, music ? "NO MUSIC" : "MUSIC ON", music ? WHITE : GREEN, BLACK);
     }
 
     myargc = 4;

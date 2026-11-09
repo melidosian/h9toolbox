@@ -100,16 +100,9 @@ static void put_column(unsigned px, const uint8_t *col, int h, int y0)
     batch_n++;
 }
 
-int td_lcd_skip;  // build 28: key 8 skips the panel output, to time the renderer alone
-
 void pump_submit(const uint8_t *cols, int ncols)
 {
     td_pump_strips++;
-    if (td_lcd_skip) {
-        td_sound_pump();
-        pump_stats.fills += (uint32_t)ncols;
-        return;
-    }
     td_sound_pump();  // keep the DAC fed while the frame is drawn
     for (int k = 0; k < ncols; k++, column++) {
         const uint8_t *col = cols + k * win_h;

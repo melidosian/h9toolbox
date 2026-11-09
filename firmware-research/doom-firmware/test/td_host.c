@@ -94,10 +94,7 @@ void h9_speaker_gate(unsigned source, unsigned on) { (void)source; (void)on; }
 void h9_dac_rate(void *dac, unsigned rate) { (void)dac; (void)rate; }
 void h9_dac_start(void *dac) { (void)dac; }
 void h9_dac_write128(const void *pcm) { (void)pcm; }
-void h9_play_tone(unsigned n) { (void)n; }
 void h9_audio_volume(unsigned state, unsigned level) { (void)state; (void)level; }
-void h9_audio_route(unsigned on) { (void)on; }
-void h9_dac_analog_on(void) {}
 int h9_res_read(unsigned p, uint32_t o, void *b, unsigned n) { (void)p; (void)o; (void)b; (void)n; exit(5); }
 
 void h9_nor_read_raw(void *buffer, uint32_t addr, uint32_t length)

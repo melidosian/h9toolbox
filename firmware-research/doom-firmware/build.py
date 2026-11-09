@@ -63,8 +63,7 @@ REGIONS = [  # name, CPU origin, length; filled in this order (largest first)
 ]
 FRAME_MAX, TIC_OFFSET, ARENA_MIN = 15208, 6912, 3848
 # Start-up stages traced on screen by port/td_trace.c (diagnostic).
-WRAPS = ("V_Init", "R_Init", "P_Init", "S_Init", "D_CheckNetGame", "HU_Init", "ST_Init",
-         "G_InitNew", "P_SetupLevel", "TryRunTics", "R_RenderPlayerView")
+WRAPS = ()  # start-up stage wrappers (bring-up builds; td_trace.c)
 C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as", "-ffunction-sections", "-fdata-sections",
            "-ffreestanding", "-fno-common", "-fwrapv", "-fsigned-char", "-std=gnu11", "-w"]
 INCLUDES = ["engine/stub/include", "engine", "port/data", "port/render", "port/obj", "port/math", "platform",
@@ -156,15 +155,6 @@ h9_dac_write128:
     call r4
     {pc, r14-r4} = [sp++]
 
-/* void h9_play_tone(unsigned n): stock app+0x5231A, the key-tone request
- * (speaker gate, tone file n from the language table, signal key_tone). */
-    .globl h9_play_tone
-h9_play_tone:
-    [--sp] = {rets, r14-r4}
-    r4 = 0x01e5241a
-    call r4
-    {pc, r14-r4} = [sp++]
-
 /* void h9_audio_volume(unsigned state, unsigned level): stock app+0x60DDA,
  * app_audio_set_volume (state 0-4, level clamped to 30). The radio app calls
  * it for state 2 with its volume setting; Doom never did. */
@@ -174,26 +164,6 @@ h9_audio_volume:
     r4 = 0x01e60eda
     call r4
     {pc, r14-r4} = [sp++]
-/* void h9_audio_route(unsigned on): stock app+0x520CE (radio-app-only call). */
-    .globl h9_audio_route
-h9_audio_route:
-    [--sp] = {rets, r14-r4}
-    r4 = 0x01e521ce
-    call r4
-    {pc, r14-r4} = [sp++]
-
-/* void h9_dac_analog_on(void): the tail of stock's DAC analog power-up,
- * app+0x4B82E..0x4B914 (block 0x1F1700 enables, 16 table words, ROM
- * 0x02003DD8, then DAC CON bit 24). Its own epilogue is "sp += 16;
- * {pc, r15-r4} = [sp++]", so the wrapper builds that frame and jumps in;
- * stock's epilogue then returns to our caller. */
-    .globl h9_dac_analog_on
-h9_dac_analog_on:
-    [--sp] = {rets, r15-r4}
-    sp += -16
-    r3 = 0x01e4b92e
-    goto r3
-
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:

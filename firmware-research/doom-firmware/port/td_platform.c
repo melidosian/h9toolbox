@@ -129,14 +129,10 @@ void I_StartTic(void)
     td_sound_pump();
     unsigned raw = h9_key();
     static unsigned last_raw;
-    if (raw == 9 && last_raw != 9) {  // key 7: music on / off (build 27)
+    if (raw == 9 && last_raw != 9) {  // key 7: music on / off
         static int muted;
         muted = !muted;
         td_music_volume(muted ? 0 : 3);
-    }
-    if (raw == 10 && last_raw != 10) {  // key 8: panel output off / on (build 28)
-        extern int td_lcd_skip;
-        td_lcd_skip = !td_lcd_skip;
     }
     last_raw = raw;
     int key = key_for(raw);
@@ -180,40 +176,9 @@ void I_SetPalette(int palette)
     }
 }
 
-// Frame-rate readout (build 27): frames in the last second and the slowest
-// frame in ms, top-left over the view.
 void I_FinishUpdate(void)
 {
-    pump_sync(0);  // send any held columns before the readout is drawn
-    static uint32_t second_start, last_frame, frames, slowest, shown_fps, shown_slow, bytes_start, shown_kb;
-    extern uint32_t td_nor_bytes;
-    uint32_t now = td_ticks();
-    if (last_frame && (now - last_frame) * 10u > slowest)
-        slowest = (now - last_frame) * 10u;
-    last_frame = now;
-    frames++;
-    if (now - second_start >= 100) {
-        shown_fps = frames * 100u / (now - second_start);
-        shown_kb = frames ? (td_nor_bytes - bytes_start) / frames / 1024u : 0;  // chip KB per frame
-        bytes_start = td_nor_bytes;
-        shown_slow = slowest;
-        frames = 0;
-        slowest = 0;
-        second_start = now;
-    }
-    char s[11];
-    s[0] = (char)('0' + shown_fps / 10 % 10);
-    s[1] = (char)('0' + shown_fps % 10);
-    s[2] = ' ';
-    s[3] = (char)('0' + shown_slow / 100 % 10);
-    s[4] = (char)('0' + shown_slow / 10 % 10);
-    s[5] = (char)('0' + shown_slow % 10);
-    s[6] = ' ';
-    s[7] = (char)('0' + shown_kb / 100 % 10);
-    s[8] = (char)('0' + shown_kb / 10 % 10);
-    s[9] = (char)('0' + shown_kb % 10);
-    s[10] = 0;
-    td_text(0, 0, s, 0xffe0, 0x0000);
+    pump_sync(0);  // send any held panel columns
 }
 
 // Sound: DMC100's port/game/s_pcspk.c (the I_* sound interface) with the
