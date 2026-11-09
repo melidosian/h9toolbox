@@ -1875,4 +1875,31 @@ flash-power question, and asked for more speed.
   (`0x524A0`) only in the main loop (`0x8890A` …). The hold-8 path is not
   located yet.
 
+## 2026-11-09 Hold-8 path found (static): ROM 0x02000D68
+
+- The user asked about PTT+3. Earlier notes show PTT+1 (serial), PTT+2
+  (HID) and PTT+3 (USB serial) all give the same green-LED, black-screen
+  updater, so PTT+3 is not independent of PTT+2. Hold-8 (mask-ROM USB
+  loader `BR23UBOOT1.00`) is the independent path, so we locate it.
+- Of the 125 ROM functions called by the app, only `0x02000D68` is called
+  exclusively from the `my_app` block (sites app+`0x7CF24`, `0x7D590`).
+  Both sites draw green text (colour `0x07E0`), wait 1000 ms, call
+  `0x02000D68`, then `goto -2`.
+- The boot-key handler at app+`0x7D418`:
+  - It reads settings item 1 (`call -89110`, 8 bytes) and checks the
+    marker `TIDE9` (84 73 68 69 57).
+  - If the marker is missing, it draws a red string and polls the key byte
+    `0xC0F0+703` = **`0xC3AF`** (the byte `h9_key()` returns) and
+    `0xC0F0+685` = `0xC39D`.
+  - Key byte **5** leads to app+`0x7D54E`: it clears the screen, draws two
+    green lines (`USB Update` / `Connect USB` at `0x95C2F`/`0x95C3A` are
+    the likely strings), waits 1000 ms, calls ROM `0x02000D68`, and never
+    returns.
+  - Key 8 with `0xC39D` = 14 writes `TIDE9` to the settings and continues.
+  - At app+`0x7D3FA`, `0xC39D` = 14 with key byte 5 calls `0x7CE14` (the
+    other ROM `0x02000D68` site).
+- Hypothesis: key byte 5 is the "8" key, and ROM `0x02000D68` enters the
+  mask-ROM USB loader (`4C4A:2342`). The next test checks both from a far
+  program launched on the running radio, where stock hold-8 is unaffected.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
