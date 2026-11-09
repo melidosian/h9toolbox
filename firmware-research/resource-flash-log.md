@@ -2368,4 +2368,8 @@ flash-power question, and asked for more speed.
   `add5a849…` (flash `0fff5d8c…`), far blob `173587a0…`.
 - Open: whether the clone protocol session answers with `my_app` replaced.
 
+- Build 8 flashed in **one session** (`flash --far`, first hardware use):
+  main 22 sectors, readback `0fff5d8c…`; then far 12 of 17 sectors,
+  verified `173587a0…`. Bluetooth check: pending.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
