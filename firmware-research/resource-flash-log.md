@@ -1688,4 +1688,29 @@ flash-power question, and asked for more speed.
 - The full recovery loop is proven on hardware: custom firmware → PTT+2
   restore → stock → hold-8 → H9 Toolbox.
 
+## 2026-11-09 Freedoom measured: one map is about 2.5–3.1 MB
+
+- Freedoom 0.13.0 (`freedoom-0.13.0.zip`, 24,143,781 B, SHA-256
+  `3f9b264f…`, matching the signed CHECKSUM file), kept outside the repo.
+  `freedoom1.wad` is 28,795,076 B (3,163 lumps): levels 10.6 MB, wall
+  patches 10.1 MB, sound and music 3.0 MB, sprites 2.5 MB, other graphics
+  1.6 MB, flats 1.0 MB.
+- `doom-firmware/wad_tool.py map` counts what a map needs to start and play:
+  - its level lumps
+  - textures (plus switch and animation partners and the sky) and their
+    patches
+  - flats (plus animation ranges)
+  - sprites of its things, with projectiles, drops and weapon HUD sprites
+  - in-game graphics only (status bar, menus, fonts, palette, colormap)
+  - no title, help, intermission, ending, sound or music
+- Results:
+  - E1M1: 2,624,451 B
+  - E1M2: 3,144,756 B
+  - E1M3: 2,464,202 B
+  - all of episode 1: 7,844,897 B
+- Against 2,948 KiB contiguous in `resource` (4,236 KiB stock-safe in
+  total): **one map fits** (E1M1 or E1M3 in `resource` alone); a full
+  episode does not. Wall patches are the largest part (about 1.0–1.4 MB per
+  map).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
