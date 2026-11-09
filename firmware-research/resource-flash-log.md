@@ -2127,4 +2127,36 @@ flash-power question, and asked for more speed.
   is valid game data for this engine. The port work is now the TD-H9
   platform layer.
 
+## 2026-11-09 First-pass Doom firmware builds (offline)
+
+- `doom-firmware/build.py` with `port/` (TD-H9 platform layer: I_* hooks,
+  LCD pump with on-the-fly 320x240 → 160x128 downsampling, NOR/FAT shim
+  onto the uploaded pack, entry with hold-3 recovery).
+- It compiles DMC100's size-gate set plus `port/` with JieLi clang and
+  links with JieLi `ld --gc-sections` in two passes (sizing, then
+  object-level packing).
+- JieLi `ld` accepts objects from the repo's Python assembler; cross-region
+  calls and absolute relocations resolve.
+- No undefined symbols.
+- Result:
+  - cave 738 B
+  - far region 69,634 B code plus 264 B `.data` image
+  - R2A 39,186 B, R1 4,790 B
+  - RAM core to `0x255C0`, frame 15,208 B, arena 11,736 B
+  - 19 sectors changed; flasher inspect verified
+  - package `74edf3c4…`, far blob `49bfa937…`
+- Checked by decode:
+  - hook → cave
+  - cave → `td_main` (`0x01E82E22`)
+  - heap end `r5 = 0x22000`
+  - `.data` loads at the end of the far blob
+- `test/test_pack_find.c`: the directory reader accepts the uploader's
+  E1M1S directory (pack `0xA20000`, 1,056,192 B) and rejects erased,
+  in-progress and corrupted ones.
+- Not flashed. Open runtime questions:
+  - stock heap pressure with the heap 40 KB smaller
+  - `my_app` task stack depth
+  - frame rate
+  - key codes other than 3
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

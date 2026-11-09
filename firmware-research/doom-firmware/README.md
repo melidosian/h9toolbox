@@ -134,3 +134,38 @@ Earlier raw-WAD estimate, kept for comparison (`wad_tool.py`):
 - **From scratch:** our own app image with ported drivers (clock, LCD, SPI2,
   keys, timer). It gets all ~850 KiB of app flash and nearly all RAM, but
   every driver must be ported and proven.
+
+## First-pass firmware build (2026-11-09, offline)
+
+`build.py` builds DMC100-Doom's engine (its size-gate set: engine, data
+layer, strip renderer, object store, trig, libc stubs, generated tables)
+with the TD-H9 platform layer in `port/` (GPL-2.0-or-later, derived from
+DMC100's stubs):
+
+| File | Does |
+|---|---|
+| `port/td_platform.c` | I_* hooks: 35 Hz time from the 100 Hz stock counter, keys to Doom keys (Up/Down move, Menu/Back turn, 3 = use, other keys fire), errors on screen; front end stubbed (no menus or intermission yet) |
+| `port/td_pump.c` | the LCD pump: each 320x240 column-major strip downsampled to the 160x128 panel and written as 1-pixel-wide windows (no frame buffer) |
+| `port/td_nor.c` | `nor_read` on the stock partition reader; `fat_mount`/`fat_open` present the uploaded pack (directory at `0xA1F000`, COMPLETE required, one segment) as DOOM.DAT |
+| `port/td_main.c` | entry from the cave: .data/.bss setup, hold-3 USB recovery, status screen (heap use, pack size), `img_init`, `D_DoomMain` with `-warp 1 1` |
+
+Layout (all proven separately on hardware):
+
+- Startup: C-hello's `entry.s` in the app cave, 738 B, from the 4-byte
+  hook at `my_app`'s entry.
+- Code: by object, packed with `ld --gc-sections` into the far region
+  (69,634 B used) and the trap-tested `my_app`-only block (R2A 39,186 B,
+  R1 4,790 B).
+- RAM: the heap end is lowered `0x2BF00` → `0x22000`. Core
+  `0x22000–0x255C0`, frame region 15,208 B, level arena 11,736 B.
+
+The first package is `74edf3c4…` (flash `702d8eb6…`), with far blob
+`49bfa937…` (69,898 B). The flasher's inspect accepts it as a stock-derived
+app-only build. `test/test_pack_find.c` checks the directory reader against
+sectors made by the uploader's own code.
+
+Not yet known (hardware questions for the first run):
+- whether the stock tasks fit in the smaller heap
+- whether the `my_app` task stack is big enough for the renderer
+- speed
+- the key codes besides 3
