@@ -1491,4 +1491,26 @@ flash-power question, and asked for more speed.
     flasher writes only up to `0xDA000`.
 - Writing there needs a flasher mode for sectors beyond the app image.
 
+## 2026-11-09 Reserved-area users checked: only the VM writes there
+
+- RAM `0xE2A0` is a boot record (the stack canary `5A5A…` ends at `0xE290`,
+  the startup stack top). App+`0x02D834` copies boot arguments into it (`+0`,
+  `+16..+39`). A copy also sits in the flash driver's state at `0x125A8`,
+  next to the NOR size (`0x100000`) and JEDEC ID (`0x856014`).
+- The ten code sites that load `0xE2A0` read only these fields: `+0` byte
+  (app+`0x2C8A4`), `+16/+20` app start and map base (`0x252C8`), `+28` chip
+  key (`0x9702`, `0x903D4`, `0x90688`), `+30` calibration halfword used in
+  float maths (`0x4AB80`, `0x60C30`), `+32..+38` six bytes plus a check
+  (`0x2C440`), plus the writer. None reads `+4/+12` (reserved start and
+  length).
+- The reserved range reaches code only through flash-driver ioctl
+  `0x40045602`, requested in two places:
+  - VM init at app+`0x08C9E6`: clamps to 64 KiB.
+  - App+`0x04F31C`: computes 128 KiB-aligned bounds (`+0x1FFFF`,
+    `& ~0x1FFFF`, `0x20000 - …`) around the reserved range and the code
+    range. This is arithmetic only, with no flash writes in this part; it is
+    probably the NOR write-protection boundary setup.
+- Conclusion: no stock code writes or erases `0xEA000–0xFBFFF`.
+- Remaining unknown: what the official JieLi updater does there.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
