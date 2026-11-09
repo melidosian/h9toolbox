@@ -1274,4 +1274,19 @@ flash-power question, and asked for more speed.
   `h9_main`, C → wrappers → stage-23 helpers.
 - Colima shares only `$HOME`, so `h9cc` must run from a folder under home.
 
+## 2026-11-09 Takeover plan (hybrid of reclaimed flash and RAM-loaded programs)
+
+- The user chose a hybrid: reclaim stock code that is dead once `my_app` is
+  replaced (resident code), and use the RAM it frees for programs loaded from
+  the resource chip (Doom-class goal).
+- `takeover/reachability.py`, first estimate from the stock call index:
+  - 682 of 1,560 functions are reached from reset (cutting `my_app`;
+    48 address-taken functions kept as roots)
+  - about 389 KB of 811 KB of flash code is not reached
+  - largest candidate run: 75,748 B at app+`0x65EE0`
+  - not proof: 1,477 indirect jumps are unresolved, and the ROM may call
+    back into the app
+- `takeover/DESIGN.md`: next is a hardware "trap test" per region, then RAM
+  measurement in takeover mode, then the resident loader/runtime.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
