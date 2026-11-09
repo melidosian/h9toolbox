@@ -1289,4 +1289,24 @@ flash-power question, and asked for more speed.
 - `takeover/DESIGN.md`: next is a hardware "trap test" per region, then RAM
   measurement in takeover mode, then the resident loader/runtime.
 
+## 2026-11-09 C-hello gains hardware readouts (offline)
+
+- `main.c` now measures, in ticks of the stock timer-3 counter at
+  `0x1D8B0`:
+  - full-screen fill
+  - sixteen 16×16 squares
+  - busy-loop iterations per tick
+  - `h9_delay(100)`
+  - a live TICK line, for converting ticks to seconds with a stopwatch
+- A 3×5 font (digits plus the label letters) draws at 2× scale.
+- `TICK STUCK` is shown if the counter never advances; the busy loop is
+  capped.
+- Size: the `switch`-based font overflowed the cave (1,758 > 1,704 B); a
+  lookup table brings it to 1,680 B. Package `941f40c2…`, flash
+  `941e2586…`; reproducible; flasher verified.
+- `test/host_preview.c`: the same C compiled natively with stand-in hardware
+  writes a 160×128 PPM, checking window bounds and write sizes. The preview
+  showed the expected panel, gradient, square movement and TICK line. The
+  `H9_HOST_TEST` hook leaves the radio build byte-identical.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

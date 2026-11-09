@@ -8,9 +8,33 @@ the stock pin registrations and controller setup, the panel reset and init
 table, the backlight descriptor and the LCD transfer path. `entry.s` copies
 that code unchanged and then calls `h9_main()` in [main.c](main.c).
 
-On boot it draws a full-screen gradient and a white square. **Up**, **Down**,
-**Menu** (left) and **Back** (right) move the square, and the LED toggles on
-each press. Like stage 23 it replaces stock `my_app`: the radio is not a
+On boot it measures the hardware, draws a full-screen gradient, and shows a
+white square that **Up**, **Down**, **Menu** (left) and **Back** (right)
+move; the LED toggles on each press.
+
+## On-screen readouts
+
+All in ticks of the stock timer-3 interrupt counter (RAM `0x1D8B0`):
+
+| Line | Measures |
+|---|---|
+| FILL | ticks to draw the full 160 × 128 gradient (display throughput) |
+| SQ | ticks for sixteen 16 × 16 squares (per-transfer overhead) |
+| LOOP | busy-loop iterations per tick (a CPU speed estimate) |
+| DLY | ticks taken by `h9_delay(100)` (the stock delay unit) |
+| TICK | live counter (bottom, yellow): note it twice about 10 s apart on a stopwatch to get ticks per second |
+
+If the counter never moves, the screen shows `TICK STUCK`.
+
+## Preview on the Mac
+
+`test/host_preview.c` compiles the same `main.c` natively with stand-in
+hardware calls that draw into a 160 × 128 framebuffer (and fail on any
+out-of-window or oversized write), then saves the screen:
+
+```
+cc -std=c99 -Wall -Werror -DH9_HOST_TEST -o build/preview test/host_preview.c main.c && build/preview build/preview.ppm
+``` Like stage 23 it replaces stock `my_app`: the radio is not a
 radio while this is installed. Reflash H9 Toolbox Firmware (or stock) over
 USB to go back.
 
@@ -43,8 +67,8 @@ C compile.
 
 | Item | Value |
 |---|---|
-| Package SHA-256 | `dd24a8adca9540d8fe80bba7f24f136888857c5f551d2a5fcf584e92b979afe0` |
-| Main flash SHA-256 | `e12e2700d1ccc354339a277514b2b394016b2011a4c4697017ff5ca3d12a7ad2` |
-| Code | 1,062 bytes, `h9_main` at `0x01EA7C4A` |
+| Package SHA-256 | `941f40c2dc87fde4c29fcdd94ab09cba611a984f6bfeffb09cf268c7ed69f4f5` |
+| Main flash SHA-256 | `941e25869feeecdc6f37be4f19eb6a1c7e647ebfdba9bb17f76037ad4fec314e` |
+| Code | 1,680 of 1,704 bytes, `h9_main` at `0x01EA7D56` |
 
 Not yet run on a radio.
