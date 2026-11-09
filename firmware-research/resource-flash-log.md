@@ -1196,4 +1196,20 @@ flash-power question, and asked for more speed.
   against the stock heap setup. Browser check with a simulated radio: 40/527
   used, all checks ok.
 
+## 2026-11-09 Full 16 MiB chip map (user's full-chip read)
+
+- The user read the whole chip in one fast pass (SHA-256 `b6d60e2e…`, 2,584 s,
+  40,330 requests, 64 ms). The `resource` range matches the two-pass backup
+  except the 10 rewritten logo sectors.
+- New: `h9-firmware-research/evidence/stock/resource-flash-map.md`.
+  - `filesystem` is a FAT12 volume with 16 MP3 prompts (digits and Bluetooth,
+    connection and FM announcements; MPEG-2 Layer III 16 kHz 32 kbps mono)
+    and 843 KiB free.
+  - `voice` is a JLFS container `tone` with 81 files (RIFF/WAVE PCM 11,025 Hz
+    plus two MP3s); all header CRCs valid.
+  - `font` has magic `DDCCBBAA` and seven section offsets (not yet decoded).
+  - `record` is empty.
+- Free space writable by the service: about 2.9 MiB in `resource`, 932 KiB
+  in `font`, 356 KiB in `voice`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
