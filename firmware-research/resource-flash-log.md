@@ -2728,4 +2728,24 @@ flash-power question, and asked for more speed.
   path; the chip's last bytes keep the byte path. Package `3df78498…`,
   flash `a3da97eb…`, far `6f12d13c…`.
 
+- Build 31 on hardware: far 8 fps / 140 ms / 70 KB; wall 22 fps / 60 ms /
+  7 KB. No change, so DMC100's reads were already on the DMA path. The far
+  view is bound by drawing on this CPU. The user's call: "as good as we
+  can be". Performance work stops here.
+
+## 2026-11-09 Doom firmware status (end of this round)
+
+- Runs Freedoom E1M1 at about 22–24 fps up close and about 8–14 fps in
+  far views. The panel output is batched (build 29).
+- Brighter picture (backlight at stock's maximum plus gamma 0.6) and
+  WASD-style keys.
+- PC-speaker sound effects and E1M1 chiptune music through the speaker
+  (PA3 must be an output). Key 7 toggles the music.
+- Hold 2 at power-on: Bluetooth upload mode (game and music slots).
+  Hold 4: audio probe. Hold 3: USB loader. Menu: key test.
+- Installed in one USB session (`h9_flasher.py flash … --far …`).
+- Diagnostics still in the image: the frame readout, key 8 (panel off),
+  the hold-4 audio probe and the start-up trace. A release build would
+  remove them.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
