@@ -2372,4 +2372,22 @@ flash-power question, and asked for more speed.
   main 22 sectors, readback `0fff5d8c…`; then far 12 of 17 sectors,
   verified `173587a0…`. Bluetooth check: pending.
 
+## 2026-11-09 Build 8 on hardware: Bluetooth does not advertise inside Doom
+
+- Doom runs (with the pack present), but the radio does not appear in the
+  Web Bluetooth picker: Bluetooth itself is off, not just the upload
+  service.
+- The five code sites that name the `btstack` task (`0x164FA`, `0x1838A`,
+  `0x18806`, `0x1FF02`, `0x23EDC`) are not `my_app`-only. `my_app`'s body
+  launches one task, `my_ui` (task launcher `0x2CF22` at app+`0x88752`,
+  entry app+`0x89164`), the radio UI.
+- The `my_app` block calls into the Bluetooth range 57 times, mostly
+  `0x1682C` (a getter), `0x17832`/`0x17D66` (state at `0xCE9C`) and
+  `0x17BC8`.
+- Hypothesis: the radio app or UI requests the Bluetooth mode or start (in
+  JieLi's SDK, a UI-requested app-mode switch), which the Doom firmware
+  never does. Next: find that request and replicate it in `td_main`.
+- Fallback that works today: upload with H9 Toolbox Firmware, then flash
+  Doom (the pack survives).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
