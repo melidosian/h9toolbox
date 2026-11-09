@@ -2304,4 +2304,32 @@ flash-power question, and asked for more speed.
     (`host-evidence/e1m1-host-gamma.png`).
   - Package `6db162a6…`.
 
+## 2026-11-09 Sound research: stock plays tone *files*, no beep generator
+
+- The `key_tone` name (app+`0xB19CE`) is used at app+`0x61016`, inside a
+  large initialiser that also reads settings items 88 and 92. It allocates
+  a 44-byte request block (pointer at `0x11AD0`+236) and registers task
+  callback app+`0x4A5DA`.
+- The callback waits on a signal, then takes a file name from the block (it
+  scans for the `.` extension) and starts the stock decoder on it. Key
+  beeps and prompts are files from the voice container's JLFS `tone`
+  (11,025 Hz PCM WAVs and MP3s), decoded through the audio pipeline to the
+  speaker.
+- Request routine near app+`0x52330` ("play tone N"):
+  - It looks the name up in a pointer table at `0x01EB5CA0`, indexed by
+    tone number minus 1 (8 entries).
+  - It fills the block: `[+4]` = name, `[+8]`, `b[+12]`, `b[+13]`,
+    `h[+14]`, `[+16]`, `[+20]`.
+  - It sets `b[+2]` = 1 (pending) and signals the task (event at
+    `0x01EB1385`+1865).
+- Speaker amplifier enable: GPIO pin 3 via app+`0x052228` (earlier
+  evidence, `main-speaker-gate.md`).
+- **Options for Doom sound:**
+  - (a) call "play tone N": prompt-style sounds only, from existing files
+  - (b) find the PCM output the decoder feeds (DAC write) and stream
+    Doom's 11 kHz samples, or DMC100's PC-speaker effects as synthesized
+    square waves
+  - (b) is the real route. It needs the DAC output API and must check that
+    the audio pipeline is initialised without `my_app`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
