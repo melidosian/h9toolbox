@@ -2198,4 +2198,13 @@ flash-power question, and asked for more speed.
   changed). Main: backup `702d8eb6…` (run-1 image), 17 sectors, readback
   `b964ab70…`.
 
+- **Run 2: the pack reads and passes the engine's checks on hardware.**
+  - Status screen: HEAP 167/209 blocks, PACK 1,056,192 B, "PACK OK".
+  - `td_nor_setup` plus the stock SPI2 read work without stock `my_app`.
+  - `img_init` (DMC100's header CRC and section checks) passed on the real
+    chip.
+- **Heap:** with the end lowered to `0x22000` the stock heap has 209 blocks
+  (26,752 B), 167 used (21,376 B), 42 free (5,376 B), with `my_app` not
+  running. The stock tasks fit, with little margin.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
