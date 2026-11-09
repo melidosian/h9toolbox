@@ -13,7 +13,7 @@ owner's settings and channels.
 | voice | `0x100000–0x3FFFFF` | 2,716 KiB (679/768 sectors, ends `0x3A7000`) | JLFS container `tone` (header at `0x100000`, size `0x2A6690`, flags `0x83`), **81 files**, all header CRCs valid: `index.idx`, English `zero`–`nine.wav`, Chinese `cn_0`…`cn_10`, `cn_bai`, call reminders, `d_sound2.mp3`, `rx_sound.mp3`, … Entry data is at `0x100000 + offset`. The `.wav` files are RIFF/WAVE PCM, 11,025 Hz, 16-bit, 2 channels. |
 | font | `0x400000–0x7FFFFF` | 3,164 KiB (791/1024, ends `0x717000`) | Magic `DD CC BB AA`, version `0x100`, then seven section offsets (`0x2A908`, `0x2AA08`, `0x8C460`, `0xB6E68`, `0xBB080`, `0x171EE8`, `0x1A4D20`): probably glyph tables per size or character set. Format not yet decoded. |
 | sys_data | `0x800000–0x8FFFFF` | 28 KiB (7 sectors) | settings, starts `"HW102"` (private) |
-| rw_freq | `0x900000–0x9FFFFF` | 16 KiB (4 sectors) | the Bluetooth programmer's clone image (private) |
+| rw_freq | `0x900000–0x9FFFFF` | 16 KiB (4 sectors) | the Bluetooth programmer's clone image at `0x900000–0x90313F` (**confirmed**: equals a programmer `.img` byte for byte), plus one block at `0x905000` (private) |
 | resource | `0xA00000–0xCFFFFF` | 124 KiB (31 sectors) | 22 RGB565 images, see `main-resource-flash.md` |
 | record | `0xD00000–0xFFFFFF` | empty | (stock writes here) |
 

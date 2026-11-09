@@ -1212,4 +1212,15 @@ flash-power question, and asked for more speed.
 - Free space writable by the service: about 2.9 MiB in `resource`, 932 KiB
   in `font`, 356 KiB in `voice`.
 
+## 2026-11-09 Clone image confirmed at rw_freq 0x900000 (hardware)
+
+- A programmer backup (`.img`, 12,616 bytes: 8-byte identity `TDH9`… `4E`,
+  then 12,608 bytes) equals the full-chip dump's `0x900000–0x90313F` byte for
+  byte. **The Bluetooth clone image is the start of `rw_freq`**, which the
+  programmer's H9 Toolbox fast read relies on. This was previously inferred
+  from the stock reader's selector 4.
+- `sys_data` (`HW102` header, a text-record sector, two full/partial sector
+  pairs that look like growing logs) and the rest of `rw_freq` (one block at
+  `0x905000`) are stock-owned: their erased space is not usable for our data.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
