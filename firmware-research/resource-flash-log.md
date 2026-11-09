@@ -1540,4 +1540,12 @@ flash-power question, and asked for more speed.
     verified. Changed sectors vs H9 Toolbox: `0x5000`, `0xAC000`,
     `0xAE000`, `0xD9000`.
 
+## 2026-11-09 Far-hello flashed
+
+- `write-far`: backup of `0xEA000–0xEAFFF` was all `0xFF` (`f47a8ec3…`); 1
+  sector written; verified blob `fd38f226…`.
+- Main: backup `h9-before-far-hello-20261109.bin` = `83f79fb3…` (H9 Toolbox);
+  4 sectors updated (as predicted); readback `5af9bdfe…`. Behaviour on
+  Back-hold: pending.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
