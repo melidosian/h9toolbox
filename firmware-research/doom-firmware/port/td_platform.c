@@ -103,18 +103,20 @@ void I_StartFrame(void)
 {
 }
 
-// TD-H9 keys (stock key byte) to Doom keys. Only one key is reported at a
-// time, so a change of key releases the previous one.
+// TD-H9 keys (stock key byte) to Doom keys, WASD-style on the keypad:
+// 2 forward, 5 back, 4 / 6 turn, 1 fire, 3 use; the arrow keys move and turn
+// too. Only one key is reported at a time, so a change of key releases the
+// previous one.
 static int key_for(unsigned code)
 {
     switch (code) {
-    case TD_KEY_UP: return KEY_UPARROW;
-    case TD_KEY_DOWN: return KEY_DOWNARROW;
-    case TD_KEY_MENU: return KEY_LEFTARROW;
-    case TD_KEY_BACK: return KEY_RIGHTARROW;
+    case TD_KEY_2: case TD_KEY_UP: return KEY_UPARROW;
+    case TD_KEY_5: case TD_KEY_DOWN: return KEY_DOWNARROW;
+    case TD_KEY_4: case TD_KEY_MENU: return KEY_LEFTARROW;
+    case TD_KEY_6: case TD_KEY_BACK: return KEY_RIGHTARROW;
+    case TD_KEY_1: return KEY_FIRE;
     case TD_KEY_3: return KEY_USE;
-    case 0: return 0;
-    default: return KEY_FIRE;  // any other key fires
+    default: return 0;
     }
 }
 

@@ -15,8 +15,10 @@ void h9_enter_usb_loader(void);  // ROM 0x02000D68, does not return
 void h9_spi2_setup(void);
 void h9_nor_read_raw(void *buffer, uint32_t chip_address, uint32_t length);
 
-// Stock key byte values (RAM 0xC3AF).
-enum { TD_KEY_3 = 5, TD_KEY_MENU = 12, TD_KEY_UP = 13, TD_KEY_DOWN = 14, TD_KEY_BACK = 15 };
+// Stock key byte values (RAM 0xC3AF). Digits read as the digit + 2 (key test,
+// 2026-11-09: 1=3, 2=4, 3=5, 4=6, 5=7, 6=8).
+enum { TD_KEY_1 = 3, TD_KEY_2 = 4, TD_KEY_3 = 5, TD_KEY_4 = 6, TD_KEY_5 = 7, TD_KEY_6 = 8,
+       TD_KEY_MENU = 12, TD_KEY_UP = 13, TD_KEY_DOWN = 14, TD_KEY_BACK = 15 };
 
 // Panel.
 enum { TD_W = 160, TD_H = 128 };

@@ -80,7 +80,7 @@ unsigned h9_key(void)
         printf("ran %u tics, %u frames saved\n", max_tics, frames_saved);
         exit(0);
     }
-    return keyscans > 31 + 40 ? TD_KEY_UP : 0;  // walk forward after 40 tics
+    return keyscans > 31 + 40 ? TD_KEY_2 : 0;  // walk forward (key 2) after 40 tics
 }
 
 void h9_delay(unsigned ms) { now += ms / 10 ? ms / 10 : 1; }

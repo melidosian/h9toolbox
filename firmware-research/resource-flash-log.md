@@ -2279,4 +2279,14 @@ flash-power question, and asked for more speed.
 - Host test still runs 140 tics. Package `a0e36c1e…` (flash `8347117c…`),
   far blob `6dae58ac…`.
 
+## 2026-11-09 Keypad codes measured; WASD-style controls (build 6)
+
+- Key test on hardware (build 5, hold Menu at power-on): the digits report
+  the digit + 2 (1=3, 2=4, 3=5, 4=6, 5=7, 6=8); Menu=12, Up=13, Down=14,
+  Back=15 as known.
+- Controls, as the user asked: 2 forward, 5 back, 4 / 6 turn, 1 fire,
+  3 use; the arrow keys still move and turn; other keys do nothing.
+- The host test walks forward with key 2. Package `91514524…` (flash
+  `e9e2e4d2…`), far blob `1bdf7edd…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
