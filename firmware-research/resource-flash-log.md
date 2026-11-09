@@ -2453,4 +2453,9 @@ flash-power question, and asked for more speed.
   is removed.
 - Host test ok. Package `8da0f5c9…`, flash `60245a85…`, far `94a64b21…`.
 
+- Build 13 on hardware (user: "thats working"): normal power-on runs Doom.
+  Hold 2 at power-on enters upload mode, Bluetooth comes up, and the
+  radio is reachable from the data-upload page. Uploading inside the Doom
+  firmware works via the boot key.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
