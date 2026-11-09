@@ -2701,4 +2701,13 @@ flash-power question, and asked for more speed.
 - Build 28: key 8 skips the panel output (renderer and sound still run),
   to split the panel transfer from Doom's drawing and the chip reads.
 
+- Build 28 on hardware (far view): panel on about 10–12 fps, slowest
+  90–160 ms; panel off (key 8) about 10–20 fps, slowest 80–110 ms. The
+  per-column panel output is a real share; Doom's drawing and chip reads
+  are the larger part.
+- Build 29: `td_pump.c` batches up to 16 consecutive panel columns (4 KiB,
+  row-major) per window: about 10 windows a frame instead of 160, and long
+  transfers. Flushed on `pump_end`/`pump_sync`/a column break; the frame
+  readout flushes first. Host render intact.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

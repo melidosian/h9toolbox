@@ -184,6 +184,7 @@ void I_SetPalette(int palette)
 // frame in ms, top-left over the view.
 void I_FinishUpdate(void)
 {
+    pump_sync(0);  // send any held columns before the readout is drawn
     static uint32_t second_start, last_frame, frames, slowest, shown_fps, shown_slow;
     uint32_t now = td_ticks();
     if (last_frame && (now - last_frame) * 10u > slowest)
