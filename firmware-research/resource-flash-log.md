@@ -1635,4 +1635,18 @@ flash-power question, and asked for more speed.
   resource flash, constify tables, and get more main flash. Details in
   `takeover/DOOM-SIZE.md`.
 
+## 2026-11-09 Doom firmware route chosen; resource-chip rules
+
+- The user chose Doom as its own firmware, with two requirements:
+  everything written to the resource chip must be restorable, and stock
+  must still boot with it modified.
+- Erased runs in the full-chip dump (`b6d60e2e…`), each a single
+  contiguous block:
+  - `resource` `0xA1F000–0xCFFFFF` (2,948 KiB)
+  - `font` `0x717000–0x7FFFFF` (932 KiB)
+  - `voice` `0x3A7000–0x3FFFFF` (356 KiB)
+  - Total 4,236 KiB. `record` (3 MiB, empty) is excluded: stock owns it.
+- Rules, restore method and the stock-boot checklist:
+  `doom-firmware/README.md`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
