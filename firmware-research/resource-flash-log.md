@@ -2508,4 +2508,16 @@ flash-power question, and asked for more speed.
   Keys 1, 5 and 6 as in build 15.
 - Package `03c3219e…`, flash `558fe241…`, far `8527dc00…`.
 
+- Build 16 on hardware: stock tones 7/8/9 move HRP (HRP = SWP afterwards:
+  about `0x0CE`, `0x6C8`, `0x5E6`; state 4 between tones). So the stock
+  path runs the DAC hardware. With key 1 first, the amplifier byte goes
+  1 → 3 → 1 during each tone, but nothing is heard. Key beeps are off in
+  the radio's settings (the stock tones are likely at volume 0), and the
+  volume knob is up. Page 2 (`0x1E19C0`): about `06A3?903`, `55000000`,
+  `83?00000`, `00030000`, then 0.
+- Build 17 probe: key 5 writes the DAC volume register `+40` =
+  `0x40004000`. Key 6: amplifier on, stock tone 0 to wake the hardware,
+  then our 1 s square wave through the stock write. Package `54499096…`,
+  flash `0de721ed…`, far `1e116744…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

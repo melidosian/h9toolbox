@@ -231,6 +231,10 @@ static void upload_mode(const char *why)
 // back first (the decoder allocates):
 //   7 / 8 / 9: stock tone 0 / 1 / 2
 //   2: page 2, the second audio block at 0x1E19C0
+// Build 16 on hardware: stock tones move HRP and raise the amplifier byte to
+// 3, but are silent (key beeps are off in the radio's settings). Build 17:
+//   5: DAC digital volume register (+40) to 0x4000 per channel
+//   6: amplifier, a stock tone to wake the hardware, then our 1 s tone
 // Stays until power-off; hold 3 for 2 s enters the USB loader.
 #define DAC ((volatile uint32_t *)0x1E2F00)
 #define CYAN_ 0x07ff
@@ -263,7 +267,7 @@ static void audio_probe(void)
     heap_give_back();  // Doom does not start from here; the tone decoder allocates
     uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 3", GREEN, BLACK);
+    td_text(0, 0, "AUDIO PROBE 4", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -278,10 +282,15 @@ static void audio_probe(void)
             } else if (key >= 9 && key <= 11) {  // keys 7, 8, 9
                 h9_play_tone(key - 9);
                 did = key - 2;
+            } else if (key == TD_KEY_5) {
+                DAC[10] = 0x40004000u;  // digital volume, both channels at 0x4000
+                did = 5;
             } else if (key == TD_KEY_6) {
+                // build 17: wake the hardware the way stock's tone player does
+                // (HRP moved only after it), then stream our tone into it
                 h9_speaker_gate(1, 1);
-                h9_dac_rate(DAC_HANDLE, 11025);
-                h9_dac_start(DAC_HANDLE);
+                h9_play_tone(0);
+                h9_delay(30);
                 uint32_t start = td_ticks();
                 while (td_ticks() - start < 100) {
                     tone_chunk(chunk, &phase);
@@ -290,14 +299,6 @@ static void audio_probe(void)
                 }
                 did = 6;
             }
-        }
-        if (key == TD_KEY_5) {
-            tone_chunk(chunk, &phase);
-            h9_dac_write128(chunk);
-            writes++;
-            did = 5;
-            if (td_ticks() - shown < 25)
-                continue;  // keep the stream fed; redraw at most 4 times a second
         }
         if (key == TD_KEY_3 && td_ticks() - since >= 200)
             usb_loader();
@@ -328,10 +329,9 @@ static void audio_probe(void)
             td_text(112, 104, "DID", WHITE, BLACK);
             char d[2] = { (char)('0' + did), 0 };
             td_text(144, 104, did ? d : "-", GREEN, BLACK);
-            td_text(0, 116, "1AMP 2PG 6ALL 789", WHITE, BLACK);
+            td_text(0, 116, "1AMP 2PG 5VOL 6TN 789", WHITE, BLACK);
         }
-        if (key != TD_KEY_5)
-            h9_delay(10);
+        h9_delay(10);
     }
 }
 
