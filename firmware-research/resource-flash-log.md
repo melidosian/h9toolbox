@@ -1255,4 +1255,23 @@ flash-power question, and asked for more speed.
   deliberate wait for macOS to apply the faster link, worth more on large
   reads than on this 12 KiB image.
 
+## 2026-11-09 First C firmware built (c-hello, offline)
+
+- `firmware-research/c-hello/`: `entry.s` copies the hardware-proven stage-23
+  startup unchanged (LED, stock pin registrations, controller setup, panel
+  reset/init, backlight, LCD helpers) and then calls `h9_main()` from
+  `main.c`, compiled with JieLi clang 4.0.1 in Docker
+  (`-target pi32v2 -mcpu=r3 -Oz -ffreestanding -fno-builtin`).
+- C API wrappers: window, write, key, delay, LED.
+- JieLi clang ABI, from a probe: arguments `r0–r3` (more on the stack),
+  result `r0`, `r4–r12` preserved across calls. Cross-object calls use
+  `R_PI32V2_LONG_JUMP_23M2`, which the repository linker resolves.
+- Program: full-screen gradient plus a key-driven 16×16 square, the LED
+  toggling per press.
+- Build: 1,062 bytes in the stage-23 cave, same hook and 4 sectors as
+  stage 23. Package `dd24a8ad…`, flash `e12e2700…`; reproducible including
+  the C compile; flasher inspection verified. Disassembly: startup →
+  `h9_main`, C → wrappers → stage-23 helpers.
+- Colima shares only `$HOME`, so `h9cc` must run from a folder under home.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

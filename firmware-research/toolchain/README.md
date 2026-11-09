@@ -30,7 +30,10 @@ firmware-research/toolchain/h9cc objdump -d file.o
 ```
 
 `h9cc <tool>` runs `/opt/jieli/pi32v2/bin/<tool>` in the container with the
-current directory mounted at `/work` (so paths must be inside it). The
+current directory mounted at `/work` (so paths must be inside it). With
+Colima, run it from a folder under your home directory: Colima shares only
+`$HOME` with its VM, so a folder such as `/tmp` appears empty in the
+container. The
 toolchain reports `clang version 4.0.1`, the same compiler generation used
 for the earlier Windows builds in `replacement-source/`.
 
