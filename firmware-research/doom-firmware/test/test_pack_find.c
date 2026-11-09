@@ -8,12 +8,12 @@
 
 static unsigned char chip[0x300000];  // resource partition
 void td_fatal(const char *a, const char *b) { printf("fatal %s %s\n", a, b); exit(1); }
-int h9_res_read(unsigned sel, uint32_t off, void *buf, unsigned n)
+void h9_nor_read_raw(void *buf, uint32_t addr, uint32_t n)
 {
-    if (sel != 5 || off + n > sizeof chip) { printf("bad read %u %u %u\n", sel, off, n); exit(1); }
-    memcpy(buf, chip + off, n);
-    return 0;
+    if (addr < 0xA00000 || addr + n > 0xA00000 + sizeof chip) { printf("bad read %x %u\n", addr, n); exit(1); }
+    memcpy(buf, chip + (addr - 0xA00000), n);
 }
+void h9_spi2_setup(void) {}
 
 static int load(const char *path)
 {

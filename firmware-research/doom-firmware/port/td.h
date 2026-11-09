@@ -12,6 +12,8 @@ void h9_delay(unsigned ms);
 void h9_led(unsigned on);
 int h9_res_read(unsigned partition, uint32_t offset, void *buffer, unsigned length);
 void h9_enter_usb_loader(void);  // ROM 0x02000D68, does not return
+void h9_spi2_setup(void);
+void h9_nor_read_raw(void *buffer, uint32_t chip_address, uint32_t length);
 
 // Stock key byte values (RAM 0xC3AF).
 enum { TD_KEY_3 = 5, TD_KEY_MENU = 12, TD_KEY_UP = 13, TD_KEY_DOWN = 14, TD_KEY_BACK = 15 };
@@ -32,4 +34,5 @@ void td_fill(unsigned x0, unsigned y0, unsigned w, unsigned h, uint16_t color);
 void td_text(unsigned x, unsigned y, const char *s, uint16_t fg, uint16_t bg);
 
 // td_nor.c
+void td_nor_setup(void);
 int td_pack_find(uint32_t *address, uint32_t *length);

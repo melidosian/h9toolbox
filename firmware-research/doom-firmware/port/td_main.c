@@ -144,6 +144,7 @@ void td_main(void)
     td_text(96, 14, "/", WHITE, BLACK);
     number(104, 14, *(volatile uint16_t *)0x1d8aa, WHITE);
     uint32_t address, length;
+    td_nor_setup();
     int found = td_pack_find(&address, &length);
     if (found)
         td_fatal("NO PACK", found == -1 ? "UPLOAD E1M1 FIRST" : found == -2 ? "UPLOAD NOT DONE" : "DIRECTORY BAD");

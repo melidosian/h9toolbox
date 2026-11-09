@@ -8,7 +8,7 @@
 // sector at 0xA1F000 (magic H9DATA01, CRC-16, COMPLETE marker in its last
 // block). fat_mount/fat_open present that pack as DOOM.DAT, one run starting
 // at its chip address, so the data layer's offsets map straight to chip
-// addresses. nor_read() reads them with the stock partition reader (sync;
+// addresses. nor_read() reads them with the stock SPI2 reader (sync;
 // the async and column calls complete at once, like DMC100's NOR_POLLED
 // build).
 //
@@ -24,31 +24,27 @@
 
 volatile struct nor_stats nor_stats;
 
-// Stock partition table: selector, chip origin, length.
-static const struct { uint8_t sel; uint32_t origin, length; } parts[] = {
-    { 1, 0x100000u, 0x300000u },  // voice
-    { 2, 0x400000u, 0x400000u },  // font
-    { 5, 0xA00000u, 0x300000u },  // resource
-};
+// The resource flash as stock my_app sets it up (app+0x08849C-0x0884BC):
+// chip select GPIO 23 (bank 1 bit 7) as a high output, then SPI2. Stock then
+// reads the JEDEC ID through a my_app-only helper and marks the chip ready
+// for its partition reader; that helper is overwritten in this firmware, so
+// reads go to the lower-level stock SPI2 read instead.
+void td_nor_setup(void)
+{
+    volatile uint32_t *bank1 = (volatile uint32_t *)0x001e5040;
+    bank1[3] |= 0x80;   // +0x0C input enable
+    bank1[2] &= ~0x80u; // +0x08 direction: output
+    bank1[0] |= 0x80;   // +0x00 high: deselected
+    h9_spi2_setup();
+}
 
 void nor_read(uint32_t phys, void *dst, uint32_t n)
 {
-    uint8_t *out = dst;
-    while (n) {
-        unsigned i;
-        for (i = 0; i < sizeof parts / sizeof parts[0]; i++)
-            if (phys >= parts[i].origin && phys < parts[i].origin + parts[i].length)
-                break;
-        if (i == sizeof parts / sizeof parts[0])
-            td_fatal("NOR READ", "outside the data areas");
-        uint32_t room = parts[i].origin + parts[i].length - phys;
-        uint32_t k = n < room ? n : room;
-        h9_res_read(parts[i].sel, phys - parts[i].origin, out, k);
-        nor_stats.sync++;
-        phys += k;
-        out += k;
-        n -= k;
-    }
+    if (phys >= 0x1000000u || n > 0x1000000u - phys)
+        td_fatal("NOR READ", "outside the chip");
+    if (n)
+        h9_nor_read_raw(dst, phys, n);
+    nor_stats.sync++;
 }
 
 int nor_read_async(uint32_t phys, void *dst, uint32_t n, int prio)

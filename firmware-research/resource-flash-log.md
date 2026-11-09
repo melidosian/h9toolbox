@@ -2167,4 +2167,29 @@ flash-power question, and asked for more speed.
 - Main: hold-8 from H9 Toolbox + far launcher (backup `5af9bdfe…`), 23
   sectors, readback `702d8eb6…`. Run result: pending.
 
+## 2026-11-09 Doom run 1: "NO PACK" — resource flash not set up; fixed
+
+- The first-pass firmware booted to its status screen and stopped at "NO
+  PACK": the directory at `0xA1F000` did not read back.
+- Cause: the stock partition read (`0x01E52CB2`) requires the ready marker
+  `0x5AA5` at RAM `0x12234`, and only stock `my_app`'s start-up sets up the
+  chip:
+  - GPIO 23 as a high output (app+`0x08849C`)
+  - SPI2 via `0x01E4C2DA(2)` (`0x0884BC`)
+  - the JEDEC ID through helper app+`0x7A116`, which is `my_app`-only and
+    now overwritten by Doom code in R1
+  - the marker
+- Fix:
+  - `td_nor_setup()` sets GPIO 23 (bank 1 bit 7: input enable, output,
+    high) and calls `0x01E4C2DA(2)`.
+  - `nor_read` now calls the lower-level stock SPI2 read
+    `0x01E4FF22(buf, chip_addr, len)` (outside every overwritten region),
+    which skips the marker check.
+- Rebuilt: package `b67227c6…` (flash `b964ab70…`), far blob `4cbf79bb…`.
+  Directory test passes.
+- Lesson: the `--needed` set came from C-hello's calls only. The Doom
+  build's own stock calls must be added to it (here `0x4FE22`, all
+  outside), and stock state that `my_app` initialises needs an explicit
+  replacement.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

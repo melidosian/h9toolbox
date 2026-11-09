@@ -66,6 +66,27 @@ h9_res_read:
     call r4
     {pc, r14-r4} = [sp++]
 
+/* void h9_spi2_setup(void): stock bus setup with index 2 (SPI2, the resource
+ * flash), as stock my_app does at app+0x0884BA. */
+    .globl h9_spi2_setup
+h9_spi2_setup:
+    [--sp] = {rets, r14-r4}
+    r0 = 2
+    r4 = 0x01e4c2da
+    call r4
+    {pc, r14-r4} = [sp++]
+
+/* void h9_nor_read_raw(buffer, chip_address, length): stock SPI2 read
+ * 0x01E4FF22 (ROM lock, CS GPIO 23, 03 + 24-bit address, DMA, unlock). The
+ * partition read 0x01E52CB2 calls it after a ready-marker check (RAM 0x12234
+ * == 0x5AA5) that only stock my_app's start-up satisfies. */
+    .globl h9_nor_read_raw
+h9_nor_read_raw:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e4ff22
+    call r4
+    {pc, r14-r4} = [sp++]
+
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:
