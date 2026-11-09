@@ -2677,4 +2677,11 @@ flash-power question, and asked for more speed.
   intact. 10/10 pass.
 - Build 26: package `5080287d…`, flash `610f1b4d…`, far `fd471ac0…`.
 
+- Build 26 flashed (flash `610f1b4d…`, far `fd471ac0…`). The music was
+  uploaded in Doom's hold-2 upload mode to the music slot: 28,652 B
+  (SHA-256 `a7ac9a93…`) at `0xCE1000`, directory `0xCE0000`, 8 sectors,
+  verified and complete. The write rate was 123 B/s (266.8 s), versus
+  785 B/s in H9 Toolbox; to investigate later. The record's name is
+  "freedoom E1M1S" (the page's default; cosmetic).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
