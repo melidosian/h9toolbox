@@ -1597,4 +1597,17 @@ flash-power question, and asked for more speed.
   code launched this way, so assets can go to the 16 MiB chip while our
   program is active. Read duration was not recorded.
 
+## 2026-11-09 Far logo written: C reads the resource flash (pending)
+
+- `far-hello/logo.c` (`build.py --program logo`, 1,556 bytes): streams the
+  boot logo from resource partition 5, offset 0, through `h9_res_read` (a
+  wrapper for stock `0x01E52CB2(sel, offset, buf, len)`, `r0..r3`) straight
+  to the LCD in 128-byte chunks, then times reads of the 40,960 bytes in
+  128- and 512-byte calls and compares byte sums.
+- The host preview with the user's logo (from the PNG, converted to RGB565
+  big-endian) renders correctly.
+- The main firmware is unchanged (package `e83f1140…`, already on the
+  radio). `write-far` replaced the far sector (backup = run-2 hello blob,
+  `e5e8929a…`); verified `4bb075d7…`. Behaviour: pending.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
