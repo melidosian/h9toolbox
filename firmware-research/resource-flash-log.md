@@ -1844,4 +1844,9 @@ flash-power question, and asked for more speed.
   - COMPLETE block: 11:28:31–11:28:39
 - Stock-firmware check with the data present: pending.
 
+- **Stock check with the pack present:** after a power cycle, H9 Toolbox
+  booted with the KD9CRQ logo, the voice prompts played, the menus were
+  normal, and a Bluetooth programmer read worked. The resource-chip rule
+  "stock still boots and works" holds on hardware.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
