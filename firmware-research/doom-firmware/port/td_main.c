@@ -241,6 +241,11 @@ static void upload_mode(const char *why)
 //   5: volume 30 for audio states 0-4 (stock)
 //   7: stock tone 0; 8 / 9: app+0x520CE(1) / (0)
 //   6: volume 30, then as before
+// Reference (far-hello/audio.c inside H9 Toolbox, voice prompt audible):
+// DAC CON 0x0F41E1xx, LEN 0x1000, HRP/SWP moving; Doom showed CON
+// 0x0E41E1xx. Bit 24 is set by stock's analog power-up (app+0x4B8DA).
+// Build 20: pages D / A / G as in the reference (key 2), and
+//   8: DAC CON |= bit 24      9: app+0x520CE(1)
 // Stays until power-off; hold 3 for 2 s enters the USB loader.
 #define DAC ((volatile uint32_t *)0x1E2F00)
 #define CYAN_ 0x07ff
@@ -273,7 +278,7 @@ static void audio_probe(void)
     heap_give_back();  // Doom does not start from here; the tone decoder allocates
     uint32_t shown = 0, since = 0, writes = 0;
     td_fill(0, 0, TD_W, TD_H, BLACK);
-    td_text(0, 0, "AUDIO PROBE 6", GREEN, BLACK);
+    td_text(0, 0, "AUDIO PROBE 7", GREEN, BLACK);
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -283,14 +288,17 @@ static void audio_probe(void)
                 h9_speaker_gate(1, 1);
                 did = 1;
             } else if (key == TD_KEY_2) {
-                page ^= 1;
+                page = (page + 1) % 3;
                 td_fill(0, 12, TD_W, 90, BLACK);
             } else if (key == 9) {  // key 7
                 h9_play_tone(0);
                 did = 7;
-            } else if (key == 10 || key == 11) {  // keys 8 / 9: audio route on / off
-                h9_audio_route(key == 10);
-                did = key - 2;
+            } else if (key == 10) {  // key 8: DAC CON bit 24 (set in the working radio, clear in Doom)
+                DAC[0] |= 0x1000000u;
+                did = 8;
+            } else if (key == 11) {  // key 9: app+0x520CE(1)
+                h9_audio_route(1);
+                did = 9;
             } else if (key == TD_KEY_5) {
                 for (unsigned state = 0; state <= 4; state++)
                     h9_audio_volume(state, 30);
@@ -322,21 +330,26 @@ static void audio_probe(void)
             usb_loader();
         if (td_ticks() - shown >= 25) {
             shown = td_ticks();
-            if (page) {
-                volatile uint32_t *ana = (volatile uint32_t *)0x1E19C0;
-                for (unsigned i = 0; i < 6; i++) {
-                    unsigned y = 12 + 10 * i;
-                    char n[3] = { "0123456789ABCDEF"[(i * 4) >> 4], "0123456789ABCDEF"[(i * 4) & 15], 0 };
-                    td_text(0, y, "A", CYAN_, BLACK);
-                    td_text(8, y, n, CYAN_, BLACK);
-                    hex_at(40, y, ana[i]);
-                }
+            // the same pages as far-hello/audio.c (H9 Toolbox reference)
+            uint32_t address[8];
+            unsigned n = 0;
+            if (page == 0) {
+                static const uint8_t dac[] = { 0x00, 0x04, 0x08, 0x10, 0x14, 0x28 };
+                for (unsigned i = 0; i < sizeof dac; i++) address[n++] = 0x1E2F00 + dac[i];
+            } else if (page == 1) {
+                for (unsigned i = 0; i < 6; i++) address[n++] = 0x1E19C0 + 4 * i;
             } else {
-                for (unsigned i = 0; i < 6; i++) {
-                    unsigned y = 12 + 10 * i;
-                    td_text(0, y, names[i], WHITE, BLACK);
-                    hex_at(40, y, DAC[regs[i]]);
+                for (unsigned port = 0; port < 3; port++) {
+                    address[n++] = 0x1E5000 + 0x40 * port;
+                    address[n++] = 0x1E5000 + 0x40 * port + 8;
                 }
+            }
+            for (unsigned i = 0; i < n; i++) {
+                unsigned y = 12 + 10 * i;
+                char a[5] = { "0123456789ABCDEF"[(address[i] >> 12) & 15], "0123456789ABCDEF"[(address[i] >> 8) & 15],
+                              "0123456789ABCDEF"[(address[i] >> 4) & 15], "0123456789ABCDEF"[address[i] & 15], 0 };
+                td_text(0, y, a, CYAN_, BLACK);
+                hex_at(40, y, *(volatile uint32_t *)address[i]);
             }
             td_text(0, 74, "STATE", WHITE, BLACK);
             hex_at(48, 74, DAC_STATE);
@@ -347,7 +360,7 @@ static void audio_probe(void)
             td_text(112, 104, "DID", WHITE, BLACK);
             char d[2] = { (char)('0' + did), 0 };
             td_text(144, 104, did ? d : "-", GREEN, BLACK);
-            td_text(0, 116, "1AMP 5VOL 6TN 7 8 9", WHITE, BLACK);
+            td_text(0, 116, "2PG 7VOICE 8BIT24", WHITE, BLACK);
         }
         h9_delay(10);
     }

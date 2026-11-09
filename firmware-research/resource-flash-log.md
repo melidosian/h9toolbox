@@ -2554,4 +2554,25 @@ flash-power question, and asked for more speed.
   taken 60 ms into stock tone 0 (key 7). Install: H9 Toolbox
   (`5af9bdfe…`) + `--far` this program, one session.
 
+## 2026-11-09 Audio reference: registers in working H9 Toolbox
+
+- `far-hello/audio.c` inside H9 Toolbox (Back-hold). Key 7 plays stock
+  tone 0, which is the voice prompt "zero", audible. Photos (snapshot 60 ms
+  into the prompt / live):
+  - DAC: CON `0x0F41E135` / `0x0F41E195`, ADR `0xE524`, LEN `0x1000`,
+    HRP `0x9CC` / `0xC9C`, SWP `0x19C` / `0xC9C` (moving), VOL
+    `FBAD022C`, `+2C` 0.
+  - `0x1E19C0`: `06A41403`; `+4` `2550001C` / `25500000`; `+8`
+    `33100000` / `B3100000`; `+C` `00010000`; `+10`, `+14` 0.
+  - GPIO (same in snapshot and live): PA OUT `2209`, DIR `DC56`; PB OUT
+    `08C4`, DIR `F100`; PC OUT 0, DIR `FFF2`; PD OUT `0018`, DIR `FFEC`.
+- Against Doom's probe photos: **DAC CON bit 24** is set in the working
+  radio (`0x0F…`) and clear in Doom (`0x0E…`). The only setter is
+  app+`0x4B8DA`, at the end of an analog power-up sequence (block
+  `0x1F1700` with stepwise enables and delays). It is reached through a
+  pointer, not a direct call.
+- Build 20 probe: pages D/A/G as in the reference (key 2). Key 8 sets
+  CON bit 24. Key 9 calls `0x520CE(1)`. Key 7 plays the voice prompt.
+  Package `cf5c7b22…`, flash `e62da654…`, far `698374d2…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
