@@ -2408,4 +2408,11 @@ flash-power question, and asked for more speed.
   `+120` inside Doom for 6 s. Package `ea2cdadf…`, flash `97c32338…`, far
   `e8fe7394…`.
 
+- Build 9 on hardware (inside Doom): MODE 10, REQ 0, P360 0, C11A 98,
+  B108 0, B120 0. `app_core` stays in its start-up mode 10 (set at
+  app+`0x667CA`); stock's radio app requests mode 3. Doom never does, so
+  the Bluetooth start-up never runs.
+- Build 10: `td_main` writes request 3 (`0x11AD0+100`) after the
+  diagnostic and shows the mode and `+360` 2 s later ("AFTER").
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

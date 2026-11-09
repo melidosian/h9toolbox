@@ -219,7 +219,7 @@ void td_main(void)
     td_text(96, 14, "/", WHITE, BLACK);
     number(104, 14, *(volatile uint16_t *)0x1d8aa, WHITE);
 #endif
-    // Bluetooth diagnostic (build 9): the system core's mode state (stock,
+    // Bluetooth diagnostic (builds 9-10): the system core's mode state (stock,
     // running: mode 3, +360 set, 0xC11A = 98), shown for 6 s.
 #ifndef TD_HOST
     {
@@ -237,8 +237,15 @@ void td_main(void)
         number(112, 84, core[108], YELLOW);
         td_text(0, 98, "B120", WHITE, BLACK);
         number(40, 98, core[120], YELLOW);
+        // Build 10: request mode 3 (stock's running mode, which starts the
+        // Bluetooth stack); Doom alone stays in the start-up mode 10.
+        core[100] = 3;
+        h9_delay(2000);
+        td_text(0, 112, "AFTER", GREEN, BLACK);
+        number(48, 112, core[101], GREEN);
+        number(80, 112, *(volatile uint32_t *)(0x11AD0 + 360) & 0xFFFFF, GREEN);
         h9_delay(6000);
-        td_fill(0, 56, TD_W, 52, BLACK);
+        td_fill(0, 56, TD_W, 72, BLACK);
     }
 #endif
     uint32_t address, length;
