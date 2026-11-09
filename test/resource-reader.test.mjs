@@ -130,7 +130,7 @@ test('bulk slots and packet recognition', () => {
 
 test('bulk reply parsing', () => {
   const reply = parseBulkReply(bulkReply({ status: 0, start: 0xa00000, count: 2048, capacity: 494, recoveries: 9 }));
-  assert.deepEqual(reply, { status: 0, statusText: 'ok', start: 0xa00000, count: 2048, capacity: 494, waitRecoveries: 9, cursor: 0xa00800, cursorValid: true });
+  assert.deepEqual(reply, { status: 0, statusText: 'ok', start: 0xa00000, count: 2048, capacity: 494, waitRecoveries: 9, cursor: 0xa00800, cursorValid: true, cursorRam: false });
   assert.equal(parseBulkReply(new Uint8Array(BLOCK)), null);
   assert.equal(parseBulkReply(bulkReply({ status: 6 })).statusText, 'notification submit failed');
 });
