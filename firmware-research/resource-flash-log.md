@@ -2039,4 +2039,24 @@ flash-power question, and asked for more speed.
   (`0xEA100`, returns `11111111`) or encrypted (`0xEA200`, returns
   `22222222`), chosen by key, one per boot.
 
+## 2026-11-09 Probe 2: plain far code executes at boot; encrypted hangs
+
+- Probe 2 (`a2187336…`, startup in the app cave at `my_app` entry), far
+  blob `c6f86059…`.
+- **Up** (plain function at `0x01EE5100`): `RT 11111111`.
+- **Down** (encrypted function at `0x01EE5200`): froze at "CALL ENC".
+- The "I" missing from "PLAIN" on screen is a font omission in probe2.c,
+  cosmetic only.
+- **Conclusion:** the far region is plain for instruction fetches too, and
+  code there runs at boot when called after a startup that ran in the app
+  image.
+- What failed in runs 1–3 is **starting** in the far region: `my_app`'s
+  entry jumping straight there, with the C-hello startup itself executing
+  from `0xEA000`. Cause unidentified.
+- **Architecture for the Doom firmware and the next trap test:**
+  - Startup (C-hello stage-23 code, the USB-recovery key check) in the app
+    cave at `0xA77F0`, entered by the proven `call` hook at `my_app`'s
+    entry.
+  - Everything else in the far region, called after startup.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
