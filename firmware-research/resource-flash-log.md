@@ -1562,4 +1562,19 @@ flash-power question, and asked for more speed.
   unchanged (package `e83f1140…`). If Brick Breaker appears again, the
   mapping does not cover `0xEA000` as assumed.
 
+## 2026-11-09 Far-hello run 2: C runs from main flash 0xEA000
+
+- `write-far` replaced the encrypted copy with the unencrypted blob
+  (`504c3661…`; backup of the encrypted sector `dbced1ad…`). Holding Back
+  on H9 Toolbox Firmware + stub now shows **C-hello**: the stub read `H9X1`
+  through the mapping and jumped to `0x01EE5008`, and the program ran.
+- Established:
+  - Flash `0xEA000` is mapped at `0x01EE5000` (`0x01E00000 + flash - 0x5000`).
+  - **The mapping does not decrypt there:** code and data in the reserved
+    area are stored unencrypted, unlike the app area.
+  - Code launched from the running radio (after the full stock boot) can
+    live entirely in the far region; only the 24-byte stub is in the app.
+- Pending: the C-hello readouts in this mode, and whether Bluetooth (the
+  resource service) still answers while it runs.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
