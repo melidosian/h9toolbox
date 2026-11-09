@@ -36,6 +36,12 @@ C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as",
 API = {"h9_lcd_window", "h9_lcd_write", "h9_key", "h9_delay", "h9_led"}
 
 
+# --source picks the C file (main.c is C-hello; probe.c is the far-region
+# probe); outputs are named h9_c_<tag>.
+SOURCE = "main.c"
+TAG = "hello"
+
+
 def compile_c(source: Path, output: Path) -> Path:
     """Run JieLi clang in the container; paths must be inside ROOT (mounted)."""
     obj = output / f"{source.stem}.o"
@@ -62,7 +68,7 @@ def build(stock_image: Path, stock_package: Path, output: Path) -> dict:
     sys.path.insert(0, str(ISA))
     from pi32v2isa import asm, elf, ld  # noqa: E402
 
-    c_obj = compile_c(ROOT / "main.c", output)
+    c_obj = compile_c(ROOT / SOURCE, output)
     c_program = elf.read(c_obj.read_bytes())
     undefined = {s.name for s in c_program.symbols if s.name and s.shndx == 0}
     if not undefined <= API:
@@ -75,7 +81,7 @@ def build(stock_image: Path, stock_package: Path, output: Path) -> dict:
     entry_obj = output / "entry.o"
     entry_obj.write_bytes(asm.assemble_source((ROOT / "entry.s").read_text(encoding="utf-8"),
                                               filename=str(ROOT / "entry.s")))
-    linked = output / "h9_c_hello.elf"
+    linked = output / f"h9_c_{TAG}.elf"
     state, elf_bytes = ld.link(ld.parse_args(["-T", str(ROOT / "link.ld"), "-o", str(linked),
                                               str(entry_obj), str(c_obj)]))
     if elf_bytes is None or state.errors:
@@ -95,11 +101,11 @@ def build(stock_image: Path, stock_package: Path, output: Path) -> dict:
     patched = bytearray(stock)
     patched[HOOK_OFFSET:HOOK_OFFSET + 4] = call
     patched[CAVE_OFFSET:CAVE_OFFSET + len(code)] = code
-    raw = output / "h9_c_hello_NOT_FOR_FLASH.raw"
+    raw = output / f"h9_c_{TAG}_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)
 
-    package = output / "h9_c_hello_OFFLINE_EXPERIMENT.fw"
-    rebuilt = output / "h9_c_hello_REBUILD_CHECK.fw"
+    package = output / f"h9_c_{TAG}_OFFLINE_EXPERIMENT.fw"
+    rebuilt = output / f"h9_c_{TAG}_REBUILD_CHECK.fw"
     destination = rebuilt if package.exists() else package
     if destination.exists():
         raise ValueError(f"Refusing to overwrite package check: {destination}")
@@ -138,7 +144,7 @@ def build(stock_image: Path, stock_package: Path, output: Path) -> dict:
         "changed_flash_sectors": [hex(o) for o in changed],
         "hardware_observation": "Not yet flashed",
     }
-    (output / "h9_c_hello-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (output / f"h9_c_{TAG}-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest
 
 
@@ -147,7 +153,11 @@ def main() -> int:
     parser.add_argument("--stock-image", type=Path, required=True)
     parser.add_argument("--stock-package", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "build")
+    parser.add_argument("--source", default="main.c", help="C file in this folder (main.c or probe.c)")
     args = parser.parse_args()
+    global SOURCE, TAG
+    SOURCE = args.source
+    TAG = "hello" if args.source == "main.c" else Path(args.source).stem
     print(json.dumps(build(args.stock_image.resolve(), args.stock_package.resolve(), args.output.resolve()), indent=2))
     print("Offline build only; not hardware tested")
     return 0
