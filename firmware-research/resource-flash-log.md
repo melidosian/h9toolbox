@@ -1121,4 +1121,45 @@ flash-power question, and asked for more speed.
   - stock ignoring the probe: timeout, re-sync, normal read, no card; ETA
     shown ("about 9 s left" … "Read complete in 16 s")
 
+## 2026-11-08 Free RAM survey and loader design
+
+- Goal: run code from the ~2.9 MiB of free `resource` space. The CPU cannot
+  execute from the SPI chip, so modules must be copied into RAM.
+- Static RAM map in
+  `h9-firmware-research/evidence/stock/main-ram-map.md`:
+  - RAM code `0x0–0xDA77` (copied from app `0xC618C`)
+  - startup stack below `0xE290`
+  - `.data`/`.bss` `0xE2E0–0x1E4D3`
+  - heap `0x1E500–0x2BEFF` and `0x2D280–0x2FF7F` (527 × 128-byte blocks,
+    67,456 B)
+  - IRQ vector table `0x2BF00–0x2BFFF` (new finding)
+  - probable main stack `0x2C000–0x2D1FF`
+  - retained record `0x2FF80+`
+- **No large fixed region is unused**; free RAM is the heap's free blocks.
+  The used-block counter is the halfword at `0x1D7D0 + 216`.
+- The block allocator is RAM code `0x166A`; no direct callers, so its
+  calling convention is unconfirmed.
+- Design (`resource-loader/DESIGN.md`): reserve a fixed RAM slot by lowering
+  the heap part-1 end at app+`0x05FA9E` (`r5 = 0x2BF00` → e.g. `0x29F00`,
+  8 KiB). Modules are linked for that address and stored in `resource`
+  behind a directory at `0xA20000`, each with a header and CRC. A
+  ~120–160-byte flash stub loads them (dev trigger: write-service op 3).
+- Phases: (0) measure peak heap use with an S2 + RAM-read research image;
+  (1) reserve and check stability; (2) loader plus a trivial module;
+  (3) move Brick Breaker into a module to free the first cave.
+
+## 2026-11-08 JieLi C toolchain running on macOS (branch charlie/loader-toolchain)
+
+- JieLi's official Linux toolchain 2.5.3
+  (`jieli-linux-toolchains-20260730.1.tar.xz`, SHA-256 `a1545cdd…`, MD5 equal
+  to the server ETag) runs on Apple Silicon in Docker (Colima, vz + Rosetta).
+  The image holds only Debian plus python3/make; the toolchain is mounted
+  read-only (`firmware-research/toolchain/h9cc`). It is not committed.
+- `clang version 4.0.1`; all of clang/ld/objdump/objcopy resolve their
+  libraries in Debian bookworm amd64.
+- `examples/gradient.c` compiles with `-target pi32v2 -mcpu=r3 -Oz` to 66
+  bytes. Our Python Pi32v2 objdump decodes it identically and our linker
+  places it at `0x29F00`, so loader modules can be written in C and linked
+  with the existing build tools. No compiled C has run on the radio yet.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

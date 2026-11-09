@@ -1,0 +1,14 @@
+#!/bin/sh
+# Run a JieLi Pi32v2 tool in the h9-jieli container with the current
+# directory mounted at /work. The toolchain (JieLi's proprietary
+# jieli-linux-toolchains-*.tar.xz, extracted) is mounted read-only at
+# /opt/jieli from $JIELI_TOOLCHAIN.
+#   h9cc clang -target pi32v2 -mcpu=r3 -Oz -c file.c
+#   h9cc objdump -d file.o
+set -eu
+: "${JIELI_TOOLCHAIN:?set JIELI_TOOLCHAIN to the extracted jieli-linux-toolchains-* folder}"
+tool=${1:?usage: h9cc <tool> [args...]}
+shift
+exec docker run --rm --platform linux/amd64 --ulimit nofile=8192:8192 \
+  -v "$JIELI_TOOLCHAIN":/opt/jieli:ro -v "$PWD":/work -w /work \
+  h9-jieli /opt/jieli/pi32v2/bin/"$tool" "$@"
