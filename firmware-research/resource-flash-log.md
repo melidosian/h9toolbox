@@ -2684,4 +2684,16 @@ flash-power question, and asked for more speed.
   785 B/s in H9 Toolbox; to investigate later. The record's name is
   "freedoom E1M1S" (the page's default; cosmetic).
 
+- Build 26 on hardware: music plays and the audio is right ("perfect").
+  The picture stutters a little when moving and when far things are in
+  view; close to a wall it is smoother.
+- Build 27 (diagnostic):
+  - Frame-rate readout top-left (frames in the last second, slowest frame
+    in ms), drawn in `I_FinishUpdate`.
+  - Key 7 toggles the music, to compare its cost in the same view.
+  - The sound pump writes at most 2 chunks a call (11.6 ms) unless the lead
+    is below half, so top-ups inside the renderer do not lengthen one frame
+    in a lump.
+  - Package `788d4bc4…`, flash `cc06a679…`, far `22881e87…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

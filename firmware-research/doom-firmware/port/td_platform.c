@@ -35,6 +35,7 @@
 #include "r_strip.h"
 
 #include "td.h"
+#include "td_music.h"
 
 byte *I_VideoBuffer;
 
@@ -126,7 +127,15 @@ void I_StartTic(void)
     static int down;
     td_tic_calls++;
     td_sound_pump();
-    int key = key_for(h9_key());
+    unsigned raw = h9_key();
+    static unsigned last_raw;
+    if (raw == 9 && last_raw != 9) {  // key 7: music on / off (build 27)
+        static int muted;
+        muted = !muted;
+        td_music_volume(muted ? 0 : 3);
+    }
+    last_raw = raw;
+    int key = key_for(raw);
     if (key == down)
         return;
     event_t ev;
@@ -167,8 +176,32 @@ void I_SetPalette(int palette)
     }
 }
 
+// Frame-rate readout (build 27): frames in the last second and the slowest
+// frame in ms, top-left over the view.
 void I_FinishUpdate(void)
 {
+    static uint32_t second_start, last_frame, frames, slowest, shown_fps, shown_slow;
+    uint32_t now = td_ticks();
+    if (last_frame && (now - last_frame) * 10u > slowest)
+        slowest = (now - last_frame) * 10u;
+    last_frame = now;
+    frames++;
+    if (now - second_start >= 100) {
+        shown_fps = frames * 100u / (now - second_start);
+        shown_slow = slowest;
+        frames = 0;
+        slowest = 0;
+        second_start = now;
+    }
+    char s[8];
+    s[0] = (char)('0' + shown_fps / 10 % 10);
+    s[1] = (char)('0' + shown_fps % 10);
+    s[2] = ' ';
+    s[3] = (char)('0' + shown_slow / 100 % 10);
+    s[4] = (char)('0' + shown_slow / 10 % 10);
+    s[5] = (char)('0' + shown_slow % 10);
+    s[6] = 0;
+    td_text(0, 0, s, 0xffe0, 0x0000);
 }
 
 // Sound: DMC100's port/game/s_pcspk.c (the I_* sound interface) with the

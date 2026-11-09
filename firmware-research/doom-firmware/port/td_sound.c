@@ -160,7 +160,11 @@ void td_sound_pump(void)
     // static: the pump runs inside the renderer's deep stack
     static int16_t chunk[CHUNK];
     static int32_t mix[CHUNK];
-    for (unsigned n = 0; written + CHUNK <= due && n < 8; n++) {
+    // Spread the work: two chunks a call (11.6 ms of sound) unless the lead
+    // has run below half, so a top-up inside the renderer does not lengthen
+    // one frame in a lump (build 26: visible stutter in busy views).
+    unsigned most = due - written > LEAD / 2 ? 8 : 2;
+    for (unsigned n = 0; written + CHUNK <= due && n < most; n++) {
         for (unsigned i = 0; i < CHUNK; i++)
             mix[i] = next_sample();
         td_music_chunk(mix);  // the music under the effects (td_music.c)
