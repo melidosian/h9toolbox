@@ -1433,4 +1433,31 @@ flash-power question, and asked for more speed.
   allotted area. Code placed in erased sectors must sit outside both banks,
   or the VM length must be patched smaller.
 
+## 2026-11-09 RAM probe on hardware: VM banks, boot info, idle heap
+
+- Flashed `s2-ram` via hold-8 (backup `h9-before-s2-ram-20261109.bin` =
+  `83f79fb3…`; readback `ba05f7c8…`). The user ran `prototypes/ram-probe`
+  over Bluetooth on the running radio: heap readings and two full 192 KiB RAM
+  dumps (about 33 s each), all consistency checks true. This is the first
+  hardware run of the RAMREAD service; it worked. Dumps are private (in the
+  user's Downloads) and not committed.
+- **Settings VM banks** (`0x13E68`, `0x13E74`; identical in both dumps):
+  bank A flash `0xDA000`, length `0x8000`; bank B flash `0xE2000`, length
+  `0x8000`. The VM uses `0xDA000–0xE9FFF` (64 KiB).
+- **Boot info** at RAM `0xE2A0` (passed in at boot): `0xDA000`, then length
+  `0x22000` (so a reserved area `0xDA000–0xFBFFF`, 136 KiB), app start
+  `0x5000`, map base `0x01E00000`, `key_mac` `0xFF000`, chip key `F181`. The
+  VM uses only its first 64 KiB.
+- RAM at `0x11980` holds XIP pointers `0x01EF8000`/`0x01EF8200`, i.e. flash
+  `0xFD000`/`0xFD200` (app offset + `0x5100`): the 10-byte record at
+  `0xFD000` is read at run time. Keep out.
+- **Free flash, by evidence:**
+  - `0xEA000–0xFBFFF` (72 KiB): erased, outside both VM banks, but inside
+    the boot info's reserved length. Unknown whether a VM format erases the
+    whole reserved length.
+  - `0xFC000–0xFCFFF` (4 KiB): erased, outside everything seen.
+- **Idle heap:** 276–288 of 527 blocks used; about 30–32 KiB free. The
+  largest all-zero RAM runs at idle: 12,086 B at `0x19B7A`, 7,422 B at
+  `0xE832`, 5,136 B at `0x145E0` (zero at idle, not proven unused).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
