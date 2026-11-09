@@ -1918,4 +1918,27 @@ flash-power question, and asked for more speed.
   runtime mapping, or hold-8 reaches `0x7CE14` through the `0xC39D` = 14
   branch. It does not matter for our own trigger, which we choose.
 
+## 2026-11-09 Trap test built (offline)
+
+- `trap-test/build.py` builds the Doom-firmware condition on stock
+  v1.0.38:
+  - The `my_app` task entry immediate at app+`0x5FFD0` (`0x01E88280`) is
+    pointed at `0x01EE5008`, the far header's jump to the full C-hello
+    startup.
+  - The two `my_app`-only runs are filled with traps:
+    - Every 1 KiB, a 14-byte stub: `r0 = own address; r3 = far_trap; goto
+      r3`.
+    - Every other halfword is a 2-byte `goto` to the next stub.
+    - 62 stubs in all. Every halfword was decode-checked to reach a stub.
+  - `far_trap` writes `TRAP` and the stub address to RAM `0x1E4F0` and calls
+    ROM `0x02000D68`, so a trap puts the radio in the USB loader.
+- `monitor.c` (1,542 B at `0xEA000`):
+  - The 3 key held at power-on (checked for 0.3 s) enters the USB loader:
+    recovery without PTT+2.
+  - It shows the previous trap record if RAM kept one, then uptime and a
+    heartbeat. Holding 3 for 2 s also enters the USB loader.
+- Package `a5541dc1…`, flash `f70b4400…`; reproducible; flasher inspect
+  verified.
+- 20 sectors changed: `0x5000`, `0x65000`, `0x7E000–0x8E000`, `0xD9000`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
