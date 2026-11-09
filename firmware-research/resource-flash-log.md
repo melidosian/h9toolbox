@@ -1584,4 +1584,11 @@ flash-power question, and asked for more speed.
   the far-flash location. Not yet separated (an A/B run of the same build
   from the app cave would settle it).
 
+- Second far-hello launch: FILL 2, SQ 0, LOOP 150,163, DLY 10. Display and
+  delay match the takeover run. LOOP varies between launches of the same
+  code at the same address (172,022 → 150,163, −13%). That supports
+  variable background load from the running stock system over a cost of the
+  far location. Planning figure: roughly 75–86% of the CPU is available
+  while the radio runs underneath.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
