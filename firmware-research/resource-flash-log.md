@@ -2696,4 +2696,9 @@ flash-power question, and asked for more speed.
     in a lump.
   - Package `788d4bc4…`, flash `cc06a679…`, far `22881e87…`.
 
+- Build 27 on hardware: about 10–12 fps; slowest frame 90–160 ms. Music
+  on/off (key 7) changes nothing, so the synth is not the cost.
+- Build 28: key 8 skips the panel output (renderer and sound still run),
+  to split the panel transfer from Doom's drawing and the chip reads.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

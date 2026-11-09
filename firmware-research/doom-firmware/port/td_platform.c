@@ -134,6 +134,10 @@ void I_StartTic(void)
         muted = !muted;
         td_music_volume(muted ? 0 : 3);
     }
+    if (raw == 10 && last_raw != 10) {  // key 8: panel output off / on (build 28)
+        extern int td_lcd_skip;
+        td_lcd_skip = !td_lcd_skip;
+    }
     last_raw = raw;
     int key = key_for(raw);
     if (key == down)
