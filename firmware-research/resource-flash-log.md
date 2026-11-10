@@ -2851,4 +2851,12 @@ flash-power question, and asked for more speed.
   unchanged.
 - The probe now also accepts that known leftover.
 
+- HID far-region probe, part 2 (PTT+2, `0xFB000`):
+  - the leftover (CRC `0xEFA9`) erased to `0xE03E`
+  - a 4 KiB pattern written in 40-byte C3 packets read back CRC `0xD0BA`
+    (stored exactly as sent, no encryption)
+  - erased again to `0xE03E`
+  **The vendor HID updater erases and writes the far region.** The /doom/
+  installer's USB step is viable.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
