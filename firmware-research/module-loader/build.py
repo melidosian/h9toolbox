@@ -202,7 +202,8 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
                c_module(".APRS INFO", aprs_dir / "aprs_info.c", core, text),
                c_module("APRS MAP", aprs_dir / "aprs_map.c", core),
                c_module("APRS MSG", aprs_dir / "aprs_msg.c", core, text),
-               c_module("APRS SEND", aprs_dir / "aprs_send.c", aprs_dir / "aprs_core_tx.c", aprs_dir / "aprs_tx.c", text)]
+               c_module("APRS SEND", aprs_dir / "aprs_send.c", aprs_dir / "aprs_core_tx.c", aprs_dir / "aprs_tx.c",
+                        aprs_dir / "aprs_edit.c", text)]
     for m in screens:
         if len(m["body"]) > aprs_limit:
             raise SystemExit(f"{m['name']} code ({len(m['body'])} B) overlaps the shared APRS state ({aprs_limit} B max)")

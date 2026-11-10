@@ -1,37 +1,45 @@
 /* APRS SEND (module "APRS SEND": in the module menu, by holding Menu on
  * APRS MSG, or with Menu on a station's details):
- * send one canned packet from your callsign through stock's own KISS transmit
+ * send one packet from your callsign through stock's own KISS transmit
  * routine 0x01E5DBCC, which keys, sends, waits the airtime and unkeys with
  * stock's own checks (resource-flash-log.md 2026-11-10). H9 Toolbox never
  * drives the transmitter itself.
- * Up/Down choose, Menu: review, Menu again: transmit, Back: cancel / list,
- * hold Menu: station list.
- * Items: a status test, then messages to the station selected in the list.
+ * Items: TO (recipient, typed; starts as the station selected in the list),
+ * MSG (typed), SEND MESSAGE, a STATUS test, and QUICK texts that fill MSG.
+ * Up/Down choose; Menu: edit TO/MSG, or review, then Menu again: transmit;
+ * Back: cancel / list; hold Menu: station list.
+ * Typing (aprs_edit.c): digits multi-tap (2 = ABC2 … 0 = space 0,
+ * 1 = .,?!-/@1), Back deletes, Menu or Up/Down finish. The draft lives in this
+ * screen's stack: leaving SEND drops it.
  * Review switches to the APRS TX CH side (Lock and Auto alike; A+B keeps the
  * current side); leaving review returns to the APRS RX CH side. */
 #include "aprs_core.h"
+#include "aprs_edit.h"
 #include "aprs_tx.h"
 
 #define STOCK_KISS_TX 0x01E5DBCCu
 #define TX_FREQ (*(const volatile uint32_t *)0x11C9C)     /* working TX, 10 Hz units */
+#define TICK (*(const volatile uint32_t *)0x1D8B0)        /* stock 100 Hz tick (as aprs_core.c) */
 enum { TX_LOW = 14400000, TX_HIGH = 14800000 };          /* 2 m band only */
 
-static const char *const CANNED[] = { "H9 Toolbox test", "Hello from H9 Toolbox", "QSL 73", "Test, please ack" };
-enum { ITEMS = 4, LIST_Y = BODY_Y + 34, ROW_H = 12 };
-enum { CHOOSE, REVIEW, DONE };
+static const char STATUS[] = "H9 Toolbox test";
+static const char *const QUICK[] = { "QSL 73", "TEST, PLEASE ACK" };
+enum { I_TO, I_MSG, I_SEND, I_STATUS, I_QUICK, ITEMS = I_QUICK + 2 };
+enum { LIST_Y = BODY_Y + 22, ROW_H = 12, SHOW = 21, ADDRESSEE = 9 };
+enum { CHOOSE, EDIT, REVIEW, DONE };
 
 /* Info field for item i into out; returns why it cannot be sent, or 0. */
-static const char *info_of(unsigned i, char *out)
+static const char *info_of(unsigned i, char *out, const struct edit *to, const struct edit *msg)
 {
-    if (i == 0) { out[0] = '>'; put_str(out + 1, CANNED[0]); return 0; }   /* status */
-    if (!A->count) return "NO STATION SELECTED";
-    const char *to = A->st[A->list_sel].call;
+    if (i == I_STATUS) { out[0] = '>'; put_str(out + 1, STATUS); return 0; }
+    if (!to->len) return "ENTER A STATION (TO)";
+    if (!msg->len) return "ENTER A MESSAGE (MSG)";
     unsigned n = 0, k = 0;
     out[n++] = ':';
-    for (; k < 9 && to[k]; k++) out[n++] = to[k];
-    for (; k < 9; k++) out[n++] = ' ';
+    for (; k < ADDRESSEE && to->buf[k]; k++) out[n++] = to->buf[k];
+    for (; k < ADDRESSEE; k++) out[n++] = ' ';
     out[n++] = ':';
-    n += put_str(out + n, CANNED[i]);
+    n += put_str(out + n, msg->buf);
     out[n++] = '{';
     put_uint(out + n, A->msg_id % 99 + 1);
     return 0;
@@ -57,9 +65,10 @@ static void sent(const char *to, const char *text)
     A->msg_sel = 0;
 }
 
-static const char *problem(unsigned i, char *info, uint8_t *kiss, unsigned *len)
+static const char *problem(unsigned i, char *info, uint8_t *kiss, unsigned *len,
+                           const struct edit *to, const struct edit *msg)
 {
-    const char *why = info_of(i, info);
+    const char *why = info_of(i, info, to, msg);
     if (why) return why;
     if (!A->mycall[0]) return "NO CALLSIGN SET";
     if (TX_FREQ < TX_LOW || TX_FREQ > TX_HIGH) return "TX NOT ON 2M";
@@ -81,23 +90,33 @@ static void header(void)
     aprs_line(BODY_Y + 10, b, TX_FREQ >= TX_LOW && TX_FREQ <= TX_HIGH ? GFX_WHITE : GFX_YELLOW, GFX_BLACK);
 }
 
-static void draw_choose(void)
+/* Row i: label and value; while editing, the value's tail and a cursor. */
+static void draw_row(unsigned i, int editing, const struct edit *to, const struct edit *msg)
 {
-    char b[28];
+    static const char *const LABEL[ITEMS] = { "TO ", "MSG ", "SEND MESSAGE", "STATUS ", "QUICK ", "QUICK " };
+    char b[32];
+    unsigned y = LIST_Y + i * ROW_H;
+    int sel = i == A->send_sel;
+    uint16_t bg = editing ? GFX_GREEN : sel ? GFX_YELLOW : GFX_BLACK;
+    unsigned n = put_str(b, LABEL[i]);
+    const char *v = i == I_TO ? to->buf : i == I_MSG ? msg->buf : i == I_STATUS ? STATUS
+                  : i >= I_QUICK ? QUICK[i - I_QUICK] : "";
+    unsigned vlen = 0;
+    while (v[vlen]) vlen++;
+    unsigned room = SHOW - n;                       /* the end of a long value stays visible */
+    if (vlen > room) v += vlen - room;
+    n += put_str(b + n, v);
+    if (editing) b[n++] = '_', b[n] = 0;
+    else if ((i == I_TO || i == I_MSG) && !vlen) put_str(b + n, "-");
+    gfx_fill(0, y, H9_WIDTH, ROW_H, bg);
+    gfx_text(4, y + 2, b, 25, 1, sel || editing ? GFX_BLACK : GFX_WHITE, bg);
+}
+
+static void draw_choose(int editing, const struct edit *to, const struct edit *msg)
+{
     header();
-    unsigned n = put_str(b, "MSG TO ");
-    put_str(b + n, A->count ? A->st[A->list_sel].call : "-");
-    aprs_line(BODY_Y + 20, b, GFX_GREY, GFX_BLACK);
-    for (unsigned i = 0; i < ITEMS; i++) {
-        unsigned y = LIST_Y + i * ROW_H;
-        int sel = i == A->send_sel;
-        uint16_t bg = sel ? GFX_YELLOW : GFX_BLACK;
-        gfx_fill(0, y, H9_WIDTH, ROW_H, bg);
-        n = put_str(b, i ? "MSG " : "STATUS ");
-        put_str(b + n, CANNED[i]);
-        gfx_text(4, y + 2, b, 25, 1, sel ? GFX_BLACK : GFX_WHITE, bg);
-    }
-    aprs_line(FOOT_Y, "MENU: REVIEW  HOLD: LIST", GFX_GREY, GFX_BLACK);
+    for (unsigned i = 0; i < ITEMS; i++) draw_row(i, editing && i == A->send_sel, to, msg);
+    aprs_line(FOOT_Y, editing ? "0-9 TYPE BACK DEL MENU OK" : "MENU: SELECT  HOLD: LIST", GFX_GREY, GFX_BLACK);
 }
 
 static void draw_review(const char *why, const char *info)
@@ -117,17 +136,33 @@ unsigned module_main(const struct h9_api *api, unsigned self)
 {
     char info[APRS_TX_INFO_MAX + 1];
     uint8_t kiss[APRS_TX_KISS_MAX];
+    struct edit to, msg;
     unsigned state = CHOOSE, len = 0;
     const char *why = 0;
     (void)self;
     aprs_open();
-    if (A->send_sel >= ITEMS) A->send_sel = 0;
+    edit_init(&to, ADDRESSEE, 1, A->count ? A->st[A->list_sel].call : 0);
+    edit_init(&msg, EDIT_MAX, 0, 0);
+    if (A->send_sel >= ITEMS) A->send_sel = I_TO;
     for (;;) {
         unsigned ev = aprs_event();
         if (ev == EV_HOLD) { if (aprs_go(api, APRS_LIST)) return 0; continue; }
         if (ev == EV_REDRAW) {
-            if (state == CHOOSE) draw_choose();
-            else if (state == REVIEW) draw_review(why, info);
+            if (state == REVIEW) draw_review(why, info);
+            else if (state != DONE) draw_choose(state == EDIT, &to, &msg);
+            continue;
+        }
+        if (state == EDIT) {
+            struct edit *e = A->send_sel == I_TO ? &to : &msg;
+            if (ev >= EV_DIGIT && ev <= EV_DIGIT + 9) edit_digit(e, ev - EV_DIGIT, TICK);
+            else if (ev == EV_BACK) edit_back(e);
+            else {                                  /* Menu, Up or Down: done */
+                state = CHOOSE;
+                if (ev == EV_MENU) A->send_sel = A->send_sel == I_TO ? I_MSG : I_SEND;
+                else if (ev == EV_UP) A->send_sel = A->send_sel ? A->send_sel - 1 : ITEMS - 1;
+                else if (ev == EV_DOWN) A->send_sel = A->send_sel + 1 < ITEMS ? A->send_sel + 1 : 0;
+            }
+            A->dirty = 1;
             continue;
         }
         if (state == REVIEW && ev == EV_MENU && !why) {
@@ -136,7 +171,10 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             ((void (*)(const uint8_t *, unsigned))STOCK_KISS_TX)(kiss, len);
             aprs_quiet();                           /* stock's end of TX turns the speaker on */
             A->msg_id++;
-            if (A->send_sel) sent(A->st[A->list_sel].call, CANNED[A->send_sel]);
+            if (A->send_sel == I_SEND) {
+                sent(to.buf, msg.buf);
+                edit_init(&msg, EDIT_MAX, 0, 0);    /* sent: start the next one empty */
+            }
             header();                               /* stock may have drawn over us */
             aprs_line(BODY_Y + 30, "HANDED TO THE RADIO", GFX_GREEN, GFX_BLACK);
             aprs_wrap(BODY_Y + 44, info, FOOT_Y - 2, GFX_WHITE);
@@ -145,7 +183,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             state = DONE;
             continue;
         }
-        if (state != CHOOSE) {                      /* review or result: back to the list */
+        if (state != CHOOSE) {                      /* review or result: back to the items */
             if (ev == EV_BACK || ev == EV_MENU || state == DONE) {
                 aprs_side(aprs_rx_side());          /* back to the APRS RX channel */
                 state = CHOOSE;
@@ -157,10 +195,25 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         else if (ev == EV_UP) { A->send_sel = A->send_sel ? A->send_sel - 1 : ITEMS - 1; A->dirty = 1; }
         else if (ev == EV_DOWN) { A->send_sel = A->send_sel + 1 < ITEMS ? A->send_sel + 1 : 0; A->dirty = 1; }
         else if (ev == EV_MENU) {
-            aprs_side(aprs_tx_side());              /* the TX check reads this side */
-            info[0] = 0;
-            why = problem(A->send_sel, info, kiss, &len);
-            state = REVIEW;
+            unsigned i = A->send_sel;
+            if (i == I_TO || i == I_MSG) {
+                state = EDIT;
+            } else if (i >= I_QUICK) {
+                edit_init(&msg, EDIT_MAX, 0, QUICK[i - I_QUICK]);
+                A->send_sel = I_SEND;
+            } else {
+                aprs_side(aprs_tx_side());          /* the TX check reads this side */
+                info[0] = 0;
+                why = problem(i, info, kiss, &len, &to, &msg);
+                state = REVIEW;
+            }
+            A->dirty = 1;
+        } else if (ev >= EV_DIGIT && ev <= EV_DIGIT + 9 && (A->send_sel == I_TO || A->send_sel == I_MSG)) {
+            /* Typing on TO or MSG starts editing it, replacing TO's default. */
+            struct edit *e = A->send_sel == I_TO ? &to : &msg;
+            if (e == &to) edit_init(&to, ADDRESSEE, 1, 0);
+            edit_digit(e, ev - EV_DIGIT, TICK);
+            state = EDIT;
             A->dirty = 1;
         }
     }

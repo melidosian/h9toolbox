@@ -20,8 +20,8 @@
       "id": "aprs",
       "name": "APRS",
       "title": "APRS",
-      "description": "Onboard APRS client: station list (opens with the stock Beacon List), station details, a map around your GPS position, messages (yours in green), and sending canned test packets and messages from your callsign (experimental; stock firmware does the transmitting). Hold Menu to switch screens, Back to go back. Each screen loads into RAM when you open it.",
-      "version": "0.4",
+      "description": "Onboard APRS client: station list (opens with the stock Beacon List), station details, a map around your GPS position, messages (yours in green), and sending messages you type on the keypad to any station, or a status packet, from your callsign (experimental; stock firmware does the transmitting). Hold Menu to switch screens, Back to go back. Each screen loads into RAM when you open it.",
+      "version": "0.5",
       "category": "Radio",
       "modules": [
         "APRS",

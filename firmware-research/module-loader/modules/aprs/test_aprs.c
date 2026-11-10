@@ -56,6 +56,7 @@ static uint16_t host_write, host_read;
 #include "aprs_stored.c"
 #include "aprs_tx.c"
 #include "aprs_text.c"
+#include "aprs_edit.c"
 struct aprs aprs_host;
 
 static int failures;
@@ -365,6 +366,57 @@ int main(void)
         script = NULL; tick_step = 1;
     }
 
+
+    /* Digit keys: EV_DIGIT + d on the press (stock code d + 2). */
+    {
+        static uint8_t keys[100];
+        memset(keys, 0, sizeof keys);
+        keys[3] = keys[4] = 2 + 7;                                  /* digit 7 */
+        keys[99] = 0xFF;
+        reset(); script = keys; polls = 0; A->last_key = 0; A->held = HELD; A->dirty = 0;
+        CHECK(aprs_event() == EV_DIGIT + 7);
+        script = NULL;
+    }
+
+    /* Multi-tap entry (APRS SEND). */
+    {
+        struct edit e;
+        edit_init(&e, EDIT_MAX, 0, 0);
+        edit_digit(&e, 2, 0);                                      /* A */
+        edit_digit(&e, 2, 10);                                     /* B: same key within 1 s */
+        edit_digit(&e, 2, 20);                                     /* C */
+        edit_digit(&e, 2, 30);                                     /* 2 */
+        edit_digit(&e, 2, 40);                                     /* back to A */
+        CHECK(!strcmp(e.buf, "A"));
+        edit_digit(&e, 2, 40 + EDIT_CYCLE_TICKS);                  /* after 1 s: a new A */
+        edit_digit(&e, 0, 300);                                    /* space */
+        edit_digit(&e, 7, 310); edit_digit(&e, 7, 320); edit_digit(&e, 7, 330); edit_digit(&e, 7, 340);
+        CHECK(!strcmp(e.buf, "AA S"));
+        edit_digit(&e, 1, 500);                                    /* . */
+        CHECK(!strcmp(e.buf, "AA S."));
+        edit_back(&e); edit_back(&e);
+        CHECK(!strcmp(e.buf, "AA ") && e.len == 3);
+        edit_back(&e);
+        edit_digit(&e, 2, 600);                                    /* after a delete: new character */
+        CHECK(!strcmp(e.buf, "AAA"));
+        /* Callsign: only A-Z, 0-9, '-'; at most 9. */
+        edit_init(&e, 9, 1, 0);
+        edit_digit(&e, 0, 0);                                      /* "0", not a space */
+        edit_digit(&e, 1, 200);                                    /* "-" */
+        edit_digit(&e, 1, 210);                                    /* "1" */
+        edit_digit(&e, 1, 220);                                    /* back to "-" */
+        CHECK(!strcmp(e.buf, "0-"));
+        for (unsigned i = 0; i < 12; i++) edit_digit(&e, 3, 1000 + i * 200);
+        CHECK(e.len == 9 && !strcmp(e.buf, "0-DDDDDDD"));
+        edit_digit(&e, 3, 3500);                                   /* full: ignored */
+        CHECK(e.len == 9);
+        edit_digit(&e, 3, 2210);                                   /* within 1 s of the last D: cycles it */
+        CHECK(e.buf[8] == 'E');
+        edit_init(&e, 9, 1, "KD9CRQ-7");
+        CHECK(!strcmp(e.buf, "KD9CRQ-7") && e.len == 8);
+        edit_init(&e, 4, 0, "TOO LONG");
+        CHECK(!strcmp(e.buf, "TOO "));
+    }
 
     /* Outgoing frames: N0CALL-1>APRS:>Hi (vector from test/kiss-tnc.test.mjs)
      * in KISS, then a path and rejected inputs. */

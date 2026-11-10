@@ -19,6 +19,8 @@
 enum { STATIONS = 16, CALL = 10, TEXT = 24, MESSAGES = 6, MSG_TEXT = 40, FRAME_MAX = 200, NMEA_MAX = 72 };
 enum { TITLE_H = 18, BODY_Y = 20, FOOT_Y = 120 };
 enum { EV_REDRAW = 1, EV_UP, EV_DOWN, EV_MENU, EV_HOLD, EV_BACK };
+/* Digit key d (stock key code d + 2): EV_DIGIT + d, on the press. */
+enum { EV_DIGIT = 16 };
 
 struct station {
     char call[CALL];

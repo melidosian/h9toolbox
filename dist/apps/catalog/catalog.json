@@ -46,46 +46,46 @@
    "id": "aprs",
    "name": "APRS",
    "title": "APRS",
-   "description": "Onboard APRS client: station list (opens with the stock Beacon List), station details, a map around your GPS position, messages (yours in green), and sending canned test packets and messages from your callsign (experimental; stock firmware does the transmitting). Hold Menu to switch screens, Back to go back. Each screen loads into RAM when you open it.",
-   "version": "0.4",
+   "description": "Onboard APRS client: station list (opens with the stock Beacon List), station details, a map around your GPS position, messages (yours in green), and sending messages you type on the keypad to any station, or a status packet, from your callsign (experimental; stock firmware does the transmitting). Hold Menu to switch screens, Back to go back. Each screen loads into RAM when you open it.",
+   "version": "0.5",
    "category": "Radio",
    "modules": [
     {
      "name": "APRS",
-     "bytes": 6607,
-     "ram": 6607,
-     "crc16": "e570"
+     "bytes": 6619,
+     "ram": 6619,
+     "crc16": "a66f"
     },
     {
      "name": ".APRS INFO",
-     "bytes": 6409,
-     "ram": 6409,
-     "crc16": "d5c9"
+     "bytes": 6425,
+     "ram": 6425,
+     "crc16": "0e3b"
     },
     {
      "name": "APRS MAP",
-     "bytes": 6563,
-     "ram": 6563,
-     "crc16": "b843"
+     "bytes": 6579,
+     "ram": 6579,
+     "crc16": "4cb1"
     },
     {
      "name": "APRS MSG",
-     "bytes": 6583,
-     "ram": 6583,
-     "crc16": "5331"
+     "bytes": 6599,
+     "ram": 6599,
+     "crc16": "d23c"
     },
     {
      "name": "APRS SEND",
-     "bytes": 4545,
-     "ram": 4545,
-     "crc16": "f944"
+     "bytes": 5335,
+     "ram": 5335,
+     "crc16": "2caa"
     }
    ],
    "file": "aprs.h9mod",
-   "bytes": 30707,
-   "ram": 6607,
-   "crc16": "e570",
-   "sha256": "4146ded1fdd9cc93f7a0c7a5317880113b6148e2123937bf802db4c45a16f4ad"
+   "bytes": 31557,
+   "ram": 6619,
+   "crc16": "a66f",
+   "sha256": "f38fd31cde163f414d373817111e77d7a1547f1db4aa4039bb93dca9bd18291a"
   },
   {
    "id": "aprs_monitor",

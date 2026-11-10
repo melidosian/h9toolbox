@@ -3318,3 +3318,19 @@ Hardware results for S1 and S2, and U2 onward, will be recorded here.
 - Hardware (normal bundle, APRS 0.4): APRS SEND transmits on CH-B (APRS TX
   CH setting followed); menu USB UPDATE works; boot logo write from the App
   Manager works.
+
+## 2026-11-10 APRS SEND: typed recipient and message (APRS 0.5)
+
+- Keypad codes (handbook): digit d = key d + 2. `aprs_event` now returns
+  `EV_DIGIT + d` on a digit press; other screens ignore it.
+- SEND items: TO (typed; starts as the selected station), MSG (typed), SEND
+  MESSAGE, STATUS test, two QUICK texts that fill MSG. Multi-tap entry in
+  `aprs_edit.c` (SEND only): 2 = ABC2 … 9 = WXYZ9, 0 = space 0,
+  1 = .,?!-/@1; same digit within 1 s cycles, Back deletes, Menu or Up/Down
+  finish. TO takes A-Z, 0-9, '-', max 9; MSG max 39 (the MSG list's width).
+  Draft on SEND's stack (lost when leaving SEND); MSG cleared after a send.
+- Host tests: digit event, multi-tap cycling/timeout/delete/full/callsign
+  filter. Sizes: SEND 5,335; LIST 6,619 (limit 6,624). Hardware: pending.
+- Hardware (APRS 0.5): typed send transmitted; aprs.fi 2026-11-10 16:59:57
+  CST `KD9CRQ>APZH9T,WIDE1-1,qAR,N6NKO-1::QRX      :R{1` (addressee "QRX",
+  text "R"). Whether that matches what was typed: asked.

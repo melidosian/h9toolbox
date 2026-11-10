@@ -486,6 +486,7 @@ unsigned aprs_event(void)
         if (key == H9_KEY_UP) return EV_UP;
         if (key == H9_KEY_DOWN) return EV_DOWN;
         if (key == H9_KEY_BACK) return EV_BACK;
+        if (key >= 2 && key <= 11) return EV_DIGIT + key - 2;
     }
 }
 
