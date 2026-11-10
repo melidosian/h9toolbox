@@ -2774,4 +2774,38 @@ flash-power question, and asked for more speed.
   ladder) is still to be identified.
 - Package `a68c4dcd…`, flash `10a741b9…`, far `c1e8c688…`.
 
+## 2026-11-09 Doom installer page (/doom/) and firmware page section
+
+- `dist/doom/`:
+  - `index.html`, `doom.css`: a five-step guide (files, USB install,
+    game data, music, play).
+  - `doom.mjs`: the page.
+  - `install.mjs` (pure): file checks, `doomTarget`, `planInstall` (Doom
+    code first, then the firmware high to low), and `DoomHid` (the web
+    flasher's HID client, also allowed at `0xEA000–0xFBFFF`; never the
+    boot region or the settings VM).
+  - `upload.mjs`: the canonical Bluetooth uploader; the prototype now
+    re-exports it.
+- Files come from a manifest on raw.githubusercontent.com (`GITHUB.base`,
+  branch `doom-files`; every file is checked against its SHA-256), or from
+  the user's own `.fw`/`.bin`/pack/song (structure checked).
+- `doom-firmware/stage_release.py` stages the folder and
+  `doom-manifest.json` (git-ignored `build/doom-release`). Release r32:
+  - fw `a68c4dcd…` (image `10a741b9…`)
+  - code `c1e8c688…`
+  - pack `06442c61…`
+  - music `a7ac9a93…`
+  Nothing is published.
+- `firmware-update/firmware.mjs` exports `decodePackage` (no hash pin); the
+  pinned loaders are unchanged. `firmware-update.test.mjs` has 1 failure,
+  the same before and after this change (the `verified-official-image-seed`
+  string).
+- Browser check: the page renders, and the manifest flow (served
+  same-origin) loads all four files with matching hashes and no console
+  errors. The firmware page has a Doom section with steps and a link.
+- **Untested on hardware:** HID erase and write at `0xEA000+`. CRC reads
+  there are proven (`scanRadio` covers 1 MiB). The HID updater's
+  acceptance of the far region needs a test before the page is relied on.
+- Tests: `doom-install` 4/4, `data-upload` 10/10.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

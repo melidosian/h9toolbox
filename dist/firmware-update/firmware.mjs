@@ -52,6 +52,15 @@ async function loadPackage(bytes, expectedPackageHash, expectedImageHash, kind) 
   requireValue(bytes.length >= 0x200 && bytes.length <= 16 * 1024 * 1024, 'Invalid firmware package size.');
   const packageHash = await sha256(bytes);
   requireValue(packageHash === expectedPackageHash, `This is not the verified ${kind} TD-H9 v1.0.38 package.`);
+  const image = decodePackage(bytes);
+  requireValue(image.length === IMAGE_SIZE && await sha256(image) === expectedImageHash, `Firmware image does not match the verified ${kind} image.`);
+  return { image, packageHash, kind };
+}
+
+// The flash.bin image of any well-formed TD-H9 .fw package (header, file list
+// and image CRCs checked; no hash pin). Callers pin or check what they need.
+export function decodePackage(bytes) {
+  requireValue(bytes.length >= 0x200 && bytes.length <= 16 * 1024 * 1024, 'Invalid firmware package size.');
   const header = bytes.slice(0, 0x200);
   let key = 0xf181;
   for (let index = 0; index < 0x40; index++) {
@@ -83,8 +92,8 @@ async function loadPackage(bytes, expectedPackageHash, expectedImageHash, kind) 
       requireValue(crc16(image) === rv.getUint16(4, true), 'Firmware image CRC is invalid.');
     }
   }
-  requireValue(image?.length === IMAGE_SIZE && await sha256(image) === expectedImageHash, `Firmware image does not match the verified ${kind} image.`);
-  return { image, packageHash, kind };
+  requireValue(image, 'No firmware image (flash.bin) in the package.');
+  return image;
 }
 
 export function loadStockPackage(bytes) {

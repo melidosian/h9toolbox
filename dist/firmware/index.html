@@ -20,6 +20,7 @@
   <title>TD-H9 Custom Firmware: Brick Breaker &amp; Boot Logo | H9 Toolbox</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="/landing.css?v=20261108c">
+  <link rel="stylesheet" href="/doom/doom-guide.css?v=20261109d">
   <script src="/https-redirect.js"></script>
   <script src="/analytics.js"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"H9 Toolbox Firmware","url":"https://h9toolbox.com/firmware/","description":"H9 Toolbox Firmware is free custom firmware for the TIDRADIO TD-H9: stock v1.0.38 plus Brick Breaker and your own boot logo. Install it in Chrome or Edge with the web flasher and restore stock at any time.","applicationCategory":"Firmware","operatingSystem":"TIDRADIO TD-H9 (based on official firmware v1.0.38)","softwareVersion":"1.0.38-h9toolbox","installUrl":"https://h9toolbox.com/firmware-update/","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Brick Breaker game (hold Back on the channel screen)","Custom boot logo over Bluetooth","Stock v1.0.38 radio otherwise unchanged","Browser installer with backup and one-click restore to stock"],"about":{"@type":"Product","name":"TIDRADIO TD-H9","brand":{"@type":"Brand","name":"TIDRADIO"},"category":"Handheld two-way radio"},"publisher":{"@type":"Organization","name":"H9 Toolbox","url":"https://h9toolbox.com/","sameAs":["https://github.com/melidosian/h9toolbox"]},"codeRepository":"https://github.com/melidosian/h9toolbox"}</script>
@@ -37,12 +38,27 @@
         <p class="overline"><span class="signal-dot"></span> H9 TOOLBOX FIRMWARE · BASED ON STOCK TD-H9 V1.0.38</p>
         <h1>H9 Toolbox Firmware,<br><em>with a way back.</em></h1>
         <p class="hero-lead">Stock v1.0.38 with two additions: Brick Breaker (hold Back on the channel screen) and your own startup image. Install it in Chrome or Edge over USB-C, change the boot logo over Bluetooth, and restore stock at any time.</p>
-        <div class="hero-actions"><a class="solid-link" href="/firmware-update/">Install H9 Toolbox Firmware ↗</a><a class="subtle-link" href="/boot-logo/">Change the boot logo ↗</a></div>
+        <div class="hero-actions"><a class="solid-link" href="/firmware-update/">Install H9 Toolbox Firmware ↗</a><a class="subtle-link" href="/boot-logo/">Change the boot logo ↗</a><a class="subtle-link" href="#doom">Or install Doom ↓</a></div>
       </section>
 
       <section class="firmware-grid" aria-label="What H9 Toolbox Firmware adds">
         <article class="detail-card feature-detail"><span class="detail-label">BRICK BREAKER / HOLD BACK</span><h2>A game on your radio.</h2><p>The stock channel screen and controls are unchanged. Hold Back to play Brick Breaker; short Back taps still work as normal. Channels and settings stay as they are, and the Web programmer keeps working.</p><div class="mini-stats"><span>Stock UI retained</span><span>8 sectors changed</span><span>Hash-verified package</span></div></article>
         <article class="detail-card"><span class="detail-label">BOOT LOGO / BLUETOOTH</span><h2>Your own startup image.</h2><p>Pick any PNG or JPG; it is converted to the radio's 160 × 128 screen in your browser, written over Bluetooth, and read back to verify. Save the current logo first and you can always put it back. The logo stays even if you return to stock.</p><a class="text-link" href="/boot-logo/">Open the boot logo tool ↗</a></article>
+      </section>
+
+      <section class="doom-guide" id="doom" aria-labelledby="doom-title">
+        <span class="note-kicker">EXPERIMENTAL · DOOM FIRMWARE</span>
+        <h2 id="doom-title">Or turn it into a Doom machine.</h2>
+        <p>Freedoom's first level running as the radio's firmware: 160 × 128 at about 10–24 frames per second, PC-speaker sound effects and an 8-bit version of the E1M1 music through the speaker. While Doom is installed the radio does not work as a radio; the web flasher puts H9 Toolbox Firmware or stock back at any time. All open source: Freedoom (BSD), the DMC100-Doom engine (GPL-2.0) and the TD-H9 port.</p>
+        <ol class="doom-steps">
+          <li><strong>Get the files.</strong> Download the release from GitHub (hash-checked), or bring your own build.</li>
+          <li><strong>Install over USB-C.</strong> PTT + 2 mode, back up, install: about 0.9 MB, a few minutes, every sector verified.</li>
+          <li><strong>Upload the game data over Bluetooth.</strong> The radio opens its upload screen by itself; about 1 MB, 20–25 minutes, resumable.</li>
+          <li><strong>Add the music.</strong> Optional, 29 KB, about a minute.</li>
+          <li><strong>Play.</strong> 2/5 move, 4/6 turn, 1 fire, 3 use, 7 music.</li>
+        </ol>
+        <a class="solid-link cta-button" href="/doom/">Open the Doom installer ↗</a>
+        <p class="command-note">Game data and music go into space on the radio's 16 MB chip that the stock firmware never uses; they can stay there when you go back to stock. Source: <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research/doom-firmware" target="_blank" rel="noopener noreferrer">doom-firmware on GitHub ↗</a>.</p>
       </section>
 
       <section class="commands install-cta" aria-labelledby="install-title"><div class="section-heading"><span class="note-kicker">GET STARTED</span><h2 id="install-title">Install in your browser.</h2><p>The web flasher backs up your radio, installs H9 Toolbox Firmware over USB-C, and lets you change the boot logo. Use desktop Chrome or Edge.</p></div><a class="solid-link cta-button" href="/firmware-update/">Open the web flasher ↗</a><p class="command-note">Already running the original Brick Breaker? The web flasher upgrades it directly, and can restore stock at any time. Source and build tools are on <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research/resource-service" target="_blank" rel="noopener noreferrer">GitHub ↗</a>.</p></section>
