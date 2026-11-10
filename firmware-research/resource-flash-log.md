@@ -2962,4 +2962,15 @@ flash-power question, and asked for more speed.
 - Not yet flashed as this exact build: each change was tested on hardware
   in builds 32–35, but not this combination.
 
+## 2026-11-09 Merged into main and deployed
+
+- At the user's request: origin/main (4 new commits including PR #1) was
+  merged into `charlie/loader-toolchain`. Only conflict:
+  `test/boot-logo-radio.test.mjs`, both sides kept.
+- All test files pass except `firmware-update.test.mjs` (1 failure, the
+  same on origin/main before the merge).
+- `main` fast-forwarded to `cb59f23`. Pages run 42745124919 succeeded.
+- Live: h9toolbox.com/doom/ (manifest r36) and the /firmware/ Doom section.
+- r36 itself has not been flashed as an exact build.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
