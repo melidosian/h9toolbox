@@ -179,7 +179,7 @@ static void upload_mode(const char *why)
     // Wait style (key 5 cycles; release 32 test of the slow upload: build 26
     // uploaded at 123 B/s here against 785 B/s in H9 Toolbox, reads were
     // about 6x slower too): Y yields 10 ms, B never yields, L yields 200 ms.
-    static const char styles[] = "EYBL";
+    static const char styles[] = "EFYBL";
     unsigned style = 0, last = 0, last_six = 0, clock_set = 0;
     uint32_t since = 0, shown = 1, cpu = td_cpu_loops();  // measured once (a busy loop)
     for (;;) {
@@ -188,7 +188,7 @@ static void upload_mode(const char *why)
             last = key;
             since = td_ticks();
             if (key == TD_KEY_5) {
-                style = (style + 1) % 4;
+                style = (style + 1) % 5;
                 shown = 1;
             }
         }
@@ -217,12 +217,23 @@ static void upload_mode(const char *why)
         // (build 33: CPU at about 135,000 loops per tick, so not a 24 MHz
         // clock; each exchange still takes about a second). Y yields 10 ms,
         // B never yields, L yields 200 ms.
+        // Build 34 on hardware: E read at about 1.3 KiB/s (about 0.5 before).
+        // F (build 35): an event about every 2 ms (a short spin between, sized
+        // from the measured loop rate), yielding once per tick.
         if (style == 0) {
             h9_post_core_event(0xFFFF, 0);
             h9_delay(10);
         } else if (style == 1) {
+            for (unsigned i = 0; i < 4; i++) {
+                h9_post_core_event(0xFFFF, 0);
+                for (volatile uint32_t spin = cpu / 5; spin; spin--) {
+                }
+            }
+            h9_post_core_event(0xFFFF, 0);
             h9_delay(10);
-        } else if (style == 3) {
+        } else if (style == 2) {
+            h9_delay(10);
+        } else if (style == 4) {
             h9_delay(200);
         }
     }

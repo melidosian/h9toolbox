@@ -2924,4 +2924,11 @@ flash-power question, and asked for more speed.
   not every 3 s (that busy loop took 250 ms of every 3 s). Package
   `a58ff9e8…`, flash `6c443af7…`, far `060e2d0b…`.
 
+- Build 34 on hardware, WAIT E: the 32 KiB check read took about 24 s
+  (about 1.3 KiB/s, up from about 0.5); the verify read about 24 s; the
+  music upload (resumed) took 1.8 min in all. Waking app_core helps about
+  2.5x; H9 Toolbox reads at about 6.5 KiB/s.
+- Build 35: wait style F posts an event about every 2 ms (spin of cpu/5
+  loops between, one tick yield per 5 events); styles E/F/Y/B/L.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
