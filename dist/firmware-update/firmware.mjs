@@ -5,30 +5,44 @@ export const FLASH_SIZE = 0x100000;
 export const SECTOR_SIZE = 4096;
 export const STOCK_PACKAGE_SHA256 = 'c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6';
 export const STOCK_IMAGE_SHA256 = '74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f214d322894d26ce4e648';
-// Hosted build: the unchanged Brick Breaker plus the resource-flash service
-// used by the Boot logo page (firmware-research/resource-service, stage
-// bb-s2). It replaces the original Brick Breaker package, which is no longer
-// hosted; radios that still run it upgrade directly.
+// Hosted build: H9 Toolbox Firmware with the app (module) loader: stock
+// v1.0.38, the resource-flash service (boot logo, App Manager uploads) and the
+// loader that runs apps from the resource chip (hold Back). Built by
+// firmware-research/module-loader (build.py; installer files by
+// release_installer.mjs). Same file name as before: the Doom installer
+// fetches it as a reference image.
 export const BUILD = {
   label: 'H9 Toolbox Firmware',
   packageFile: 'h9-toolbox-firmware-v1.0.38.fw',
-  packageSha256: 'b9d24cb43937621358053356382ab72608bfbab677468febe4db867242098dc5',
-  imageSha256: '83f79fb3281c37ab22a4fd3f154a6c52a50d3cf0d8063b546eb47ce3c603bac6',
+  packageSha256: 'c1a6f78b23a4cde61fb13cf6b2e46dc9e673e4ed03590adb2a55a5b7fbc6f0b6',
+  imageSha256: '08d2409af07979f46b1591e28c04e0c86c6575ef97150f23d153bf5832f9b160',
   // Stock bytes of the sectors the build changes: rebuilds exact stock.
   stockSeedFile: 'h9-toolbox-firmware-stock-sectors.bin',
-  stockSeedSha256: 'ae543e828cc0ad08326c04586d353b83fd44fa975ab72da34297967d631facea',
-  sectors: [0x5000, 0x62000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000],
+  stockSeedSha256: 'e93a1c99e88902c75ee9f74d83255f9abe490acb389e519c0f8521260633116e',
+  // Every sector any H9 Toolbox image differs from stock in; installs and
+  // restores write only these.
+  sectors: [0x5000, 0x62000, 0x64000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000],
 };
-// The original Brick Breaker (hardware tested; package 208409d8…): the bytes
-// of the sectors where it differs from BUILD, to recognise and back up radios
-// that still run it.
-export const PREVIOUS = {
-  label: 'original Brick Breaker',
-  seedFile: 'brick-breaker-original-sectors.bin',
-  seedSha256: '1cc3367bfa4760a02b04897afa0e863e4e8a260a220c2883e63a9536de77f30a',
-  imageSha256: '741bbeb87eb84cd7c6988054c56a267bb73c89bbe5cc74dc4e5bc0d75ce7e193',
-  sectors: [0x5000, 0x62000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000],
-};
+// Earlier builds, recognised so a radio running one is backed up quickly and
+// upgraded directly: each seed holds that image's bytes at the sectors where it
+// differs from BUILD.
+export const PREVIOUS = [
+  { id: 'toolbox1', label: 'Brick Breaker build of H9 Toolbox Firmware', file: 'H9-Toolbox-Firmware-1-',
+    seedFile: 'h9-toolbox-firmware-1-sectors.bin',
+    seedSha256: '0463cf0273403d70e1ccf2f3eab12451534e114d79f8a8fdb361074abd84f7f0',
+    imageSha256: '83f79fb3281c37ab22a4fd3f154a6c52a50d3cf0d8063b546eb47ce3c603bac6',
+    sectors: [0x5000, 0x64000, 0x8d000, 0xac000, 0xae000, 0xd9000] },
+  { id: 'original', label: 'original Brick Breaker', file: 'Brick-Breaker-',
+    seedFile: 'brick-breaker-original-sectors.bin',
+    seedSha256: 'cebebf7c4dbdb6160438494f93a192db6b4c518c83db805dcc60452ba4ab09a9',
+    imageSha256: '741bbeb87eb84cd7c6988054c56a267bb73c89bbe5cc74dc4e5bc0d75ce7e193',
+    sectors: [0x5000, 0x62000, 0x64000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000] },
+  { id: 'preview', label: 'H9 Toolbox Firmware app-loader preview', file: 'H9-Toolbox-Firmware-preview-',
+    seedFile: 'h9-toolbox-firmware-preview-sectors.bin',
+    seedSha256: 'a4d4ed7e58de2e5a16c499a3ef7a02481249438101321e2514ba757c401c36ab',
+    imageSha256: '79858310c73879a360e3f8c0cfb003a0043d74593a05421ddeb6f81b728bbcc1',
+    sectors: [0x5000, 0xac000, 0xd9000] },
+];
 const KEY = new Uint8Array([0x4e, 0x61, 0xbc, 0x00]); // 12345678, little endian
 
 export function crc16(bytes) {
@@ -119,8 +133,8 @@ export function loadStockSeed(bytes, buildImage) {
   return rebuildImage(buildImage, BUILD.imageSha256, bytes, BUILD.stockSeedSha256, BUILD.sectors, STOCK_IMAGE_SHA256, 'stock v1.0.38');
 }
 
-export function loadPreviousImage(bytes, buildImage) {
-  return rebuildImage(buildImage, BUILD.imageSha256, bytes, PREVIOUS.seedSha256, PREVIOUS.sectors, PREVIOUS.imageSha256, PREVIOUS.label);
+export function loadPreviousImage(bytes, buildImage, previous) {
+  return rebuildImage(buildImage, BUILD.imageSha256, bytes, previous.seedSha256, previous.sectors, previous.imageSha256, previous.label);
 }
 
 export async function verifyStockBackup(image) {
@@ -142,7 +156,7 @@ export function classifyRadio(current, images) {
   };
   const found = images.find(([, image]) => image && matches(image));
   if (found) return found[0];
-  throw new Error(`Radio is neither exact stock v1.0.38, ${BUILD.label}, nor the ${PREVIOUS.label}. No backup seed accepted.`);
+  throw new Error(`Radio is neither exact stock v1.0.38, ${BUILD.label}, nor an earlier H9 Toolbox build. No backup seed accepted.`);
 }
 
 export async function loadBackup(bytes, target) {
@@ -266,7 +280,7 @@ export async function scanRadio(hid, onProgress = () => {}) {
   return result;
 }
 
-// `known` lists other exact images (the original Brick Breaker) whose sectors
+// `known` lists other exact images (earlier H9 Toolbox builds) whose sectors
 // the radio may hold instead of the backup's or target's; their sectors are
 // written too.
 export function planUpdate(current, backup, target, resumeSector = null, known = []) {

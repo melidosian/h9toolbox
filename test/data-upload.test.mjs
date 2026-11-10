@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  AREAS, DIRECTORY, MUSIC_DIRECTORY, SLOTS, buildDirectory, parseDirectory, planLayout, restore, sectorPlan, uploadPack,
+  AREAS, DIRECTORY, MODULES_DIRECTORY, MUSIC_DIRECTORY, SLOTS, buildDirectory, parseDirectory, planLayout, restore,
+  sectorPlan, uploadPack,
 } from '../prototypes/data-upload/upload.mjs';
 import { SECTOR } from '../dist/boot-logo/resource.mjs';
 import { SimulatedRadio } from './support/simulated-radio.mjs';
@@ -16,7 +17,7 @@ function stockLikeChip(sim) {
 
 test('layout fills resource after the directory, then font, then voice', () => {
   assert.deepEqual(planLayout(10), [{ area: 'resource', address: DIRECTORY + SECTOR, length: 10 }]);
-  const resourceRoom = MUSIC_DIRECTORY - (DIRECTORY + SECTOR);  // the music slot follows
+  const resourceRoom = MODULES_DIRECTORY - (DIRECTORY + SECTOR);  // the modules and music slots follow
   const two = planLayout(resourceRoom + 5);
   assert.deepEqual(two.map(s => [s.area, s.address, s.length]), [['resource', 0xa20000, resourceRoom], ['font', 0x717000, 5]]);
   assert.throws(() => planLayout(5 << 20), /larger than the stock-safe space/);
@@ -143,6 +144,31 @@ test('music slot: own directory, last 124 KiB of the resource tail, never touche
   assert.ok(sim.chip.subarray(MUSIC_DIRECTORY, 0xd00000).every(b => b === 0xff));
   assert.deepEqual(sim.chip.subarray(0xa20000, 0xa20000 + game.length), game);
   assert.equal(parseDirectory(sim.chip.subarray(DIRECTORY, DIRECTORY + SECTOR)).complete, true);
+});
+
+test('modules slot: own directory between the game pack and music, matches the loader stub', async () => {
+  // firmware-research/module-loader/src/stub.s reads the directory at 0xCC0000
+  // and the bundle at 0xCC1000 (one segment, at most 124 KiB).
+  assert.equal(MODULES_DIRECTORY, 0xcc0000);
+  assert.deepEqual(planLayout(10, SLOTS.modules), [{ area: 'modules', address: 0xcc1000, length: 10 }]);
+  assert.equal(planLayout(124 << 10, SLOTS.modules).length, 1);
+  assert.throws(() => planLayout((124 << 10) + 1, SLOTS.modules), /modules slot/);
+  const sim = new SimulatedRadio();
+  stockLikeChip(sim);
+  const game = pack(2 * SECTOR + 7, 3);
+  const song = pack(SECTOR + 33, 9);
+  await uploadPack(sim.radio, game, { name: 'game' });
+  await uploadPack(sim.radio, song, { name: 'E1M1', slot: SLOTS.music });
+  const bundle = pack(3468, 5);
+  assert.equal((await uploadPack(sim.radio, bundle, { name: 'H9 modules', slot: SLOTS.modules })).slot, 'modules');
+  const dir = parseDirectory(sim.chip.subarray(MODULES_DIRECTORY, MODULES_DIRECTORY + SECTOR));
+  assert.equal(dir.complete, true);
+  assert.deepEqual(dir.segments, [{ address: 0xcc1000, length: bundle.length }]);
+  assert.deepEqual(sim.chip.subarray(0xcc1000, 0xcc1000 + bundle.length), bundle);
+  await restore(sim.radio, { slot: SLOTS.modules });
+  assert.ok(sim.chip.subarray(MODULES_DIRECTORY, MUSIC_DIRECTORY).every(b => b === 0xff));
+  assert.deepEqual(sim.chip.subarray(0xa20000, 0xa20000 + game.length), game);
+  assert.deepEqual(sim.chip.subarray(MUSIC_DIRECTORY + SECTOR, MUSIC_DIRECTORY + SECTOR + song.length), song);
 });
 
 test('an upload that is already complete reads only its directory sector', async () => {

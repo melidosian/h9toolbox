@@ -1,5 +1,5 @@
 import { connectBluetooth } from '../../dist/boot-logo/radio.mjs?v=up2';
-import { SLOTS, planLayout, restore, uploadPack } from './upload.mjs?v=up3';
+import { SLOTS, planLayout, restore, uploadPack } from './upload.mjs?v=up4';
 
 const $ = id => document.getElementById(id);
 let session = null, busy = false, pack = null, manifest = null;

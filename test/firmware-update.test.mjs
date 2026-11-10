@@ -115,7 +115,7 @@ test('browser readback reconstructs and verifies accessible flash from a known a
     },
   };
   const result = await readAccessibleFlash(hid, sectorCrcs, target);
-  assert.equal(result.method, 'verified-official-image-seed');
+  assert.equal(result.method, 'verified-known-image-seed');
   assert.deepEqual(result.accessible, accessible);
 });
 
@@ -151,4 +151,25 @@ test('quick backup of a known application skips the settings area and round-trip
   // fails, so readAccessibleFlash falls back to full recovery.
   const other = target.slice(); other[0x40000] ^= 1;
   assert.equal(await knownAppMatches(hid, sectorCrcs, other), false);
+});
+
+test('hosted H9 Toolbox Firmware files rebuild every known image and plan only pinned sectors', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { BUILD, PREVIOUS, STOCK_IMAGE_SHA256, loadBuildPackage, loadPreviousImage, loadStockSeed, classifyRadio, sha256 } = await import('../dist/firmware-update/firmware.mjs');
+  const file = name => readFile(new URL(`../dist/firmware-update/${name}`, import.meta.url)).then(b => new Uint8Array(b));
+  const build = await loadBuildPackage(await file(BUILD.packageFile));
+  const stock = await loadStockSeed(await file(BUILD.stockSeedFile), build.image);
+  assert.equal(await sha256(stock), STOCK_IMAGE_SHA256);
+  const named = [['stock', stock], ['build', build.image]];
+  for (const info of PREVIOUS) named.push([info.id, await loadPreviousImage(await file(info.seedFile), build.image, info)]);
+  const known = named.slice(2).map(([, image]) => image);
+  for (const [name, image] of named) {
+    const crcs = expectedCrcs(image);
+    const scan = crcs.map(crc => crc ?? 0);
+    assert.equal(classifyRadio(scan, named), name);
+    const plan = planUpdate(scan, image, build.image, null, known);
+    assert.ok(plan.every(physical => BUILD.sectors.includes(physical)), `${name}: plan leaves the pinned sectors`);
+    const writes = plan.filter(physical => crcs[(physical - APP_START) / SECTOR_SIZE] !== expectedCrcs(build.image)[(physical - APP_START) / SECTOR_SIZE]);
+    assert.equal(writes.length > 0, name !== 'build', `${name}: ${writes.length} sector(s) to write`);
+  }
 });
