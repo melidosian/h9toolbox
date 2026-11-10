@@ -179,16 +179,16 @@ static void upload_mode(const char *why)
     // Wait style (key 5 cycles; release 32 test of the slow upload: build 26
     // uploaded at 123 B/s here against 785 B/s in H9 Toolbox, reads were
     // about 6x slower too): Y yields 10 ms, B never yields, L yields 200 ms.
-    static const char styles[] = "YBL";
+    static const char styles[] = "EYBL";
     unsigned style = 0, last = 0, last_six = 0, clock_set = 0;
-    uint32_t since = 0, shown = 1, measured = 0;
+    uint32_t since = 0, shown = 1, cpu = td_cpu_loops();  // measured once (a busy loop)
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
             last = key;
             since = td_ticks();
             if (key == TD_KEY_5) {
-                style = (style + 1) % 3;
+                style = (style + 1) % 4;
                 shown = 1;
             }
         }
@@ -197,25 +197,34 @@ static void upload_mode(const char *why)
         if (key == TD_KEY_6 && last_six != TD_KEY_6) {
             h9_clk_set_sys(240000000u);  // build 33: stock's clk_set("sys", 240 MHz)
             clock_set = 1;
+            cpu = td_cpu_loops();
             shown = 1;
         }
         last_six = key;
-        if (shown || td_ticks() - measured >= 300) {
+        if (shown) {
             char text[8] = { 'W', 'A', 'I', 'T', ' ', styles[style], 0 };
             td_fill(0, 48, TD_W, 38, BLACK);
             td_text(0, 48, text, CYAN, BLACK);
             td_text(0, 62, "5 WAIT  6 240MHZ", WHITE, BLACK);
             td_text(0, 76, "CPU", WHITE, BLACK);
-            number(32, 76, td_cpu_loops(), YELLOW);
+            number(32, 76, cpu, YELLOW);
             if (clock_set)
                 td_text(112, 76, "SET", GREEN, BLACK);
-            measured = td_ticks();
             shown = 0;
         }
-        if (style == 0)
+        // E (default, build 34): wake app_core every 10 ms with the ignored
+        // 0xFFFF event, in case the Bluetooth replies wait for its loop
+        // (build 33: CPU at about 135,000 loops per tick, so not a 24 MHz
+        // clock; each exchange still takes about a second). Y yields 10 ms,
+        // B never yields, L yields 200 ms.
+        if (style == 0) {
+            h9_post_core_event(0xFFFF, 0);
             h9_delay(10);
-        else if (style == 2)
+        } else if (style == 1) {
+            h9_delay(10);
+        } else if (style == 3) {
             h9_delay(200);
+        }
     }
 }
 

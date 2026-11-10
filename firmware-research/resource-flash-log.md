@@ -2908,4 +2908,20 @@ flash-power question, and asked for more speed.
   - Upload mode shows CPU every 3 s; key 6 sets 240 MHz.
 - Package `2cb3e002…`, flash `074ca49f…`, far `9be34f1a…`.
 
+- Build 33 on hardware (upload mode):
+  - CPU about 134,900 loops per tick (fluctuating), unchanged after key 6
+    (`clk_set` sys 240 MHz, "SET"). Not a 24 MHz clock; the clock
+    hypothesis is ruled out.
+  - Speed: a 4 KiB read about 9 s, a 32 KiB read about 60 s, writes
+    0.09 KiB/s (music removal took 156.6 s). Each exchange takes about
+    1 s.
+- The link request reaches stock: `link_request` calls `0x01E16652` with
+  the connection handle (`0x11AD0+138`), and "ok" means it returned 0.
+- Next hypothesis: Bluetooth replies wait on app_core's message loop, which
+  nothing wakes in upload mode (the radio app keeps it busy in H9 Toolbox).
+- Build 34: wait style E (now the default) posts the ignored `0xFFFF` event
+  to app_core every 10 ms; key 5 cycles E/Y/B/L. The CPU is measured once,
+  not every 3 s (that busy loop took 250 ms of every 3 s). Package
+  `a58ff9e8…`, flash `6c443af7…`, far `060e2d0b…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
