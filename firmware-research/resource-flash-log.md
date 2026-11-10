@@ -2946,4 +2946,9 @@ flash-power question, and asked for more speed.
 - The user asked to flash back to H9 Toolbox Firmware (the hosted
   `h9-toolbox-firmware-v1.0.38.fw`).
 
+- Flashed back to H9 Toolbox Firmware (the hosted package `b9d24cb4…`):
+  19 sectors, read back `83f79fb3…` (the pinned H9 Toolbox image). The
+  Doom code is still at `0xEA000` (inert), and the game data and music
+  remain on the 16 MB chip.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
