@@ -45,6 +45,8 @@ ROM routines live at `0x0200xxxx`.
 | Screen | 160 × 128 RGB565 [HW]; a full-screen write takes 10–30 ms [HW]. Backlight duty = level × 2000 + 2000; stock caps it at 10000 [HW]. |
 | Speaker | BR23 DAC to an amplifier enabled by **PA3** (bank `0x1E5000` bit 3). PA3 must be configured as an **output** (DIR bit 3 = 0) as well as driven high [HW]; the radio app does this at start-up, and stock's speaker writer (app+`0x52228`) only writes OUT. |
 | LED | GPIO 9 (bank `0x1E5000` bit 9) [HW]. |
+| Keypad | Resistor ladders on **two ADC channels (13 and 10)**, matched against voltage windows by the stock scan `0x01E515AC`, with no debounce [STATIC]. A single noisy sample can read as a key; take a key only when two readings in a row agree [HW]. |
+| RF chip registers | Write with `0x01E5070A(reg, value)`, read with `0x01E505FE` [STATIC]. Register `0x30` bit 9 enables the RF chip's audio DAC (receive audio): receive setup writes `0xBDF1` (off), squelch open writes `0xBFF5`, close `0xBDF5` [HW]. |
 | APRS MCU | A separate small MCU (probably ARM Cortex-M) running the 1200-baud AFSK modem; talks to the main MCU over USART2, with a handshake on GPIOB5 [STATIC]. Not identified; research parked. |
 | Receiver chip | Demodulates in hardware and hands the MCUs **audio only**: no IQ or wideband samples (so no TV, no SDR). |
 
@@ -71,8 +73,10 @@ resource-service tables start at app+`0xA7E50`) [HW].
 | `0x717000–0x7FFFFF` | Font partition tail: erased, never written by stock [HW]. |
 | `0x900000` | `rw_freq`: **stock writes here**. Never use it. |
 | `0xA00000` | Boot logo (H9 Toolbox boot-logo tool). |
-| `0xA1F000` | Game slot directory (`H9DATA01`); data from `0xA20000` to `0xCE0000`, then the font and voice tails. |
+| `0xA1F000` | Game slot directory (`H9DATA01`); data from `0xA20000` to `0xCC0000` (2.6 MB), then the font and voice tails. |
+| `0xCC0000` | Modules slot directory; `H9MODS01` bundle at `0xCC1000` (≤ 124 KiB) for H9 Toolbox's module loader. |
 | `0xCE0000` | Music slot directory; data `0xCE1000–0xCFFFFF` (124 KiB). |
+| `0x802000`, `0x80B606` | Stock APRS message inbox and beacon list (in `sys_data`) [STATIC]. |
 
 Directory sector: magic `H9DATA01`, version, length, SHA-256, name, segment
 list, CRC-16; `H9DATA-COMPLETE` is written in the last 32 bytes **only after
@@ -95,10 +99,15 @@ set up SPI2 and read with raw NOR reads (§7).
 | `0x1D8A8` / `0x1D8AA` | Heap blocks used / total [HW]. |
 | `0x1E4D8–0x2BF00` | Stock heap first range (end at app+`0x05FA9E`) [STATIC]; a second range is `0x2D27F–0x2FF80`. |
 | `0x127B0` | Clone-protocol reply buffer (80 B) [STATIC]. |
+| `0xC4A1` / `0xC4A7` | Own APRS callsign (6 chars) / SSID [STATIC]. |
+| `0x13D10` | Last decoded AX.25 packet (324 B: dest +0, source +7, digis +14, info +59, info length u16 +316) [STATIC]. |
+| `0x16634` | Main-side APRS serial ring (2048 B; write index `h[0x16E34]`, read index `h[0x16E36]`); it keeps filling while a module runs [HW]. |
+| `0x29F00–0x2BEFF` | **Module-loader builds**: 8 KiB module RAM (heap end moved to `0x29F00`); "run next" mailbox in its last 32 bytes (`0x2BEE0`, magic `HRUN`). |
 
 Stock (H9 Toolbox) runs with 288 of 527 heap blocks used. **Bluetooth needs
-about 30 KB of heap** [HW]: allocation failure jumps to ROM `0x0200000A`
-(reset), which shows up as a boot loop.
+about 30 KB of heap** [HW]: allocation failure jumps to ROM `0x0200000A`,
+which shows up as a boot loop. The module loader's 8 KiB carve (heap end
+`0x29F00`) still leaves room for Bluetooth uploads [HW].
 
 ## 6. Modes, recovery and tools
 
@@ -153,8 +162,24 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
 | Key-tone player | `0x01E5241A(n)` | stock voice prompts ("zero"); needs heap [HW] |
 | System clock | `0x01EC548E(name, hz)` | name `0x01EB1C7B` = "sys" [HW, no effect seen] |
 | ROM task post | `0x02002C9C` | used for the `btstack` wake [STATIC] |
+| **Deliberate restart** | stock `cpu_reset` `0x01EC6FC8` / `0x01EC6FF4` | IRQs off (`0x02001634`), set bit 4 of `[0x1E0000]`, spin. **Calling ROM `0x0200000A` directly froze the radio** [HW]. |
+| KISS transmit | `0x01E5DBCC(buf, len)` | stock: deframes KISS, AX.25 decode, PTT handler, modem send, airtime wait, end of TX [HW, APRS SEND] |
+| RF register write / read | `0x01E5070A(reg, value)` / `0x01E505FE` | see §2 [STATIC] |
 
 ## 8. How the system behaves
+
+- **H9 Toolbox Firmware is now the module loader** (`module-loader/`,
+  2026-11-10) [HW]:
+  - Brick Breaker moved out of main flash; holding **Back** opens a menu
+    of modules from the chip's modules slot.
+  - Modules are copied into the 8 KiB RAM slot at `0x29F00` and checked
+    (CRC) before running; they get the stock NOR read, LCD, keys and delay
+    through `modules/common/h9lib.s`.
+  - The menu also offers RADIO (a clean `cpu_reset`) and USB UPDATE.
+  - The App Manager (`dist/apps/`) installs modules over Bluetooth; the
+    first modules are the menu, Brick Breaker, APRS and APRS Monitor.
+  - Doom is unaffected: it is built on the earlier H9 Toolbox app
+    (`1334a32c`) with its own heap patch (`0x22000`).
 
 - **app_core** (app+`0x66648`) runs a mode state machine [HW]. Doom and
   other takeovers sit in **mode 10** (start-up). Stock runs in **mode 3**,
@@ -259,8 +284,9 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
 
 - What stretches Bluetooth write ACKs to about 260 ms in Doom's upload
   mode (§8).
-- Multi-key input: the stock scan reports one key, and the keypad wiring
-  (matrix or resistor ladder) is unknown.
+- Multi-key input: the keypad is two ADC resistor ladders (§2). Two keys on
+  the same ladder cannot be told apart; one on each channel might be read
+  together by sampling both channels ourselves [HYP].
 - The APRS MCU's identity, and its firmware.
 - Faster far-view rendering (texture caching, overlapping reads with
   drawing).
