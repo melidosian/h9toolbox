@@ -55,6 +55,7 @@ function refresh() {
   $('uploadPack').disabled = busy || !session;
   $('uploadSong').disabled = busy || !session;
   $('removeData').disabled = busy || !session;
+  $('removeMusic').disabled = busy || !session;
   for (const [key, id] of [['firmware', 'rowFirmware'], ['code', 'rowCode'], ['pack', 'rowPack'], ['song', 'rowSong']]) {
     const row = $(id), entry = files[key];
     row.classList.toggle('ready', !!entry);
@@ -223,6 +224,14 @@ async function upload(key, slot) {
   log(manifest.alreadyComplete ? `${entry.label} is already on the radio; nothing to upload.`
     : `${entry.label}: uploaded and verified (${manifest.bytes.toLocaleString()} bytes, ${(manifest.totalSeconds / 60).toFixed(1)} min).`);
 }
+$('removeMusic').addEventListener('click', () => task(async () => {
+  const { SLOTS, restore } = await import('./upload.mjs?v=20261109i');
+  const began = performance.now();
+  log('Removing the music…');
+  const result = await restore(session.radio, { slot: SLOTS.music, onProgress: (fraction, phase) => progress(fraction, 1, `music: ${phase}`) });
+  progress(1, 1, 'Removed');
+  log(result.note ?? `Music removed: ${result.erased} sector(s) erased and read back as erased (${((performance.now() - began) / 1000).toFixed(1)} s).`);
+}));
 $('removeData').addEventListener('click', () => task(async () => {
   const { SLOTS, restore } = await import('./upload.mjs?v=20261109i');
   let erased = 0;
