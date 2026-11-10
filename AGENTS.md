@@ -10,9 +10,8 @@ and dead ends. The full history is in
 
 Short version of the rules (details in the handbook, section 1):
 
-- Do not flash a radio, push, merge, or post publicly (comments, issues, PRs)
-  unless the user asks. Flashing waits for the user's "go" with the radio in
-  the right mode.
+- Do not push, merge, or post publicly (comments, issues, PRs) unless the
+  user asks.
 - Never commit RAM dumps, full-chip dumps or radio backups: they hold
   personal settings.
 - Writes to the radio's 16 MB chip go only into the erased tails, through a

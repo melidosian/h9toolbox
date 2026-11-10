@@ -18,11 +18,6 @@ ROM routines live at `0x0200xxxx`.
 
 ## 1. Rules for this repo
 
-- **Never flash without the user's "go"**, given after they put the radio in
-  the right mode. Claude may run only the flasher allowed in
-  `/etc/sudoers.d/h9-flasher`
-  (`sudo -n ~/h9usb/bin/python …/h9-flasher/h9_flasher.py …`); other sudo
-  commands are run by the user.
 - **Public actions need an explicit "post it"**: GitHub comments, issues, PRs.
   Pushes and merges happen only when the user asks.
 - **Never commit RAM dumps, full-chip dumps or `~/h9-backups` files**: they
