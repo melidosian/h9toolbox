@@ -2880,4 +2880,12 @@ flash-power question, and asked for more speed.
   first (the erase command carries the sector's CRC as a guard), so it is
   slow until upload mode's Bluetooth rate is fixed.
 
+- The "already on the radio" check took exactly 60 s in upload mode: fast
+  reads (`readFast`) start at a 32 KiB bank, so the 4 KiB game directory
+  at `0xA1F000` cost a 32 KiB read from `0xA18000` (about 0.5 KiB/s). The
+  same padding explains "Reading 1,060,864 bytes".
+- `readDirectory()` now reads only what `parseDirectory` needs (the
+  128-byte record and the 32-byte COMPLETE block) with 32-byte reads: 7
+  reads (5 data + 2 bank) instead of 32 KiB.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

@@ -226,6 +226,20 @@ async function readRanges(radio, ranges, onProgress) {
   return out;
 }
 
+// A directory sector as far as parseDirectory needs it: the record (first
+// 128 bytes: magic ... segments and CRC) and the COMPLETE block (last 32),
+// in 32-byte reads. Fast reads start at a 32 KiB bank, so a fast read of the
+// game directory (0xA1F000) would fetch 32 KiB: a minute in upload mode.
+export async function readDirectory(radio, slot) {
+  const sector = new Uint8Array(SECTOR).fill(0xff);
+  if (typeof radio.readSlow !== 'function') {
+    return (await readRanges(radio, [{ address: slot.directory, length: SECTOR }], () => {}))[0];
+  }
+  sector.set((await radio.readSlow(slot.directory, 128, () => {})).bytes, 0);
+  sector.set((await radio.readSlow(slot.directory + COMPLETE_OFFSET, BLOCK, () => {})).bytes, COMPLETE_OFFSET);
+  return sector;
+}
+
 export function completeBlock() {
   const block = new Uint8Array(BLOCK);
   block.set(new TextEncoder().encode(COMPLETE));
@@ -261,8 +275,7 @@ export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game
   // Already there? The directory alone says so: COMPLETE is written only after
   // the whole upload read back correctly. One sector instead of the whole
   // target (about 17 minutes for the 1 MB game pack at upload mode's rate).
-  const [existing] = await readRanges(radio, [{ address: slot.directory, length: SECTOR }], () => {});
-  const already = parseDirectory(existing);
+  const already = parseDirectory(await readDirectory(radio, slot));
   if (already?.complete && already.length === pack.length && sameBytes(already.sha256, digest)) {
     radio.log(`"${already.name}" is already on the radio and complete; nothing to upload.`);
     onProgress(1, 'Already on the radio');

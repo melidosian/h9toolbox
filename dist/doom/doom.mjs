@@ -209,7 +209,7 @@ async function upload(key, slot) {
     await loadHosted();
     requireValue(files[key], key === 'song' ? 'This release has no music.' : 'The game data did not load.');
   }
-  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109g');
+  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109i');
   const began = performance.now();
   const entry = files[key];
   const manifest = await uploadPack(session.radio, entry.checked, {
@@ -224,7 +224,7 @@ async function upload(key, slot) {
     : `${entry.label}: uploaded and verified (${manifest.bytes.toLocaleString()} bytes, ${(manifest.totalSeconds / 60).toFixed(1)} min).`);
 }
 $('removeData').addEventListener('click', () => task(async () => {
-  const { SLOTS, restore } = await import('./upload.mjs?v=20261109g');
+  const { SLOTS, restore } = await import('./upload.mjs?v=20261109i');
   let erased = 0;
   for (const slot of [SLOTS.music, SLOTS.game]) {
     log(`Removing the ${slot.name === 'game' ? 'game data' : 'music'}…`);
