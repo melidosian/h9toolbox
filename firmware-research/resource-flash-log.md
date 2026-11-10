@@ -2821,4 +2821,19 @@ flash-power question, and asked for more speed.
   `h9-doom-r32-code-0xEA000.bin`, `freedoom-e1m1-pack.dat`,
   `freedoom-e1m1.h9mu` and the manifest.
 
+## 2026-11-09 JieLi toolchain bundled
+
+- The user decided to include the toolchain so people need not hunt for it
+  (they will remove it if JieLi asks).
+- `firmware-research/toolchain/jieli/` holds
+  `jieli-linux-toolchains-20260730.1.tar.xz`, unchanged from
+  `jl-update.oss-cn-shenzhen.aliyuncs.com` (SHA-256 `a1545cdd…`,
+  26,027,508 B), plus `setup.sh` (checks the hash, extracts next to it;
+  the extracted folder is git-ignored) and a README.
+- `toolchain/h9cc` and `doom-firmware/build.py` default to the bundled copy
+  when `JIELI_TOOLCHAIN` is unset.
+- Check: Doom built with no `JIELI_TOOLCHAIN` reproduces release 32
+  byte for byte (package `a68c4dcd…`, flash `10a741b9…`, far
+  `c1e8c688…`).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

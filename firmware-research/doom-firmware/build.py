@@ -416,7 +416,10 @@ def main() -> int:
     parser.add_argument("--stock-package", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "build")
     args = parser.parse_args()
-    toolchain = Path(os.environ["JIELI_TOOLCHAIN"]).expanduser().resolve()
+    bundled = RESEARCH / "toolchain" / "jieli" / "jieli-linux-toolchains-20260730.1"  # toolchain/jieli/setup.sh
+    toolchain = Path(os.environ.get("JIELI_TOOLCHAIN", bundled)).expanduser().resolve()
+    if not (toolchain / "pi32v2").is_dir():
+        raise SystemExit(f"No JieLi toolchain at {toolchain}: run sh firmware-research/toolchain/jieli/setup.sh")
     m = build(args.dmc.resolve(), args.stock_image.resolve(), args.stock_package.resolve(), toolchain,
               args.output.resolve())
     print(json.dumps({k: v for k, v in m.items() if k != "placement"}, indent=1))
