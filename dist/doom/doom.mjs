@@ -192,7 +192,7 @@ for (const id of ['skipBackup', 'acknowledge']) $(id).addEventListener('change',
 // Bluetooth --------------------------------------------------------------
 
 $('btConnect').addEventListener('click', () => task(async () => {
-  const { connectBluetooth } = await import('../boot-logo/radio.mjs?v=up3');
+  const { connectBluetooth } = await import('../boot-logo/radio.mjs?v=up5');
   session = await connectBluetooth({
     log: (message, level) => { if (level !== 'debug') log(message, level === 'error'); },
     onDisconnect: () => { session = null; $('btState').textContent = 'Disconnected'; log('Bluetooth disconnected.'); refresh(); },
@@ -210,7 +210,7 @@ async function upload(key, slot) {
     await loadHosted();
     requireValue(files[key], key === 'song' ? 'This release has no music.' : 'The game data did not load.');
   }
-  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109i');
+  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109k');
   const began = performance.now();
   const entry = files[key];
   const manifest = await uploadPack(session.radio, entry.checked, {
@@ -225,7 +225,7 @@ async function upload(key, slot) {
     : `${entry.label}: uploaded and verified (${manifest.bytes.toLocaleString()} bytes, ${(manifest.totalSeconds / 60).toFixed(1)} min).`);
 }
 $('removeMusic').addEventListener('click', () => task(async () => {
-  const { SLOTS, restore } = await import('./upload.mjs?v=20261109i');
+  const { SLOTS, restore } = await import('./upload.mjs?v=20261109k');
   const began = performance.now();
   log('Removing the music…');
   const result = await restore(session.radio, { slot: SLOTS.music, onProgress: (fraction, phase) => progress(fraction, 1, `music: ${phase}`) });
@@ -233,7 +233,7 @@ $('removeMusic').addEventListener('click', () => task(async () => {
   log(result.note ?? `Music removed: ${result.erased} sector(s) erased and read back as erased (${((performance.now() - began) / 1000).toFixed(1)} s).`);
 }));
 $('removeData').addEventListener('click', () => task(async () => {
-  const { SLOTS, restore } = await import('./upload.mjs?v=20261109i');
+  const { SLOTS, restore } = await import('./upload.mjs?v=20261109k');
   let erased = 0;
   for (const slot of [SLOTS.music, SLOTS.game]) {
     log(`Removing the ${slot.name === 'game' ? 'game data' : 'music'}…`);

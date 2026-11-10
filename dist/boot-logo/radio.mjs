@@ -295,9 +295,14 @@ export class ResourceRadio {
     }
   }
 
+  // Timing of each write (diagnostic): the GATT write itself, then the wait
+  // for the radio's 06. uploadPack logs a summary per sector.
   async sendWrite(frame) {
+    const began = performance.now();
     await this.send(frame);
+    const sent = performance.now();
     await this.expectAck('Write');
+    (this.writeTimes ??= []).push([sent - began, performance.now() - sent]);
   }
 
   // Status read through the sector's own bank (S2 status bytes 12-19).

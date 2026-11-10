@@ -2973,4 +2973,26 @@ flash-power question, and asked for more speed.
 - Live: h9toolbox.com/doom/ (manifest r36) and the /firmware/ Doom section.
 - r36 itself has not been flashed as an exact build.
 
+## 2026-11-09 ACK path traced (static); per-write timing added
+
+- W path:
+  - `0x5DBA8`, the BT data callback registered at `0x24004`, calls
+    `0x5D170`. It builds the clone ops (send byte `0x4FD82`, send buffer
+    `0x4FD9E`, `0x5017C`; state `0x1202C`) and runs the clone handler
+    `0x5CF18`. Our hook runs at `0x5D124`, then ACK `0x06` is appended to
+    the reply buffer (`0x127B0`, 80 B).
+  - Back in `0x5DBA8`: `0x5D1CA(len)` checks TX space with `0x50186` =
+    `0x16552(9)` (answered directly); if it fits, `0x5D1E0` sends with
+    `0x16552(10)`, queued to the `btstack` task and woken at once by
+    `0x164F8` (`0x202B9C` task post, "btstack"). Otherwise a later case
+    (`0x5DCC8`, code 17) resends.
+- No wait of about 260 ms on that path. The clock stays at full speed: the
+  24 MHz timer `0x5E208` → `0x4F4EC` → `0x5E3E2` is an inactivity
+  timeout, not active in our runs.
+- Remaining suspects: link timing (connection events, macOS side) or
+  btstack scheduling.
+- Diagnostic: `ResourceRadio.sendWrite` records each GATT write duration
+  and ACK wait; `uploadPack` logs the median and max per sector. Baseline
+  first on H9 Toolbox, then Doom upload mode.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

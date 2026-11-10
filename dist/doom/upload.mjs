@@ -246,6 +246,18 @@ export function completeBlock() {
   return block;
 }
 
+// One line per sector: how long the GATT writes and the radio's ACKs took.
+function logWriteTimes(radio, address) {
+  const times = radio.writeTimes;
+  if (!times?.length) return;
+  radio.writeTimes = [];
+  const stat = k => {
+    const v = times.map(t => t[k]).sort((a, b) => a - b);
+    return `median ${v[v.length >> 1].toFixed(0)} ms, max ${v[v.length - 1].toFixed(0)} ms`;
+  };
+  radio.log(`${hex(address)}: ${times.length} writes; GATT write ${stat(0)}; ACK wait ${stat(1)}.`);
+}
+
 const sameBytes = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 const rangesOf = (dir, slot) => [...dir.segments.map(s => ({ address: s.address, length: Math.ceil(s.length / SECTOR) * SECTOR })),
   { address: slot.directory, length: SECTOR }];
@@ -311,6 +323,7 @@ export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game
       for (const [i, plan] of plans.entries()) {
         // Count each programmed sector as it completes, so the live rate is right.
         await writePlan(radio, plan, i ? targets[i] : dirTarget, entry => {
+          logWriteTimes(radio, entry.address);
           written += 1;
           if (entry.program) programmed += SECTOR;
           const seconds = Math.max(0.001, (now() - writeStart) / 1000);
