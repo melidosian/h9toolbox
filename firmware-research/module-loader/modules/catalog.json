@@ -1,0 +1,43 @@
+{
+  "comment": "Apps the H9 Toolbox App Manager offers (dist/apps/). publish_catalog.py adds sizes, RAM, CRC and SHA-256 and copies each app to dist/apps/catalog/ as one .h9mod bundle. `name` is the main module (the menu label, 16 characters at most); `modules` lists every module the app installs, main first (default: just `name`). Names starting with '.' are hidden from the on-radio menu.",
+  "menu": {
+    "id": "menu",
+    "name": "MENU",
+    "title": "Module menu",
+    "description": "The on-radio list that opens when you hold Back. Installed automatically with the first app.",
+    "version": "1.1"
+  },
+  "apps": [
+    {
+      "id": "brick_breaker",
+      "name": "BRICK BREAKER",
+      "title": "Brick Breaker",
+      "description": "Break 30 bricks with a bouncing ball. Menu moves the paddle left, Back moves it right, Up restarts after GAME OVER. Power-cycle to leave.",
+      "version": "1.0",
+      "category": "Games"
+    },
+    {
+      "id": "aprs",
+      "name": "APRS",
+      "title": "APRS",
+      "description": "Onboard APRS client: station list (opens with the stock Beacon List), station details, a map around your GPS position, messages (yours in green), and sending messages you type on the keypad to any station, or a status packet, from your callsign (experimental; stock firmware does the transmitting). Hold Menu to switch screens, Back to go back. Each screen loads into RAM when you open it.",
+      "version": "0.5",
+      "category": "Radio",
+      "modules": [
+        "APRS",
+        ".APRS INFO",
+        "APRS MAP",
+        "APRS MSG",
+        "APRS SEND"
+      ]
+    },
+    {
+      "id": "aprs_monitor",
+      "name": "APRS MONITOR",
+      "title": "APRS Monitor (probe)",
+      "description": "First step to an onboard APRS client: reads packets and GPS straight from the APRS modem's serial ring and shows the last four stations heard. Also tests whether the ring keeps filling while an app runs. Receive only. Back returns to the menu.",
+      "version": "0.1",
+      "category": "Experimental"
+    }
+  ]
+}

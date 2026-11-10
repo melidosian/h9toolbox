@@ -1,0 +1,112 @@
+{
+ "format": 1,
+ "menu": {
+  "id": "menu",
+  "name": "MENU",
+  "title": "Module menu",
+  "description": "The on-radio list that opens when you hold Back. Installed automatically with the first app.",
+  "version": "1.1",
+  "modules": [
+   {
+    "name": "MENU",
+    "bytes": 2223,
+    "ram": 2223,
+    "crc16": "f31f"
+   }
+  ],
+  "file": "menu.h9mod",
+  "bytes": 2223,
+  "ram": 2223,
+  "crc16": "f31f",
+  "sha256": "234ac22f77cb188f984a4d6e8d43759c4c79dfb95513e4126776451bb65e7619"
+ },
+ "apps": [
+  {
+   "id": "brick_breaker",
+   "name": "BRICK BREAKER",
+   "title": "Brick Breaker",
+   "description": "Break 30 bricks with a bouncing ball. Menu moves the paddle left, Back moves it right, Up restarts after GAME OVER. Power-cycle to leave.",
+   "version": "1.0",
+   "category": "Games",
+   "modules": [
+    {
+     "name": "BRICK BREAKER",
+     "bytes": 1628,
+     "ram": 1628,
+     "crc16": "0cc0"
+    }
+   ],
+   "file": "brick_breaker.h9mod",
+   "bytes": 1628,
+   "ram": 1628,
+   "crc16": "0cc0",
+   "sha256": "6b66802925187d1846a0912e8fd2e0f95280ea7e71015c027c83f7f732a85e6d"
+  },
+  {
+   "id": "aprs",
+   "name": "APRS",
+   "title": "APRS",
+   "description": "Onboard APRS client: station list (opens with the stock Beacon List), station details, a map around your GPS position, messages (yours in green), and sending messages you type on the keypad to any station, or a status packet, from your callsign (experimental; stock firmware does the transmitting). Hold Menu to switch screens, Back to go back. Each screen loads into RAM when you open it.",
+   "version": "0.5",
+   "category": "Radio",
+   "modules": [
+    {
+     "name": "APRS",
+     "bytes": 6619,
+     "ram": 6619,
+     "crc16": "a66f"
+    },
+    {
+     "name": ".APRS INFO",
+     "bytes": 6425,
+     "ram": 6425,
+     "crc16": "0e3b"
+    },
+    {
+     "name": "APRS MAP",
+     "bytes": 6579,
+     "ram": 6579,
+     "crc16": "4cb1"
+    },
+    {
+     "name": "APRS MSG",
+     "bytes": 6599,
+     "ram": 6599,
+     "crc16": "d23c"
+    },
+    {
+     "name": "APRS SEND",
+     "bytes": 5335,
+     "ram": 5335,
+     "crc16": "2caa"
+    }
+   ],
+   "file": "aprs.h9mod",
+   "bytes": 31557,
+   "ram": 6619,
+   "crc16": "a66f",
+   "sha256": "f38fd31cde163f414d373817111e77d7a1547f1db4aa4039bb93dca9bd18291a"
+  },
+  {
+   "id": "aprs_monitor",
+   "name": "APRS MONITOR",
+   "title": "APRS Monitor (probe)",
+   "description": "First step to an onboard APRS client: reads packets and GPS straight from the APRS modem's serial ring and shows the last four stations heard. Also tests whether the ring keeps filling while an app runs. Receive only. Back returns to the menu.",
+   "version": "0.1",
+   "category": "Experimental",
+   "modules": [
+    {
+     "name": "APRS MONITOR",
+     "bytes": 2589,
+     "ram": 2589,
+     "crc16": "6ce2"
+    }
+   ],
+   "file": "aprs_monitor.h9mod",
+   "bytes": 2589,
+   "ram": 2589,
+   "crc16": "6ce2",
+   "sha256": "93c5463b776a5f8cf88d3080fb80302654cf2c79ddf2fbd3a08dadef8a7d2454"
+  }
+ ]
+}

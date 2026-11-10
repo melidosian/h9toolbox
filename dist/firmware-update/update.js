@@ -1,20 +1,19 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, writeSector } from './firmware.mjs?v=20261108c';
-import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261108c';
-import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261108c';
-import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=20261109b';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, writeSector } from './firmware.mjs?v=20261110a';
+import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
+import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
 
 const $ = id => document.getElementById(id);
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
-// stock rebuilt from the build. buildImage / previousImage: the hosted build
-// and the original Brick Breaker, known so a radio running either is
-// recognised, backed up quickly, and (for the original) upgraded directly.
+// stock rebuilt from the build. buildImage / previousImages: the hosted build
+// and earlier builds ([{ info: PREVIOUS[i], image }]), known so a radio
+// running any of them is recognised, backed up quickly and upgraded directly.
 // createdBackup: the archive made on this page ({ archive, name, source }),
 // kept across firmware selection and used when no backup file is chosen.
 let createdBackup = null;
 // True once the connected radio has been backed up on this page. Install
 // stays disabled until then; connecting a radio resets it.
 let radioBackedUp = false;
-let target = null, stockSeed = null, buildImage = null, previousImage = null, backup = null, device = null, hid = null, busy = false;
+let target = null, stockSeed = null, buildImage = null, previousImages = [], backup = null, device = null, hid = null, busy = false;
 let cancelBackup = false, backupRunning = false;
 let firmwareSelection = 0, backupSelection = 0;
 const resumeKey = 'h9-hid-pending-v1';
@@ -87,24 +86,27 @@ function refresh() {
 function fail(error) { status(error?.message || String(error), true); }
 function pending() { try { return JSON.parse(localStorage.getItem(resumeKey)); } catch { return null; } }
 function forgetPlan() { $('acknowledge').checked = false; refresh(); }
-// Step 04 (boot logo) needs H9 Toolbox Firmware: open it when the page sees
-// that build on the radio, keep it closed (with a note) when it sees another.
-// Unknown radios leave it as it is; the user can always open it.
+const previousInfo = kind => PREVIOUS.find(item => item.id === kind);
+// Step 04 (App Manager: apps and boot logo) needs this build: say so when the
+// page sees it on the radio, and what to do when it sees another.
 function setLogoStep(kind) {
   const gate = $('logoGate');
   if (kind === 'build') {
-    gate.textContent = `This radio runs ${BUILD.label}, so the boot logo can be changed.`;
+    gate.textContent = `This radio runs ${BUILD.label}. Power-cycle it normally, then open the App Manager.`;
     gate.classList.add('ready');
-    $('logoStep').open = true;
-  } else if (kind === 'stock' || kind === 'previous') {
-    gate.textContent = `This radio runs ${kind === 'stock' ? 'stock v1.0.38' : `the ${PREVIOUS.label}`}. Install ${BUILD.label} above first; the boot logo can be changed after that.`;
+  } else if (kind === 'stock' || previousInfo(kind)) {
+    gate.textContent = `This radio runs ${kind === 'stock' ? 'stock v1.0.38' : `the ${previousInfo(kind).label}`}. Install ${BUILD.label} above first, then open the App Manager.`;
     gate.classList.remove('ready');
-    $('logoStep').open = false;
   }
+}
+// [name, image] pairs of every known image, for classifyRadio.
+function namedImages() {
+  return [['stock', stockSeed ?? target?.image], ['build', buildImage], ...previousImages.map(p => [p.info.id, p.image])]
+    .filter(([, image]) => image);
 }
 // Which known image the radio holds, from a full sector-CRC scan, or null.
 function knownRadio(current) {
-  const images = [['stock', stockSeed ?? target?.image], ['build', buildImage], ['previous', previousImage]].filter(([, image]) => image);
+  const images = namedImages();
   try { return images.length > 1 ? classifyRadio(current, images) : null; } catch { return null; }
 }
 // The outcome of an install or restore, shown large under the progress bar.
@@ -129,29 +131,32 @@ function showResult(result) {
   }
   panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
-// Stock, H9 Toolbox Firmware, and the original Brick Breaker images, from
+// Stock, H9 Toolbox Firmware, and the earlier builds' images, from
 // the hosted files if no firmware has been selected yet. A backup needs them
 // to recognise the radio, not a chosen target.
 async function ensureReferences() {
-  if (buildImage && previousImage && (stockSeed || target?.kind === 'stock')) return;
+  if (buildImage && previousImages.length && (stockSeed || target?.kind === 'stock')) return;
   const hosted = await loadHostedBuild();
-  buildImage = hosted.build.image; previousImage = hosted.previous; stockSeed ??= hosted.stock;
+  buildImage = hosted.build.image; previousImages = hosted.previous; stockSeed ??= hosted.stock;
 }
 function knownImages() {
-  return target?.kind === 'build' && previousImage ? [previousImage] : [];
+  return target?.kind === 'build' ? previousImages.map(p => p.image) : [];
 }
-// Fetch the hosted build, its stock seed, and the original Brick Breaker's
-// sectors; every file is checked by SHA-256.
+// Fetch the hosted build, its stock seed, and the earlier builds' sectors;
+// every file is checked by SHA-256.
 async function loadHostedBuild() {
-  const [packageResponse, seedResponse, previousResponse] = await Promise.all([
-    fetch(`./${BUILD.packageFile}?v=${BUILD.packageSha256.slice(0, 8)}`, { cache: 'no-store' }),
-    fetch(`./${BUILD.stockSeedFile}?v=${BUILD.stockSeedSha256.slice(0, 8)}`, { cache: 'no-store' }),
-    fetch(`./${PREVIOUS.seedFile}?v=${PREVIOUS.seedSha256.slice(0, 8)}`, { cache: 'no-store' }),
+  const get = (file, hash) => fetch(`./${file}?v=${hash.slice(0, 8)}`, { cache: 'no-store' });
+  const [packageResponse, seedResponse, ...previousResponses] = await Promise.all([
+    get(BUILD.packageFile, BUILD.packageSha256),
+    get(BUILD.stockSeedFile, BUILD.stockSeedSha256),
+    ...PREVIOUS.map(item => get(item.seedFile, item.seedSha256)),
   ]);
-  if (!packageResponse.ok || !seedResponse.ok || !previousResponse.ok) throw new Error(`Could not download the ${BUILD.label} files.`);
+  if (![packageResponse, seedResponse, ...previousResponses].every(response => response.ok)) throw new Error(`Could not download the ${BUILD.label} files.`);
   const build = await loadBuildPackage(new Uint8Array(await packageResponse.arrayBuffer()));
   const stock = await loadStockSeed(new Uint8Array(await seedResponse.arrayBuffer()), build.image);
-  const previous = await loadPreviousImage(new Uint8Array(await previousResponse.arrayBuffer()), build.image);
+  const previous = [];
+  for (const [index, info] of PREVIOUS.entries())
+    previous.push({ info, image: await loadPreviousImage(new Uint8Array(await previousResponses[index].arrayBuffer()), build.image, info) });
   return { build, stock, previous };
 }
 async function verifyLiveGamePlan(current, changed, resumeSector) {
@@ -164,16 +169,18 @@ async function verifyLiveGamePlan(current, changed, resumeSector) {
   }
   const live = backup.image.slice();
   const targetCrcs = expectedCrcs(target.image);
-  const previousCrcs = previousImage ? expectedCrcs(previousImage) : [];
+  const previousCrcs = previousImages.map(p => expectedCrcs(p.image));
   for (const physical of changed) {
     const index = (physical - APP_START) / SECTOR_SIZE;
     if (current[index] === targetCrcs[index])
       live.set(target.image.subarray(physical, physical + SECTOR_SIZE), physical);
-    else if (previousImage && current[index] === previousCrcs[index])
-      live.set(previousImage.subarray(physical, physical + SECTOR_SIZE), physical);
+    else {
+      const match = previousImages.findIndex((p, k) => current[index] === previousCrcs[k][index]);
+      if (match >= 0) live.set(previousImages[match].image.subarray(physical, physical + SECTOR_SIZE), physical);
+    }
   }
   if (!await knownAppMatches(hid, current, live))
-    throw new Error(`Live radio bytes differ from exact stock, ${BUILD.label}, and the ${PREVIOUS.label}. No writes allowed.`);
+    throw new Error(`Live radio bytes differ from exact stock, ${BUILD.label}, and its earlier builds. No writes allowed.`);
 }
 
 async function validateSelectedBackup(announceWaiting = true) {
@@ -234,7 +241,7 @@ async function validateSelectedBackup(announceWaiting = true) {
 
 $('firmwareFile').addEventListener('change', async event => {
   const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImage = null; backup = null; forgetPlan();
+  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
   const file = event.target.files[0];
   if (!file) { $('firmwareState').textContent = 'No package selected'; await validateSelectedBackup(false); return; }
   try {
@@ -250,16 +257,16 @@ $('firmwareFile').addEventListener('change', async event => {
 });
 $('loadBuild').addEventListener('click', async () => {
   const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImage = null; backup = null; forgetPlan();
+  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
   busy = true; refresh();
   try {
     status(`Downloading the pinned ${BUILD.label} package and recovery seeds from H9 Toolbox.`);
     const hosted = await loadHostedBuild();
     if (selection !== firmwareSelection) return;
-    target = hosted.build; stockSeed = hosted.stock; buildImage = hosted.build.image; previousImage = hosted.previous;
+    target = hosted.build; stockSeed = hosted.stock; buildImage = hosted.build.image; previousImages = hosted.previous;
     $('firmwareFile').value = '';
     $('firmwareState').textContent = `${BUILD.label} · exact .fw verified`;
-    status(`${BUILD.label} package, exact stock v1.0.38 seed, and ${PREVIOUS.label} sectors verified locally. No radio write sent.`);
+    status(`${BUILD.label} package, exact stock v1.0.38 seed, and earlier-build sectors verified locally. No radio write sent.`);
     await validateSelectedBackup(false);
   } catch (error) {
     if (selection === firmwareSelection) { $('firmwareState').textContent = `${BUILD.label} package rejected`; fail(error); }
@@ -267,7 +274,7 @@ $('loadBuild').addEventListener('click', async () => {
 });
 $('loadStockGitHub').addEventListener('click', async () => {
   const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImage = null; backup = null; forgetPlan();
+  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
   busy = true; refresh();
   try {
     status('Downloading the pinned Type-C v1.0.38 ZIP from the TDH9 GitHub mirror.');
@@ -276,7 +283,7 @@ $('loadStockGitHub').addEventListener('click', async () => {
     const stockBytes = await extractPinnedStockFirmware(new Uint8Array(await zipResponse.arrayBuffer()));
     const loaded = await loadStockPackage(stockBytes);
     if (selection !== firmwareSelection) return;
-    target = loaded; buildImage = hosted.build.image; previousImage = hosted.previous; $('firmwareFile').value = '';
+    target = loaded; buildImage = hosted.build.image; previousImages = hosted.previous; $('firmwareFile').value = '';
     $('firmwareState').textContent = 'Stock v1.0.38 · pinned GitHub ZIP and extracted .fw verified';
     status('Stock Type-C v1.0.38 package verified locally. The hosted builds are available as fast backup seeds. No radio write sent.');
     await validateSelectedBackup(false);
@@ -315,7 +322,7 @@ $('createBackup').addEventListener('click', async () => {
     phase('Scanning sector CRCs');
     const current = await scanRadio(hid, progress);
     await ensureReferences();
-    const images = [['stock', stockSeed ?? target?.image], ['build', buildImage], ['previous', previousImage]].filter(([, image]) => image);
+    const images = namedImages();
     const source = images.length > 1 ? classifyRadio(current, images) : 'other';
     setLogoStep(source);
     status('Recovering accessible flash bytes using shifted CRC windows. This may take several minutes; keep USB connected.');
@@ -331,11 +338,11 @@ $('createBackup').addEventListener('click', async () => {
     // identical in all of them) and are never written through HID.
     const loaded = await loadHidArchive(archive, target?.image ?? stockSeed);
     if (source === 'stock') await verifyStockBackup(loaded.image);
-    const expected = { build: BUILD.imageSha256, previous: PREVIOUS.imageSha256 }[source];
+    const expected = source === 'build' ? BUILD.imageSha256 : previousInfo(source)?.imageSha256;
     if (expected && await sha256(loaded.image) !== expected)
       throw new Error('Recovered image differs from the pinned build it matched. No backup accepted.');
-    const sourceName = { build: 'H9-Toolbox-Firmware-', previous: 'Brick-Breaker-' }[source] ?? '';
-    const sourceLabel = { build: BUILD.label, previous: PREVIOUS.label }[source];
+    const sourceName = source === 'build' ? 'H9-Toolbox-Firmware-' : previousInfo(source)?.file ?? '';
+    const sourceLabel = source === 'build' ? BUILD.label : previousInfo(source)?.label;
     const date = new Date().toISOString().slice(0, 10);
     const name = `TD-H9-${sourceName}HID-recovery-${date}.h9hid`;
     const url = URL.createObjectURL(new Blob([archive], { type: 'application/octet-stream' }));
@@ -361,9 +368,8 @@ async function inspectRadio() {
   const marker = pending();
   const resumeSector = marker?.packageHash === target.packageHash && marker?.backupHash === backup.hash ? marker.sector : null;
   const changed = planUpdate(current, backup.image, target.image, resumeSector, knownImages());
-  if (target.kind === 'build' && (changed.length !== BUILD.sectors.length ||
-    !BUILD.sectors.every(physical => changed.includes(physical))))
-    throw new Error(`${BUILD.label} sector plan differs from its ${BUILD.sectors.length} pinned sectors. No writes allowed.`);
+  if (target.kind === 'build' && !changed.every(physical => BUILD.sectors.includes(physical)))
+    throw new Error(`${BUILD.label} sector plan leaves its ${BUILD.sectors.length} pinned sectors. No writes allowed.`);
   phase('Checking the radio (shifted CRC windows)');
   await verifyLiveGamePlan(current, changed, resumeSector);
   const backupCrcs = expectedCrcs(backup.image), targetCrcs = expectedCrcs(target.image);
@@ -423,8 +429,8 @@ async function performWrite(direction) {
     showResult(direction === 'update' && target.kind === 'build'
       ? { title: `${BUILD.label} installed and verified`,
           text: `All ${work.length} changed sectors were written and every firmware sector's CRC matches the package (${seconds}).`,
-          steps: ['Disconnect USB and power-cycle the radio.', 'You should see your boot logo, then the normal channel screen.', 'Hold Back to start Brick Breaker.', 'To change the startup image, continue to step 04.'],
-          action: { href: '#logo-title', label: 'Continue to step 04: boot logo' } }
+          steps: ['Disconnect USB and power-cycle the radio.', 'Open the App Manager, connect over Bluetooth, and install apps (APRS, Brick Breaker) and a boot logo.', 'On the radio, hold Back for the app menu.'],
+          action: { href: '../apps/', label: 'Open the App Manager' } }
       : { title: direction === 'update' ? 'Firmware written and verified' : backup.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
           text: `All ${work.length} changed sectors were written and every firmware sector's CRC matches ${direction === 'update' ? 'the package' : backup.source === 'hosted-stock' ? 'official stock v1.0.38' : 'your backup'} (${seconds}).`,
           steps: ['Disconnect USB and power-cycle the radio.', 'Check the version and your saved channels and settings.', 'Your boot logo is kept: it lives on the separate resource flash.'] });
@@ -441,6 +447,5 @@ async function performWrite(direction) {
 $('flash').addEventListener('click', () => performWrite('update'));
 $('restore').addEventListener('click', () => performWrite('restore'));
 
-mountLogoTool($('logoTool'), { onStatus: status });
 if (!('hid' in navigator)) status('WebHID is unavailable here. Use desktop Chrome or Edge over HTTPS.', true);
 refresh();

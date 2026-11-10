@@ -12,8 +12,9 @@
 //   - restore erases exactly what the directory lists (or, deep, every
 //     non-erased sector of the three tails), returning them to 0xFF.
 // Layout: game slot: a 4 KiB directory sector at 0xA1F000, the pack from
-// 0xA20000 to 0xCE0000, continuing into the font and then the voice tail if it
-// is larger. Music slot: directory 0xCE0000, data 0xCE1000-0xD00000.
+// 0xA20000 to 0xCC0000, continuing into the font and then the voice tail if it
+// is larger. Modules slot: directory 0xCC0000, data 0xCC1000-0xCE0000. Music
+// slot: directory 0xCE0000, data 0xCE1000-0xD00000.
 // Order: the directory is written first with its last 32-byte block left
 // erased ("in progress"); it claims the sectors, so an interrupted upload
 // resumes where it stopped. After the pack is written and verified, that
@@ -36,20 +37,23 @@ export const AREAS = [
 ];
 export const DIRECTORY = 0xa1f000;
 // Upload slots, each with its own directory sector. The game pack fills the
-// resource tail up to the music slot, then the font and voice tails; music
-// (an H9MU song for the Doom firmware, doom-firmware/music.py) gets the last
-// 128 KiB of the resource tail. A slot only claims or erases what its own
-// directory lists.
+// resource tail up to the modules slot, then the font and voice tails; the
+// modules slot (an H9MODS01 bundle for H9 Toolbox Firmware's module loader,
+// firmware-research/module-loader) and music (an H9MU song for the Doom
+// firmware, doom-firmware/music.py) get the last 2 x 128 KiB of the resource
+// tail. A slot only claims or erases what its own directory lists.
+export const MODULES_DIRECTORY = 0xcc0000;
 export const MUSIC_DIRECTORY = 0xce0000;
 export const SLOTS = {
   game: {
     name: 'game', directory: DIRECTORY,
     areas: [
-      { name: 'resource', start: DIRECTORY + 0x1000, end: MUSIC_DIRECTORY },
+      { name: 'resource', start: DIRECTORY + 0x1000, end: MODULES_DIRECTORY },
       { name: 'font', start: 0x717000, end: 0x800000 },
       { name: 'voice', start: 0x3a7000, end: 0x400000 },
     ],
   },
+  modules: { name: 'modules', directory: MODULES_DIRECTORY, areas: [{ name: 'modules', start: MODULES_DIRECTORY + 0x1000, end: MUSIC_DIRECTORY }] },
   music: { name: 'music', directory: MUSIC_DIRECTORY, areas: [{ name: 'music', start: MUSIC_DIRECTORY + 0x1000, end: 0xd00000 }] },
 };
 export const MAGIC = 'H9DATA01';
@@ -238,6 +242,21 @@ export async function readDirectory(radio, slot) {
   sector.set((await radio.readSlow(slot.directory, 128, () => {})).bytes, 0);
   sector.set((await radio.readSlow(slot.directory + COMPLETE_OFFSET, BLOCK, () => {})).bytes, COMPLETE_OFFSET);
   return sector;
+}
+
+// What a slot holds: { dir, pack }. `dir` is null for an empty or unreadable
+// directory; `pack` is null unless the upload is complete and its bytes read
+// back with the directory's SHA-256.
+export async function readPack(radio, slot, onProgress = () => {}) {
+  const dir = parseDirectory(await readDirectory(radio, slot));
+  if (!dir?.complete) return { dir, pack: null };
+  const parts = await readRanges(radio, dir.segments.map(s => ({ address: s.address, length: Math.ceil(s.length / BLOCK) * BLOCK })),
+    onProgress);
+  const pack = new Uint8Array(dir.length);
+  let offset = 0;
+  dir.segments.forEach((s, i) => { pack.set(parts[i].subarray(0, s.length), offset); offset += s.length; });
+  if (!sameBytes(await sha256(pack), dir.sha256)) throw new Error(`The ${slot.name} slot did not read back with its recorded SHA-256.`);
+  return { dir, pack };
 }
 
 export function completeBlock() {

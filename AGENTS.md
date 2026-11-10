@@ -18,6 +18,6 @@ Short version of the rules (details in the handbook, section 1):
   directory, so they can be restored.
 - Every custom firmware keeps a way back to USB update mode.
 
-Tests: `node --test test/*.test.mjs` (site and uploader; one
-`firmware-update` test fails on `main` as well), plus the Python tests next
+Tests: `node --test test/*.test.mjs` (site, uploader and
+installer), plus the Python tests next
 to each research tool.
