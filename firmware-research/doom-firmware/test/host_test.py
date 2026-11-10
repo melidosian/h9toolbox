@@ -3,9 +3,10 @@
 for the radio) against a chip image holding the uploaded pack, and save the
 panel as images: status screen, tic 35, tic 70, final.
 
-    python3 -I host_test.py --dmc <DMC100-Doom checkout> --pack <DOOM.DAT> [--tics N]
+    python3 -I host_test.py --pack <DOOM.DAT> [--dmc <DMC100-Doom checkout>] [--tics N]
 
-Needs Docker image h9-jieli-dev (gcc) and node (for the directory sector).
+Needs Docker image h9-jieli-dev (toolchain/Dockerfile.dev) and node; --dmc
+defaults to firmware-research/setup/dmc100 (setup/fetch_dmc100.sh).
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ OUT = ROOT / "build" / "host"
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dmc", type=Path, required=True)
+    parser.add_argument("--dmc", type=Path, default=ROOT.parent / "setup" / "dmc100")
     parser.add_argument("--pack", type=Path, required=True)
     parser.add_argument("--tics", type=int, default=140)
     parser.add_argument("--asan", action="store_true", help="AddressSanitizer build (stack traces on faults)")

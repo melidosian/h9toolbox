@@ -1,0 +1,7 @@
+# h9-jieli-dev: the h9-jieli image plus a host C toolchain (gcc), for the Doom
+# firmware's host tests (doom-firmware/test/host_test.py builds DMC100-Doom
+# natively and links it with GNU ld --wrap).
+#   docker build --platform linux/amd64 -t h9-jieli firmware-research/toolchain
+#   docker build --platform linux/amd64 -t h9-jieli-dev -f firmware-research/toolchain/Dockerfile.dev firmware-research/toolchain
+FROM h9-jieli
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*

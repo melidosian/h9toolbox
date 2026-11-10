@@ -259,9 +259,11 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
   stepper turned into 11025 Hz square waves). **Music**: `music.py` turns
   MIDI into H9MU, and `td_music.c` plays it with 7 square voices and 1 drum
   voice.
-- **Build**: `sh toolchain/jieli/setup.sh` once, then `build.py` in Docker
-  `h9-jieli`. Host tests: `test/host_test.py` (Docker `h9-jieli-dev`).
-  Release: `stage_release.py`. Web install: `dist/doom/` (`/doom/`).
+- **Build**: set the machine up once with [setup/README.md](setup/README.md)
+  (Python tools, stock firmware, toolchain, Docker images, DMC100), then
+  `build.py` with no arguments. Host tests: `test/host_test.py`
+  (Docker `h9-jieli-dev`). Release: `stage_release.py`. Web install:
+  `dist/doom/` (`/doom/`).
 
 ## 10. Dead ends (do not repeat)
 

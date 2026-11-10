@@ -1,0 +1,6 @@
+# Python packages for the radio tools (h9-flasher, hid-recovery, the
+# research probes). Versions are the ones the tools were tested with.
+#   python3 -m venv ~/h9usb && ~/h9usb/bin/pip install -r firmware-research/setup/requirements.txt
+# pyusb also needs the libusb library (macOS: brew install libusb).
+hidapi==0.15.0
+pyusb==1.3.1

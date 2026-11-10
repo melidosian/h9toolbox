@@ -8,6 +8,10 @@ which covers the hardware, memory maps, stock routines, recovery modes, rules
 and dead ends. The full history is in
 `firmware-research/resource-flash-log.md`; add every new finding there.
 
+New machine: [firmware-research/setup/README.md](firmware-research/setup/README.md)
+fetches and checks everything the builds and radio tools need that is not in
+the repo (stock firmware, DMC100-Doom, Python packages, Docker images).
+
 Short version of the rules (details in the handbook, section 1):
 
 - Do not push, merge, or post publicly (comments, issues, PRs) unless the

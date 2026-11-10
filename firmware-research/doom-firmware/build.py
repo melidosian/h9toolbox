@@ -411,9 +411,11 @@ def build(dmc: Path, stock_image: Path, stock_package: Path, toolchain: Path, ou
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dmc", type=Path, required=True)
-    parser.add_argument("--stock-image", type=Path, required=True)
-    parser.add_argument("--stock-package", type=Path, required=True)
+    # Defaults: what firmware-research/setup/ fetches (fetch_dmc100.sh, fetch_stock.py).
+    setup = RESEARCH / "setup"
+    parser.add_argument("--dmc", type=Path, default=setup / "dmc100")
+    parser.add_argument("--stock-image", type=Path, default=setup / "stock" / "app.bin")
+    parser.add_argument("--stock-package", type=Path, default=setup / "stock" / "TD-H9-V1.0.38.fw")
     parser.add_argument("--output", type=Path, default=ROOT / "build")
     args = parser.parse_args()
     bundled = RESEARCH / "toolchain" / "jieli" / "jieli-linux-toolchains-20260730.1"  # toolchain/jieli/setup.sh
