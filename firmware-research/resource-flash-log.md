@@ -2859,4 +2859,25 @@ flash-power question, and asked for more speed.
   **The vendor HID updater erases and writes the far region.** The /doom/
   installer's USB step is viable.
 
+## 2026-11-09 Web install of Doom works end to end (/doom/)
+
+- The radio was restored to stock v1.0.38 over PTT+2 (`restore_stock.py
+  --known h9-doom-r32.fw`: 23 sectors, all 213 stock). In Chrome, `/doom/`:
+  Load Doom (4 files hash-checked) → Connect → Back up (5 s, `.h9hid`) →
+  Install: 0 code sectors (r32 code was still at `0xEA000`), 23 firmware
+  sectors, all verified. Doom runs from a browser install.
+- Bluetooth step: the uploader read the whole 1 MB target (1,060,864 B) to
+  check it before noticing the data was already complete, about 17 minutes
+  at upload mode's about 1 KB/s.
+- Fixes:
+  - `uploadPack` reads the slot's directory sector first and returns
+    (`alreadyComplete`) when it is COMPLETE with the same length and
+    SHA-256 (COMPLETE is written only after a full read-back verify).
+  - The post-install message no longer claims there is no game data.
+  - New test (only the directory is read); data-upload 11/11.
+- Added "Remove Doom data" (`/doom/` step 02, collapsed): `restore()` for
+  the music then the game slot, read back as erased. It reads each sector
+  first (the erase command carries the sector's CRC as a guard), so it is
+  slow until upload mode's Bluetooth rate is fixed.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

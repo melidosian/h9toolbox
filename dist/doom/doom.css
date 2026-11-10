@@ -12,3 +12,6 @@
 .keys th{color:#95b3ad;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
 .log li.error{color:#ffb4a8}
 @media(max-width:620px){.file-list li{grid-template-columns:1fr}.file-list .state{grid-column:1;grid-row:auto;text-align:left}}
+.button.danger{border:1px solid #a5584e;background:#3d1f1c;color:#ffd6cf}
+.button.danger:hover:not(:disabled){border-color:#ff9f8f}
+.remove-data p{margin:10px 0}

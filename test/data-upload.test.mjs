@@ -144,3 +144,22 @@ test('music slot: own directory, last 124 KiB of the resource tail, never touche
   assert.deepEqual(sim.chip.subarray(0xa20000, 0xa20000 + game.length), game);
   assert.equal(parseDirectory(sim.chip.subarray(DIRECTORY, DIRECTORY + SECTOR)).complete, true);
 });
+
+test('an upload that is already complete reads only its directory sector', async () => {
+  const sim = new SimulatedRadio();
+  stockLikeChip(sim);
+  const data = pack(5 * SECTOR + 9, 4);
+  let before = sim.reads;
+  await uploadPack(sim.radio, data, { name: 'game' });
+  const fullUpload = sim.reads - before;
+  before = sim.reads;
+  const again = await uploadPack(sim.radio, data, { name: 'game' });
+  assert.equal(again.alreadyComplete, true);
+  assert.equal(again.sectorsWritten, 0);
+  // only the 4 KiB directory: a small fraction of the reads a real upload makes
+  assert.ok((sim.reads - before) * 5 < fullUpload, `read ${sim.reads - before} times (upload: ${fullUpload})`);
+  // a different pack still goes the long way and replaces it
+  const other = await uploadPack(sim.radio, pack(3 * SECTOR, 8), { name: 'other' });
+  assert.equal(other.alreadyComplete, undefined);
+  assert.equal(parseDirectory(sim.chip.subarray(DIRECTORY, DIRECTORY + SECTOR)).name, 'other');
+});

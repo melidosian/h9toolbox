@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../landing.css?v=20261108c">
   <link rel="stylesheet" href="../firmware-update/update.css?v=20261108f">
-  <link rel="stylesheet" href="./doom.css?v=20261109e">
+  <link rel="stylesheet" href="./doom.css?v=20261109g">
   <script src="../https-redirect.js"></script>
 </head>
 <body>
@@ -62,6 +62,11 @@
         <div class="card-head"><div><span class="step">02</span><h2 id="bt-title">Upload the game data over Bluetooth</h2></div><span class="chip" id="btState">Disconnected</span></div>
         <ol class="instructions"><li>Unplug USB and power the radio on. With no game data it shows <strong>BLUETOOTH UPLOAD</strong> by itself. (To upload again later, hold <strong>2</strong> while powering on.)</li><li>Click <strong>Connect Bluetooth</strong> and choose the radio (TD-H9…).</li><li>Click <strong>Upload game data</strong>: about 1 MB, 20–25 minutes; keep this tab open. Interrupted? Upload again and it resumes.</li><li>Optional: click <strong>Upload music</strong> for the E1M1 track as an 8-bit chiptune (29 KB, about a minute). It has its own slot and does not touch the game data.</li></ol>
         <div class="controls"><button class="button primary-button" id="btConnect">Connect Bluetooth</button><button class="button ghost" id="btDisconnect" disabled>Disconnect</button><button class="button ghost" id="uploadPack" disabled>Upload game data</button><button class="button ghost" id="uploadSong" disabled>Upload music</button></div>
+        <details class="own-files remove-data">
+          <summary>Remove Doom data from the radio</summary>
+          <p class="fine">Erases the game data and the music from the radio's 16 MB chip (only the sectors their upload records list) and reads them back as erased. Use it when you go back to the radio firmware and want that space empty again. Needs the same Bluetooth connection: Doom upload mode (hold 2) or H9 Toolbox Firmware.</p>
+          <div class="controls"><button class="button danger" id="removeData" disabled>Remove Doom data</button></div>
+        </details>
       </section>
 
       <section class="card" aria-labelledby="play-title">
@@ -80,6 +85,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. Doom on the TD-H9 has been tested on one radio.</p></footer>
   </div>
-  <script type="module" src="./doom.mjs?v=20261109e"></script>
+  <script type="module" src="./doom.mjs?v=20261109g"></script>
 </body>
 </html>

@@ -53,6 +53,7 @@ function refresh() {
   $('btDisconnect').disabled = busy || !session;
   $('uploadPack').disabled = busy || !session || !files.pack;
   $('uploadSong').disabled = busy || !session || !files.song;
+  $('removeData').disabled = busy || !session;
   for (const [key, id] of [['firmware', 'rowFirmware'], ['code', 'rowCode'], ['pack', 'rowPack'], ['song', 'rowSong']]) {
     const row = $(id), entry = files[key];
     row.classList.toggle('ready', !!entry);
@@ -181,7 +182,7 @@ $('install').addEventListener('click', () => task(async () => {
   const left = planInstall(current, whole, files.code.checked.length);
   requireValue(!left.sectors.length, `Verification failed at ${left.sectors.map(hex).join(', ')}. Run Install again (it resumes).`);
   progress(1, 1, 'Installed');
-  log('Doom installed and verified. Unplug USB and power-cycle the radio. With no game data yet, it opens the Bluetooth upload screen by itself: go to step 02.');
+  log('Doom installed and verified. Unplug USB and power-cycle the radio. If the game data is not on the radio yet, it opens the Bluetooth upload screen by itself (step 02); if it is, Doom starts.');
 }));
 
 for (const id of ['skipBackup', 'acknowledge']) $(id).addEventListener('change', refresh);
@@ -202,7 +203,7 @@ $('btConnect').addEventListener('click', () => task(async () => {
 $('btDisconnect').addEventListener('click', () => { session?.disconnect(); session = null; $('btState').textContent = 'Disconnected'; refresh(); });
 
 async function upload(key, slot) {
-  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109e');
+  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109g');
   const began = performance.now();
   const entry = files[key];
   const manifest = await uploadPack(session.radio, entry.checked, {
@@ -213,8 +214,23 @@ async function upload(key, slot) {
       progress(fraction, 1, `${Math.floor(fraction * 100)}% · ${phase}${rate ? ` · ${(rate / 1024).toFixed(2)} KiB/s` : ''}${left}`);
     },
   });
-  log(`${entry.label}: uploaded and verified (${manifest.bytes.toLocaleString()} bytes, ${(manifest.totalSeconds / 60).toFixed(1)} min).`);
+  log(manifest.alreadyComplete ? `${entry.label} is already on the radio; nothing to upload.`
+    : `${entry.label}: uploaded and verified (${manifest.bytes.toLocaleString()} bytes, ${(manifest.totalSeconds / 60).toFixed(1)} min).`);
 }
+$('removeData').addEventListener('click', () => task(async () => {
+  const { SLOTS, restore } = await import('./upload.mjs?v=20261109g');
+  let erased = 0;
+  for (const slot of [SLOTS.music, SLOTS.game]) {
+    log(`Removing the ${slot.name === 'game' ? 'game data' : 'music'}…`);
+    const result = await restore(session.radio, {
+      slot, onProgress: (fraction, phase) => progress(fraction, 1, `${slot.name}: ${phase}`),
+    });
+    erased += result.erased;
+    log(result.note ?? `${slot.name === 'game' ? 'Game data' : 'Music'} removed: ${result.erased} sector(s) erased and read back as erased.`);
+  }
+  progress(1, 1, 'Removed');
+  log(`Doom data removed (${erased} sector(s)). The Doom firmware will now open its upload screen at power-on.`);
+}));
 $('uploadPack').addEventListener('click', () => task(() => upload('pack', 'game')));
 $('uploadSong').addEventListener('click', () => task(() => upload('song', 'music')));
 

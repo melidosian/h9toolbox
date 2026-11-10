@@ -258,6 +258,22 @@ export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game
     return part;
   });
   const started = now();
+  // Already there? The directory alone says so: COMPLETE is written only after
+  // the whole upload read back correctly. One sector instead of the whole
+  // target (about 17 minutes for the 1 MB game pack at upload mode's rate).
+  const [existing] = await readRanges(radio, [{ address: slot.directory, length: SECTOR }], () => {});
+  const already = parseDirectory(existing);
+  if (already?.complete && already.length === pack.length && sameBytes(already.sha256, digest)) {
+    radio.log(`"${already.name}" is already on the radio and complete; nothing to upload.`);
+    onProgress(1, 'Already on the radio');
+    return {
+      kind: 'td-h9-data-upload', slot: slot.name, name: already.name, bytes: pack.length,
+      sha256: Array.from(digest, b => b.toString(16).padStart(2, '0')).join(''),
+      directory: hex(slot.directory), segments: already.segments.map(s => ({ address: hex(s.address), length: s.length })),
+      sectorsWritten: 0, bytesProgrammed: 0, writeSeconds: 0, writeBytesPerSecond: 0,
+      totalSeconds: (now() - started) / 1000, verified: true, complete: true, alreadyComplete: true,
+    };
+  }
   radio.log(`Reading ${regions.reduce((s, r) => s + r.length, 0).toLocaleString()} bytes to check the target sectors.`);
   let current = await readRanges(radio, regions, f => onProgress(0.2 * f, 'Checking target sectors'));
   const previous = parseDirectory(current[0]);
