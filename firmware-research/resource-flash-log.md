@@ -2931,4 +2931,19 @@ flash-power question, and asked for more speed.
 - Build 35: wait style F posts an event about every 2 ms (spin of cpu/5
   loops between, one tick yield per 5 events); styles E/F/Y/B/L.
 
+- Build 35 on hardware, WAIT F: the check read took about 25 s (no better
+  than E). Writing was worse: 8 sectors in 4.5 min (about 260 ms per 32-byte
+  W), and the upload took 5.7 min in all. Music removal took 74.1 s
+  (156.6 s on build 33).
+- Reads and writes use the same link parameters (`link_params_fixed`
+  12/12/0/600), so peripheral latency is not the write delay.
+- Status:
+  - Reads waited on app_core's loop; E helps (about 1.3 KiB/s).
+  - Write ACKs (about 260 ms each) are a separate, unexplained
+    bottleneck; the stock clone 'W' path is the next place to look.
+  - A first 1 MB game upload in upload mode would take about 2.5 h,
+    against about 23 min through H9 Toolbox.
+- The user asked to flash back to H9 Toolbox Firmware (the hosted
+  `h9-toolbox-firmware-v1.0.38.fw`).
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
