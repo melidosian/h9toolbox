@@ -2888,4 +2888,24 @@ flash-power question, and asked for more speed.
   128-byte record and the 32-byte COMPLETE block) with 32-byte reads: 7
   reads (5 data + 2 bank) instead of 32 KiB.
 
+## 2026-11-09 Build 33: system clock diagnostic (slow upload, game speed)
+
+- Stock `clk_set` is app+`0xC538E(name, hz)`, name `0x01EB1C7B` = "sys".
+  - 240 MHz: `0x633E8`, called first by mode 3's entry `0x63C9A`, and by
+    `0x65714` and `0x66182`. Also `0x61EB8`, reached through `0x61FC4`
+    from the radio app (`0x7B1A4`, `0x818F0`) and app_core.
+  - 24 MHz: `0x5E3E2`, registered by pointer at `0x5E21E` (a
+    power/idle callback).
+- Hypothesis: the system drops to 24 MHz when idle and the radio app's
+  activity restores 240 MHz. Without the radio app, upload mode (and maybe
+  the game) runs at 24 MHz.
+- Build 33:
+  - `h9_clk_set_sys(hz)` calls `0x01EC548E` with "sys".
+  - `td_cpu_loops()` is C-hello's LOOP (about 200,000 per tick in H9
+    Toolbox).
+  - The status screen shows CPU, then sets 240 MHz and shows CPU again,
+    then plays at that clock.
+  - Upload mode shows CPU every 3 s; key 6 sets 240 MHz.
+- Package `2cb3e002…`, flash `074ca49f…`, far `9be34f1a…`.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

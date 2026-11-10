@@ -115,3 +115,5 @@ int main(int argc, char **argv)
     td_main();
     return 1;
 }
+
+void h9_clk_set_sys(unsigned hz) { (void)hz; }

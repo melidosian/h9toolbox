@@ -82,6 +82,34 @@ void td_text(unsigned x, unsigned y, const char *s, uint16_t fg, uint16_t bg)
     }
 }
 
+// Busy-loop iterations per 100 Hz tick over 25 ticks: C-hello's LOOP, the CPU
+// speed estimate (H9 Toolbox: about 200,000 = 240 MHz; 24 MHz would read
+// about 20,000). Diagnostic (build 33): slow upload-mode Bluetooth, and the
+// game's own clock.
+uint32_t td_cpu_loops(void)
+{
+    volatile uint32_t loops = 0;
+    uint32_t first = td_ticks();
+    while (td_ticks() == first) {
+    }
+    first = td_ticks();
+    while (td_ticks() - first < 25 && loops < 200000000u)
+        loops++;
+    return loops / 25;
+}
+
+static void number(unsigned x, unsigned y, uint32_t v, uint16_t color)
+{
+    char t[11];
+    int i = 10;
+    t[i] = 0;
+    do {
+        t[--i] = (char)('0' + v % 10);
+        v /= 10;
+    } while (v && i);
+    td_text(x, y, t + i, color, BLACK);
+}
+
 static void usb_loader(void)
 {
     td_fill(0, 0, TD_W, TD_H, BLACK);
@@ -152,8 +180,8 @@ static void upload_mode(const char *why)
     // uploaded at 123 B/s here against 785 B/s in H9 Toolbox, reads were
     // about 6x slower too): Y yields 10 ms, B never yields, L yields 200 ms.
     static const char styles[] = "YBL";
-    unsigned style = 0, last = 0;
-    uint32_t since = 0, shown = 1;
+    unsigned style = 0, last = 0, last_six = 0, clock_set = 0;
+    uint32_t since = 0, shown = 1, measured = 0;
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
@@ -166,11 +194,22 @@ static void upload_mode(const char *why)
         }
         if (key == TD_KEY_3 && td_ticks() - since >= 200)
             usb_loader();
-        if (shown) {
+        if (key == TD_KEY_6 && last_six != TD_KEY_6) {
+            h9_clk_set_sys(240000000u);  // build 33: stock's clk_set("sys", 240 MHz)
+            clock_set = 1;
+            shown = 1;
+        }
+        last_six = key;
+        if (shown || td_ticks() - measured >= 300) {
             char text[8] = { 'W', 'A', 'I', 'T', ' ', styles[style], 0 };
-            td_fill(0, 48, TD_W, 10, BLACK);
+            td_fill(0, 48, TD_W, 38, BLACK);
             td_text(0, 48, text, CYAN, BLACK);
-            td_text(0, 62, "5: CHANGE", WHITE, BLACK);
+            td_text(0, 62, "5 WAIT  6 240MHZ", WHITE, BLACK);
+            td_text(0, 76, "CPU", WHITE, BLACK);
+            number(32, 76, td_cpu_loops(), YELLOW);
+            if (clock_set)
+                td_text(112, 76, "SET", GREEN, BLACK);
+            measured = td_ticks();
             shown = 0;
         }
         if (style == 0)
@@ -227,6 +266,14 @@ void td_main(void)
         td_fatal("PACK CHECK", why[-e <= 6 ? -e : 0]);
     }
     td_text(0, 20, "GAME DATA OK", GREEN, BLACK);
+    // Build 33 diagnostic: the CPU before and after stock's clk_set("sys",
+    // 240 MHz); the game then runs at whatever that leaves.
+    td_text(0, 62, "CPU", WHITE, BLACK);
+    number(32, 62, td_cpu_loops(), YELLOW);
+    h9_clk_set_sys(240000000u);
+    td_text(0, 76, "240", WHITE, BLACK);
+    number(32, 76, td_cpu_loops(), GREEN);
+    h9_delay(3000);
 
     // 5. Sound: the pack's PC-speaker effects through the DAC (td_sound.c).
     S_PcsInit(img_read, img.sect[DMC_SECT_SOUNDS].off, img.sect[DMC_SECT_SOUNDS].size);
