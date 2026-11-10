@@ -21,8 +21,6 @@ void h9_dac_rate(void *dac, unsigned rate);  // stock app+0x433C8
 void h9_dac_start(void *dac);                // stock app+0x43434
 void h9_dac_write128(const void *pcm);       // stock app+0x43598: 128 bytes
 void h9_audio_volume(unsigned state, unsigned level);  // stock app+0x60DDA
-void h9_clk_set_sys(unsigned hz);           // stock clk_set("sys", hz), app+0xC538E
-uint32_t td_cpu_loops(void);                // busy-loop iterations per 10 ms tick (C-hello LOOP)
 void td_sound_init(void);  // td_sound.c: speaker, DAC at 11025 Hz
 void td_sound_pump(void);  // keeps the DAC about 200 ms ahead
 void h9_nor_read_raw(void *buffer, uint32_t chip_address, uint32_t length);

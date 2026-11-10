@@ -2951,4 +2951,15 @@ flash-power question, and asked for more speed.
   Doom code is still at `0xEA000` (inert), and the game data and music
   remain on the 16 MB chip.
 
+## 2026-11-09 Release 36 (pushed to charlie/loader-toolchain)
+
+- Release 32 plus upload mode waking app_core every 10 ms (build 34's E,
+  the measured read improvement); without the build 33–35 diagnostics (CPU
+  readout, `clk_set`, wait styles).
+- Package `9792a590…`, flash `6bf9dc4f…`, far `bf51313f…`. Staged into
+  `dist/doom/files/` (r36) for the /doom/ installer; pack and music
+  unchanged.
+- Not yet flashed as this exact build: each change was tested on hardware
+  in builds 32–35, but not this combination.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

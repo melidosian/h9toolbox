@@ -82,34 +82,6 @@ void td_text(unsigned x, unsigned y, const char *s, uint16_t fg, uint16_t bg)
     }
 }
 
-// Busy-loop iterations per 100 Hz tick over 25 ticks: C-hello's LOOP, the CPU
-// speed estimate (H9 Toolbox: about 200,000 = 240 MHz; 24 MHz would read
-// about 20,000). Diagnostic (build 33): slow upload-mode Bluetooth, and the
-// game's own clock.
-uint32_t td_cpu_loops(void)
-{
-    volatile uint32_t loops = 0;
-    uint32_t first = td_ticks();
-    while (td_ticks() == first) {
-    }
-    first = td_ticks();
-    while (td_ticks() - first < 25 && loops < 200000000u)
-        loops++;
-    return loops / 25;
-}
-
-static void number(unsigned x, unsigned y, uint32_t v, uint16_t color)
-{
-    char t[11];
-    int i = 10;
-    t[i] = 0;
-    do {
-        t[--i] = (char)('0' + v % 10);
-        v /= 10;
-    } while (v && i);
-    td_text(x, y, t + i, color, BLACK);
-}
-
 static void usb_loader(void)
 {
     td_fill(0, 0, TD_W, TD_H, BLACK);
@@ -176,66 +148,24 @@ static void upload_mode(const char *why)
     h9_post_core_event(0xFFFF, 0);  // wake app_core (it applies requests after a message)
     td_text(0, 108, "HOLD 3: USB", YELLOW, BLACK);
     td_text(0, 118, "POWER OFF WHEN DONE", WHITE, BLACK);
-    // Wait style (key 5 cycles; release 32 test of the slow upload: build 26
-    // uploaded at 123 B/s here against 785 B/s in H9 Toolbox, reads were
-    // about 6x slower too): Y yields 10 ms, B never yields, L yields 200 ms.
-    static const char styles[] = "EFYBL";
-    unsigned style = 0, last = 0, last_six = 0, clock_set = 0;
-    uint32_t since = 0, shown = 1, cpu = td_cpu_loops();  // measured once (a busy loop)
+    // Upload mode's Bluetooth replies wait on app_core's message loop, which
+    // nothing else wakes here (the radio app keeps it busy in H9 Toolbox):
+    // post it the ignored 0xFFFF event every 10 ms. Builds 33-35 measured
+    // reads at about 1.3 KiB/s with this against about 0.5 without; the CPU
+    // clock is not the cause (about 135,000 loops a tick either way); write
+    // ACKs stay slow (about 260 ms each, open).
+    uint32_t since = 0;
+    unsigned last = 0;
     for (;;) {
         unsigned key = h9_key();
         if (key != last) {
             last = key;
             since = td_ticks();
-            if (key == TD_KEY_5) {
-                style = (style + 1) % 5;
-                shown = 1;
-            }
         }
         if (key == TD_KEY_3 && td_ticks() - since >= 200)
             usb_loader();
-        if (key == TD_KEY_6 && last_six != TD_KEY_6) {
-            h9_clk_set_sys(240000000u);  // build 33: stock's clk_set("sys", 240 MHz)
-            clock_set = 1;
-            cpu = td_cpu_loops();
-            shown = 1;
-        }
-        last_six = key;
-        if (shown) {
-            char text[8] = { 'W', 'A', 'I', 'T', ' ', styles[style], 0 };
-            td_fill(0, 48, TD_W, 38, BLACK);
-            td_text(0, 48, text, CYAN, BLACK);
-            td_text(0, 62, "5 WAIT  6 240MHZ", WHITE, BLACK);
-            td_text(0, 76, "CPU", WHITE, BLACK);
-            number(32, 76, cpu, YELLOW);
-            if (clock_set)
-                td_text(112, 76, "SET", GREEN, BLACK);
-            shown = 0;
-        }
-        // E (default, build 34): wake app_core every 10 ms with the ignored
-        // 0xFFFF event, in case the Bluetooth replies wait for its loop
-        // (build 33: CPU at about 135,000 loops per tick, so not a 24 MHz
-        // clock; each exchange still takes about a second). Y yields 10 ms,
-        // B never yields, L yields 200 ms.
-        // Build 34 on hardware: E read at about 1.3 KiB/s (about 0.5 before).
-        // F (build 35): an event about every 2 ms (a short spin between, sized
-        // from the measured loop rate), yielding once per tick.
-        if (style == 0) {
-            h9_post_core_event(0xFFFF, 0);
-            h9_delay(10);
-        } else if (style == 1) {
-            for (unsigned i = 0; i < 4; i++) {
-                h9_post_core_event(0xFFFF, 0);
-                for (volatile uint32_t spin = cpu / 5; spin; spin--) {
-                }
-            }
-            h9_post_core_event(0xFFFF, 0);
-            h9_delay(10);
-        } else if (style == 2) {
-            h9_delay(10);
-        } else if (style == 4) {
-            h9_delay(200);
-        }
+        h9_post_core_event(0xFFFF, 0);
+        h9_delay(10);
     }
 }
 
@@ -286,14 +216,6 @@ void td_main(void)
         td_fatal("PACK CHECK", why[-e <= 6 ? -e : 0]);
     }
     td_text(0, 20, "GAME DATA OK", GREEN, BLACK);
-    // Build 33 diagnostic: the CPU before and after stock's clk_set("sys",
-    // 240 MHz); the game then runs at whatever that leaves.
-    td_text(0, 62, "CPU", WHITE, BLACK);
-    number(32, 62, td_cpu_loops(), YELLOW);
-    h9_clk_set_sys(240000000u);
-    td_text(0, 76, "240", WHITE, BLACK);
-    number(32, 76, td_cpu_loops(), GREEN);
-    h9_delay(3000);
 
     // 5. Sound: the pack's PC-speaker effects through the DAC (td_sound.c).
     S_PcsInit(img_read, img.sect[DMC_SECT_SOUNDS].off, img.sect[DMC_SECT_SOUNDS].size);

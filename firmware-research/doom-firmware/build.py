@@ -164,18 +164,6 @@ h9_audio_volume:
     r4 = 0x01e60eda
     call r4
     {pc, r14-r4} = [sp++]
-/* void h9_clk_set_sys(unsigned hz): stock clk_set("sys", hz) (app+0xC538E,
- * name at 0x01EB1C7B). Stock sets 240 MHz on mode 3 entry and on radio-app
- * activity (0x61EB8), 24 MHz from a power callback (0x5E3E2). */
-    .globl h9_clk_set_sys
-h9_clk_set_sys:
-    [--sp] = {rets, r14-r4}
-    r1 = r0
-    r0 = 0x01eb1c7b
-    r4 = 0x01ec548e
-    call r4
-    {pc, r14-r4} = [sp++]
-
 /* void h9_enter_usb_loader(void): ROM 0x02000D68 (proven 2026-11-09). */
     .globl h9_enter_usb_loader
 h9_enter_usb_loader:

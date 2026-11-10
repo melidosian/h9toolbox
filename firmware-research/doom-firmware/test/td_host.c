@@ -116,4 +116,3 @@ int main(int argc, char **argv)
     return 1;
 }
 
-void h9_clk_set_sys(unsigned hz) { (void)hz; }

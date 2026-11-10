@@ -1,18 +1,18 @@
 {
   "kind": "td-h9-doom-release",
-  "version": "r32",
+  "version": "r36",
   "firmware": {
-    "file": "h9-doom-r32.fw",
+    "file": "h9-doom-r36.fw",
     "name": "Doom firmware",
     "bytes": 897440,
-    "sha256": "a68c4dcdcb45493897fb970063a5f7566928b1643e14890a87416dd7a5b2eee7",
-    "imageSha256": "10a741b948b193daaed770573bfaabf0121f7ec67e301080af74c6995c81eacc"
+    "sha256": "9792a590711494ad4a8bdee25fb85d5b8bdfddcc8803f130c985a995f1be1c6a",
+    "imageSha256": "6bf9dc4f065bb146c752cb88926c9b0bf6ccd24861b34143e9f47fb644733042"
   },
   "code": {
-    "file": "h9-doom-r32-code-0xEA000.bin",
+    "file": "h9-doom-r36-code-0xEA000.bin",
     "name": "Doom code",
     "bytes": 66798,
-    "sha256": "c1e8c688ac220a0bdd15366985dede27068e2466f76c80a6903426b1dad2c668"
+    "sha256": "bf51313fb2e3615f6d472b5d9be17d0163a46896958b8884aa2ff470e0f9af16"
   },
   "pack": {
     "file": "freedoom-e1m1-pack.dat",
