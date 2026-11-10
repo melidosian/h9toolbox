@@ -2996,3 +2996,325 @@ flash-power question, and asked for more speed.
   first on H9 Toolbox, then Doom upload mode.
 
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
+
+## 2026-11-10 Module loader: code from the resource chip runs in RAM
+
+- New `module-loader/` (branch `charlie/ram-loader`, local): H9 Toolbox
+  Firmware with Brick Breaker removed from main flash. A 608-byte stub in
+  its cave (app+`0xA77F0`) is called from the same hold-Back hook
+  (app+`0x088906`). The heap end is moved from `0x2BF00` to `0x29F00`
+  (app+`0x05FA9E`), giving modules an 8 KiB RAM slot. Modules live in a new
+  "modules" upload slot (directory `0xCC0000`, `H9MODS01` bundle at
+  `0xCC1000`). The game slot's resource area now ends at `0xCC0000`.
+- Bundle build 1 (`feedc6b1…`, 3,468 B): module 0 is the menu (C, JieLi
+  clang, 1,760 B); module 1 is Brick Breaker (`game.s` unchanged and
+  checked against `19ab1b31…`, relinked for `0x29F00`, 1,628 B).
+- Package `efb32b8e…`, flash `79858310…`. Hold-8 flash on Windows:
+  - Backup `h9-before-modules-20261110.bin` = `83f79fb3…` (H9 Toolbox, as
+    expected). 6 sectors were written and each one verified.
+  - The final full readback failed at offset 655,360 (`0xA0000`) with
+    `WinError 31`.
+  - A later fresh `flash` session (new backup path) failed at the same
+    offset; a `resume` straight after an error failed at offset 0.
+  - Reading H9 Toolbox's image in full worked in the first session. The
+    cause is unknown. It matters because the flasher's `restore`/`resume`
+    start with a full read, so PTT+2 HID is the recovery path until this is
+    understood.
+- Hardware (user): the radio boots and works normally. With no bundle,
+  holding Back does nothing. After uploading `h9_modules.bin` over
+  Bluetooth (data-upload prototype, slot Modules), holding Back shows the
+  module menu: **first code loaded from the resource chip into RAM and
+  run** [HW]. The Bluetooth upload ran with the 8 KiB smaller heap.
+- Not yet reported: Brick Breaker from the menu, RADIO (ROM `0x0200000A`
+  as a deliberate restart), USB UPDATE, a long Bluetooth programming
+  session with the smaller heap.
+
+## 2026-11-10 Module loader: RADIO freeze fixed; APRS ring fills while a module runs
+
+- **RADIO freeze:** the menu's RADIO item jumped to ROM `0x0200000A`,
+  which froze the radio. Stock `cpu_reset` (app+`0xC6EC8` / `0xC6EF4`,
+  CPU `0x01EC6FC8` / `0x01EC6FF4`) turns interrupts off through ROM
+  `0x02001634`, sets bit 4 of `[0x1E0000]` and spins until the reset.
+  The menu module now does the same (`h9_reset` in
+  `module-loader/modules/common/h9lib.s`). This is a bundle-only change; the
+  firmware image is unchanged (`79858310…`). The stub's own `ml_reset` still
+  uses `0x0200000A` and needs the same fix at the next firmware flash.
+- **APRS ring while a module runs (hardware, user report):** the APRS
+  MONITOR module (`module-loader/modules/aprs_monitor/`) reads the
+  main-side APRS serial ring (`0x16634`, write index `h[0x16E34]`, read
+  index `h[0x16E36]`, mask 2047) and advances the read index itself. On the
+  radio, WRITE and READ advanced every second and the GPS-sentence count
+  rose once a second. So the ring producer (app+`0x078EFE`) keeps running
+  while a module holds the main loop, and GPS NMEA (command `0x10`) arrives
+  on the same link. Decoding of received AX.25 packets (command `0x00`) on
+  hardware is not yet confirmed.
+
+## 2026-11-10 Stock APRS Beacon List and Inbox live in `sys_data` (static trace)
+
+- Received packet path: dispatcher app+`0x0870BC` (command `0x00`) decodes
+  with app+`0x05D9F6`, then calls the handler app+`0x086138`
+  (`0x01E86238`). The handler's tail is the digipeater (DIGI1/DIGI2 alias
+  and `WIDE` compares, forward at `0x01E8616E`); `0x01E85ACC` handles `:`
+  messages addressed to the radio's own callsign and compares the text with
+  fixed strings (looks like remote commands; not traced further).
+- The parser at `0x01E6B81C` copies the 324-byte decoded packet into RAM
+  `0x13D10` (`0x11AD0 + 0x2240`, memcpy at `0x01E6BA68`). Its layout matches
+  `replacement-source/main/h9_main_ax25.h` `H9MainAx25Decoded`: destination
+  `+0`, source `+7` (6 ASCII bytes, spaces trimmed to 0, then the SSID
+  byte), digipeaters `+14` (6 × 7), digi count `+56`, control `+57`, PID
+  `+58`, information `+59` (256 bytes), information length u16 `+316`.
+  Bytes `+318..+323` are not identified.
+- Beacon save, `0x01E85880`: header u16 `328`, two zero bytes, then the 324
+  bytes from `0x13D10`; written to storage area 6 at `index × 328 + 6`
+  (limit 32,800 bytes, 100 entries). The write index is u16 at area offset
+  2 (`0x01E6ADB6`, wraps at 100); the count is u16 at offset 0
+  (`0x01E6AD04`, capped at 100).
+- Storage areas: table of eight `{name, offset, size}` at `0x01EAA408`, all
+  on partition device 3 (`sys_data`, `0x800000`, 1 MiB; partition table
+  `0x01EB53F0`, read `0x01E52CB2` / write `0x01E50128`, both gated on
+  `0x12234 == 0x5AA5`):
+  `hw_version` 0x0 (6), `board_type` 0x100 (8), `bt_paired` 0x1000 (501),
+  `sms_inbox` 0x2000 (12,800), `sms_draft` 0x5200 (12,800), `sms_sent`
+  0x8400 (12,800), `aprs_beacon` 0xB600 (35,000), `spectrum_bla` 0x13EB8
+  (402).
+- So the Beacon List is at chip `0x80B600` (count, index, records from
+  `0x80B606`) and the APRS message inbox at `0x802000`. A module can read
+  both with the stock NOR read (`api->read`). These are stock-owned areas:
+  read only, never written by H9 Toolbox. The inbox record format is not
+  traced. Not yet checked against a real chip readback.
+
+## 2026-11-10 Own APRS callsign in RAM; module switching (static, not yet on hardware)
+
+- Stock's received-packet handler (`0x01E86238`) copies 6 bytes from RAM
+  `0xC0F0 + 945` = `0xC4A1`, trims trailing spaces, and formats them with
+  the byte at `0xC4A7` as the SSID; `0x01E85ACC` compares message
+  addressees against the same bytes. So the radio's APRS callsign is at
+  `0xC4A1` (6 chars) and its SSID at `0xC4A7`. The APRS modules read it to
+  mark messages addressed to you. Not yet checked on hardware.
+- Module platform: a "run this module next" mailbox in the last 32 bytes of
+  the RAM slot (`0x2BEE0`, magic `HRUN`, 16-byte name). A module writes it
+  and returns; the loader runs the menu, which clears it and returns that
+  module's index without drawing. No firmware change: the stub already
+  returns to the menu after a module. Module names starting with `.` are
+  hidden from the menu. State kept across switches lives below `0x2BEE0`;
+  the APRS screens share 0x680 bytes at `0x2B860`. `build.py` now rejects
+  any `.data`/`.bss` in a module, since the loader copies `.text` only.
+
+## 2026-11-10 Module key timing: use the 100 Hz timer, not the hold counter
+
+- Hardware report: tapping Menu in APRS opened the map (the hold action).
+  `h9_delay` takes milliseconds (h9_delay(100) = 10 ticks of the 100 Hz
+  timer, 2026-11-09), not 10 ms units as `h9lib.s` said, so the first
+  35-poll hold threshold was about 70 ms. The second attempt timed holds
+  with `h[0xC3B2]` (the counter the hold-Back launcher compares in stock
+  context) and still fired on a tap: either it does not advance while a
+  module runs or not at 100 Hz there. Not investigated further.
+- The APRS core now times holds (0.6 s) and the RX flash (1 s) with the
+  timer-3 counter at `0x1D8B0`, measured at 100 Hz and running in takeover
+  mode. Comment in `h9lib.s` corrected. Awaiting a hardware check.
+
+## 2026-11-10 Stock APRS transmit paths (static trace)
+
+- `0x01E5B4BE` (cmd 0x00 sender): frames a payload as serial command `0x00`
+  (5 × `C0`, command, escaped payload, 3 × `C0`, framer `0x01E5B42E`) and
+  writes it through the serial object's callback (`0x01E5B4AA`,
+  `[[0x11AD0+556]+20]`). This hands an AX.25 frame to the APRS modem.
+- `0x01E5B4EA` send_packet(p): AX.25-encodes a 324-byte decoded-packet
+  structure (`0x01E5B398`; same layout as the Beacon List records) and
+  sends it with `0x01E5B4BE`. `0x01E5B506` builds such a structure from a
+  `CALL-SSID` string (beacon builder chain).
+- Beacon sender `0x01E5C3D4` (synchronous): choose side, RF setup
+  `0x01E58E3E(0)`, set TX flag `0x11D28 = 1`, key on the TX frequency
+  `0x01E5AD68({tx, rx, shift, 0, cb 0x01E5A82E})`, ROM delay
+  `0x02000A00(50)`, build+send `0x01E5BF2C`, delay airtime
+  (`0x01E5C36C`, else 500 ms), restore side. It does not unkey; its caller
+  `0x01E5CDEC` (end of TX: `0x01E58F58(0)`, `0x01E5CCCA`, flag cleared,
+  RX restore `0x01E595B6`) does.
+- **`0x01E5DBCC(buf, len)`: stock KISS transmit.** Deframes KISS
+  (`C0`, `DB DC`/`DB DD`) into a 512-byte buffer, decodes it with the AX.25
+  decoder `0x01E5DAF6`, sets the logical side `0x11B1D = 0x11B50 >> 7`,
+  calls `0x01E5B144` (the PTT-press handler: mode checks, UI state, key
+  up), sends with `0x01E5B4EA`, waits the airtime (`0x01E5C36C`, else
+  500 ms) and ends with `0x01E5CDEC(0)`. One synchronous key/send/unkey
+  sequence using stock's own checks. Reached indirectly (no direct caller;
+  likely the Bluetooth KISS data handler). Never exercised by us.
+- RX while a module runs: the APRS modem decodes the receiver's audio on the
+  working frequency (`0x11C8C`, 10 Hz units). Dual Watch alternation
+  appears to be driven by the stock loop, which a module pauses, so the
+  receiver likely stays on the frequency active at entry. The APRS list
+  footer now shows that frequency. Not yet confirmed on hardware.
+
+## 2026-11-10 APRS SEND: first transmit proof of concept (offline, not yet run)
+
+- User confirmed a 2 m licence and that the callsign the MSG screen reads
+  (RAM `0xC4A1`/SSID `0xC4A7`) is theirs; asked for canned messages first,
+  keypad entry after the proof of concept.
+- New hidden module `.APRS SEND` (4,133 B), reached by holding Menu on
+  APRS MSG (hold cycle LIST → MAP → MSG → SEND → LIST). Items: status
+  `>H9 Toolbox test`, and three canned messages to the station selected in
+  the list (`:ADDRESSEE:text{id}`, id 1–99 counting per send).
+- Frame: `CALL-SSID>APZH9T,WIDE1-1` UI/`F0`, built by `aprs_tx.c` as one
+  KISS data frame, then handed to stock `0x01E5DBCC(buf, len)` (stock does
+  the PTT handler, modem send, airtime wait and end of TX). The module never
+  writes RF or PTT state.
+- Guards before transmit: callsign present and valid AX.25, working TX
+  frequency `0x11C9C` within 144.000–148.000 MHz, and a review screen
+  needing a second Menu press.
+- The SEND build leaves out receive parsing (`APRS_NO_RX`, via
+  `aprs_core_tx.c`); packets heard meanwhile stay in the 2 KiB modem ring.
+- Host test: KISS bytes match the `test/kiss-tnc.test.mjs` vector
+  (`N0CALL-1>APRS:>Hi`); path, SSID and rejection cases; a frame fed back
+  through the receive parser yields the sending station.
+- Unknowns for the first run: whether `0x01E5DBCC` behaves when called
+  from a module (stock loop paused, my_app task stack: about 0.9 KiB of
+  frames under DBCC plus the PTT handler's own); whether the PTT handler
+  draws stock UI; whether the modem accepts the frame while the
+  radio is in this state. Catalog: APRS 0.3.
+- Follow-up: user reports holding Menu on MSG does not open SEND (v0.3 bundle
+  was fetched by the App Manager at 13:07; cause unknown). SEND is now the
+  visible module "APRS SEND" (listed in the module menu, which also shows
+  whether it is installed). MSG hold and the new Menu-on-details entry show
+  "SEND NOT INSTALLED" instead of falling back silently. INFO Menu opens
+  SEND with the first message to that station selected.
+
+## 2026-11-10 First H9 Toolbox APRS transmission; channel settings; sent list
+
+- Hardware: APRS SEND transmitted. aprs.fi 2026-11-10 13:16:44 CST:
+  `KD9CRQ>APZH9T,WIDE1-1,qAR,N6NKO-1::N9LKH-1  :Test, please ack{1`
+  (digipeated and iGated). Stock's TX screen flashed over the module while
+  transmitting, then the module redrew. So stock `0x01E5DBCC` called from a
+  module keys, sends and unkeys correctly.
+- It transmitted (and the module listened) on CH-A although the user's APRS
+  settings are CH-B: a module pauses stock and nothing applied the APRS
+  channel. Now, as stock's beacon sender `0x01E5C3D4` does: set `0x11B50`
+  bit 7 and `0x11AEC` to the side, call RF setup `0x01E58E3E(0)` (only
+  when the side changes).
+  - Opening APRS fresh: save the side, tune to APRS RX CH (`0xC532`:
+    0 Off = keep, 1 A, 2 B). Back from the list to the menu restores it.
+  - SEND review: tune to APRS TX CH (`0xC533`: 0/2 A, 1/3 B, 4 A+B =
+    keep; Lock is treated like Auto) before the 2 m check reads `0x11C9C`;
+    leaving review returns to the RX side.
+- Sent messages are added to the MSG list (from own call, not "new"); the
+  digipeated copy is deduplicated by sender and text.
+- Size: `aprs_wrap` moved to `aprs_text.c` (not linked into list/map).
+  Now LIST 6,487, MAP 6,467, MSG 6,495 of 6,496 B: the next feature on those
+  screens needs the shared state moved or the screens split further.
+- Host tests: side selection for all RX/TX CH values, RF setup only on a
+  change.
+
+## 2026-11-10 APRS: open squelch and mute the speaker while the app runs
+
+- User: reception is much better with squelch open. Cause (static):
+  stock's receive/squelch handler `0x01E7B2A4` runs from the main loop
+  (`0x01E88E36`), choosing AF mode 0/1 (`0x01E593E4`, RF reg `0x47`) and
+  speaker gate source 7. A module pauses that loop, so receive audio to
+  the APRS chip stays as it was when the app opened.
+- `aprs_quiet()`: AF selector mode 1 (stock receive-setup value) and stock
+  speaker writer `0x01E52328(0)` (GPIO 3 low; bench-proven 2026-11-03 to
+  silence the built-in speaker, Bluetooth audio unaffected). Applied on a
+  fresh open, after each side change (RF setup) and after each transmit
+  (stock's end of TX turns the speaker back on). Back from the list
+  restores the speaker state saved at open (`0x11B4D` bit 0).
+- Not yet known: whether the RF chip's own squelch also gates its AF output
+  (then the SQL setting would still matter). Hardware check pending.
+- Space: receive frame buffer 330 → 200 B (longer packets keep their first
+  200 bytes), shared slot 0x680 → 0x600, magic "APR2" for the new layout.
+  Screen limit 6,624 B; LIST 6,539, MAP 6,507, MSG 6,535, INFO 6,353,
+  SEND 4,493.
+
+## 2026-11-10: module-loader release prep (local, not flashed)
+
+- Stub `ml_reset` (menu returns 0, or no valid bundle) now uses the stock
+  cpu_reset sequence that the menu's RADIO item proved on hardware: ROM
+  0x02001634 (interrupts off), `[0x1E0000] |= 0x10`, spin. The old jump to ROM
+  0x0200000A froze. New build: package c1a6f78b…, flash 08d2409a….
+  Hardware check pending; `build/test-ml-reset-bundle.bin` (a "menu" that
+  returns 0 at once) exercises this path from a Back hold.
+- Web installer now ships this build. Seeds rebuild and recognise stock, the
+  Brick Breaker build of H9 Toolbox (83f79fb3…), the original Brick Breaker
+  (741bbeb8…) and the module-loader preview (79858310…; 3 sectors: 0x5000,
+  0xac000, 0xd9000). Pinned write set 0x5000, 0x62000, 0x64000, 0x8d000,
+  0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000. Step 04 and the result screen
+  send the user to the App Manager.
+- Hardware, new build (08d2409a…) installed through the local installer:
+  Back hold opens the menu; RADIO restarts into the radio (expected: the
+  menu's h9_reset). The `ml_reset` test bundle is still to run.
+
+## 2026-11-10 APRS: squelch open needs RF register 0x30 (audio DAC)
+
+- Hardware (speaker-on test build): no hiss with AF mode 1 + speaker on.
+  With SQL set to 0 in stock the hiss was there on opening APRS, and went
+  away after an APRS SEND transmit.
+- Cause (static): RF register 0x30 bit 9 is the RF chip's audio DAC enable.
+  Receive setup (`0x01E5942E`, run after every TX and RF setup) writes
+  0x30 = 0xBDF1 (off); the squelch handler writes 0xBFF5 on open
+  (`0x01E7B7C6`, right after AF mode 1) and 0xBDF5 on close (`0x01E74104`).
+  RF register write routine: `0x01E5070A(reg, value)`.
+- `aprs_quiet()` now also writes 0x30 = 0xBFF5 (APRS 0.4). Hardware check
+  pending with `build/test-aprs-speaker-bundle.bin` (speaker left on).
+- Hardware (0x30 fix, speaker-on test build): hiss after an APRS SEND, but
+  not on opening APRS; and opening APRS jumped straight to INFO of the first
+  station (a Menu tap) without a key press.
+- Keypad (static): `h9_key` = stock `0x01E515AC`, one ADC sample of two
+  resistor-ladder channels (13 and 10) matched against voltage windows, no
+  debounce. Likely cause: speaker amp + hiss noise gives a one-sample Menu
+  reading = a tap. Fix: `aprs_event` takes a key only when two readings in a
+  row agree (APRS state "APR3", new `raw_key`).
+- Audio on open: something after open turns the DAC off again (cause not
+  traced; receive setup writes 0x30 = 0xBDF1). Fix: `aprs_event` reads 0x30
+  (`0x01E505FE`, RF register read) about every 0.32 s and calls
+  `aprs_quiet()` if bit 9 is clear. Screen sizes now: LIST 6,599 (limit
+  6,624), MSG 6,595, MAP 6,567, INFO 6,413, SEND 4,545.
+- Hardware (debounce + keep-open build): still no hiss on open, still opened
+  INFO. Cause of no audio (static): battery save. `0x01E7BAF8` sets
+  0x11B01 = 1 and powers the RF chip down (0x30 = 0, 0x37 = 0x1D00, RF GPIO
+  0x33 bits); `0x01E5969C` wakes it (clears 0x11B01, 0x37 = 0x1D0F, then
+  receive setup). The squelch handler wakes it on activity; paused under a
+  module, so APRS opened during a sleep phase stays deaf (likely also the
+  long "RX 0"). A transmit re-initialises the chip, hence hiss after SEND.
+  Fix: `aprs_quiet()` wakes first when 0x11B01 is set; the periodic check
+  catches it via 0x30 bit 9.
+- Keys at open: now ignored until every key reads released (KEY_WAIT),
+  instead of trusting one sample. Footer RX frequency no longer turns yellow
+  out of band (space). Sizes: LIST 6,615 / 6,624, MSG 6,623, MAP 6,595.
+- Hardware (battery-save wake build, speaker on): hiss on opening APRS. Wake
+  fix confirmed. Still opened INFO: LOADING, then WI9HRO-1's details, no list
+  seen.
+- Keypad scan `0x01E515AC`: ADC channel 13 reading < 21 = key 12 (Menu).
+  So a near-0 glitch (likely when the speaker amp starts) is Menu, and the
+  two-sample debounce did not filter it. Now: a Menu tap counts only after
+  3 ticks (30 ms) down; the two-sample check and `raw_key` are removed
+  (state layout back to "APR2"). Sizes: LIST 6,611, MSG 6,619 (limit 6,624).
+- Hardware (30 ms tap build): tapping APRS in the menu still opens INFO.
+  Holding Menu on APRS: LOADING + hiss, no list until Up/Down. Reading:
+  right after the battery-save wake the keypad reads Menu for > 30 ms
+  (absorbed by KEY_WAIT when Menu is still held), and the first list draw
+  does not reach the screen. Fix: 300 ms `h9_delay` after waking on a fresh
+  open, before the first draw and key reads. MSG "SEND NOT INSTALLED" →
+  "NO SEND APP" for space. Sizes: LIST 6,619, MSG 6,619 (limit 6,624).
+- Hardware (300 ms settle build): a tap on APRS now stays on LOADING (no
+  INFO jump, but no list drawn). User suggestion: draw before waking.
+  Change: a fresh open only marks `switching = TUNE`; `aprs_event` returns
+  the first redraw, then on its next call switches to the APRS RX channel,
+  wakes/opens audio (`aprs_quiet`), settles 300 ms and waits for all keys
+  released. The periodic 0x30 check is removed (battery-save sleep was the
+  cause and is handled in `aprs_quiet`; it also turned interrupts off ~3x/s).
+  Sizes: LIST 6,623, MSG 6,623 (limit 6,624): APRS screens are full.
+- Hardware (draw-first build): tap or hold on APRS → LOADING stays, hiss
+  starts at once. So the first draw ran but nothing was drawn: not the wake.
+- ROOT CAUSE (bug, mine): `aprs_load_stored` read each 324-byte Beacon List
+  record into `A->frame`, cut from 330 to 200 B earlier on 2026-11-10. Each
+  stored station overran 124 B into `length/escape/nmea_len/nmea/rx_flash/
+  last_key/held/press_tick/dirty/list_sel…`: the redraw flag cleared (no
+  list) and key state faked a Menu tap (INFO of the first station). Showed
+  up once stock had stored stations (WI9HRO-1). Not caught by UBSan (inside
+  one struct). Fix: read the 2-byte length, then only addresses + info cut
+  to fit (info ≤ 141 B); host test checks the following fields survive.
+- Reverted the draw-first tuning and 300 ms settle (not needed); kept
+  KEY_WAIT and the 30 ms Menu tap minimum. The keypad-ADC/wake theory is
+  unconfirmed. Sizes: LIST 6,607, MSG 6,583, MAP 6,563, INFO 6,409.
+- Hardware CONFIRMED (overrun fix, speaker-on test build): APRS opens on
+  the list with stored stations and hiss; navigation normal.
+- Hardware (normal bundle, APRS 0.4): APRS SEND transmits on CH-B (APRS TX
+  CH setting followed); menu USB UPDATE works; boot logo write from the App
+  Manager works.

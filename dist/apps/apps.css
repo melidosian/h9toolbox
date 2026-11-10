@@ -1,0 +1,54 @@
+/* H9 Toolbox App Manager. Site layout (header, nav, footer, intro) comes from
+ * styles.css and landing.css; everything here is scoped to .app-manager so
+ * the site's .note/.status/.primary rules do not apply inside it. */
+.app-manager { --panel: #13242f; --line: #29424c; --text: #e3ece9; --muted: #a6bec5; --ok: #8bdcb6; --warn: #f0c674; --bad: #f28b82; --accent: #5a8a7a;
+  max-width: 980px; margin: auto; display: grid; gap: 17px; color: var(--text); font-size: 14px; line-height: 1.5; }
+.app-manager .intro { padding: 55px 0 10px; }
+.app-manager .intro h1 { font-size: clamp(39px, 5vw, 62px); }
+.app-manager .panel { border: 1px solid var(--line); border-radius: 15px; padding: 22px 26px; background: var(--panel); box-shadow: 0 10px 35px #04101826; }
+.app-manager h2 { margin: 0 0 .6rem; font: 600 19px 'Space Grotesk', sans-serif; letter-spacing: -.03em; }
+.app-manager button { font: inherit; font-size: 13px; padding: .4rem .85rem; margin: .2rem .3rem .2rem 0; border-radius: 8px; border: 1px solid #42606a; background: #19303b; color: #dbedeb; cursor: pointer; display: inline-block; white-space: nowrap; }
+.app-manager button:hover:not(:disabled) { border-color: #93dfbe; }
+.app-manager button.small { padding: .1rem .5rem; margin: 0 .15rem; }
+.app-manager button.primary { background: #8bdcb6; border-color: #8bdcb6; color: #11302b; font-weight: 700; }
+.app-manager button.danger { border-color: #855452; background: #422c2e; color: #ffc6bd; }
+.app-manager button:disabled { opacity: .45; cursor: not-allowed; }
+.app-manager input[type=text] { font: inherit; padding: .2rem .4rem; border-radius: .35rem; border: 1px solid #37535d; background: #0e1c26; color: inherit; width: 11rem; }
+.app-manager table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.app-manager th, .app-manager td { border-bottom: 1px solid var(--line); padding: .35rem .5rem; text-align: left; vertical-align: middle; }
+.app-manager td:first-child { width: auto; }
+.app-manager td.num { font-variant-numeric: tabular-nums; }
+.app-manager .note { background: none; border: 0; padding: 0; border-radius: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.app-manager .ok { color: var(--ok); font-weight: 700; } .app-manager .warn { color: var(--warn); } .app-manager .bad { color: var(--bad); }
+.app-manager .tag { font-size: 11px; padding: .05rem .4rem; border-radius: .8rem; border: 1px solid var(--line); color: var(--muted); }
+.app-manager .tag.new { color: var(--ok); border-color: var(--ok); } .app-manager .tag.changed { color: var(--warn); border-color: var(--warn); }
+.app-manager .bar { height: .9rem; border-radius: .45rem; background: #0b151c; overflow: hidden; border: 1px solid var(--line); }
+.app-manager .bar > div { width: 0; height: 100%; background: var(--ok); }
+.app-manager .bar.full > div { background: var(--bad); }
+.app-manager .meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
+.app-manager .meter b { font-variant-numeric: tabular-nums; }
+.app-manager .removed td { opacity: .5; text-decoration: line-through; }
+.app-manager progress { width: 100%; accent-color: #86dcb3; }
+.app-manager .apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .8rem; }
+.app-manager .app { border: 1px solid var(--line); border-radius: 10px; padding: .8rem .9rem; background: #0f1d27; display: flex; flex-direction: column; gap: .35rem; }
+.app-manager .app.staged { border-color: var(--ok); }
+.app-manager .app h3 { margin: 0; font-size: 1rem; display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; }
+.app-manager .app p { margin: 0; color: var(--muted); font-size: 13px; flex: 1; }
+.app-manager .app .facts { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.app-manager .app .row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.app-manager .status { background: none; border: 0; padding: 0; margin: 0; border-radius: 0; font-size: 12px; color: var(--muted); }
+.app-manager .status.installed { color: var(--ok); } .app-manager .status.adding, .app-manager .status.updating { color: var(--ok); font-weight: 600; }
+.app-manager .status.removing, .app-manager .status.outdated { color: var(--warn); font-weight: 600; }
+.app-manager pre { background: #0b151c; border-radius: .4rem; padding: .7rem; max-height: 14rem; overflow: auto; font-size: 12px; margin: 0; }
+.app-manager .table-scroll { overflow-x: auto; }
+/* Boot logo tool (boot-logo/logo-tool.mjs; layout from boot-logo/logo.css) */
+.app-manager .logo-tool .controls { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+.app-manager .logo-tool .primary-button, .app-manager .logo-tool .write-button { background: #8bdcb6; border-color: #8bdcb6; color: #11302b; font-weight: 700; }
+.app-manager .logo-tool .confirm { margin: 0; }
+@media (max-width: 620px) { .app-manager .panel { padding: 18px; } }
+.app-manager a { color: #8ce0b5; }
+.app-manager details.panel summary { cursor: pointer; }
+.app-manager > * { min-width: 0; }
+.app-manager .apps { grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr)); }
+.app-manager .intro .eyebrow { overflow-wrap: anywhere; }
+.app-manager { grid-template-columns: minmax(0, 1fr); }

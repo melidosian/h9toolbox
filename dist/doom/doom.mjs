@@ -12,8 +12,8 @@
 
 import {
   APP_START, SECTOR_SIZE, loadBuildPackage, loadStockSeed, scanRadio, sha256, writeSector,
-} from '../firmware-update/firmware.mjs?v=20261109d';
-import { createHidArchive, readAccessibleFlash } from '../firmware-update/readback.mjs?v=20261109d';
+} from '../firmware-update/firmware.mjs?v=20261110a';
+import { createHidArchive, readAccessibleFlash } from '../firmware-update/readback.mjs?v=20261110a';
 import {
   BLANK_CRC, DoomHid, FAR_END, FAR_START, checkDoomCode, checkFirmware, checkPack, checkSong,
   doomTarget, planInstall,
@@ -210,7 +210,7 @@ async function upload(key, slot) {
     await loadHosted();
     requireValue(files[key], key === 'song' ? 'This release has no music.' : 'The game data did not load.');
   }
-  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109k');
+  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261110a');
   const began = performance.now();
   const entry = files[key];
   const manifest = await uploadPack(session.radio, entry.checked, {
@@ -225,7 +225,7 @@ async function upload(key, slot) {
     : `${entry.label}: uploaded and verified (${manifest.bytes.toLocaleString()} bytes, ${(manifest.totalSeconds / 60).toFixed(1)} min).`);
 }
 $('removeMusic').addEventListener('click', () => task(async () => {
-  const { SLOTS, restore } = await import('./upload.mjs?v=20261109k');
+  const { SLOTS, restore } = await import('./upload.mjs?v=20261110a');
   const began = performance.now();
   log('Removing the music…');
   const result = await restore(session.radio, { slot: SLOTS.music, onProgress: (fraction, phase) => progress(fraction, 1, `music: ${phase}`) });
@@ -233,7 +233,7 @@ $('removeMusic').addEventListener('click', () => task(async () => {
   log(result.note ?? `Music removed: ${result.erased} sector(s) erased and read back as erased (${((performance.now() - began) / 1000).toFixed(1)} s).`);
 }));
 $('removeData').addEventListener('click', () => task(async () => {
-  const { SLOTS, restore } = await import('./upload.mjs?v=20261109k');
+  const { SLOTS, restore } = await import('./upload.mjs?v=20261110a');
   let erased = 0;
   for (const slot of [SLOTS.music, SLOTS.game]) {
     log(`Removing the ${slot.name === 'game' ? 'game data' : 'music'}…`);

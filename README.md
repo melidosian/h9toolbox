@@ -1,10 +1,41 @@
 # H9 Toolbox
 
+Free browser tools and custom firmware for the TIDRADIO TD-H9: https://h9toolbox.com/
+
+## H9 Toolbox Firmware: apps on your radio
+
+H9 Toolbox Firmware is stock v1.0.38 plus an **app loader**. Hold **Back** on
+the channel screen for a menu of apps; each loads into RAM from the radio's
+16 MB resource chip when you open it, and **RADIO** returns to the normal radio.
+
+- **APRS** (experimental): an onboard APRS client. Station list with distance
+  and bearing, station details, a map around your GPS position, and messages;
+  it opens with the stations already in the radio's Beacon List. **APRS SEND**
+  transmits a status packet or a canned message from the callsign in the
+  radio's APRS settings, after a second confirming press (licence required).
+  While APRS runs it follows the APRS RX/TX channel settings and listens with
+  squelch open and the speaker muted.
+- **Brick Breaker**, the game that started this project, now one app among others.
+- **App Manager** (https://h9toolbox.com/apps/): adds, updates and removes apps
+  over Bluetooth, shows the space left, and changes the boot logo. Everything
+  is read back to verify.
+
+Install it with the web flasher (https://h9toolbox.com/firmware-update/,
+USB-C, desktop Chrome or Edge): it backs up the radio first, upgrades stock,
+the original Brick Breaker or any earlier H9 Toolbox build, and restores stock
+at any time. Then open the App Manager. Source: the app loader and apps are in
+[firmware-research/module-loader](firmware-research/module-loader/).
+
 Firmware reverse-engineering notes, offline analysis, the Windows/Linux USB-C flasher, and the HID recovery tools are collected in [firmware-research](firmware-research/README.md). They are separate from the Bluetooth web programmer below.
 
 ## Project files
 
 - [VFO control discovery](prototypes/vfo-control/README.md) contains the local Bluetooth remote-control experiment and its current hardware observations.
+- [Firmware research](firmware-research/README.md) contains the analysis, replacement-source work, USB flasher, and HID recovery tools.
+- `private/downloads/` holds local radio backups, probe captures, and official firmware packages. It is ignored by Git because radio data can contain private settings. `private/downloads/migration-manifest.json` records the original download paths and SHA-256 hashes.
+- `archive/sites-source/` and `archive/sites-source-history.bundle` preserve the earlier Sites source and its Git history. The active H9 Toolbox site remains in `dist/`.
+
+The `htcommander` repository is a separate project; its TD-H9 integration remains there.
 
 A small, buildless Web Bluetooth programmer for the TIDRADIO TD-H9. Open the HTTPS site in Chrome or Edge on a computer with Bluetooth. No account is required. The radio image stays in browser memory until you download a backup.
 
@@ -16,7 +47,7 @@ TD-H9 owners report successful use of the Bluetooth programmer on several radios
 
 ## GitHub Pages
 
-**Open H9 Toolbox:** https://h9toolbox.com/ · **Bluetooth programmer:** https://h9toolbox.com/programmer/ · **Firmware:** https://h9toolbox.com/firmware/ · **Install H9 Toolbox Firmware:** https://h9toolbox.com/firmware-update/ · **Boot logo:** https://h9toolbox.com/boot-logo/
+**Open H9 Toolbox:** https://h9toolbox.com/ · **Bluetooth programmer:** https://h9toolbox.com/programmer/ · **Firmware:** https://h9toolbox.com/firmware/ · **Install H9 Toolbox Firmware:** https://h9toolbox.com/firmware-update/ · **App Manager:** https://h9toolbox.com/apps/ · **Boot logo:** https://h9toolbox.com/boot-logo/
 
 The checked-in workflow publishes `dist/` directly to GitHub Pages on each push to `main`, or when **Deploy GitHub Pages** is run manually. GitHub Pages serves the site over HTTPS. Web Bluetooth still requires a supported browser; hosting on Pages does not add iPhone Safari support.
 
