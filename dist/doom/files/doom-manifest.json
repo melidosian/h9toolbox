@@ -1,0 +1,36 @@
+{
+  "kind": "td-h9-doom-release",
+  "version": "r32",
+  "firmware": {
+    "file": "h9-doom-r32.fw",
+    "name": "Doom firmware",
+    "bytes": 897440,
+    "sha256": "a68c4dcdcb45493897fb970063a5f7566928b1643e14890a87416dd7a5b2eee7",
+    "imageSha256": "10a741b948b193daaed770573bfaabf0121f7ec67e301080af74c6995c81eacc"
+  },
+  "code": {
+    "file": "h9-doom-r32-code-0xEA000.bin",
+    "name": "Doom code",
+    "bytes": 66798,
+    "sha256": "c1e8c688ac220a0bdd15366985dede27068e2466f76c80a6903426b1dad2c668"
+  },
+  "pack": {
+    "file": "freedoom-e1m1-pack.dat",
+    "name": "Freedoom E1M1",
+    "bytes": 1056192,
+    "sha256": "06442c617086b5182e87a9a31871dc49354f9c8081fdff7e01f309b107322b1b"
+  },
+  "music": [
+    {
+      "file": "freedoom-e1m1.h9mu",
+      "name": "E1M1 music",
+      "bytes": 28652,
+      "sha256": "a7ac9a9386c3d512938379c815fc770cdfdcce9f9c168d840772fa417251ac45"
+    }
+  ],
+  "licenses": {
+    "engine": "DMC100-Doom (GPL-2.0-or-later) + TD-H9 port (GPL-2.0-or-later)",
+    "data": "Freedoom (BSD-3-Clause)",
+    "firmware_base": "TIDRADIO TD-H9 v1.0.38 with H9 Toolbox changes, as on h9toolbox.com"
+  }
+}

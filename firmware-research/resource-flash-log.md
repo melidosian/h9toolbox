@@ -2808,4 +2808,17 @@ flash-power question, and asked for more speed.
   acceptance of the far region needs a test before the page is relied on.
 - Tests: `doom-install` 4/4, `data-upload` 10/10.
 
+- Installer and firmware page reworked:
+  - Three steps (Install over USB-C, Upload the game data over Bluetooth,
+    Play).
+  - A "Load Doom" card loads the files hosted in `dist/doom/files/`, as
+    firmware-update hosts H9 Toolbox, and checks them against
+    `doom-manifest.json` with nothing downloaded; "Your own build" is the
+    alternative.
+  - The GitHub fetch and raw.githubusercontent.com in the CSP are removed.
+- The user approved committing the release files (an exception to the
+  no-binaries rule for this site release): `h9-doom-r32.fw`,
+  `h9-doom-r32-code-0xEA000.bin`, `freedoom-e1m1-pack.dat`,
+  `freedoom-e1m1.h9mu` and the manifest.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.

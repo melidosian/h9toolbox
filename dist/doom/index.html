@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://raw.githubusercontent.com; object-src 'none'; base-uri 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'">
   <meta name="theme-color" content="#111f2c">
   <meta name="description" content="Install Doom (Freedoom, open source) on a TIDRADIO TD-H9 from Chrome or Edge: a web flasher over USB-C, then game data and music over Bluetooth. Backs up first and can return to stock.">
   <meta name="robots" content="noindex">
@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../landing.css?v=20261108c">
   <link rel="stylesheet" href="../firmware-update/update.css?v=20261108f">
-  <link rel="stylesheet" href="./doom.css?v=20261109d">
+  <link rel="stylesheet" href="./doom.css?v=20261109e">
   <script src="../https-redirect.js"></script>
 </head>
 <body>
@@ -33,55 +33,42 @@
         <p>What goes onto the radio: the Doom firmware (about 0.9 MB, USB, a few minutes), Freedoom E1M1 game data (about 1 MB, Bluetooth, about 20–25 minutes) and the music (29 KB, Bluetooth, about a minute). Game data and music go into space the stock firmware never uses, and stay there if you reinstall.</p>
       </section>
 
-      <section class="card" aria-labelledby="files-title">
-        <div class="card-head"><div><span class="step">01</span><h2 id="files-title">Get the files</h2></div></div>
-        <p class="subtext">Download the release from GitHub (every file is checked against its SHA-256), or use files you built yourself.</p>
-        <div class="controls"><button class="button primary-button" id="fromGitHub">Download from GitHub</button></div>
+      <section class="card" aria-labelledby="usb-title">
+        <div class="card-head"><div><span class="step">01</span><h2 id="usb-title">Install over USB-C</h2></div><span class="chip" id="deviceState">Disconnected</span></div>
+        <div class="file-grid" id="sourceGrid">
+          <div class="hosted-package" id="optHosted"><span class="selected-badge">✓ Selected</span><strong>Doom for the TD-H9 (Freedoom E1M1)</strong><button class="button primary-button" id="loadHosted">Load Doom</button><small>The Doom firmware, its code, the Freedoom game data and the E1M1 music, loaded from H9 Toolbox and checked against their exact hashes. Nothing is saved to your computer.</small></div>
+          <div class="hosted-package" id="optOwn"><span class="selected-badge">✓ Selected</span><strong>Your own build</strong><small>Files from doom-firmware (build.py, music.py) and a DMC100 pack.</small>
+            <label>Doom firmware (.fw)<input id="ownFirmware" type="file" accept=".fw,application/octet-stream"></label>
+            <label>Doom code (.bin, at 0xEA000)<input id="ownCode" type="file" accept=".bin,application/octet-stream"></label>
+            <label>Game data (pack)<input id="ownPack" type="file"></label>
+            <label>Music (.h9mu, optional)<input id="ownSong" type="file" accept=".h9mu"></label>
+          </div>
+        </div>
         <ul class="file-list">
           <li id="rowFirmware"><strong>Doom firmware</strong> <span class="kind">.fw · USB</span><span class="state">Not loaded</span></li>
-          <li id="rowCode"><strong>Doom code</strong> <span class="kind">.bin at 0xEA000 · USB</span><span class="state">Not loaded</span></li>
-          <li id="rowPack"><strong>Game data</strong> <span class="kind">Freedoom pack · Bluetooth</span><span class="state">Not loaded</span></li>
-          <li id="rowSong"><strong>Music</strong> <span class="kind">.h9mu · Bluetooth · optional</span><span class="state">Not loaded</span></li>
+          <li id="rowCode"><strong>Doom code</strong> <span class="kind">at 0xEA000 · USB</span><span class="state">Not loaded</span></li>
+          <li id="rowPack"><strong>Game data</strong> <span class="kind">Bluetooth · step 02</span><span class="state">Not loaded</span></li>
+          <li id="rowSong"><strong>Music</strong> <span class="kind">Bluetooth · step 02 · optional</span><span class="state">Not loaded</span></li>
         </ul>
-        <details class="own-files">
-          <summary>Use my own files</summary>
-          <div class="file-grid">
-            <label>Doom firmware (.fw)<input id="ownFirmware" type="file" accept=".fw,application/octet-stream"><small>h9_doom_*.fw from doom-firmware/build.py</small></label>
-            <label>Doom code (.bin)<input id="ownCode" type="file" accept=".bin,application/octet-stream"><small>h9_doom_far_0xEA000.bin, up to 72 KiB</small></label>
-            <label>Game data (pack)<input id="ownPack" type="file"><small>A DMC100 pack (DMCDOOM header), e.g. Freedoom E1M1S</small></label>
-            <label>Music (.h9mu)<input id="ownSong" type="file" accept=".h9mu"><small>From doom-firmware/music.py</small></label>
-            <label class="backup-file">GitHub source (advanced)<input id="sourceBase" type="text" spellcheck="false"><small>A raw.githubusercontent.com folder holding doom-manifest.json; leave empty for the H9 Toolbox release.</small></label>
-          </div>
-        </details>
-      </section>
-
-      <section class="card" aria-labelledby="usb-title">
-        <div class="card-head"><div><span class="step">02</span><h2 id="usb-title">Install Doom over USB-C</h2></div><span class="chip" id="deviceState">Disconnected</span></div>
-        <ol class="instructions"><li>Turn the radio off and connect a data-capable USB-C cable.</li><li>Hold <strong>PTT + 2</strong> while powering on. The screen stays blank and the top LED turns green.</li><li>Click <strong>Connect radio</strong> and choose the JieLi HID device.</li><li>Click <strong>Back up radio</strong> and keep the file it saves.</li><li>Tick the box and click <strong>Install Doom</strong>.</li></ol>
+        <ol class="instructions"><li>Turn the radio off and connect a data-capable USB-C cable.</li><li>Hold <strong>PTT + 2</strong> while powering on. The screen stays blank and the top LED turns green.</li><li>Click <strong>Connect radio</strong> and choose the JieLi HID device.</li><li>Click <strong>Back up radio</strong> and keep the file it saves.</li><li>Tick the box and click <strong>Install Doom</strong>. About 0.9 MB, a few minutes; every sector is checked afterwards.</li></ol>
         <div class="controls"><button class="button primary-button" id="connect">Connect radio</button><button class="button ghost" id="disconnect" disabled>Disconnect</button><button class="button ghost" id="backup" disabled>Back up radio</button></div>
         <label class="confirm"><input id="skipBackup" type="checkbox"><span>Skip the backup (I already have one from the web flasher).</span></label>
         <label class="confirm"><input id="acknowledge" type="checkbox"><span>I understand this experimental install replaces the radio firmware and may damage my radio, and that I can return with the web flasher.</span></label>
         <div class="controls"><button class="button primary-button" id="install" disabled>Install Doom</button></div>
-        <p class="fine">The install writes the Doom code at 0xEA000 first (inert until the firmware uses it), then only the firmware sectors that differ, and checks every sector afterwards. If it stops, run Install again: it continues where it left off.</p>
+        <p class="fine">The install writes the Doom code at 0xEA000 first (inert until the firmware uses it), then only the firmware sectors that differ. If it stops, click Install again: it continues where it left off.</p>
       </section>
 
       <section class="card" aria-labelledby="bt-title">
-        <div class="card-head"><div><span class="step">03</span><h2 id="bt-title">Upload the game data over Bluetooth</h2></div><span class="chip" id="btState">Disconnected</span></div>
-        <ol class="instructions"><li>Unplug USB and power the radio on. With no game data it shows <strong>BLUETOOTH UPLOAD</strong> by itself. (To upload again later, hold <strong>2</strong> while powering on.)</li><li>Click <strong>Connect Bluetooth</strong> and choose the radio (TD-H9…).</li><li>Click <strong>Upload game data</strong>. Keep this tab open; about 20–25 minutes. Interrupted? Upload again and it resumes.</li></ol>
-        <div class="controls"><button class="button primary-button" id="btConnect">Connect Bluetooth</button><button class="button ghost" id="btDisconnect" disabled>Disconnect</button><button class="button ghost" id="uploadPack" disabled>Upload game data</button></div>
-      </section>
-
-      <section class="card" aria-labelledby="music-title">
-        <div class="card-head"><div><span class="step">04</span><h2 id="music-title">Add the music (optional)</h2></div></div>
-        <p class="subtext">Freedoom's E1M1 track as an 8-bit chiptune, played under the sound effects. Same Bluetooth connection as step 03, about a minute. It lives in its own slot and does not touch the game data.</p>
-        <div class="controls"><button class="button primary-button" id="uploadSong" disabled>Upload music</button></div>
+        <div class="card-head"><div><span class="step">02</span><h2 id="bt-title">Upload the game data over Bluetooth</h2></div><span class="chip" id="btState">Disconnected</span></div>
+        <ol class="instructions"><li>Unplug USB and power the radio on. With no game data it shows <strong>BLUETOOTH UPLOAD</strong> by itself. (To upload again later, hold <strong>2</strong> while powering on.)</li><li>Click <strong>Connect Bluetooth</strong> and choose the radio (TD-H9…).</li><li>Click <strong>Upload game data</strong>: about 1 MB, 20–25 minutes; keep this tab open. Interrupted? Upload again and it resumes.</li><li>Optional: click <strong>Upload music</strong> for the E1M1 track as an 8-bit chiptune (29 KB, about a minute). It has its own slot and does not touch the game data.</li></ol>
+        <div class="controls"><button class="button primary-button" id="btConnect">Connect Bluetooth</button><button class="button ghost" id="btDisconnect" disabled>Disconnect</button><button class="button ghost" id="uploadPack" disabled>Upload game data</button><button class="button ghost" id="uploadSong" disabled>Upload music</button></div>
       </section>
 
       <section class="card" aria-labelledby="play-title">
-        <div class="card-head"><div><span class="step">05</span><h2 id="play-title">Play</h2></div></div>
+        <div class="card-head"><div><span class="step">03</span><h2 id="play-title">Play</h2></div></div>
         <p class="subtext">Power-cycle the radio. It shows GAME DATA OK, SOUND ON and MUSIC ON, then starts E1M1.</p>
         <table class="keys"><tr><th>Key</th><th>Action</th></tr><tr><td>2 / 5</td><td>Forward / back</td></tr><tr><td>4 / 6</td><td>Turn left / right</td></tr><tr><td>1</td><td>Fire</td></tr><tr><td>3</td><td>Use (doors, switches)</td></tr><tr><td>7</td><td>Music on / off</td></tr></table>
-        <p class="fine">At power-on: hold <strong>2</strong> for Bluetooth upload mode, hold <strong>3</strong> for USB update mode. To get the radio back, put it in PTT + 2 mode and use the <a href="/firmware-update/">web flasher</a> to install H9 Toolbox Firmware or restore stock v1.0.38; the game data and music stay in unused space and can stay there.</p>
+        <p class="fine">At power-on: hold <strong>2</strong> for Bluetooth upload mode, hold <strong>3</strong> for USB update mode. To get the radio back, put it in PTT + 2 mode and use the <a href="/firmware-update/">web flasher</a> to install H9 Toolbox Firmware or restore stock v1.0.38; the game data and music can stay where they are.</p>
       </section>
 
       <section class="card status-card" aria-live="polite" aria-labelledby="activity-title">
@@ -93,6 +80,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. Doom on the TD-H9 has been tested on one radio.</p></footer>
   </div>
-  <script type="module" src="./doom.mjs?v=20261109d"></script>
+  <script type="module" src="./doom.mjs?v=20261109e"></script>
 </body>
 </html>

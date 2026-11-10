@@ -1,12 +1,11 @@
 // Doom for the TD-H9: the installer page logic (/doom/).
 //
-// 01 Files: from GitHub (a manifest with SHA-256s on raw.githubusercontent.com)
-//    or the user's own .fw, Doom code blob, game pack and song.
-// 02 Install over USB-C in the vendor HID recovery mode (PTT + 2), with the
-//    web flasher's HID protocol: back up, write the Doom code region at
-//    0xEA000 first (inert until the firmware calls it), then the firmware
-//    sectors, then verify every sector by CRC.
-// 03/04 Game data and music over Bluetooth to the Doom firmware's upload
+// 01 Install over USB-C in the vendor HID recovery mode (PTT + 2), from the
+//    files hosted next to this page (checked against doom-manifest.json) or
+//    the user's own build, with the web flasher's HID protocol: back up,
+//    write the Doom code region at 0xEA000 first (inert until the firmware
+//    calls it), then the firmware sectors, then verify every sector by CRC.
+// 02 Game data and music over Bluetooth to the Doom firmware's upload
 //    mode (hold 2 at power-on, or automatic when there is no game data).
 //
 // Nothing the user selects or the radio returns leaves the browser.
@@ -16,9 +15,9 @@ import {
 } from '../firmware-update/firmware.mjs?v=20261109d';
 import { createHidArchive, readAccessibleFlash } from '../firmware-update/readback.mjs?v=20261109d';
 import {
-  BLANK_CRC, DoomHid, FAR_END, FAR_START, GITHUB, checkDoomCode, checkFirmware, checkPack, checkSong,
+  BLANK_CRC, DoomHid, FAR_END, FAR_START, checkDoomCode, checkFirmware, checkPack, checkSong,
   doomTarget, planInstall,
-} from './install.mjs?v=20261109d';
+} from './install.mjs?v=20261109e';
 
 function requireValue(condition, message) { if (!condition) throw new Error(message); }
 const hex = value => `0x${value.toString(16)}`;
@@ -72,25 +71,34 @@ function setFile(key, bytes, label, extra = {}) {
   files[key] = { bytes, checked, label, ...extra };
 }
 
-async function fromGitHub() {
-  const base = $('sourceBase').value.trim() || GITHUB.base;
-  log(`Fetching ${base}${GITHUB.manifest}…`);
-  const response = await fetch(base + GITHUB.manifest, { cache: 'no-store' });
-  requireValue(response.ok, `No release manifest at ${base}${GITHUB.manifest} (HTTP ${response.status}). Use your own files below.`);
+// Hosted release, as the web flasher hosts H9 Toolbox Firmware: files next to
+// this page (files/, staged by doom-firmware/stage_release.py), each checked
+// against doom-manifest.json. Loaded into the page only; nothing is saved.
+const HOSTED = './files/';
+
+function choose(id) {
+  $('sourceGrid').classList.add('has-selection');
+  for (const option of ['optHosted', 'optOwn']) $(option).classList.toggle('selected', option === id);
+}
+
+async function loadHosted() {
+  const response = await fetch(HOSTED + 'doom-manifest.json', { cache: 'no-store' });
+  requireValue(response.ok, `The Doom files are not on this site (HTTP ${response.status}). Use your own build.`);
   const manifest = await response.json();
   const wanted = [['firmware', manifest.firmware], ['code', manifest.code], ['pack', manifest.pack], ['song', manifest.music?.[0]]];
   for (const [key, entry] of wanted) {
     if (!entry) continue;
-    log(`Downloading ${entry.file} (${kb(entry.bytes)})…`);
-    const fileResponse = await fetch(base + entry.file, { cache: 'no-store' });
-    requireValue(fileResponse.ok, `Could not download ${entry.file} (HTTP ${fileResponse.status}).`);
+    log(`Loading ${entry.name} (${kb(entry.bytes)})…`);
+    const fileResponse = await fetch(HOSTED + entry.file, { cache: 'no-store' });
+    requireValue(fileResponse.ok, `Could not load ${entry.file} (HTTP ${fileResponse.status}).`);
     const bytes = new Uint8Array(await fileResponse.arrayBuffer());
-    requireValue(await sha256(bytes) === entry.sha256, `${entry.file} does not match its SHA-256 in the manifest.`);
+    requireValue(await sha256(bytes) === entry.sha256, `${entry.file} does not match its exact hash.`);
     setFile(key, bytes, entry.name ?? entry.file);
   }
   if (manifest.firmware?.imageSha256)
-    requireValue(await sha256(files.firmware.checked) === manifest.firmware.imageSha256, 'The firmware image does not match the manifest.');
-  log(`Loaded Doom release ${manifest.version ?? ''} from GitHub; every file matched its SHA-256.`);
+    requireValue(await sha256(files.firmware.checked) === manifest.firmware.imageSha256, 'The firmware image does not match its exact hash.');
+  choose('optHosted');
+  log(`Loaded Doom ${manifest.version ?? ''}: every file matched its exact hash. Connect the radio next.`);
 }
 
 for (const [key, id] of [['firmware', 'ownFirmware'], ['code', 'ownCode'], ['pack', 'ownPack'], ['song', 'ownSong']]) {
@@ -98,11 +106,11 @@ for (const [key, id] of [['firmware', 'ownFirmware'], ['code', 'ownCode'], ['pac
     const file = $(id).files[0];
     if (!file) return;
     setFile(key, new Uint8Array(await file.arrayBuffer()), file.name);
+    choose('optOwn');
     log(`${file.name}: checked (${kb(files[key].bytes.length)}).`);
   }));
 }
-$('fromGitHub').addEventListener('click', () => task(fromGitHub));
-$('sourceBase').placeholder = GITHUB.base;
+$('loadHosted').addEventListener('click', () => task(loadHosted));
 
 // USB (HID) ---------------------------------------------------------------
 
@@ -173,7 +181,7 @@ $('install').addEventListener('click', () => task(async () => {
   const left = planInstall(current, whole, files.code.checked.length);
   requireValue(!left.sectors.length, `Verification failed at ${left.sectors.map(hex).join(', ')}. Run Install again (it resumes).`);
   progress(1, 1, 'Installed');
-  log('Doom installed and verified. Unplug USB and power-cycle the radio. With no game data yet, it opens the Bluetooth upload screen by itself: go to step 03.');
+  log('Doom installed and verified. Unplug USB and power-cycle the radio. With no game data yet, it opens the Bluetooth upload screen by itself: go to step 02.');
 }));
 
 for (const id of ['skipBackup', 'acknowledge']) $(id).addEventListener('change', refresh);
@@ -194,7 +202,7 @@ $('btConnect').addEventListener('click', () => task(async () => {
 $('btDisconnect').addEventListener('click', () => { session?.disconnect(); session = null; $('btState').textContent = 'Disconnected'; refresh(); });
 
 async function upload(key, slot) {
-  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109d');
+  const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109e');
   const began = performance.now();
   const entry = files[key];
   const manifest = await uploadPack(session.radio, entry.checked, {

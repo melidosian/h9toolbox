@@ -9,13 +9,6 @@ import {
 // stock code. The firmware runs it in place, unencrypted, at 0x01EE5000.
 export const FAR_START = 0xea000;
 export const FAR_END = 0xfc000;
-// Where "Download from GitHub" looks: a branch with the release files and
-// doom-manifest.json (see firmware-research/doom-firmware/stage_release.py).
-export const GITHUB = {
-  base: 'https://raw.githubusercontent.com/melidosian/h9toolbox/doom-files/',
-  manifest: 'doom-manifest.json',
-};
-
 export const BLANK_CRC = crc16(new Uint8Array(SECTOR_SIZE).fill(0xff));
 function requireValue(condition, message) { if (!condition) throw new Error(message); }
 const hex = value => `0x${value.toString(16)}`;
