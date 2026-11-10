@@ -51,8 +51,9 @@ function refresh() {
   $('install').disabled = busy || !hid || !haveInstall || !(backedUp || $('skipBackup').checked) || !$('acknowledge').checked;
   $('btConnect').disabled = busy || !!session;
   $('btDisconnect').disabled = busy || !session;
-  $('uploadPack').disabled = busy || !session || !files.pack;
-  $('uploadSong').disabled = busy || !session || !files.song;
+  // Step 02 works on its own: without loaded files the upload loads Doom first.
+  $('uploadPack').disabled = busy || !session;
+  $('uploadSong').disabled = busy || !session;
   $('removeData').disabled = busy || !session;
   for (const [key, id] of [['firmware', 'rowFirmware'], ['code', 'rowCode'], ['pack', 'rowPack'], ['song', 'rowSong']]) {
     const row = $(id), entry = files[key];
@@ -203,6 +204,11 @@ $('btConnect').addEventListener('click', () => task(async () => {
 $('btDisconnect').addEventListener('click', () => { session?.disconnect(); session = null; $('btState').textContent = 'Disconnected'; refresh(); });
 
 async function upload(key, slot) {
+  if (!files[key]) {
+    log('Loading the Doom files first (step 01, Load Doom)…');
+    await loadHosted();
+    requireValue(files[key], key === 'song' ? 'This release has no music.' : 'The game data did not load.');
+  }
   const { SLOTS, uploadPack } = await import('./upload.mjs?v=20261109g');
   const began = performance.now();
   const entry = files[key];
