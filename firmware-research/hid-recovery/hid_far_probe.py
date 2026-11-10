@@ -7,7 +7,8 @@ erase and write are not. This probe uses one sector at 0xFB000, past the end
 of the Doom code (0xEA000 + 66,798 bytes ends at 0xFA4EE) and still inside
 the region (0xEA000-0xFBFFF), so nothing that runs is ever touched:
 
-  1. CRC 0xFB000 (must read erased, or hold this probe's own pattern)
+  1. CRC 0xFB000 (must read erased, this probe's own pattern, or the known
+     leftover of Doom builds 1-3)
   2. erase, CRC (expect erased)
   3. write a 4 KiB pattern in 40-byte packets, CRC (expect the pattern;
      a different CRC means the updater changes far-region bytes, for
@@ -31,6 +32,11 @@ import restore_stock as hid  # noqa: E402  (the proven HID packets)
 SECTOR = 0xFB000
 PATTERN = bytes((i * 37 + (i >> 8) * 11 + 0x5A) & 0xFF for i in range(hid.BLOCK_SIZE))
 BLANK_CRC = hid.crc(hid.BLANK)
+# What builds 1-3 of the Doom firmware left there: their far blobs filled 18
+# sectors (0xEA000-0xFBFFF; later builds fit in 17). 208 bytes up to
+# 0xFB109, copied from the Doom code's data (USB dump 2026-11-09,
+# h9-main-flash-full-20261109-doom32.bin); nothing reads it.
+LEFTOVER_CRC = 0xEFA9
 
 
 def sector_crc(device) -> int:
@@ -45,7 +51,8 @@ def main() -> int:
     device = hid.open_radio()
     try:
         first = sector_crc(device)
-        state = "erased" if first == BLANK_CRC else "probe pattern" if first == hid.crc(PATTERN) else "other data"
+        state = ("erased" if first == BLANK_CRC else "probe pattern" if first == hid.crc(PATTERN)
+                 else "early Doom build leftover" if first == LEFTOVER_CRC else "other data")
         print(f"0x{SECTOR:X} CRC 0x{first:04X} ({state}); erased = 0x{BLANK_CRC:04X}, pattern = 0x{hid.crc(PATTERN):04X}")
         if state == "other data":
             print("Refusing: the probe sector holds data this probe did not write.")

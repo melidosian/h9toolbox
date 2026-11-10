@@ -2836,4 +2836,19 @@ flash-power question, and asked for more speed.
   byte for byte (package `a68c4dcd…`, flash `10a741b9…`, far
   `c1e8c688…`).
 
+## 2026-11-09 HID far-region probe, part 1: 0xFB000 holds a leftover
+
+- `hid-recovery/hid_far_probe.py` (one spare sector, `0xFB000`) found CRC
+  `0xEFA9` there, not erased, and refused to write.
+- USB dump (`h9-main-flash-full-20261109-doom32.bin`, SHA-256
+  `e9818226…`) against the morning dump (08:40, H9 Toolbox): only
+  `0xEA000–0xFB109` changed. `0xEA000–0xFA4ED` is the current Doom code;
+  `0xFB000` has 208 bytes to `0xFB109`, data that also appears in the
+  current blob at `0x103DE`.
+- Cause: Doom builds 1–3 had 18-sector far blobs (their far backups are
+  73,728 B, `0xEA000–0xFBFFF`); later builds use 17. Nothing reads it.
+  No system writes to the far region; stock's data at `0xFD000` is
+  unchanged.
+- The probe now also accepts that known leftover.
+
 Hardware results for S1 and S2, and U2 onward, will be recorded here.
