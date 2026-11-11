@@ -16,44 +16,59 @@
 #include "h9mod.h"
 #include "gfx.h"
 
-enum { STATIONS = 16, CALL = 10, TEXT = 24, MESSAGES = 6, MSG_TEXT = 40, FRAME_MAX = 200, NMEA_MAX = 72 };
+/* Stock RAM the screens share. Each can be overridden (the host test does). */
+#ifndef RING
+#define RING ((volatile uint8_t *)0x16634)               /* APRS modem serial ring, 2048 B */
+#define RING_WRITE (*(volatile uint16_t *)0x16E34)
+#define RING_READ (*(volatile uint16_t *)0x16E36)
+#endif
+#define RING_MASK 2047u
+/* Stock timer-3 counter: 100 Hz, measured on hardware with a stopwatch and
+ * running while a module has the CPU (resource-flash-log.md, 2026-11-09). */
+#ifndef TICK
+#define TICK (*(const volatile uint32_t *)0x1D8B0)
+#endif
+
+enum { STATIONS = 16, CALL = 10, TEXT = 24, MESSAGES = 6, MSG_TEXT = 40, FRAME_MAX = 124, NMEA_MAX = 64 };
 enum { TITLE_H = 18, BODY_Y = 20, FOOT_Y = 120 };
 enum { EV_REDRAW = 1, EV_UP, EV_DOWN, EV_MENU, EV_HOLD, EV_BACK };
 /* Digit key d (stock key code d + 2): EV_DIGIT + d, on the press. */
 enum { EV_DIGIT = 16 };
 
 struct station {
+    int32_t lat, lon;          /* hundredths of a minute; north and east positive */
     char call[CALL];
     char text[TEXT];
-    int32_t lat, lon;          /* hundredths of a minute; north and east positive */
-    uint8_t has_pos, table, symbol, live;
+    uint16_t heard;            /* when it was last heard live: units of 10 s of the stock tick (put_age) */
+    uint8_t has_pos, table, symbol, live;    /* (fields ordered so the struct has no padding) */
 };
 
 struct message {
     char from[CALL], to[CALL];
     char text[MSG_TEXT];
-    uint8_t mine, live;
+    uint8_t mine : 1, live : 1, acked : 1;   /* to me; heard live; (sent by me) acknowledged by the other station */
+    uint8_t id;                              /* the {id of a message I sent: its ack carries it */
 };
 
 struct aprs {
     uint32_t magic;
     struct station st[STATIONS];
     struct message msg[MESSAGES];
-    unsigned count, msgs, unread, rx;
+    uint32_t rx, rx_flash, press_tick;
     int32_t my_lat, my_lon;
-    uint8_t my_fix, gps_seen, older, switching;
+    uint16_t length, held;
+    uint8_t count, msgs, unread, my_fix, gps_seen, older, switching, escape, nmea_len;
+    uint8_t list_sel, list_top, map_zoom, map_sel, msg_sel, msg_top;   /* screen state */
+    uint8_t send_sel, msg_id;                                          /* APRS SEND */
+    uint8_t dirty, last_key, home_side, home_speaker;                  /* before APRS */
+    uint8_t beacon;                                                    /* APRS BEACON's settings, kept across screens (BEACON_* below) */
     char mycall[CALL];
     uint8_t frame[FRAME_MAX];
-    unsigned length, escape, nmea_len;
     char nmea[NMEA_MAX];
-    unsigned rx_flash, last_key, held, press_tick, dirty;
-    unsigned list_sel, list_top, map_zoom, map_sel, msg_sel, msg_top;   /* screen state */
-    unsigned send_sel, msg_id;                                           /* APRS SEND */
-    unsigned home_side, home_speaker;                                    /* before APRS */
 };
 
 #define APRS_BYTES ((sizeof(struct aprs) + 15u) & ~15u)
-#define APRS_SLOT_BYTES 0x600u
+#define APRS_SLOT_BYTES 0x570u   /* the state (sizeof, rounded up to 16) plus a little; build.py's APRS code limit follows it */
 #define APRS_ADDR (H9_SHARED_TOP - APRS_SLOT_BYTES)
 #ifdef APRS_HOST_TEST
 extern struct aprs aprs_host;
@@ -61,7 +76,11 @@ extern struct aprs aprs_host;
 #else
 #define A ((struct aprs *)APRS_ADDR)
 #endif
-enum { APRS_MAGIC = 0x32525041 };  /* "APR2": layout of 2026-11-10 (0x600 slot) */
+enum { APRS_MAGIC = 0x33525041 };  /* "APR3": layout of 2026-11-11 (0x570 slot) */
+
+/* APRS BEACON settings byte: bit 0 mode (0 smart, 1 timed), bits 1-2 symbol (0 person, 1 bike, 2 car),
+ * bits 3-5 the timed interval's index (aprs_beacon.c's table). A fresh state starts smart, person, 5 min. */
+enum { BEACON_DEFAULT = 2 << 3 };
 
 /* Open the shared state: keep it across a screen switch. Returns 1 on a
  * fresh start (from the menu): partial frames dropped, own callsign reread;
@@ -95,6 +114,14 @@ void aprs_call_of(const uint8_t *address, int raw, char *out);
 void aprs_offset(int32_t lat, int32_t lon, int32_t *east, int32_t *north);
 int aprs_range(const struct station *s, unsigned *tenths_km, const char **point);
 unsigned put_range(char *out, const struct station *s);
+/* How long ago a live station was heard: "NOW", "5M", "2H" (nothing for stored ones). */
+unsigned put_age(char *out, const struct station *s);
+/* The five screens, for the tab bar (1 LIST 2 MAP 3 MSG 4 SEND 5 BCN). aprs_tabs draws the bar on the
+ * bottom line (`cur` is kept for a highlight); aprs_tab handles a digit key: if it names another
+ * screen that is installed it asks the loader for it and returns 1 (module_main then returns 0). */
+enum { TAB_LIST, TAB_MAP, TAB_MSG, TAB_SEND, TAB_BEACON, TAB_NONE };
+void aprs_tabs(unsigned cur);
+int aprs_tab(const struct h9_api *api, unsigned ev, unsigned cur);
 unsigned put_uint(char *out, unsigned v);
 unsigned put_str(char *out, const char *s);
 void aprs_title(const char *text);
@@ -106,10 +133,12 @@ unsigned aprs_wrap(unsigned y, const char *text, unsigned limit, uint16_t fg);
 void aprs_feed(uint8_t b);
 void aprs_reset(void);
 
-#define APRS_LIST ((const char *)"APRS")
+/* "APRS" (the menu entry, aprs_load.c) loads stock's Beacon List, then runs the station list. */
+#define APRS_LIST ((const char *)".APRS LIST")
 #define APRS_INFO ((const char *)".APRS INFO")
 #define APRS_MAP ((const char *)"APRS MAP")
 #define APRS_MSG ((const char *)"APRS MSG")
 #define APRS_SEND ((const char *)"APRS SEND")
+#define APRS_BEACON ((const char *)"APRS BEACON")
 
 #endif

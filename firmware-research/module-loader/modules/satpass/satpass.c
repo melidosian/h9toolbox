@@ -23,11 +23,13 @@
 #include "satshare.h"
 #include "satdata.h"
 
+#ifndef RING   /* the host render (render_satlist.c) overrides these */
 #define RING ((volatile uint8_t *)0x16634)
 #define RING_WRITE (*(volatile uint16_t *)0x16E34)
 #define RING_READ (*(volatile uint16_t *)0x16E36)
-#define RING_MASK 2047u
 #define TICK (*(const volatile uint32_t *)0x1D8B0)   /* 100 Hz */
+#endif
+#define RING_MASK 2047u
 
 enum { WANT = 5, HOURS = 36, NMEA = 80 };
 enum { BG = GFX_BLACK, DIM = GFX_GREY };

@@ -136,7 +136,7 @@ def link(objs: list[Path], origin: int, entry: str, out: Path, name: str) -> elf
                       "    .text : { *(.text .text.*) *(.rodata .rodata.*) }\n"
                       "    /DISCARD/ : { *(.comment) *(.note*) }\n}\n")
     path = out / f"{name}.elf"
-    state, data = ld.link(ld.parse_args(["-T", str(script), "-o", str(path), *map(str, objs)]))
+    state, data = ld.link(ld.parse_args(["--gc-sections", "-T", str(script), "-o", str(path), *map(str, objs)]))
     if data is None or state.errors:
         raise RuntimeError(f"Pi32 linker failed for {name}: {state.errors}")
     path.write_bytes(data)
@@ -173,6 +173,8 @@ def compile_c(source: Path, out: Path, toolchain: Path) -> Path:
     rel = lambda p: "/w/" + p.relative_to(RESEARCH).as_posix()
     run(["docker", "run", "--rm", "--platform", "linux/amd64", "-v", f"{toolchain}:/opt/jieli:ro",
          "-v", f"{RESEARCH}:/w", "-w", "/w", "h9-jieli", "/opt/jieli/pi32v2/bin/clang", *C_FLAGS,
+         # vendored third-party code is used unchanged: its `(T){0}` initialiser trips -Wmissing-braces
+         *(["-Wno-missing-braces"] if "third_party" in source.parts else []),
          "-I", rel(ROOT / "modules" / "common"), "-c", rel(source), "-o", rel(obj)])
     return obj
 
@@ -189,28 +191,33 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
 
     menu = c_module("MENU", ROOT / "modules" / "menu" / "menu.c", ROOT / "modules" / "common" / "vfo_backup.c")
     about = c_module("ABOUT", ROOT / "modules" / "about" / "about.c")
+    maze = c_module("MAZE CHASE", ROOT / "modules" / "maze" / "maze.c", ROOT / "modules" / "common" / "snd.c")
     aprs = c_module("APRS MONITOR", ROOT / "modules" / "aprs_monitor" / "aprs_monitor.c")
     if len(aprs["body"]) > 0x2000 - 0x800:
         raise SystemExit("APRS MONITOR code overlaps its state in the top 2 KiB of the RAM slot")
-    # APRS screens share state at 0x2BEE0 - 0x600 (aprs_core.h APRS_ADDR); each
+    # APRS screens share state at 0x2BEE0 - 0x570 (aprs_core.h APRS_ADDR); each
     # screen's code must end below it. ".APRS INFO" is hidden from the menu.
     aprs_dir = ROOT / "modules" / "aprs"
-    aprs_limit = 0x2BEE0 - 0x600 - LOAD
+    aprs_limit = 0x2BEE0 - 0x570 - LOAD            # aprs_core.h APRS_SLOT_BYTES
     core = aprs_dir / "aprs_core.c"
     text = aprs_dir / "aprs_text.c"
-    screens = [c_module("APRS", aprs_dir / "aprs_list.c", core, aprs_dir / "aprs_stored.c"),
+    screens = [c_module("APRS", aprs_dir / "aprs_load.c", core, aprs_dir / "aprs_stored.c"),
+               c_module(".APRS LIST", aprs_dir / "aprs_list.c", core),
                c_module(".APRS INFO", aprs_dir / "aprs_info.c", core, text),
                c_module("APRS MAP", aprs_dir / "aprs_map.c", core),
                c_module("APRS MSG", aprs_dir / "aprs_msg.c", core, text),
                c_module("APRS SEND", aprs_dir / "aprs_send.c", aprs_dir / "aprs_core_tx.c", aprs_dir / "aprs_tx.c",
                         aprs_dir / "aprs_edit.c", text)]
+    screens.append(c_module("APRS BEACON", aprs_dir / "aprs_beacon.c", aprs_dir / "aprs_core_tx.c", aprs_dir / "aprs_tx.c",
+                            aprs_dir / "beacon_core.c", aprs_dir / "third_party" / "smartbeacon" / "smartbeacon.c",
+                            ROOT / "modules" / "common" / "fix_store.c"))
     for m in screens:
         if len(m["body"]) > aprs_limit:
             raise SystemExit(f"{m['name']} code ({len(m['body'])} B) overlaps the shared APRS state ({aprs_limit} B max)")
     # SAT PASS reads APRS's last GPS fix from the shared state: stay below it
     # so the fix survives.
     # Both SAT PASS screens also stay below satshare.h's 96 bytes (just under APRS's state).
-    sat_limit = aprs_limit - 0x60
+    sat_limit = 0x2BEE0 - 0x600 - 0x60 - LOAD       # satshare.h SAT_SHARED: fixed (the stub hard-codes it)
     sat_dir = ROOT / "modules" / "satpass"
     satpass = c_module("SAT PASS", sat_dir / "satpass.c", sat_dir / "orbit.c", ROOT / "modules" / "common" / "fix_store_save.c")
     satplot = c_module(".SAT PLOT", sat_dir / "satplot.c", sat_dir / "orbit.c")
@@ -252,7 +259,7 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
     test_bundle = bundle([reset_test])
     parse_bundle(test_bundle)
     (out / "test-ml-reset-bundle.bin").write_bytes(test_bundle)
-    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, about]
+    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, maze, about]
 
 
 def call_bytes(target: int, site: int) -> bytes:

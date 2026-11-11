@@ -19,7 +19,7 @@ void aprs_load_stored(const struct h9_api *api)
         uint32_t at = BEACONS + 6 + slot * BEACON_RECORD;
         api->read(head, at, 4);
         if ((head[0] | (unsigned)head[1] << 8) != BEACON_RECORD) continue;
-        /* A->frame is FRAME_MAX (200) bytes, smaller than a record: read the
+        /* A->frame is FRAME_MAX (124) bytes, smaller than a record: read the
          * addresses and as much of the info field as fits. (Reading all 324
          * bytes overran into the key and redraw state, 2026-11-10.) */
         api->read(head, at + 4 + R_LEN, 2);

@@ -3917,3 +3917,125 @@ module and the refactored SAT screens have not been flashed).
   data already on the radio. The dialog's "Update data and stage" also adds the app when it is not added.
   Refreshed data is never treated as an outdated app and survives app updates. CSP now allows `celestrak.org`.
 - Cards show one-line summaries (`summary`, at most 90 characters) and a size line only.
+
+## 2026-11-11 MAZE CHASE 0.1 (new game, offline only)
+
+An original maze game (not a recreation of any existing title): `modules/maze/maze.c`, 5,269 B, 25 x 19 maze of
+6-pixel tiles, four prowlers with different targeting (direct, ahead of you, hunt-and-retreat, random wander),
+scatter/chase phases, corner power pellets (frightened ghosts, 200/400/800/1600), three lives, faster each
+level, wrap-around tunnel, pause. Keys 2/4/6/8 or Up/Down steer, Menu pauses, Back leaves. The maze was
+generated (seeded DFS, mirrored, braided, no dead ends, all tiles reachable) and embedded as text. State is on
+the stack; time is the 100 Hz tick at 0x1D8B0. Host harness `modules/maze/render_maze.c` (fake LCD, clock and
+random-walker keys) ran 120 s games for three seeds under ASan/UBSan without faults and renders frames.
+Published in the App Manager catalog (Games). **Not yet run on the radio**: key mapping (digit key codes),
+step speed (14 ticks per player step, 17 - level for prowlers) and screen fit are unverified.
+
+## 2026-11-11 MAZE CHASE 0.2: sound (offline only)
+
+- New `modules/common/snd.c/.h`: square-wave effects through the stock DAC, using the Doom firmware's recipe
+  (builds 24-26): PA3 (speaker amplifier enable) output and high, speaker gate source 1, DAC rate 11025 Hz and
+  start through stock (`0x01E434C8`, `0x01E43534`; the DAC handle is `0x11AD0 + 6636`), 64-sample (128 B)
+  writes through `0x01E43698`, kept about 200 ms ahead of the 100 Hz tick. Closing writes about 70 ms of silence
+  and releases gate source 1. Called by function pointer, so `h9lib.s` (shared with SAT PASS, 31 B from its
+  limit) is unchanged. Amplitude 9000 of 32767, and the stock volume setting is left alone.
+- Effects (priorities so a jingle is not cut by a munch): dot (alternating up/down sweep), power pellet,
+  eaten prowler, start jingle, level clear, death sweep, game over. Title screen key 5 toggles sound.
+- Host harness captures the DAC writes: 392 Hz first note measured about 385 Hz, peak 9000, amplifier released
+  at exit, two seeds under ASan/UBSan without faults. MAZE CHASE is 6,533 B.
+- **Unproven on the radio.** Doom ran with stock's app loop stopped; here stock's loop and audio tasks are
+  alive around the module, so the DAC, the amplifier gate or a stock mute may interfere (silence, or hiss from
+  the receiver path). Volume state was not set (Doom set all five states to 30). To check: sound on, listen for
+  the start jingle; if silent, try raising volume or the gate source; if the radio misbehaves, sound off (key 5).
+
+- MAZE CHASE 0.3 (hardware: "just a buzz-hum noise, no music/sfx"): cause was my call to the stock DAC write.
+  Stock `0x01E43698` takes only the sample buffer (the Doom shim `h9_dac_write128(pcm)`); I passed the DAC handle
+  first, so it played 128 bytes of RAM at the handle, a hum. Now `DAC_WRITE(chunk)`. The host harness fake
+  also took a handle, which is why it missed this; it now has the same one-argument shape.
+
+## 2026-11-11 APRS BEACON (smart beaconing), APRS 0.6 (offline only)
+
+Rolled in the scheduler of https://github.com/tomaszkuehn/TD-H9-aprs-smartbeacon (MIT, commit 4857fb6e): vendored
+unchanged in `modules/aprs/third_party/smartbeacon/` with its licence, noted in `THIRD_PARTY_NOTICES.md` and the
+app's catalog notes. That project patches the radio's own APRS module; H9 Toolbox instead keeps the stock firmware
+and adds a screen.
+
+- New module `APRS BEACON` (`aprs_beacon.c`, 5,945 B, in the menu as its own entry; part of the APRS app):
+  reads the modem ring's NMEA frames (cmd 0x10) itself (`beacon_core.c`: RMC parse with position, speed and course,
+  KISS unescape, AX.25 frames skipped), feeds `sb_on_rmc`/`sb_tick` once a second, and when the scheduler fires
+  sends `!DDMM.hhN/DDDMM.hhW<symbol>ccc/sss H9 Toolbox` through stock's KISS transmit `0x01E5DBCC`, exactly as
+  APRS SEND does (TX CH side, 2 m only, callsign from stock; side and speaker restored after). It starts OFF; Menu
+  (a tap of at least 3 ticks, so the keypad glitch cannot start it) toggles; 1 symbol (person/bike/car); 5 sends one now;
+  Back stops and leaves. First position about 15 s after starting (the upstream 15 s guard).
+- Not shown while beaconing: heard stations (the screen drains the ring but only parses GPS).
+- Shared APRS state is unchanged (`struct aprs` is 1528 of 1536 bytes, so no room was needed or used).
+- Vendored file note: its `(sb_state_t){0}` trips `-Wmissing-braces` under our `-Werror`; `build.py` adds
+  `-Wno-missing-braces` for files under `third_party/` instead of editing it.
+- `test_beacon.c` (host, ASan/UBSan): RMC parsing incl. void fix, bad latitude, missing course; KISS feed with
+  junk, AX.25 skip, split frames, escapes; packet text; the scheduler (fix appears, 60 km/h interval, corner, stop,
+  parked 10 min). Passes. **Not run on the radio.**
+
+## 2026-11-11 APRS 0.7: a once-over (offline only), and section GC for every module
+
+- **Linker GC (all modules).** `build.py` links with `--gc-sections` (the modules were already compiled with
+  `-ffunction-sections`, but the Python linker kept everything), and `h9lib.s` has `h9_led`, `h9_usb_loader` and
+  `h9_reset` in their own sections. Unused functions no longer ride along in every module. Savings (bytes):
+  SAT TRACKER -716, SAT PLOT/TRACK -664, APRS MSG -181 (before this change's additions), SAT PASS -64, GPS -108,
+  MAZE CHASE -96, MENU -36. **Every module's binary changed**, including the hardware-tested ones (MENU, SAT PASS,
+  GPS...): the code is the same, so behaviour should not, but they have not been re-run on a radio.
+- **APRS code limit** is now 6,768 B (state slot 0x570 instead of 0x600): the shared state was repacked (station
+  struct had 4 bytes of padding per entry, counters and screen indices are bytes) and the frame buffer is 128 B
+  (was 200; an AX.25 frame longer than that loses only its tail, stored Beacon List records keep 69 info bytes).
+  `APR3` magic. SAT PASS's limit stays 6,528 (its state at 0x2B880 is hard-coded in the stub).
+- **Menu "APRS" is now a 3 KB loader** that loads stock's Beacon List and hands over to the hidden `.APRS LIST`,
+  so every screen's Back-to-list no longer carries the loader (it was 258 B of each list build).
+- **UX**: a bottom line names the screens (1 LIST 2 MAP 3 MSG 4 SEND 5 BCN) and the digits jump there (Send and
+  Beacon use digits themselves, so they have no digit navigation; hold Menu still cycles). The list shows how long
+  ago each live station was heard (NOW/5M/2H) and a context line; the details page has the heard age and no longer
+  shows the raw symbol characters; the map is 10 px shorter with a name/range line and no axes; the message list
+  loses its "ME" row (callsign moved to the bottom line) and shows ACK on messages I sent once the recipient's
+  `ackNN` arrives (the id I send is stored with the message, `struct message` is unchanged in size). BEACON's
+  Back now returns to the list. Station names and ranges are unchanged.
+- **Tech debt**: TICK, RING, KISS-transmit and 2 m limit constants live in one place each (`aprs_core.h`,
+  `aprs_tx.h`) instead of per file; a dead branch in the details screen went; `FRAME_MAX`/slot sizes derive from one
+  definition.
+- Host: `test_aprs.c` extended (acks incl. wrong sender/id/addressee, heard ages, tab digits against the bundle),
+  all green; `render_aprs.c` renders the list, details, map and messages screens for a visual check.
+- Not done / ideas: auto-acknowledging received messages (an unattended transmit), message retries, wider station
+  comments (the 16-station table is the memory limit), a heard-age on the map.
+
+## 2026-11-11 Screenshots in the App Manager's info dialogs
+
+`make_screenshots.py` renders each app's screens with the host harnesses (`render_aprs.c`, `render_gps.c`,
+`render_maze.c`, `render_plot.c`, `render_track.c`: the app's own drawing code, a fake LCD and made-up data) into
+`dist/apps/catalog/shots/*.png` (3x, 480 x 384). `modules/catalog.json` lists them per app (`screenshots`),
+`publish_catalog.py` refuses a missing file, `info.mjs` shows them in the dialog with a note that they are
+simulations. 11 shots: APRS 4, GPS 3, Maze Chase 2, SAT PASS 2. Brick Breaker (assembly), APRS Monitor and VFO
+PROBE have no host render yet, so their dialogs have none.
+
+- Added `render_satlist.c` (the SAT PASS list page: a fix and time fed through the modem ring, passes computed by the
+  real code) and a `sat-list` screenshot as the first one on SAT PASS's card. `satpass.c`'s ring/tick macros are now
+  `#ifndef`-guarded so the harness can override them (no change to the built module).
+
+## 2026-11-11 APRS BEACON fixes (hardware: "doesn't stay enabled, won't beacon without GPS, no smart beaconing option")
+
+Offline build and host tests only; **not re-run on the radio**.
+
+- **Turned itself off**: starting and stopping were one Menu tap each. The keypad reads Menu for a few ms when the
+  speaker amp starts and after a transmit (resource-flash-log.md, 2026-11-10), and a stock transmit happens right
+  after a beacon, so a tap-to-toggle was fragile. Now a **hold** of 0.6 s (60 ticks) starts or stops it, a tap
+  (3+ ticks) only changes the selected setting, Back needs 3+ ticks, and keys are ignored for 0.5 s after a
+  transmit. `test_beacon_screen.c` drives the real screen loop with a scripted keypad: 2- and 3-tick glitches do not
+  start it, a hold does, a hold stops it, a tap right after a TX changes nothing (the same tap 1 s later does), and
+  it stays on through transmits.
+- **Without GPS**: it no longer refuses. Position order: this session's last fix, else the fix the loader's
+  background recorder saved on the chip (`fix_load_micro`), marked "H9 Toolbox, last known" and without course/speed.
+  With neither it says NO POSITION YET and retries each minute without turning off. (`beacon_from_micro`, host tested
+  incl. the hundredths-of-a-minute arithmetic, which the first version got wrong.)
+- **Modes**: the screen now has MODE (SMART, the vendored scheduler, or TIMED), EVERY (1, 2, 5, 10, 15, 30 min, for
+  TIMED) and SYMBOL, chosen with Up/Down and set with Menu; kept for the session in `A->beacon` (one byte, state
+  magic stays APR3: `FRAME_MAX` 124 paid for it; state 1388 of 1392). TIMED: first position 15 s after the start,
+  then every N minutes (`beacon_timed_due`). SMART starts with a pending first position, so the first goes out after
+  the 15 s guard even without a fix.
+- Still foreground only: it beacons while its screen is open and stops when you leave (a background beacon would
+  use the SAT TRACKER's resident mechanism; not done). Sizes: APRS BEACON 6,737 B (limit 6,768); MAP is at 6,767.
+- New `aprs-beacon` screenshot and catalog text (controls, notes).

@@ -3,6 +3,16 @@
 #define APRS_TX_H
 #include <stdint.h>
 
+/* Stock's KISS transmit routine (keys, sends, waits the airtime, unkeys, with stock's own checks), the
+ * working TX frequency in 10 Hz units, and the 2 m band H9 Toolbox transmits on. */
+#ifndef STOCK_KISS_TX
+#define STOCK_KISS_TX 0x01E5DBCCu
+#endif
+#ifndef TX_FREQ
+#define TX_FREQ (*(const volatile uint32_t *)0x11C9C)
+#endif
+enum { TX_LOW = 14400000, TX_HIGH = 14800000 };
+
 /* Destination for packets from H9 Toolbox Firmware (APZxxx: experimental). */
 #define APRS_TX_DEST "APZH9T"
 #define APRS_TX_PATH "WIDE1-1"

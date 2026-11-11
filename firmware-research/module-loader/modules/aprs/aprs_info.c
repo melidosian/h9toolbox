@@ -1,6 +1,7 @@
 /* .APRS INFO: details of the station selected in the list (module
  * ".APRS INFO"; the leading dot hides it from the module menu). Menu: send
- * this station a message (APRS SEND), Back: list, hold Menu: map. */
+ * this station a message (APRS SEND), Back: list, 1-5 or hold Menu: other
+ * screens. */
 #include "aprs_core.h"
 
 static unsigned put_coord(char *out, int32_t v, unsigned deg_digits, char pos, char neg)
@@ -27,16 +28,22 @@ static void draw_detail(void)
         b[n++] = ' ';
         put_coord(b + n, s->lon, 3, 'E', 'W');
         aprs_line(y, b, GFX_WHITE, GFX_BLACK); y += 11;
-        n = put_str(b, "SYMBOL ");
-        b[n++] = (char)s->table; b[n++] = (char)s->symbol; b[n] = 0;
-        aprs_line(y, b, GFX_GREY, GFX_BLACK); y += 11;
         put_range(b, s);
-        aprs_line(y, b, GFX_GREEN, GFX_BLACK); y += 13;
+        aprs_line(y, b, GFX_GREEN, GFX_BLACK); y += 11;
     } else {
-        aprs_line(y, "NO POSITION", GFX_GREY, GFX_BLACK); y += 13;
+        aprs_line(y, "NO POSITION", GFX_GREY, GFX_BLACK); y += 11;
     }
+    if (s->live) {
+        unsigned n = put_str(b, "HEARD ");
+        n += put_age(b + n, s);
+        if (b[n - 1] != 'W') put_str(b + n, " AGO");
+        aprs_line(y, b, GFX_GREY, GFX_BLACK);
+    } else {
+        aprs_line(y, "FROM STOCK BEACON LIST", GFX_GREY, GFX_BLACK);
+    }
+    y += 13;
     aprs_wrap(y, s->text, FOOT_Y - 2, GFX_WHITE);
-    aprs_line(FOOT_Y, s->live ? "LIVE  MENU: SEND  BACK" : "STORED  MENU: SEND  BACK", GFX_GREY, GFX_BLACK);
+    aprs_line(FOOT_Y, "MENU:SEND BACK:LIST 1-5", GFX_GREY, GFX_BLACK);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)
@@ -47,9 +54,9 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         unsigned ev = aprs_event();
         if (ev == EV_REDRAW) {
             if (A->list_sel < A->count) draw_detail();
-            else if (aprs_go(api, APRS_LIST)) return 0;
-            else return 0;
+            else { aprs_go(api, APRS_LIST); return 0; }
         }
+        else if (aprs_tab(api, ev, TAB_NONE)) return 0;
         else if (ev == EV_HOLD) { if (aprs_go(api, APRS_MAP) || aprs_go(api, APRS_MSG)) return 0; }
         else if (ev == EV_MENU) {
             A->send_sel = 1;                        /* first message to this station */

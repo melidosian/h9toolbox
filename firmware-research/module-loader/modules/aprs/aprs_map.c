@@ -1,9 +1,9 @@
 /* APRS MAP: stations plotted around your GPS position (module "APRS MAP").
- * Up/Down zoom, Menu: next station, hold Menu: messages, Back: station list.
+ * Up/Down zoom, Menu: next station, 1-5 or hold Menu: other screens, Back: station list.
  * Without a GPS fix the map centres on the selected station. */
 #include "aprs_core.h"
 
-enum { MAP_Y = TITLE_H, MAP_H = 100, CX = 80, CY = MAP_Y + 50, RADIUS_PX = 46, ZOOMS = 9 };
+enum { MAP_Y = TITLE_H, MAP_H = 90, CX = 80, CY = MAP_Y + 45, RADIUS_PX = 42, ZOOMS = 9, INFO_Y = FOOT_Y - 10 };
 static const uint16_t RADIUS_KM[ZOOMS] = { 1, 2, 5, 10, 20, 50, 100, 200, 500 };
 
 /* Map position of (lat, lon); 0 when outside the map. 54 units of 18.52 m
@@ -40,8 +40,6 @@ static void draw(void)
 
     aprs_title("MAP");
     gfx_fill(0, MAP_Y, H9_WIDTH, MAP_H, GFX_BLACK);
-    gfx_fill(CX - RADIUS_PX, CY, 2 * RADIUS_PX + 1, 1, 0x2104);   /* faint axes */
-    gfx_fill(CX, CY - RADIUS_PX, 1, 2 * RADIUS_PX + 1, 0x2104);
     if (A->my_fix) { gfx_fill(CX - 4, CY, 9, 1, GFX_GREEN); gfx_fill(CX, CY - 4, 1, 9, GFX_GREEN); }
     for (unsigned i = 0; i < A->count; i++) {
         const struct station *s = &A->st[i];
@@ -63,20 +61,21 @@ static void draw(void)
         n = put_str(b, A->st[A->map_sel].call);
         b[n++] = ' ';
         put_range(b + n, &A->st[A->map_sel]);
-        aprs_line(FOOT_Y, b, GFX_WHITE, GFX_BLACK);
+        aprs_line(INFO_Y, b, GFX_WHITE, GFX_BLACK);
     } else {
-        aprs_line(FOOT_Y, "NO POSITIONS YET", GFX_GREY, GFX_BLACK);
+        aprs_line(INFO_Y, "NO POSITIONS YET", GFX_GREY, GFX_BLACK);
     }
+    aprs_tabs(TAB_MAP);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)
 {
     (void)self;
     aprs_open();
-    if (A->map_zoom >= ZOOMS) A->map_zoom = 3;
     for (;;) {
         unsigned ev = aprs_event();
         if (ev == EV_REDRAW) draw();
+        else if (aprs_tab(api, ev, TAB_MAP)) return 0;
         else if (ev == EV_HOLD) { if (aprs_go(api, APRS_MSG) || aprs_go(api, APRS_LIST)) return 0; }
         else if (ev == EV_BACK) { aprs_go(api, APRS_LIST); return 0; }
         else if (ev == EV_UP && A->map_zoom) { A->map_zoom--; A->dirty = 1; }

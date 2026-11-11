@@ -52,6 +52,7 @@ h9_delay:
     {pc, r14-r4} = [sp++]
 
 /* void h9_led(on): the GPIO 9 LED. */
+    .section .text.h9_led,"ax",@progbits
     .globl h9_led
 h9_led:
     r1 = 0x001e5000
@@ -65,6 +66,7 @@ h9_led_store:
 
 /* void h9_usb_loader(void): ROM 0x02000D68, the BR23 USB loader (proven
  * from our code 2026-11-09); does not return. */
+    .section .text.h9_usb_loader,"ax",@progbits
     .globl h9_usb_loader
 h9_usb_loader:
     r3 = 0x02000d68
@@ -77,6 +79,7 @@ h9_usb_loader_returned:
  * end with PWR_CON (0x1E0000) |= bit 4, then spin; that is the SDK's
  * cpu_reset. Interrupts off first (ROM 0x02001634). Does not return.
  * (ROM 0x0200000A, the heap-failure target, froze when called directly.) */
+    .section .text.h9_reset,"ax",@progbits
     .globl h9_reset
 h9_reset:
     r3 = 0x02001634
@@ -86,6 +89,7 @@ h9_reset:
 h9_reset_wait:
     goto h9_reset_wait
 
+    .section .text,"ax",@progbits
 /* 0x2A column range, 0x2B row range, 0x2C pixel-memory write.
  * The stock window routine at app+0x04ECDE uses this same coordinate order. */
 hello_set_window:

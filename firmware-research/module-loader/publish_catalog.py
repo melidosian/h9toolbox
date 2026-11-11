@@ -37,6 +37,9 @@ def publish(bundle_path: Path = BUNDLE, out: Path = OUT) -> dict:
             raise SystemExit(f"{missing} in catalog.json but not in {bundle_path.name}; run build.py")
         mods = [built[n] for n in names]
         data = build.bundle(mods)
+        for shot in item.get("screenshots", []):          # made by make_screenshots.py
+            if not (out / shot["file"]).is_file():
+                raise SystemExit(f"{item['id']}: screenshot {shot['file']} is missing; run make_screenshots.py")
         file = f"{item['id']}.h9mod"
         (out / file).write_bytes(data)
         parts = [{"name": m["name"], "bytes": len(m["body"]), "ram": len(m["body"]) + m["bss"],

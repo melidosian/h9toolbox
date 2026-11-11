@@ -2,17 +2,6 @@
  * only); everything lives in the shared block A. */
 #include "aprs_core.h"
 
-#ifndef RING
-#define RING ((volatile uint8_t *)0x16634)
-#define RING_WRITE (*(volatile uint16_t *)0x16E34)
-#define RING_READ (*(volatile uint16_t *)0x16E36)
-#endif
-#define RING_MASK 2047u
-/* Stock timer-3 counter: 100 Hz, measured on hardware with a stopwatch and
- * running while a module has the CPU (resource-flash-log.md, 2026-11-09). */
-#ifndef TICK
-#define TICK (*(const volatile uint32_t *)0x1D8B0)
-#endif
 #ifndef SIDE_BYTE
 #define SIDE_BYTE (*(volatile uint8_t *)0x11B50)        /* bit 7: logical side B */
 #define ROUTE_BYTE (*(volatile uint8_t *)0x11AEC)       /* Dual Watch route side */
@@ -88,6 +77,8 @@ static void copy(char *dst, const char *src, unsigned max)
     dst[i] = 0;
 }
 #endif
+
+static uint16_t now10(void) { return (uint16_t)(TICK / 1000u); }   /* units of 10 s */
 
 static void clear(void *p, unsigned n)
 {
@@ -234,7 +225,16 @@ static struct station *station(const char *call, int live)
     return &A->st[0];
 }
 
-/* ":ADDRESSEE:text{id" (acks and rejects skipped, retries merged). */
+/* "ackNN" from `from` to me: the message I sent them with {NN is delivered. */
+static void got_ack(const char *from, const uint8_t *p, unsigned len)
+{
+    unsigned id = 0;
+    for (unsigned n = 0; n < len && digit(p[n]); n++) id = id * 10 + (unsigned)(p[n] - '0');
+    for (struct message *m = A->msg; id && m < A->msg + A->msgs; m++)
+        if (m->id == id && same(m->from, A->mycall) && same(m->to, from)) { m->acked = 1; A->dirty = 1; }
+}
+
+/* ":ADDRESSEE:text{id" (rejects skipped, acks marked, retries merged). */
 static void message(const char *from, const uint8_t *info, unsigned len, int live)
 {
     char to[CALL], text[MSG_TEXT];
@@ -244,7 +244,11 @@ static void message(const char *from, const uint8_t *info, unsigned len, int liv
     to[n] = 0;
     const uint8_t *t = info + 11;
     len -= 11;
-    if (len >= 3 && ((t[0] == 'a' && t[1] == 'c' && t[2] == 'k') || (t[0] == 'r' && t[1] == 'e' && t[2] == 'j'))) return;
+    if (len >= 3 && t[0] == 'a' && t[1] == 'c' && t[2] == 'k') {
+        if (live && A->mycall[0] && same(to, A->mycall)) got_ack(from, t + 3, len - 3);
+        return;
+    }
+    if (len >= 3 && t[0] == 'r' && t[1] == 'e' && t[2] == 'j') return;
     for (n = 0; n < len && n < MSG_TEXT - 1 && t[n] != '{'; n++) text[n] = t[n] >= ' ' && t[n] <= '~' ? (char)t[n] : ' ';
     text[n] = 0;
     for (unsigned i = 0; i < A->msgs; i++)
@@ -257,7 +261,9 @@ static void message(const char *from, const uint8_t *info, unsigned len, int liv
     copy(m->from, from, CALL);
     copy(m->to, to, CALL);
     copy(m->text, text, MSG_TEXT);
-    m->live = (uint8_t)live;
+    m->live = live != 0;
+    m->acked = 0;
+    m->id = 0;
     m->mine = A->mycall[0] && same(to, A->mycall);
     if (m->mine && live) A->unread++;
     if (live && A->msg_sel) A->msg_sel = A->msg_sel + 1 < A->msgs ? A->msg_sel + 1 : A->msgs - 1;
@@ -299,6 +305,7 @@ void aprs_packet(const char *dest, const char *from, const uint8_t *info, unsign
     }
     if (tmp.has_pos) { s->lat = tmp.lat; s->lon = tmp.lon; s->table = tmp.table; s->symbol = tmp.symbol; s->has_pos = 1; }
     s->live = (uint8_t)live;
+    if (live) s->heard = now10();
     unsigned from_at = tmp.has_pos ? at + used : 0, n = 0;
     for (unsigned i = from_at; i < len && n < TEXT - 1; i++) {
         char c = (char)info[i];
@@ -394,6 +401,7 @@ void aprs_reset(void)
     clear(A, sizeof *A);
     A->magic = APRS_MAGIC;
     A->map_zoom = 3;
+    A->beacon = BEACON_DEFAULT;
 }
 
 void aprs_side(unsigned side)
@@ -568,6 +576,33 @@ void aprs_line(unsigned y, const char *text, uint16_t fg, uint16_t bg)
     unsigned x = gfx_text(4, y, text, 26, 1, fg, bg);
     gfx_fill(0, y, 4, 8, bg);
     if (x < H9_WIDTH) gfx_fill(x, y, H9_WIDTH - x, 8, bg);
+}
+
+/* "NOW", "5M", "2H": how long ago a live station was heard. */
+unsigned put_age(char *out, const struct station *s)
+{
+    unsigned m = (unsigned)(uint16_t)(now10() - s->heard) / 6, n;     /* minutes */
+    out[0] = 0;
+    if (!s->live) return 0;
+    if (!m) return put_str(out, "NOW");
+    n = put_uint(out, m < 60 ? m : m / 60 > 99 ? 99 : m / 60);
+    out[n] = m < 60 ? 'M' : 'H';
+    out[n + 1] = 0;
+    return n + 1;
+}
+
+/* The tab bar: the screens' names with their digit keys (the title says which one this is). */
+void aprs_tabs(unsigned cur)
+{
+    (void)cur;
+    aprs_line(FOOT_Y, "1LIST 2MAP 3MSG 4SEND 5BCN", GFX_GREY, GFX_BLACK);
+}
+
+int aprs_tab(const struct h9_api *api, unsigned ev, unsigned cur)
+{
+    static const char *const NAME[5] = { APRS_LIST, APRS_MAP, APRS_MSG, APRS_SEND, APRS_BEACON };
+    unsigned t = ev - EV_DIGIT - 1;
+    return t < 5 && t != cur && aprs_go(api, NAME[t]);
 }
 
 void aprs_title(const char *text)

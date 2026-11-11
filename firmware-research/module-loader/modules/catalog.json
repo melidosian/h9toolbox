@@ -33,27 +33,89 @@
       ]
     },
     {
+      "id": "maze_chase",
+      "name": "MAZE CHASE",
+      "title": "Maze Chase",
+      "version": "0.3",
+      "category": "Games",
+      "summary": "Eat every dot while four prowlers hunt you.",
+      "description": "An original maze game. Steer through a 25 by 19 maze eating every dot while four prowlers (red, pink, cyan and orange, each hunting a different way) chase you. A power pellet in each corner turns them blue for a few seconds so you can eat them for 200, 400, 800 and 1600 points. You have three lives; each level makes the prowlers faster. The tunnel in the middle row wraps from one side to the other. Sound effects play through the radio's speaker: dot munches, power pellets, eaten prowlers, a start jingle, level clear, defeat.",
+      "controls": [
+        "On the title screen, 5 turns sound on or off; any other key starts.",
+        "2, 4, 6, 8 steer (up, left, right, down); Up and Down also steer up and down.",
+        "The turn you choose is taken at the next opening.",
+        "Menu pauses and resumes. Back leaves to the menu.",
+        "After GAME OVER: Menu plays again, Back leaves."
+      ],
+      "notes": [
+        "Sound is experimental. It drives the speaker's DAC the way the Doom firmware does, and has not been tried inside the app loader yet. If the radio acts up, switch sound off on the title screen.",
+        "Score and best score are kept only until you leave the game.",
+        "Not tested on a radio yet."
+      ],
+      "screenshots": [
+        {
+          "file": "shots/maze-chase-1.png",
+          "caption": "Eating dots while four prowlers hunt you"
+        },
+        {
+          "file": "shots/maze-chase-2.png",
+          "caption": "Later in a game: lives at the top right"
+        }
+      ]
+    },
+    {
       "id": "aprs",
       "name": "APRS",
       "title": "APRS",
-      "description": "An on-radio APRS client. It lists the stations you hear (and opens with the stock Beacon List), shows each station's details, draws a map around your GPS position, keeps messages (yours in green), and sends messages you type on the keypad to any station, or a status packet, from your callsign. The stock firmware does the transmitting.",
-      "version": "0.5",
+      "description": "An on-radio APRS client. The list shows the stations you hear (and starts with the stock Beacon List), each with how long ago you heard it and how far away it is. Each station has a details page, and a map draws them around your GPS position. Messages are kept (yours to you in green, and the ones you send show ACK once the other station acknowledges). SEND types and sends messages or a status packet from your callsign, and BEACON sends your position as you move (smart beaconing). The stock firmware does the transmitting.",
+      "version": "0.7",
       "category": "Radio",
       "modules": [
         "APRS",
+        ".APRS LIST",
         ".APRS INFO",
         "APRS MAP",
         "APRS MSG",
-        "APRS SEND"
+        "APRS SEND",
+        "APRS BEACON"
       ],
-      "summary": "APRS client: station list, map, messages and sending, with your GPS position.",
+      "summary": "APRS client: stations, map, messages, sending and smart beaconing from your GPS.",
       "controls": [
-        "Hold Menu to switch screens (list, map, messages, send); Back goes back.",
-        "On the SEND screen, type with the number keys (press a digit repeatedly to cycle its letters); Back deletes; Menu or Up/Down finish a field.",
-        "Each screen loads into RAM when you open it."
+        "The bottom line names the screens: 1 list, 2 map, 3 messages, 4 send, 5 beacon. Press the digit to jump there (holding Menu cycles list, map, messages). Back returns to the list; Back on the list leaves the app.",
+        "List: Up/Down choose a station, Menu opens its details (and from there Menu writes it a message). Rows show the call, how long ago it was heard (NOW, 5M, 2H; grey rows come from the radio's stored Beacon List) and its distance and direction from you.",
+        "Map: Up/Down zoom (1 to 500 km), Menu picks the next station. Without a GPS fix it centres on the selected station.",
+        "Messages: Up/Down choose, Menu reads. Messages sent to your callsign are green and counted as new on the list until you open Messages.",
+        "Send: type with the number keys (press a digit repeatedly to cycle its letters, 0 is space); Back deletes; Menu or Up/Down finish a field; then Menu to review and Menu again to transmit.",
+        "Beacon (screen 5, and its own entry in the radio's menu): Up/Down choose MODE, EVERY or SYMBOL and Menu changes it. MODE SMART sends as you move (about every 300 m: every 60 s at 18 km/h and faster, up to 10 min when slow; a sharp turn sends at once; one more after 30 s stopped). MODE TIMED sends every 1, 2, 5, 10, 15 or 30 minutes (EVERY). HOLD Menu for about a second to start or stop beaconing; it starts off. 5 sends one position now. Back stops and leaves. The first position goes out about 15 s after you start."
       ],
       "notes": [
-        "Sending is experimental. Use your own callsign and keep it short."
+        "Sending and beaconing are experimental. Use your own callsign (set in the radio) and keep it short. They transmit on the APRS TX channel, 2 m only; you need an amateur licence.",
+        "APRS BEACON transmits by itself while its screen is open (leaving the screen stops it), on the APRS TX channel, 2 m only. Try it with the antenna disconnected first.",
+        "With no GPS fix it beacons your last known position (this session's last fix, else the one the radio saved), marked \"last known\" and without course or speed. It listens to the GPS only while it runs; heard stations are not shown there.",
+        "Smart-beacon scheduling by Tomasz Kuehn (github.com/tomaszkuehn/TD-H9-aprs-smartbeacon, MIT licence).",
+        "APRS 0.7 and APRS BEACON have not been tested on a radio yet."
+      ],
+      "screenshots": [
+        {
+          "file": "shots/aprs-list.png",
+          "caption": "Station list: call, how long ago it was heard, distance and direction"
+        },
+        {
+          "file": "shots/aprs-details.png",
+          "caption": "Station details"
+        },
+        {
+          "file": "shots/aprs-map.png",
+          "caption": "Map around your GPS position"
+        },
+        {
+          "file": "shots/aprs-messages.png",
+          "caption": "Messages, with ACK on the ones you sent"
+        },
+        {
+          "file": "shots/aprs-beacon.png",
+          "caption": "Beacon: smart or timed, symbol, and start/stop"
+        }
       ]
     },
     {
@@ -89,6 +151,20 @@
       "config": "satellites",
       "data": [
         ".SAT DATA"
+      ],
+      "screenshots": [
+        {
+          "file": "shots/sat-list.png",
+          "caption": "Pass list: the next five passes with rise time, peak elevation, length and time to go"
+        },
+        {
+          "file": "shots/sat-plot.png",
+          "caption": "Sky plot of the next pass"
+        },
+        {
+          "file": "shots/sat-track.png",
+          "caption": "Live track: Doppler-corrected send and listen frequencies"
+        }
       ]
     },
     {
@@ -104,6 +180,20 @@
       ],
       "notes": [
         "The INFO page shows UTC and local time (from the radio's Time zone setting) and the last fix saved on the chip."
+      ],
+      "screenshots": [
+        {
+          "file": "shots/gps-position.png",
+          "caption": "Position, speed and grid square"
+        },
+        {
+          "file": "shots/gps-sky.png",
+          "caption": "Sky plot of the satellites in view"
+        },
+        {
+          "file": "shots/gps-signals.png",
+          "caption": "Signal strength per satellite"
+        }
       ]
     },
     {

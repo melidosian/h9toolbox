@@ -17,10 +17,6 @@
 #include "aprs_edit.h"
 #include "aprs_tx.h"
 
-#define STOCK_KISS_TX 0x01E5DBCCu
-#define TX_FREQ (*(const volatile uint32_t *)0x11C9C)     /* working TX, 10 Hz units */
-#define TICK (*(const volatile uint32_t *)0x1D8B0)        /* stock 100 Hz tick (as aprs_core.c) */
-enum { TX_LOW = 14400000, TX_HIGH = 14800000 };          /* 2 m band only */
 
 static const char STATUS[] = "H9 Toolbox test";
 static const char *const QUICK[] = { "QSL 73", "TEST, PLEASE ACK" };
@@ -48,7 +44,7 @@ static const char *info_of(unsigned i, char *out, const struct edit *to, const s
 /* A sent message at the top of the MSG list (from you, white, not "new").
  * Heard back through a digipeater it is not listed twice: the receive side
  * skips a message with the same sender and text. */
-static void sent(const char *to, const char *text)
+static void sent(const char *to, const char *text, unsigned id)
 {
     for (unsigned i = MESSAGES - 1; i > 0; i--) A->msg[i] = A->msg[i - 1];
     if (A->msgs < MESSAGES) A->msgs++;
@@ -62,6 +58,8 @@ static void sent(const char *to, const char *text)
     m->text[n] = 0;
     m->live = 1;
     m->mine = 0;
+    m->acked = 0;
+    m->id = (uint8_t)id;                    /* the other station's ack carries it */
     A->msg_sel = 0;
 }
 
@@ -170,9 +168,10 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             aprs_line(BODY_Y + 40, "TRANSMITTING...", GFX_RED, GFX_BLACK);
             ((void (*)(const uint8_t *, unsigned))STOCK_KISS_TX)(kiss, len);
             aprs_quiet();                           /* stock's end of TX turns the speaker on */
+            unsigned id = A->msg_id % 99 + 1;       /* the {id that info_of put in the packet */
             A->msg_id++;
             if (A->send_sel == I_SEND) {
-                sent(to.buf, msg.buf);
+                sent(to.buf, msg.buf, id);
                 edit_init(&msg, EDIT_MAX, 0, 0);    /* sent: start the next one empty */
             }
             header();                               /* stock may have drawn over us */

@@ -115,7 +115,7 @@ static void gps(const char *sentence)
 /* Fake resource chip for the stored Beacon List. */
 static uint8_t chip[0x10000];
 /* Fake bundle (for the switch lookup) below the Beacon List copy. */
-static uint8_t bundle[16 + 32 * 4];
+static uint8_t bundle[16 + 32 * 8];
 #define BUNDLE_AT 0xCC1000u
 static void chip_read(void *dst, uint32_t a, uint32_t len)
 {
@@ -278,6 +278,51 @@ int main(void)
     CHECK(!strcmp(A->msg[1].text, "Hello there") && A->msg[1].mine && A->msg[1].live);
     for (unsigned i = 0; i < MESSAGES + 2; i++) { char t[32]; sprintf(t, ":X        :m%u", i); send("Z9", 0, "APRS", t, strlen(t)); }
     CHECK(A->msgs == MESSAGES && !strcmp(A->msg[0].text, "m7"));
+
+    /* Delivery: an ack from the recipient, addressed to me, with the id I sent marks the message. */
+    reset();
+    strcpy(A->mycall, "N0CALL-7");
+    A->msgs = 1;
+    strcpy(A->msg[0].from, "N0CALL-7"); strcpy(A->msg[0].to, "W1AW"); strcpy(A->msg[0].text, "hi");
+    A->msg[0].id = 12; A->msg[0].live = 1; A->msg[0].mine = 0; A->msg[0].acked = 0;
+    SEND("K2BBB", 0, "APRS", ":N0CALL-7 :ack12");                 /* not the recipient */
+    SEND("W1AW", 0, "APRS", ":N0CALL-7 :ack13");                  /* another message's id */
+    SEND("W1AW", 0, "APRS", ":W3CCC    :ack12");                  /* to someone else */
+    CHECK(!A->msg[0].acked && A->msgs == 1);
+    SEND("W1AW", 0, "APRS", ":N0CALL-7 :ack12");
+    CHECK(A->msg[0].acked && A->msgs == 1 && A->dirty);
+    SEND("W1AW", 0, "APRS", ":N0CALL-7 :rej12");                  /* a reject is not an ack (and adds nothing) */
+    CHECK(A->msgs == 1);
+
+    /* Heard age: NOW, minutes, hours; stored stations have none. */
+    reset();
+    host_tick = 1000000;
+    SEND("K1ABC", 0, "APRS", ">hi");
+    char age[8];
+    CHECK(put_age(age, &A->st[0]) == 3 && !strcmp(age, "NOW"));
+    host_tick += 100 * 125;                                      /* 125 s */
+    CHECK(!strcmp((put_age(age, &A->st[0]), age), "2M"));
+    host_tick += 100 * 3600 * 3;
+    CHECK(!strcmp((put_age(age, &A->st[0]), age), "3H"));
+    host_tick += 100 * 3600 * 200;
+    CHECK(!strcmp((put_age(age, &A->st[0]), age), "99H") || age[0] == 'N' || age[1] == 'M' || age[2] == 'H' || age[1] == 'H');   /* capped, or wrapped */
+    A->st[0].live = 0;
+    CHECK(put_age(age, &A->st[0]) == 0 && !age[0]);
+
+    /* Tab keys: a digit names a screen; the current one and missing ones do nothing. */
+    reset();
+    const char *const names6[] = { "MENU", "APRS", "APRS MAP", "APRS MSG", "APRS SEND", "APRS BEACON" };
+    set_bundle(names6, 6);
+    struct h9_api api3 = { .read = chip_read, .bundle = BUNDLE_AT };
+    host_request.magic = 0;
+    CHECK(!aprs_tab(&api3, EV_DIGIT + 1, TAB_LIST) && host_request.magic == 0);     /* already there */
+    CHECK(!aprs_tab(&api3, EV_DIGIT + 6, TAB_LIST) && !aprs_tab(&api3, EV_UP, TAB_LIST) && host_request.magic == 0);
+    CHECK(aprs_tab(&api3, EV_DIGIT + 5, TAB_LIST) && !strcmp(host_request.name, "APRS BEACON"));
+    CHECK(aprs_tab(&api3, EV_DIGIT + 2, TAB_LIST) && !strcmp(host_request.name, "APRS MAP"));
+    const char *const names2[] = { "MENU", "APRS" };
+    set_bundle(names2, 2);
+    host_request.magic = 0;
+    CHECK(!aprs_tab(&api3, EV_DIGIT + 3, TAB_LIST) && host_request.magic == 0);   /* not installed */
 
     /* Screen switch: request names the next installed screen. */
     reset();
