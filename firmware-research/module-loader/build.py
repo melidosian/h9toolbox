@@ -187,7 +187,7 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
         prog = link([*objs, *lib], LOAD, "module_main", out, "mod_" + source.stem)
         return {"name": name, "body": text_of(prog, LOAD), "bss": 0, "entry": symbol(prog, "module_main") - LOAD}
 
-    menu = c_module("MENU", ROOT / "modules" / "menu" / "menu.c")
+    menu = c_module("MENU", ROOT / "modules" / "menu" / "menu.c", ROOT / "modules" / "common" / "vfo_backup.c")
     about = c_module("ABOUT", ROOT / "modules" / "about" / "about.c")
     aprs = c_module("APRS MONITOR", ROOT / "modules" / "aprs_monitor" / "aprs_monitor.c")
     if len(aprs["body"]) > 0x2000 - 0x800:
@@ -209,12 +209,21 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
             raise SystemExit(f"{m['name']} code ({len(m['body'])} B) overlaps the shared APRS state ({aprs_limit} B max)")
     # SAT PASS reads APRS's last GPS fix from the shared state: stay below it
     # so the fix survives.
-    # Both SAT PASS screens also stay below satshare.h's 64 bytes (just under APRS's state).
-    sat_limit = aprs_limit - 0x40
+    # Both SAT PASS screens also stay below satshare.h's 96 bytes (just under APRS's state).
+    sat_limit = aprs_limit - 0x60
     sat_dir = ROOT / "modules" / "satpass"
-    satpass = c_module("SAT PASS", sat_dir / "satpass.c", sat_dir / "orbit.c", ROOT / "modules" / "common" / "fix_store.c")
+    satpass = c_module("SAT PASS", sat_dir / "satpass.c", sat_dir / "orbit.c", ROOT / "modules" / "common" / "fix_store_save.c")
     satplot = c_module(".SAT PLOT", sat_dir / "satplot.c", sat_dir / "orbit.c")
-    for m in (satpass, satplot):
+    sattrack = c_module(".SAT TRACK", sat_dir / "sattrack.c", sat_dir / "orbit.c")
+    # The satellite table is data, not code: the hidden module ".SAT DATA" (satpack.py's body from the
+    # bundled TLE snapshot; the App Manager replaces it with fresh elements and the chosen satellites).
+    sys.path.insert(0, str(ROOT))   # python -I does not add the script folder
+    import satpack
+    sat_body, sat_info = satpack.pack(satpack.parse_tles((sat_dir / "default.tle").read_text()), satpack.load_satellites())
+    (out / "satdata.bin").write_bytes(sat_body)
+    satdata = {"name": ".SAT DATA", "body": sat_body, "bss": 0, "entry": 0}
+    satauto = c_module(".SAT TRACKER", sat_dir / "satauto.c", sat_dir / "orbit.c", ROOT / "modules" / "common" / "vfo_backup.c")
+    for m in (satpass, satplot, sattrack, satauto):
         if len(m["body"]) > sat_limit:
             raise SystemExit(f"{m['name']} code ({len(m['body'])} B) overlaps the shared SAT PASS / APRS state ({sat_limit} B max)")
     # GPS information app (reads the saved fix; stays below APRS's state too).
@@ -243,7 +252,7 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
     test_bundle = bundle([reset_test])
     parse_bundle(test_bundle)
     (out / "test-ml-reset-bundle.bin").write_bytes(test_bundle)
-    return [menu, bb, *screens, aprs, satpass, satplot, gps, vfo_probe, about]
+    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, about]
 
 
 def call_bytes(target: int, site: int) -> bytes:

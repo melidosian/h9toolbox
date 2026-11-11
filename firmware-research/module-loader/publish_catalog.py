@@ -53,6 +53,8 @@ def publish(bundle_path: Path = BUNDLE, out: Path = OUT) -> dict:
         if stale.name not in {f"{i}.h9mod" for i in ids}:
             stale.unlink()
     (out / "catalog.json").write_text(json.dumps(catalog, indent=1) + "\n", encoding="utf-8")
+    # The satellites SAT PASS can track: the App Manager's settings list and the data it builds from them.
+    (out / "satellites.json").write_bytes((ROOT / "modules" / "satpass" / "satellites.json").read_bytes())
     return catalog
 
 

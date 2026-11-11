@@ -42,9 +42,15 @@ function crcOf(m) { return crc16(m.body).toString(16).padStart(4, '0'); }
 // Where a catalog app stands, comparing the radio (installed), the staged
 // list and the catalog version. Present = its main module is listed;
 // current = every one of its modules is there with the catalog CRC.
+// Modules the user's own settings produce (the satellite data of SAT PASS): the catalog only ships a default.
+// They are not compared by CRC (refreshed data must not look like an outdated app), they must be present,
+// and updating the app keeps the ones you already have.
+const dataNames = item => new Set(item.data ?? []);
+
 export function appState(item, installed, staged) {
+  const data = dataNames(item);
   const has = list => (list ?? []).slice(1).some(m => m.name === item.name);
-  const current = list => partsOf(item).every(p => (list ?? []).slice(1).some(m => m.name === p.name && crcOf(m) === p.crc16));
+  const current = list => partsOf(item).every(p => (list ?? []).slice(1).some(m => m.name === p.name && (data.has(p.name) || crcOf(m) === p.crc16)));
   const onRadio = has(installed), inStaged = has(staged);
   if (inStaged) {
     if (!onRadio) return { status: 'adding', label: 'Will be added', action: 'remove' };
@@ -56,8 +62,6 @@ export function appState(item, installed, staged) {
   return { status: 'available', label: 'Not installed', action: 'add' };
 }
 
-// The staged list with `module` added (or replacing the same name); the
-// catalog menu goes first when nothing is staged yet.
 export function withModule(staged, module, menu) {
   if (!staged.length) {
     if (!menu) throw new Error('The menu is needed for the first app.');
@@ -75,6 +79,14 @@ export function withoutModule(staged, name) {
 // Several modules (an app), added or replaced in order.
 export function withModules(staged, modules, menu) {
   return modules.reduce((list, m) => withModule(list, m, menu), staged);
+}
+
+// Add or update a catalog app: like withModules, but a data module you already have staged (the satellite
+// data you refreshed) is kept instead of being replaced by the catalog's default.
+export function withApp(staged, modules, menu, item) {
+  const keep = dataNames(item);
+  const mine = new Map((staged ?? []).slice(1).filter(m => keep.has(m.name)).map(m => [m.name, m]));
+  return modules.reduce((list, m) => withModule(list, mine.get(m.name) ?? m, menu), staged);
 }
 
 export function withoutApp(staged, item) {

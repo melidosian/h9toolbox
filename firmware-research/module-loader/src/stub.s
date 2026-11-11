@@ -76,10 +76,74 @@ ml_back_released:
     [sp+76] = r0
 
 ml_stock_loop_call:
+    call res_tick
     call rec_tick
     r3 = 0x01e58ee4
     call r3
     {pc, r4} = [sp++]
+
+/* ---- resident tracker (res_tick runs on every my_app loop) --------------
+ * A module can stay armed after the radio restarts: SAT TRACK's "start VFO
+ * tracking" fills the satshare struct (modules/satpass/satshare.h, 0x2B880) and
+ * resets the radio. While res_magic ("CSRT") is set, this calls the module's
+ * entry in the RAM slot twice a second as entry(&ml_api, 0xFFFF): it must be
+ * quick, draw nothing and keep the radio's own UI alive (the stock loop goes
+ * on). Layout used here: +52 res_magic, +56 res_entry, +60 res_lencrc (length
+ * << 16 | CRC-16 of the body), +64 res_tick, +80 st_flags (bit 0: slot
+ * checked). The slot is checked (CRC) once after arming; anything wrong
+ * disarms (res_magic = 0). The menu disarms it too (ml_main). Nothing here
+ * runs unless the module armed it, so a radio that never used it is unchanged.
+ * (RAM is assumed to survive the restart: if not, the magic is gone and
+ * nothing happens.) */
+res_tick:
+    [--sp] = {rets, r7-r4}
+    r4 = 0x0002b880
+    r0 = [r4+52]
+    r1 = 0x54525343
+    if (r0 != r1) goto rest_done
+    r5 = 0x0001d8b0
+    r5 = [r5+0]
+    r0 = [r4+64]
+    r6 = r5
+    r6 -= r0
+    r0 = 50
+    if (r6 < r0) goto rest_done
+    [r4+64] = r5
+    r6 = [r4+56]
+    r0 = 0x00029f00
+    if (r6 < r0) goto rest_bad
+    r0 = 0x0002bee0
+    if (r6 < r0) goto rest_range_ok
+    goto rest_bad
+rest_range_ok:
+    r0 = [r4+80]
+    r1 = r0 << 31
+    if (r1 != 0) goto rest_run
+    r0 = [r4+60]
+    r1 = r0 >> 16
+    r7 = r0 << 16
+    r7 = r7 >> 16
+    r0 = 0x2000
+    if (r0 < r1) goto rest_bad
+    if (r1 == 0) goto rest_bad
+    r0 = 0x00029f00
+    call ml_crc
+    if (r0 != r7) goto rest_bad
+    r0 = [r4+80]
+    r1 = 1
+    r0 |= r1
+    [r4+80] = r0
+rest_run:
+    r3 = r6
+    r0 = ml_api
+    r1 = 0xffff
+    call r3
+    goto rest_done
+rest_bad:
+    r0 = 0
+    [r4+52] = r0
+rest_done:
+    {pc, r7-r4} = [sp++]
 
 /* ---- background GPS recorder (rec_tick runs on every my_app loop) ------
  * Stock's NMEA parser (CPU 0x01E86780...) keeps the fix in its state block:
@@ -234,6 +298,10 @@ rec_stock:
 
 /* ---- run loop (never returns) ----------------------------------------- */
 ml_main:
+    /* The menu stops the resident tracker: its code is about to be replaced. */
+    r0 = 0x0002b8b4
+    r1 = 0
+    [r0+0] = r1
     call ml_check
     r10 = r0
     if (r10 == 0) goto ml_reset

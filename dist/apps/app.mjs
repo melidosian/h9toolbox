@@ -1,12 +1,16 @@
 // H9 Toolbox App Manager: stage module changes, then write one verified
 // bundle to the modules slot over Bluetooth (dist/doom/upload.mjs).
+import { crc16 } from '../boot-logo/resource.mjs';
 import { connectBluetooth } from '../boot-logo/radio.mjs?v=up2';
 import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=20261109b';
-import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=am4';
+import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=am5';
 import { CHIP_SLOT, buildBundle, checkModule, parseBundle, usage } from './bundle.mjs?v=am3';
 import { describeChanges } from './changes.mjs?v=am3';
-import { appState, fetchApp, fetchModule, loadCatalog, menuOutdated, partsOf, withModule, withModules, withoutApp } from './catalog.mjs?v=am3';
+import { appState, fetchApp, fetchModule, loadCatalog, menuOutdated, partsOf, withApp, withModule, withModules, withoutApp } from './catalog.mjs?v=am4';
+import { mountInfo } from './info.mjs?v=am3';
 
+// No stale files: the service worker (sw.js) fetches everything uncached.
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' }).catch(() => {});
 const $ = id => document.getElementById(id);
 const BUNDLE_NAME = 'H9 modules';
 let session = null, busy = false, connecting = false, logoBusy = false;
@@ -22,6 +26,28 @@ async function catalogApp(item) {
 }
 const catalogModule = async item => (await catalogApp(item))[0];
 
+// Stage a whole catalog app (with the menu when it is the first one). Apps with refreshable data
+// (SAT PASS) get fresh data in place of the built-in default unless `data` is given or the fetch fails.
+async function stageApp(item, data, update = false) {
+  const menu = staged.length ? null : await catalogModule(catalog.menu);
+  let modules = await catalogApp(item);
+  const refreshed = data ?? (item.config === 'satellites' ? await infoDialog.fresh(item) : null);
+  if (refreshed) modules = modules.map(m => (m.name === refreshed.name ? refreshed : m));
+  staged = refreshed ? withModules(staged, modules, menu) : withApp(staged, modules, menu, item);
+  log(`Staged: ${update ? 'update' : 'add'} ${item.title}${menu ? ' (and the menu)' : ''}${refreshed ? ' with fresh satellite data' : ''}.`);
+}
+
+const infoDialog = mountInfo({
+  dialog: $('appInfo'),
+  catalog: () => catalog,
+  staged: () => staged,
+  installed: () => installed ?? [],
+  stage: modules => { staged = modules.reduce((list, m) => withModule(list, m), staged); render(); },
+  addApp: async (item, data) => { await stageApp(item, data); render(); },
+  log: (message, level) => log(message, level),
+  busy: () => busy,
+});
+
 function renderCatalog() {
   const box = $('catalog');
   if (!catalog) { box.replaceChildren(); return; }
@@ -29,12 +55,12 @@ function renderCatalog() {
     const state = appState(item, installed, staged);
     const card = document.createElement('div');
     card.className = `app${staged.some((m, i) => i > 0 && m.name === item.name) ? ' staged' : ''}`;
-    card.innerHTML = '<h3><span></span><span class="tag"></span></h3><p></p><div class="facts"></div><div class="row"><span class="status"></span><span class="buttons"></span></div>';
+    card.innerHTML = '<h3><span></span><span class="tag"></span></h3><p class="summary"></p><div class="facts"></div><div class="row"><span class="status"></span><span class="buttons"></span></div>';
     card.querySelector('h3 span').textContent = item.title;
     card.querySelector('.tag').textContent = item.category ?? 'App';
-    card.querySelector('p').textContent = item.description;
+    card.querySelector('.summary').textContent = item.summary ?? item.description;
     const parts = partsOf(item).length;
-    card.querySelector('.facts').textContent = `v${item.version} · ${parts > 1 ? `${parts} modules, ` : ''}${item.bytes.toLocaleString()} B on the chip · ${item.ram.toLocaleString()} B RAM${parts > 1 ? ' (largest)' : ''} · menu label "${item.name}"`;
+    card.querySelector('.facts').textContent = `v${item.version} · ${parts > 1 ? `${parts} modules · ` : ''}${kib(item.bytes)}`;
     const status = card.querySelector('.status');
     status.className = `status ${state.status}`;
     status.textContent = state.label;
@@ -45,16 +71,13 @@ function renderCatalog() {
       b.addEventListener('click', () => run(act));
       buttons.append(b);
     };
-    if (state.action === 'update') button('Update', async () => { staged = withModules(staged, await catalogApp(item)); log(`Staged: update ${item.title}.`); }, true);
-    if (state.action === 'add') {
-      button('Add', async () => {
-        const menu = staged.length ? null : await catalogModule(catalog.menu);
-        staged = withModules(staged, await catalogApp(item), menu);
-        log(`Staged: add ${item.title}${menu ? ' (and the menu)' : ''}.`);
-      }, true);
-    } else {
-      button('Remove', async () => { staged = withoutApp(staged, item); log(`Staged: remove ${item.title}.`); });
-    }
+    const info = document.createElement('button');
+    info.textContent = item.config ? 'Info & settings' : 'Info'; info.className = 'info';
+    info.addEventListener('click', () => infoDialog.open(item));
+    buttons.append(info);
+    if (state.action === 'update') button('Update', () => stageApp(item, null, true), true);
+    if (state.action === 'add') button('Add', () => stageApp(item), true);
+    else button('Remove', async () => { staged = withoutApp(staged, item); log(`Staged: remove ${item.title}.`); });
     return card;
   });
   if (menuOutdated(catalog, staged)) {
@@ -128,7 +151,7 @@ function render() {
       null,
       `${m.body.length.toLocaleString()} B`,
       `${(m.body.length + m.bss).toLocaleString()} B`,
-      hex4(m.crc),
+      hex4(m.crc ?? crc16(m.body)),
       null,
       null,
     ];
@@ -195,7 +218,30 @@ function progress(began) {
   };
 }
 
+// Fetch the app catalog again (uncached) so every read of the radio compares it with the newest apps.
+async function refreshCatalog() {
+  try {
+    const fresh = await loadCatalog();
+    const key = value => JSON.stringify([value.menu?.version, ...value.apps.map(a => [a.id, a.version, a.sha256])]);
+    if (catalog && key(fresh) !== key(catalog)) downloaded.clear();   // changed downloads: fetch them again when staged
+    catalog = fresh;
+  } catch (error) {
+    log(`Could not refresh the app catalog (${error.message}); using the one already loaded.`, 'error');
+  }
+}
+// After reading the radio: which installed apps have a newer version in the catalog.
+function reportUpdates() {
+  if (!catalog || !installed) return;
+  const outdated = catalog.apps.filter(item => {
+    const here = (installed ?? []).slice(1).some(m => m.name === item.name);
+    return here && appState(item, installed, installed).status === 'outdated';
+  }).map(item => `${item.title} ${item.version}`);
+  if (menuOutdated(catalog, installed)) outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
+  log(outdated.length ? `Updates available: ${outdated.join(', ')}. Use Update on the app cards, then Write to radio.` : 'Every installed app is up to date.');
+}
+
 async function readRadio() {
+  await refreshCatalog();
   $('progressText').textContent = 'Reading the modules slot…';
   const { dir, pack } = await readPack(session.radio, SLOTS.modules, progress(performance.now()));
   if (!pack) {
@@ -208,6 +254,7 @@ async function readRadio() {
   installed = parseBundle(pack);
   staged = installed.map(m => ({ ...m }));
   log(`Read ${installed.length} module(s), ${pack.length.toLocaleString()} bytes: ${installed.map(m => m.name).join(', ')}.`);
+  reportUpdates();
   $('progressText').textContent = 'Idle.';
 }
 

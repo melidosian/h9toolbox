@@ -50,9 +50,10 @@ export const SLOTS = {
     areas: [
       { name: 'resource', start: DIRECTORY + 0x1000, end: MODULES_DIRECTORY },
       { name: 'font', start: 0x717000, end: 0x800000 },
-      // Stops one sector short: 0x3FF000 holds the last GPS fix, written by
-      // H9 Toolbox Firmware's module loader (module-loader/src/stub.s).
-      { name: 'voice', start: 0x3a7000, end: 0x3ff000 },
+      // Stops two sectors short: 0x3FF000 holds the last GPS fix (the loader stub and
+      // SAT PASS write it) and 0x3FE000 the user's own VFO frequencies while SAT PASS's
+      // VFO tracker has changed them (module-loader/modules/common/vfo_backup.h).
+      { name: 'voice', start: 0x3a7000, end: 0x3fe000 },
     ],
   },
   modules: { name: 'modules', directory: MODULES_DIRECTORY, areas: [{ name: 'modules', start: MODULES_DIRECTORY + 0x1000, end: MUSIC_DIRECTORY }] },

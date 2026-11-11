@@ -6,6 +6,7 @@
 
 #include "h9mod.h"
 #include "gfx.h"
+#include "host_satdata.h"
 static unsigned char host_tz = 12;   /* "UTC+0"; render_plot's 7th argument overrides it */
 #define H9_TZ_BYTE host_tz
 struct satshare;
@@ -56,7 +57,7 @@ int main(int argc, char **argv)
         host_share.dur_sat[host_share.count] = (uint16_t)(sat << 12 | (los - aos));
         host_share.count++;
     }
-    plot_main(0, 0);
+    plot_main(host_satdata_api(getenv("SATDATA") ? getenv("SATDATA") : "build/satdata.bin"), 0);
     printf("viewed pass %u, returns to: %.9s\n", host_share.sel + 1, host_request.name);
     FILE *f = fopen(argv[3], "wb");
     fprintf(f, "P6\n160 128\n255\n");

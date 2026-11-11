@@ -8,15 +8,16 @@ export const STOCK_IMAGE_SHA256 = '74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f2
 // Hosted build: H9 Toolbox Firmware with the app (module) loader: stock
 // v1.0.38, the resource-flash service (boot logo, App Manager uploads) and the
 // loader that runs apps from the resource chip (hold Back), which also keeps
-// the last GPS fix on the resource chip (sector 0x3FF000). Built by
+// the last GPS fix on the resource chip (sector 0x3FF000) and can keep the SAT
+// TRACK module armed across a restart (resident VFO tracker). Built by
 // firmware-research/module-loader (build.py; installer files by
 // release_installer.mjs). Same file name as before: the Doom installer
 // fetches it as a reference image.
 export const BUILD = {
   label: 'H9 Toolbox Firmware',
   packageFile: 'h9-toolbox-firmware-v1.0.38.fw',
-  packageSha256: 'dceac70c056a8c799aa68107c0f5d51154e2108a1a07941aececbddf05745339',
-  imageSha256: '2f5e428d307a9f224cecbbd6c010ae84a70f9e7fc9c3be18c01f40d28ac97da6',
+  packageSha256: '357289b98c7cada0ed5076807f3c38f4704b85a118f903c60c9058787caf0b98',
+  imageSha256: '6663c809b61d56d0b81c2f4f85225d61c77f124d1041e39c45769954a863c9dd',
   // Stock bytes of the sectors the build changes: rebuilds exact stock.
   stockSeedFile: 'h9-toolbox-firmware-stock-sectors.bin',
   stockSeedSha256: 'e93a1c99e88902c75ee9f74d83255f9abe490acb389e519c0f8521260633116e',
@@ -47,6 +48,11 @@ export const PREVIOUS = [
     seedFile: 'h9-toolbox-firmware-release1-sectors.bin',
     seedSha256: '9a7c37551d1ed404c3ff6f7de238e48b11876b42eef8390d1ca2f5eed241a19a',
     imageSha256: '08d2409af07979f46b1591e28c04e0c86c6575ef97150f23d153bf5832f9b160',
+    sectors: [0x5000, 0xac000, 0xd9000] },
+  { id: 'release2', label: 'H9 Toolbox Firmware (app loader with GPS recorder)', file: 'H9-Toolbox-Firmware-release2-',
+    seedFile: 'h9-toolbox-firmware-release2-sectors.bin',
+    seedSha256: 'a1e7994cdd259579ceffeb0082f6bec53c322629d7c599df56271781a1c6408c',
+    imageSha256: '2f5e428d307a9f224cecbbd6c010ae84a70f9e7fc9c3be18c01f40d28ac97da6',
     sectors: [0x5000, 0xac000, 0xd9000] },
 ];
 const KEY = new Uint8Array([0x4e, 0x61, 0xbc, 0x00]); // 12345678, little endian

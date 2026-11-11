@@ -9,8 +9,8 @@
  * the GPS reports the time. The module stays below APRS's state in RAM, so
  * APRS's own last fix survives too. The
  * The orbits
- * are the satellite table embedded at build time (sats.h, made by
- * satpack.py), propagated by orbit.c.
+ * are the satellite table in the hidden module .SAT DATA (satdata.h; made by
+ * satpack.py or the App Manager's satellite settings), propagated by orbit.c.
  *
  * Keys: Up / Down select a pass, Menu opens the PLOT page (a horizon plot of the
  * pass; Up / Down step through the passes there), Back leaves. */
@@ -21,7 +21,7 @@
 #include "fix_store.h"           /* the last fix across power-off */
 #include "orbit.h"
 #include "satshare.h"
-#include "sats.h"
+#include "satdata.h"
 
 #define RING ((volatile uint8_t *)0x16634)
 #define RING_WRITE (*(volatile uint16_t *)0x16E34)
@@ -35,10 +35,11 @@ enum { BG = GFX_BLACK, DIM = GFX_GREY };
 struct state {
     uint32_t base_unix, base_tick;    /* UTC at a tick */
     int32_t lat, lon;                 /* binary angles */
-    uint8_t have_time, have_pos, gps_fix, computing;
+    uint8_t have_time, have_pos, gps_fix, computing, saved;
     unsigned sel, found, frame_len, cmd, escape, nmea_len, key, key_seen, last_draw;
     uint32_t computed_at;
-    int32_t calc_lat, calc_lon;
+    int32_t calc_lat, calc_lon, store_lat, store_lon;
+    struct satdata data;               /* the satellite table (read through the loader) */
     struct pass p[WANT];
     char nmea[NMEA];
 };
@@ -161,6 +162,14 @@ static uint32_t now_of(const struct state *st) { return st->base_unix + (TICK - 
 
 /* ---- screens ----------------------------------------------------------- */
 
+/* orbit_passes fetches satellites through this (ctx = the satellite table) */
+static void get_sat(void *ctx, unsigned i, struct sat *out)
+{
+    struct satentry e;
+    satdata_get((const struct satdata *)ctx, i, &e);
+    *out = e.sat;
+}
+
 static void header(const struct state *st, uint32_t now)
 {
     char b[32], *d = b;
@@ -170,7 +179,8 @@ static void header(const struct state *st, uint32_t now)
     const char *gps = st->gps_fix ? "GPS OK" : st->have_pos ? "LAST FIX" : "NO FIX";
     gfx_text(0, 11, gps, 8, 1, st->gps_fix ? GFX_GREEN : GFX_RED, BG);
     /* the elements' date; red once they are over two weeks old */
-    gfx_text(160 - 6 * 14, 11, "TLE " SATS_DATE, 14, 1, now > SATS_NEWEST + 14 * 86400u ? GFX_RED : DIM, BG);
+    d = put(b, "TLE "); put(d, st->data.head.date);
+    gfx_text(160 - 6 * 14, 11, b, 14, 1, now > st->data.head.newest + 14 * 86400u ? GFX_RED : DIM, BG);
 }
 
 static void list(const struct state *st, uint32_t now, int full)
@@ -185,7 +195,9 @@ static void list(const struct state *st, uint32_t now, int full)
     for (unsigned i = 0; i < st->found; i++) {
         const struct pass *p = &st->p[i];
         char b[40], *d = b;
-        d = put(d, SATS[p->sat].name);
+        struct satentry e;
+        satdata_get(&st->data, p->sat, &e);
+        d = put(d, e.sat.name);
         while (d < b + 7) *d++ = ' ';
         d = hhmm(d, p->aos, 0);
         *d++ = ' ';
@@ -229,8 +241,17 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     uint8_t *z = (uint8_t *)&st;
     for (unsigned i = 0; i < sizeof st; i++) z[i] = 0;
     st.key = st.key_seen = h9_key();
+    if (!satdata_open(api, &st.data)) {   /* no satellite table in the bundle (install the SAT PASS app again) */
+        gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, BG);
+        gfx_text(0, 40, "NO SATELLITE DATA", 17, 1, GFX_RED, BG);
+        gfx_text(0, 54, "REINSTALL SAT PASS", 18, 1, GFX_WHITE, BG);
+        gfx_wait_release();
+        gfx_wait_key();
+        return 0;
+    }
     st.have_pos = (uint8_t)fix_load_micro(api->read, &st.lat, &st.lon);
     st.lat = fix_bam(st.lat); st.lon = fix_bam(st.lon);
+    st.store_lat = st.lat; st.store_lon = st.lon; st.saved = !st.have_pos ? 2 : 0;   /* 2: nothing stored yet */
     volatile struct satshare *sh = SAT_SHARED;
     if (sh->magic == SAT_MAGIC) {   /* back from the pass plot: carry on at the same time and place */
         st.base_unix = sh->now; st.base_tick = sh->tick;
@@ -242,13 +263,20 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     for (;;) {
         poll_ring(&st);
         uint32_t now = now_of(&st);
+        if (st.gps_fix && st.saved != 1) {   /* the first fix of a session: keep it on the chip for the next start */
+            if (st.saved == 2 || far(st.lat, st.store_lat) || far(st.lon, st.store_lon))
+                fix_save(api->read, fix_micro(st.lat), fix_micro(st.lon));
+            st.saved = 1;
+        }
         if (st.have_time && st.have_pos &&
             (!st.computed_at || far(st.lat, st.calc_lat) || far(st.lon, st.calc_lon) || (st.found && now >= st.p[0].los) || now - st.computed_at > 3600)) {
             st.computing = 1;
             list(&st, now, 1);
             struct observer o;
             orbit_observer(&o, st.lat, st.lon);
-            st.found = orbit_passes(SATS, SATS_COUNT, &GMST_REF, &o, now, HOURS, 0, st.p, WANT);
+            struct gmst_ref gmst;
+            satdata_gmst(&st.data, &gmst);
+            st.found = orbit_passes(get_sat, &st.data, st.data.head.count, &gmst, &o, now, HOURS, 0, st.p, WANT);
             st.computing = 0;
             st.computed_at = now;
             st.calc_lat = st.lat; st.calc_lon = st.lon;

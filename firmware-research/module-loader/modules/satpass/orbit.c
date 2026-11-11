@@ -117,7 +117,7 @@ void orbit_look(const struct sat *s, const struct gmst_ref *g, const struct obse
                  + mul30(o->sin_lat, rz);
     int32_t horizontal;
     out->az = orbit_atan2(east, north, &horizontal);
-    out->el = (int32_t)orbit_atan2(up, horizontal, 0);
+    out->el = (int32_t)orbit_atan2(up, horizontal, &out->range);
 }
 
 /* First second in (lo, hi] where the elevation sign differs from at lo. */
@@ -147,15 +147,17 @@ static void insert(struct pass *out, unsigned *n, unsigned want, const struct pa
     out[i] = *p;
 }
 
-unsigned orbit_passes(const struct sat *sats, unsigned count, const struct gmst_ref *g, const struct observer *o,
+unsigned orbit_passes(orbit_get get, void *ctx, unsigned count, const struct gmst_ref *g, const struct observer *o,
                       uint32_t now, unsigned hours, unsigned min_el_deg, struct pass *out, unsigned want)
 {
     enum { STEP = 30 };
     unsigned found = 0;
     uint32_t end = now + hours * 3600u;
     for (unsigned k = 0; k < count; k++) {
-        const struct sat *s = &sats[k];
+        struct sat sat;
+        const struct sat *s = &sat;
         struct look l;
+        get(ctx, k, &sat);
         orbit_look(s, g, o, now, &l);
         int up = l.el >= 0;
         struct pass p = { (uint8_t)k, 0, 0, 0, now, 0, now };

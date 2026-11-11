@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import subprocess
 import sys
 import tempfile
@@ -80,6 +81,38 @@ def sgp4_passes(sat, obs, start, end):
     return out
 
 
+def range_km(sat, obs, unix):
+    pos, la, lo = obs
+    jd, fr = jday(1970, 1, 1, 0, 0, 0)
+    err, r, _ = sat.sgp4(jd, fr + unix / 86400.0)
+    th = satpack.gmst_turns(unix) * 2 * math.pi
+    x = math.cos(th) * r[0] + math.sin(th) * r[1]
+    y = -math.sin(th) * r[0] + math.cos(th) * r[1]
+    return math.dist((x, y, r[2]), pos)
+
+
+def check_doppler(exe, tles, args) -> bool:
+    """Range and Doppler shift (at 437.8 MHz) against SGP4 for each satellite, sampled over a day."""
+    worst_range = worst_shift = 0.0
+    start = int(max(satpack.epoch_unix(tles[s['name']][0]) for s in satpack.load_satellites()) + args.days_after_epoch * 86400)
+    for index, entry in enumerate(satpack.load_satellites()):
+        sat = Satrec.twoline2rv(*tles[entry['name']])
+        for place, lat, lon in PLACES[:3]:
+            obs = observer(lat, lon)
+            for step in range(0, 86400, 3600 // 4 * 7):
+                t = start + step
+                az, el, rng, shift = subprocess.run([str(exe), "range", str(round(lat * 1e6)), str(round(lon * 1e6)), str(index), str(t)],
+                                                    capture_output=True, text=True, check=True).stdout.split()
+                ref = range_km(sat, obs, t)
+                rate = (range_km(sat, obs, t + 4) - range_km(sat, obs, t - 4)) / 8   # centred, like doppler.h
+                worst_range = max(worst_range, abs(float(rng) - ref))
+                worst_shift = max(worst_shift, abs(int(shift) * 10 - rate / 299792.458 * 437.8e6))
+    print(f"range: worst {worst_range:.2f} km; Doppler at 437.8 MHz: worst {worst_shift:.0f} Hz")
+    # The mean-element model drifts with the age of the elements (about 20 km and
+    # 130 Hz at 7 days, 50 km and 550 Hz at 14): gated within a week, reported after.
+    return args.days_after_epoch > 7 or (worst_range < 30 and worst_shift < 400)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("tle", type=Path)
@@ -88,14 +121,17 @@ def main() -> int:
     parser.add_argument("--limit", type=float, default=60.0)
     args = parser.parse_args()
     tles = satpack.parse_tles(args.tle.read_text(errors="replace"))
-    sats = {label: Satrec.twoline2rv(*tles[name]) for name, label in satpack.SATELLITES}
+    sats = {s['label']: Satrec.twoline2rv(*tles[s['name']]) for s in satpack.load_satellites()}
     with tempfile.TemporaryDirectory() as tmp:
-        header = ROOT / "modules" / "satpass" / "sats.h"
+        body, _ = satpack.pack(tles, satpack.load_satellites())
+        data_file = Path(tmp) / "satdata.bin"
+        data_file.write_bytes(body)
+        os.environ["SATDATA"] = str(data_file)            # orbit_cli reads the satellite table from it
         exe = Path(tmp) / "orbit_cli"
         subprocess.run(["cc", "-O2", "-o", str(exe), str(ROOT / "modules/satpass/orbit_cli.c"),
-                        str(ROOT / "modules/satpass/orbit.c")], check=True)
+                        str(ROOT / "modules/satpass/orbit.c"), "-I", str(ROOT / "modules/satpass"), "-I", str(ROOT / "modules/common")], check=True)
         start = int(max(satpack.epoch_unix(l1) for l1, _ in tles.values() if True) * 0 +
-                    max(satpack.epoch_unix(tles[n][0]) for n, _ in satpack.SATELLITES) + args.days_after_epoch * 86400)
+                    max(satpack.epoch_unix(tles[s['name']][0]) for s in satpack.load_satellites()) + args.days_after_epoch * 86400)
         worst = {"aos": 0.0, "los": 0.0, "el": 0.0}
         missing = 0
         for place, lat, lon in PLACES:
@@ -119,7 +155,8 @@ def main() -> int:
             n_ref = sum(len([p for p in v if p[2] >= 0]) for v in ref.values())
             print(f"{place:10s} ours {len(ours):3d} passes, SGP4 {n_ref:3d}")
         print(f"worst over all places: AOS {worst['aos']:.0f} s, LOS {worst['los']:.0f} s, max elevation {worst['el']:.1f} deg")
-        ok = missing == 0 and worst["aos"] <= args.limit and worst["los"] <= args.limit
+        doppler_ok = check_doppler(exe, tles, args)
+        ok = missing == 0 and worst["aos"] <= args.limit and worst["los"] <= args.limit and doppler_ok
         print("PASS" if ok else "FAIL")
         return 0 if ok else 1
 

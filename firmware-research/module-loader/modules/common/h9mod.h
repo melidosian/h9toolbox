@@ -55,6 +55,6 @@ struct h9_request {
 #define H9_REQUEST ((volatile struct h9_request *)0x2BEE0)
 #define H9_SHARED_TOP 0x2BEE0u
 enum { H9_REQUEST_MAGIC = 0x4E555248 };  /* "HRUN" */
-enum { H9_KEY_NONE = 0, H9_KEY_MENU = 12, H9_KEY_UP = 13, H9_KEY_DOWN = 14, H9_KEY_BACK = 15 };
+enum { H9_KEY_NONE = 0, H9_KEY_1 = 3, H9_KEY_2 = 4, H9_KEY_3 = 5, H9_KEY_4 = 6, H9_KEY_5 = 7 /* digit d = d + 2 */, H9_KEY_MENU = 12, H9_KEY_UP = 13, H9_KEY_DOWN = 14, H9_KEY_BACK = 15 };
 
 #endif

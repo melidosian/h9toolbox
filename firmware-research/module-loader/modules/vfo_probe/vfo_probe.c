@@ -19,6 +19,7 @@
 
 #include "gfx.h"
 #include "h9mod.h"
+#include "../satpass/satshare.h"
 
 #define BASE 0x11AD0u
 #define RAM8(o) (*(const volatile uint8_t *)(BASE + (o)))
@@ -76,7 +77,7 @@ static void fields(void)
     static const uint16_t words[] = { 0x1BC, 0x1C0, 0x1C4, 0x1C8, 0x1CC, 0x1D0 };
     char b[32], *d;
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
-    gfx_text(0, 0, "VFO PROBE 1/2 FIELDS", 20, 1, GFX_YELLOW, GFX_BLACK);
+    gfx_text(0, 0, "VFO PROBE 1/3 FIELDS", 20, 1, GFX_YELLOW, GFX_BLACK);
     for (unsigned i = 0; i < 6; i++) {
         d = put(b, "+"); d = hex(d, words[i], 3); d = put(d, " ");
         mhz(d, RAM32(words[i]));
@@ -95,7 +96,41 @@ static void fields(void)
     d = udeg(d, (int32_t)RAM32(0xA88)); *d++ = ' ';
     udeg(d, (int32_t)RAM32(0xA90));
     line(8, b, GFX_YELLOW);
-    line(9, "MENU SCAN  BACK EXIT", GFX_GREY);
+    line(9, "MENU PAGE  BACK EXIT", GFX_GREY);
+}
+
+/* Page 3: the resident VFO tracker's status (SAT TRACK key 5) and two bytes that decide how it acts. */
+static void resident(void)
+{
+    volatile struct satshare *sh = SAT_SHARED;
+    char b[32], *d;
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
+    gfx_text(0, 0, "VFO PROBE 3/3 TRACKER", 21, 1, GFX_YELLOW, GFX_BLACK);
+    unsigned ran = sh->st_valid == RES_MAGIC;
+    d = put(b, "MAGIC "); d = hex(d, sh->res_magic, 8); put(d, sh->res_magic == RES_MAGIC ? " ARMED" : "");
+    line(0, b, GFX_WHITE);
+    if (!ran) {
+        line(1, "NEVER ARMED SINCE POWER-ON", GFX_RED);
+        line(2, "(THE FIELDS ARE LEFTOVER RAM)", GFX_GREY);
+    } else {
+        d = put(b, "ENTRY "); d = hex(d, sh->res_entry, 8); d = put(d, " CRC "); hex(d, sh->res_lencrc & 0xFFFF, 4);
+        line(1, b, GFX_WHITE);
+        d = put(b, "CALLS "); num(d, sh->st_ticks, 1);
+        line(2, b, GFX_GREEN);
+        d = put(b, "FLAGS "); d = hex(d, sh->st_flags, 2); put(d, " 2TX 8TEST 10BL 20SQ 200PF");
+        line(3, b, GFX_WHITE);
+        d = put(b, "A "); mhz(d, sh->st_down);
+        line(4, b, GFX_WHITE);
+        d = put(b, "B "); d = mhz(d, sh->st_up); d = put(d, "  REVERTS "); num(d, sh->st_reverts, 1);
+        line(5, b, GFX_WHITE);
+    }
+    d = put(b, "SIDE 080="); d = hex(d, RAM8(0x80), 2); d = put(d, " REG30 "); hex(d, ((unsigned (*)(unsigned))0x01E505FE)(0x30), 4);
+    line(6, b, GFX_YELLOW);
+    d = put(b, "SQUELCH 83C="); d = hex(d, *(const volatile uint16_t *)(BASE + 0x83C), 4); d = put(d, " ORIG "); hex(d, sh->orig_sq, 4);
+    line(7, b, GFX_YELLOW);
+    d = put(b, "PF1 SHORT 10EC="); d = hex(d, RAM8(0x10EC), 2); d = put(d, " ORIG "); hex(d, sh->orig_pf1, 2);
+    line(8, b, GFX_YELLOW);
+    line(9, "MENU PAGE  BACK EXIT", GFX_GREY);
 }
 
 static unsigned scan(uint32_t *hits)
@@ -110,7 +145,7 @@ static void scan_page(const uint32_t *hits, unsigned n, unsigned first)
 {
     char b[32], *d;
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
-    d = put(b, "VFO PROBE 2/2 HITS ");
+    d = put(b, "VFO PROBE 2/3 HITS ");
     d = num(d, n, 1);
     if (n == MAX_HITS) put(d, "+");
     gfx_text(0, 0, b, 26, 1, GFX_YELLOW, GFX_BLACK);
@@ -133,11 +168,12 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         unsigned k = gfx_wait_key();
         if (k == H9_KEY_BACK) return 0;
         if (k == H9_KEY_MENU) {
-            page ^= 1;
-            if (page) { n = scan(hits); first = 0; scan_page(hits, n, first); }
+            page = (page + 1) % 3;
+            if (page == 1) { n = scan(hits); first = 0; scan_page(hits, n, first); }
+            else if (page == 2) resident();
             else fields();
-        } else if (page && k == H9_KEY_DOWN && first + ROWS < n) { first += ROWS; scan_page(hits, n, first); }
-        else if (page && k == H9_KEY_UP && first) { first -= ROWS; scan_page(hits, n, first); }
+        } else if (page == 1 && k == H9_KEY_DOWN && first + ROWS < n) { first += ROWS; scan_page(hits, n, first); }
+        else if (page == 1 && k == H9_KEY_UP && first) { first -= ROWS; scan_page(hits, n, first); }
         gfx_wait_release();
     }
 }

@@ -61,3 +61,27 @@
 }
 @keyframes am-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .app-manager #state.connecting::before { animation-duration: 2.4s; } }
+
+/* Short app cards and the info dialog. */
+.app-manager .app .summary { color: var(--text); font-size: 13px; }
+.app-manager .app .facts { font-size: 12px; }
+.app-manager .app .buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+.app-manager .app .buttons button.info { border-style: dashed; }
+.app-manager dialog.app-info { width: min(42rem, calc(100vw - 2rem)); max-height: calc(100vh - 3rem); overflow: auto; border: 1px solid var(--line); border-radius: 15px;
+  padding: 1.2rem 1.4rem; background: var(--panel); color: var(--text); box-shadow: 0 20px 60px #000a; }
+.app-manager dialog.app-info::backdrop { background: #02080ccc; }
+.app-manager .info-head { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+.app-manager .info-head h2 { margin: 0; flex: 1; }
+.app-manager .info-head button { margin-right: 0; }
+.app-manager dialog.app-info h3 { margin: 1rem 0 .3rem; font: 600 15px 'Space Grotesk', sans-serif; }
+.app-manager dialog.app-info p { margin: .4rem 0; }
+.app-manager .info-lead { color: var(--text); font-weight: 600; }
+.app-manager .info-list { margin: .2rem 0 .4rem 1.1rem; padding: 0; display: grid; gap: .25rem; color: var(--muted); }
+.app-manager .info-config { margin-top: 1rem; padding-top: .6rem; border-top: 1px solid var(--line); }
+.app-manager .info-status { color: var(--ok); font-variant-numeric: tabular-nums; }
+.app-manager .sat-tools { margin: .3rem 0; }
+.app-manager .sat-list { display: grid; gap: .3rem; margin: .4rem 0; }
+.app-manager .sat-row { display: block; padding: .3rem .5rem; border: 1px solid var(--line); border-radius: 8px; background: #0f1d27; cursor: pointer; }
+.app-manager .sat-row input { margin-right: .5rem; }
+.app-manager .sat-name { font-weight: 700; }
+.app-manager .info-message { min-height: 1.4em; }

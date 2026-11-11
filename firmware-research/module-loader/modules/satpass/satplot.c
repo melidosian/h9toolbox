@@ -6,15 +6,16 @@
  * rise (green dot) to set (red dot), with its highest point in yellow, and
  * the rings mark 30 and 60 degrees of elevation. The path is calculated here
  * with orbit.c from the pass list SAT PASS left in satshare.h. Up / Down step
- * through the listed passes; Menu or Back returns to SAT PASS, which carries
- * on from the same time at the pass last viewed. */
+ * through the listed passes; Menu goes on to the TRACK page (.SAT TRACK), Back
+ * returns to SAT PASS, which carries on from the same time at the pass last
+ * viewed. */
 #include <stdint.h>
 
 #include "gfx.h"
 #include "h9mod.h"
 #include "orbit.h"
 #include "satshare.h"
-#include "sats.h"
+#include "satdata.h"
 
 enum { CX = 58, CY = 64, R = 44, SAMPLES = 48 };
 
@@ -59,10 +60,14 @@ static void az_text(char *d, uint32_t az)
 }
 
 /* Draw pass `n` of the shared list: grid, path, markers and the side panel. */
-static void draw_pass(const struct satshare *s, unsigned n, const struct observer *o)
+static void draw_pass(const struct satdata *data, const struct satshare *s, unsigned n, const struct observer *o)
 {
     uint32_t aos = s->aos[n], los = aos + (s->dur_sat[n] & 0xFFF);
-    const struct sat *sat = &SATS[(s->dur_sat[n] >> 12) < SATS_COUNT ? s->dur_sat[n] >> 12 : 0];
+    struct satentry entry;
+    struct gmst_ref gmst;
+    satdata_get(data, s->dur_sat[n] >> 12, &entry);
+    satdata_gmst(data, &gmst);
+    const struct sat *sat = &entry.sat;
     gfx_fill(0, 0, H9_WIDTH, 119, GFX_BLACK);
     /* rings (horizon, 30, 60 degrees) and the compass cross */
     for (unsigned ring = 0; ring < 3; ring++)
@@ -80,15 +85,15 @@ static void draw_pass(const struct satshare *s, unsigned n, const struct observe
     uint32_t peak_az = 0;
     struct look l;
     for (unsigned i = 0; i <= SAMPLES; i++) {
-        orbit_look(sat, &GMST_REF, o, aos + span * i / SAMPLES, &l);
+        orbit_look(sat, &gmst, o, aos + span * i / SAMPLES, &l);
         if (l.el < 0) continue;
         if (l.el > peak) { peak = l.el; peak_az = l.az; }
         dot(l.az, l.el, 2, GFX_WHITE);
     }
-    orbit_look(sat, &GMST_REF, o, aos, &l);
+    orbit_look(sat, &gmst, o, aos, &l);
     uint32_t az_aos = l.az;
     dot(az_aos, 0, 5, GFX_GREEN);
-    orbit_look(sat, &GMST_REF, o, los, &l);
+    orbit_look(sat, &gmst, o, los, &l);
     uint32_t az_los = l.az;
     dot(az_los, 0, 5, GFX_RED);
     dot(peak_az, peak, 5, GFX_YELLOW);
@@ -108,32 +113,38 @@ static void draw_pass(const struct satshare *s, unsigned n, const struct observe
     d = num(b, n + 1, 1); *d++ = '/'; num(d, s->count, 1);   /* "2/5" */
     gfx_text(116, 110, b, 3, 1, GFX_GREY, GFX_BLACK);
     sat_tabs(1);
-    gfx_text(72, 119, "UP/DN PASS", 10, 1, GFX_WHITE, GFX_BLACK);
+    gfx_text(96, 119, "UP/DN PASS", 10, 1, GFX_WHITE, GFX_BLACK);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)
 {
-    (void)api; (void)self;
+    (void)self;
     volatile struct satshare *sh = SAT_SHARED;
     struct satshare s = *sh;
     if (s.magic != SAT_MAGIC || !s.count || s.count > 5) return 0;   /* not opened from SAT PASS */
+    struct satdata data;
+    if (!satdata_open(api, &data)) return 0;
     struct observer o;
     orbit_observer(&o, s.lat, s.lon);
     unsigned n = s.sel < s.count ? s.sel : 0;
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
-    draw_pass(&s, n, &o);
+    draw_pass(&data, &s, n, &o);
     gfx_wait_release();
+    unsigned next = 0;   /* Menu: on to the TRACK page; Back: the list */
     for (;;) {
         unsigned k = gfx_wait_key();
-        if (k == H9_KEY_UP && n) draw_pass(&s, --n, &o);
-        else if (k == H9_KEY_DOWN && n + 1 < s.count) draw_pass(&s, ++n, &o);
+        if (k == H9_KEY_UP && n) draw_pass(&data, &s, --n, &o);
+        else if (k == H9_KEY_DOWN && n + 1 < s.count) draw_pass(&data, &s, ++n, &o);
         else if (k == H9_KEY_UP || k == H9_KEY_DOWN) { /* at the end of the list: stay */ }
-        else break;
+        else { next = k == H9_KEY_MENU; break; }
         gfx_wait_release();
     }
-    sh->sel = (uint8_t)n;   /* SAT PASS carries on at the pass last viewed */
-    volatile struct h9_request *rq = H9_REQUEST;      /* back to SAT PASS */
-    for (unsigned i = 0; i < H9_NAME_BYTES; i++) rq->name[i] = i < 9 ? "SAT PASS"[i] : 0;
+    sh->sel = (uint8_t)n;   /* the next screen carries on at the pass last viewed */
+    volatile struct h9_request *rq = H9_REQUEST;
+    const char *name = next ? ".SAT TRACK" : "SAT PASS";
+    unsigned k = 0;
+    while (name[k]) { rq->name[k] = name[k]; k++; }
+    while (k < H9_NAME_BYTES) rq->name[k++] = 0;
     rq->magic = H9_REQUEST_MAGIC;
     return 0;
 }

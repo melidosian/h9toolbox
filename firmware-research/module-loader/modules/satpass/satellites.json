@@ -1,0 +1,19 @@
+{
+  "comment": "FM voice satellites SAT PASS can track. name = the satellite's name in CelesTrak's amateur-radio group (https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle); label = what the radio shows (7 characters at most); up / down in MHz as the satellite hears / sends; tone = the access CTCSS in Hz (0 = none). Frequencies from AMSAT's FM satellite listings (amsat.org/status, work-sat.com FM-VOICE-SATS-2026a, the REF QRG list of 2025-06-26): check amsat.org/status before going on air, several are intermittent or silent.",
+  "satellites": [
+    { "id": "so50", "name": "SAUDISAT 1C (SO-50)", "label": "SO-50", "up": 145.850, "down": 436.795, "tone": 67.0,
+      "note": "Arm its 10 minute timer first: a 2 second carrier with a 74.4 Hz tone, then 67.0 Hz." },
+    { "id": "iss", "name": "ISS (ZARYA)", "label": "ISS", "up": 145.990, "down": 437.800, "tone": 67.0,
+      "note": "The ISS FM repeater is only on at times." },
+    { "id": "ao91", "name": "RADFXSAT (FOX-1B)", "label": "AO-91", "up": 435.250, "down": 145.960, "tone": 67.0,
+      "note": "AMSAT's April 2025 page says no tone is needed; other lists still show 67.0 Hz. Sunlit passes only." },
+    { "id": "ao27", "name": "EYESAT A (AO-27)", "label": "AO-27", "up": 145.850, "down": 436.795, "tone": 0,
+      "note": "Often switched off." },
+    { "id": "po101", "name": "DIWATA-2B", "label": "PO-101", "up": 437.500, "down": 145.900, "tone": 141.3,
+      "note": "Active only on a schedule; may be silent." },
+    { "id": "ao123", "name": "ASRTU-1 (AO-123)", "label": "AO-123", "up": 145.850, "down": 435.400, "tone": 67.0,
+      "note": "" },
+    { "id": "lilac2", "name": "LILACSAT-2", "label": "LILAC2", "up": 144.350, "down": 437.200, "tone": 0,
+      "note": "Frequencies from memory, not in the AMSAT lists above." }
+  ]
+}

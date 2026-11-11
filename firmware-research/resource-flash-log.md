@@ -3581,3 +3581,339 @@ Hardware results for S1 and S2, and U2 onward, will be recorded here.
   refresh, an old or foreign file is refused, and a half-installed radio
   resumes (its sectors are backup-or-package). The file stays the only copy:
   keep it (the page does not store the backup itself).
+
+## 2026-11-11 SAT PASS 0.7: TRACK page with Doppler-corrected frequencies
+
+- Next step towards "SAT PASS sets VFO A/B": the satellite frequencies and
+  the Doppler maths, shown on a third page so the radio can be tuned by hand
+  now. `satpack.py` embeds each satellite's downlink, uplink and access tone
+  (`struct satfreq` in `sats.h`): SO-50 145.850 up / 436.795 down, 67.0 Hz
+  (arm with 74.4 Hz first); ISS 145.990 / 437.800, 67.0; AO-91 435.250 up /
+  145.960 down, 67.0 (AMSAT's April 2025 page says no tone needed); AO-27
+  145.850 / 436.795; PO-101 437.500 up / 145.900 down, 141.3; AO-123 145.850
+  up / 435.400 down, 67.0; LILAC2 144.350 / 437.200 from memory, not in
+  those lists. Sources: amsat.org (status pages, ?p=5012, ?p=62395),
+  work-sat.com FM-VOICE-SATS-2026a, REF QRG list 2025-06-26. Several of
+  these satellites are intermittent or silent: check amsat.org/status.
+- `orbit_look` also returns the slant range (CORDIC magnitude); `doppler.h`
+  turns the range change over one second into a shift (f x rate / c as one
+  multiply and a shift). `.SAT TRACK` (4,877 B): once a second, time to rise
+  or set, azimuth, elevation, range, LISTEN = downlink - shift, SEND = uplink
+  + shift, tone. Before the rise it shows the values at the rise. Navigation:
+  Menu LIST -> PLOT -> TRACK -> LIST; Back to the list; Up/Down change pass.
+- Checks: `test_satpass.py` compares range and Doppler (at 437.8 MHz)
+  against SGP4 over a day at three places: worst 17 km / 64 Hz at 0.5 days,
+  29 km / 123 Hz at 7, 49 km / 545 Hz at 14 (gated within a week). Host
+  render of a PO-101 pass 400 s after the rise: receding, listen 145.8985
+  (-1.4 kHz), send 437.5044 (+4.4 kHz), as expected.
+- Still needed to set the VFOs themselves: the VFO PROBE hardware run
+  (where A and B keep their frequencies), then a tune-only test.
+
+## 2026-11-11 VFO PROBE on hardware: where VFO A and B live
+
+- Photos (A = 145.800, B = 435.000): with A selected `+0x1BC` = `+0x1CC` =
+  145.80000, `+0x1C8` offset 0, direction `+0x789` 0, band byte `+0x10CD` 0;
+  scan hits at `0x11C8C`, `0x11C9C` (working copy), `0x11CA0` / `0x11CA4`
+  (145.800) and `0x11CA8` / `0x11CAC` (435.000). With B selected `+0x1BC` =
+  `+0x1CC` = 435.00000, `+0x1D0` still 145.80000, `+0x10CD` = 1. So VFO A =
+  `0x11CA0` (`+0x1D0`), VFO B = `0x11CA8` (`+0x1D8`); the next word of each is
+  probably that side's TX frequency; the working copy follows the selected
+  side. Matches the static trace: stock's VFO stepper `0x01E67B94` steps
+  `+0x1D0` (side A) or `+0x1D8` (side B), copies it to `+0x1BC` and calls
+  `0x01E595B6` (receive tune from `+0x1BC`). [HW + STATIC]
+- Stock GPS row read `0 0.000000 0.000000` while GPS 0.2 and SAT PASS had a
+  fix at the same place. A module runs with stock's main loop dropped, so
+  stock's parser state is whatever it held when the module started; either
+  stock had no fix then, or `0x12550/58/60` are wrong. Not settled. Because
+  the stub's background recorder depends on those, SAT PASS 0.8 now saves the
+  first good fix of a session itself (`fix_save`, same record format, erase
+  only when the sector is full; `fix_store_save.c` so GPS keeps its size).
+- Design note for setting VFO A/B: a module cannot do it (stock is not
+  running: no PTT, no squelch, and RAM reverts at RADIO's reset). Plan: a
+  resident tracker called from the stub's per-loop hook that writes the
+  Doppler-corrected downlink to `+0x1D0` and uplink to `+0x1D8`, copies the
+  active side to `+0x1BC` and calls `0x01E595B6`. Needs a stub change.
+
+## 2026-11-11 Resident VFO tracker (SAT PASS 0.9, firmware build 357289b9, not flashed)
+
+- Goal (user): SAT PASS sets VFO A / B with the satellite's downlink / uplink.
+  A module cannot (stock's loop is stopped while it runs: no PTT, no squelch,
+  and the RAM words revert at RADIO's reset), so the module stays armed while
+  the stock radio runs.
+- Stub (`src/stub.s`, 960 -> 1,120 B): `res_tick` runs next to `rec_tick` on
+  every my_app loop. While `satshare.res_magic` ("CSRT", RAM `0x2B8B4`) is
+  set it calls the armed module as `entry(&ml_api, 0xFFFF)` twice a second,
+  after checking its entry is in the RAM slot and the slot CRC once (length
+  and CRC come from the bundle table); any failure disarms. `ml_main` (hold
+  Back) disarms it before the menu replaces the slot. Disassembly of the built
+  hook matches the source (branch targets checked). Nothing changes while
+  disarmed. Assumption: RAM survives `cpu_reset`; if it does not the magic
+  is gone and nothing happens.
+- `.SAT TRACK` (6,069 B): key 5 opens a confirmation (A = downlink; B = uplink
+  on/off, default off; key 1 = test now, listen only, any time), arms the
+  tracker and resets the radio. `tracker()` (host test `test_sattrack.c`, 9
+  cases): rebases the clock when the tick restarted (+4 s boot guess), picks
+  the first unfinished pass, waits until 60 s before the rise, computes the
+  Doppler-corrected frequencies, and when one moved by 200 Hz or more writes
+  VFO A (`0x11CA0`) / VFO B (`0x11CA8`); for the selected side (`[0x11B50]`
+  negative = B) also the band byte `+0x10CD`, the working copy `+0x1BC`, and
+  calls `0x01E595B6` (tune receive). It skips everything while RF register
+  `0x30` bit 14 is set (stock writes `0xC1FE` for TX, receive values have it
+  clear), disarms after the last pass, never writes flash, and sets the UI
+  flag `0xC136` = 1 after a change (that flag's meaning is a guess from the
+  stepper's tail: check it does not cause settings writes).
+- Shared state moved/extended: `satshare` is 96 bytes at `0x2B880` (build.py
+  limit 6,528 B for the SAT screens). VFO PROBE 0.2 page 3 shows magic, entry,
+  CRC, calls, flags, the last A/B written, `+0x80` (side), RF register `0x30`
+  and `+0x24C`.
+- Installer: new build package `357289b9…`, flash `6663c809…` (3 sectors differ
+  from release2: `0x5000`, `0xAC000`, `0xD9000`); release2 (`dceac70c…`,
+  image `2f5e428d…`) kept as PREVIOUS.
+- Hardware plan: flash; update SAT PASS and VFO PROBE; VFO PROBE page 3 with
+  A then B selected (side byte, REG30 in receive); SAT PASS > pass > TRACK >
+  key 1 (test now): VFO A should jump to the rise downlink within seconds;
+  hold Back, VFO PROBE page 3 CALLS > 0 shows the RAM survived the reset;
+  then a real pass, B off; B on only after a dummy-load check.
+
+## 2026-11-11 VFO PROBE page 3 on hardware (new firmware flashed, tracker not armed)
+
+- User photos (two power-ups, "A then B VFO"; which photo is which side is
+  not certain from the pictures): both show MAGIC 0 (not armed) and
+  garbage in the status words (CALLS 4071623012, FLAGS 91, ...): power-up SRAM
+  is random and never zeroed there. The garbage differs by 2-3 bits per word
+  between the photos (about 8 percent), the signature of SRAM start-up noise
+  across a power cycle, so these photos say nothing about whether RAM survives
+  `cpu_reset` (still the key open assumption).
+- `+0x80` read `0x80` in one photo and `0x00` in the other. Whether negative
+  means B (as the stepper's branch reads) or A is unconfirmed, so the tracker
+  no longer trusts it: the selected side is the one whose word equals the
+  working copy `+0x1BC` (the side byte only breaks a tie).
+- RF register 0x30 read `0000` in receive: either that register reads back 0
+  through `0x01E505FE` from a module or the read is not valid there, so the
+  transmit guard (bit 14) cannot be trusted. `+0x24C` was `01` while idle, so
+  it is not a transmit flag either.
+- Changes (modules only, firmware `357289b9` unchanged): the tracker retunes
+  only VFO A (the receive side); for B it only updates the word and, if B is
+  selected, the working copy `+0x1BC` and band byte, which stock turns into the
+  transmit frequency at the next PTT (`0x01E87BF6` copies `+0x1BC` to `+0x1CC`);
+  VFO PROBE 0.3 page 3 says "never armed" instead of showing leftover RAM
+  (`st_valid`). SAT PASS 0.10.
+- Still open for a safe B (uplink) write: a reliable "transmitting" signal.
+
+## 2026-11-11 Tracker armed on hardware: it ran, but VFO A did not change on screen
+
+- User: key 1 (test now) restarted the radio; VFO PROBE page 3 then showed
+  CALLS 33 and A filled in. **So RAM survives `cpu_reset`, the stub's hook
+  (CRC check, entry call) works and the tracker computes and writes** [HW].
+  VFO A's displayed frequency did not change.
+- Likely cause: the stepper's tail calls `0x01E53306(0)` before copying the
+  word to the working copy; it loops `0x01E50556(0..2)`, which calls the UI's
+  row-draw callbacks (table at `[0x11AD0+0x188]`), i.e. it redraws the three
+  rows. The tracker had only set a flag (`0xC136`). SAT PASS 0.11 calls it in
+  the stepper's order (word, redraw, working copy, flag, tune). Which side was
+  selected during the test is not known; if B was, A only gets its word.
+
+## 2026-11-11 Tracker: VFO A changed for about a second, then went back (hardware)
+
+- User: with SAT PASS 0.11 (stepper-style redraw) VFO A showed the tracked
+  frequency "for a second before going back to the previous frequency".
+  So the write, the redraw and the retune work [HW].
+- Why it reverts (static): stock keeps each VFO's frequency in the `rw_freq`
+  settings partition (partition 4, records at `0x1950` for A and `0x1960` for B,
+  4 bytes of BCD) and the RAM words `+0x1D0/+0x1D4` (A) and `+0x1D8/+0x1DC` (B)
+  are a cache of them: `0x01E5663E` / `0x01E566A8` re-read the records and
+  overwrite the words, and `0x01E58E3E` (the RF refresh, 30 callers) runs them
+  first. The stepper avoids the revert by saving the new value to the record
+  before it refreshes: `0x01E56038(freq, buf)` encodes it,
+  `0x01E50128(4, 0x1950, buf, 4)` writes it (sector read-modify-write with
+  interrupts off; the partition is named rw_freq: stock writes it on every dial
+  step), then `0x01E58E3E(0)`. In the tracker's case the flag `0xC136` that I set
+  (copied from the stepper) probably made stock run that refresh about a second
+  later, loading the old record.
+- SAT PASS 0.12: no longer sets that flag; if a word is put back it is written
+  again on the next call and the count is kept (`st_reverts`, shown by VFO
+  PROBE 0.4 page 3 as REVERTS). If it still reverts, the next step is the
+  stepper's own path (write the record, then refresh), which would change the
+  saved VFO (original to be restored when tracking stops).
+
+## 2026-11-11 Tracker holds VFO A; the Doppler number jittered (SAT PASS 0.13)
+
+- User (hardware, 0.12): VFO A is tracking; the display showed 145.89662,
+  then 663, 664, then back to 662. Doppler is the right sign and size.
+- Cause: the shift used a one-second forward difference of the slant range,
+  which is only known to 1/256 km (3.9 m): noise about 20 Hz at 145.9 MHz
+  (host: second difference stdev 22 Hz, 210 direction reversals in a 595 s
+  pass) and a lag of half a second (up to about 25 Hz at 2 m on an overhead
+  pass). `doppler.h` now centres an 8-second difference (range at t-4 s and
+  t+4 s): noise 3 Hz (the 10 Hz display step), 0 reversals; the centred
+  bias is far under a hertz. SGP4 check (now against SGP4's centred range
+  rate): worst 76 Hz at 437.8 MHz with fresh elements, 124 Hz at 7 days.
+- When stock puts a VFO word back, the tracker now writes the same value
+  again (it used to compute a fresh one each time, which also made the number
+  flicker); REVERTS in VFO PROBE page 3 still counts these.
+
+## 2026-11-11 Tracker: swap the sides (SAT PASS 0.14)
+
+- User: "can we also switch to VFO B for listening and VFO A for transmitting?"
+  Flag 16 in `st_flags`: the listening side is VFO B (it gets the Doppler-
+  corrected downlink, and is the one retuned), the sending side is VFO A (uplink,
+  only if send is on; its word and, when selected, the working copy follow, but the
+  receiver is never retuned onto it). The confirmation screen: Up = send on/off,
+  Down = swap, Menu = start, 1 = test now (listen only). Host test: swapped, with
+  the listening side selected or not, send side on and off. Hardware: pending.
+
+## 2026-11-11 B listens / A sends: PTT put the listening VFO back (hardware) -> saved records (SAT PASS 0.15)
+
+- User (0.14, swapped): VFO B shows the right frequency, but pressing PTT on VFO A
+  flashes B back to the old frequency. That is the stock refresh at PTT
+  re-reading both VFO records (`0x01E5663E` / `0x01E566A8`) over the RAM words.
+  It also means a RAM-only uplink on the sending VFO could never work: PTT would
+  reload the old saved A and transmit on that.
+- Fix: every update is now saved the way the stock stepper saves one
+  (`vfo_persist.h`: `0x01E56038` encode, `0x01E50128(4, 0x1950 or 0x1960, buf,
+  4)`; the same literals as the stepper's branch at `0x01E67D16`), so a refresh
+  loads our value. To keep the user's own frequencies: `vfo_backup.h` logs them
+  in chip sector `0x3FE000` when tracking is armed (kept if an earlier session
+  was never stopped) and `vfo_restore_pending` writes them back when the last
+  pass is over (tracker) or when the menu opens (hold Back, `MENU` runs it
+  before drawing; also after a power cycle in the middle of a pass). Only the
+  sides the tracker touched are restored. The game slot's voice area now ends at
+  `0x3FE000` (`dist/doom/upload.mjs`). Update threshold 400 Hz (fewer writes).
+- Split: the tracker and its arming moved to the hidden module `.SAT TRACKER`
+  (`satauto.c`, 4,597 B); `.SAT TRACK` (5,713 B) is the live page and the start
+  screen and asks the loader for it. MENU 2,585 B (new). Host test
+  `test_sattrack.c` (satauto.c with fake stock calls and chip): saved record
+  offsets and values, swap, restore at the end, a second restore does nothing.
+  Firmware package unchanged (`357289b9`).
+- Risks to watch on hardware: partition writes during a transmission (every
+  400 Hz of change, interrupts off for the sector write); the transmit-in-progress
+  check is still unreliable; the saved VFO A/B are the Doppler values until
+  restored.
+
+## 2026-11-11 B stayed at PTT; squelch open during the pass (SAT PASS 0.16)
+
+- User (0.15, swapped): VFO B stayed on its tracked frequency when PTT was pressed
+  on A. Saving each update as the stepper does fixed the PTT revert [HW].
+- Squelch (user: "open squelch when the pass begins"): the receive state machine
+  `0x01E840BC` calls `0x01E83B42` (REG 0x30 = 0xBFF5, speaker gate 0xB on) when its
+  measure (`0x01E833A6`) reaches the halfword at `0x11AD0 + 0x83C` and
+  `0x01E83B7C` (0xBDF5, gate off) otherwise. The tracker sets that halfword to 0
+  from the rise to the set (flag 32; start screen key 2, on by default; test
+  now acts at once), keeps the original (`orig_sq`, flag 64) and puts it back
+  after the pass; stock refresh recomputes it, so the tracker writes 0 again each
+  call. Unverified polarity: if the measure is a noise level rather than signal
+  strength, 0 would hold the squelch closed. VFO PROBE 0.6 page 3 shows the
+  halfword (SQUELCH 83C) and the saved original.
+- "Test now" now uses the start screen's choices (send, swap, squelch) instead of
+  forcing listen only.
+
+## 2026-11-11 Countdown in the stock status bar (SAT PASS 0.17)
+
+- User asked for a countdown beside the VFO and sent a photo of the stock main
+  screen (A/B rows: signal bar and RSSI, B 436.78695 and A 145.85268 with "VFO H
+  FM" captions). From the photo (screen about 160 x 128): the status bar at the
+  top has a gap between the "S" icon (x about 49-57) and the Bluetooth icon
+  (x about 115-123), y about 2-16: room for 8 characters.
+- `.SAT TRACKER` draws there with the module LCD routines from the loader's
+  hook (the stock my_app loop, so it does not interleave with stock's own
+  drawing): a small black box with `AOS m:ss` (white, until the rise, only when
+  under 100 minutes away), `LOS m:ss` (green, rise to set) or `TEST` (test now),
+  right-aligned to x = 112, y = 4, every call (stock may redraw the bar). When
+  nothing is to be shown it blanks the box and calls `0x01E53306(0)` (the
+  stepper's redraw of the three rows). Flag 128 = drawn. Whether stock's bar
+  uses the same black as our fill (the panel shows black as blue-ish) and whether
+  drawing from the hook is stable are to be seen on the radio.
+
+## 2026-11-11 Real pass: only the chosen pass by default (SAT PASS 0.18)
+
+- The start screen gets key 3, "only this pass" (on by default): the tracker's pass
+  list is then just the chosen pass, so it restores the user's VFOs and stops when
+  that pass is over; off keeps the chosen pass and every later one in the list
+  (up to five). Test now respects it too.
+
+## 2026-11-11 VFO A (send side) not showing the uplink; new defaults (SAT PASS 0.19)
+
+- User: VFO A "isn't setting even though it was enabled"; asked for A sends (on)
+  and B listens as the defaults.
+- Probable cause (not yet confirmed on the radio): with B selected, `put_vfo` for the
+  send side saved the record and the word but returned before `STOCK_REDRAW`, which
+  was only called for the selected side, so A's row on the screen was not redrawn
+  (the saved value would show after switching sides). Now `STOCK_REDRAW` follows
+  every update. The start screen defaults are swap on and send on (B listens, A
+  sends), squelch open on, only this pass on.
+
+## 2026-11-11 Squelch gone after every VFO B change; start screen order (SAT PASS 0.20)
+
+- User: "every time the VFO B frequency changed, the squelch went away".
+  Cause (static, matches the symptom): the receive tune `0x01E5942E` writes
+  REG 0x30 = 0xBDF1 (audio off); stock's state machine (`0x01E840BC`) only calls
+  its open routine `0x01E83B42` (REG 0x30 = 0xBFF5, speaker gate on) when the
+  squelch goes from closed to open, and with the threshold held at 0 it is
+  already "open", so the audio stayed off after each retune. The tracker now calls
+  `0x01E83B42` right after each retune while it holds the squelch open (flag 64).
+- Start screen: VFO A is listed above VFO B, each with its role (LISTEN (DOWN) or
+  SEND (UP) ON/OFF), whatever the swap.
+
+## 2026-11-11 PF1 short press = PTT2 while tracking (SAT PASS 0.21)
+
+- User: PF1 must be reassigned to PTT2 ("that forces the main PTT button to TX on A").
+  The button settings live in partition 4 at `0xC90..0xC95` (top short, PF1 short,
+  PF2 short, top long, PF1 long, PF2 long; the settings map's image offsets
+  `0x0C98..0x0C9D` minus the eight-byte identity). Stock's loader
+  (`0x01E71E30`, the block at `0x01E726CA`) reads them into RAM at `0x11AD0 +
+  0x10EC` (+0 PF1 short, +1 PF1 long, +2 PF2 short, +3 PF2 long, +4 top short,
+  +5 top long) and defaults an erased PF1 short to 7, which is PTT2.
+- The tracker sets the RAM byte `0x12BBC` to 7 from its first call after the
+  restart (RAM only: stock reads the saved setting again at the next restart),
+  keeps the original (`orig_pf1`, flag 256) and puts it back after the last
+  pass; start screen key 4 (on by default; flag 512). VFO PROBE 0.7 page 3
+  shows the byte and the saved original. `orig_sq` is now a halfword so the
+  shared state stays within 96 bytes.
+- Unverified: that stock reads the byte at key time (not cached elsewhere), and
+  what PTT2 does when the main PTT is pressed (the user's description: it
+  forces the main PTT to transmit on A).
+
+## 2026-11-11 TRACK page: SEND above LISTEN, Menu opens the start screen; TX tone (SAT PASS 0.23)
+
+- TRACK page: SEND (with its tone) on top, LISTEN below; Menu opens the VFO
+  tracking start screen (it was key 5; Menu used to return to the list, Back
+  does that now); the start screen's own Menu still starts.
+- TX tone: a VFO record is the channel layout (`dist/channel.mjs`): bytes 8-9
+  receive tone, 10-11 transmit tone, two BCD bytes of tenths of a hertz, low
+  byte first (67.0 Hz = bytes `70 06`; `FF FF` = none). The working copies are
+  halfwords at `0x11AD0 + 0x98` (receive) and `+ 0x9A` (transmit; the transmit
+  tune `0x01E5AD68` passes `+0x9A` unless `+0x10EA` is set). The tracker
+  writes the satellite's tone (`SATFREQ.tone10`; none -> `FF FF`) into the
+  SENDING side's record at partition 4 offset `0x1950 + 10` (A) or `0x1960 +
+  10` (B) with `0x01E50128` (2 bytes), once per satellite, and into the
+  working halfword when that side is selected; the original tones are read with
+  `0x01E52CB2` at arming, kept in the backup log (now `VFB2`, 32-byte records
+  with both tones; the old 16-byte records are ignored) and written back with
+  the frequencies. After the last pass the tracker also calls the RF refresh
+  `0x01E58E3E(0)` so stock reloads the restored VFOs at once.
+- Unverified on the radio: that the VFO record's tone bytes are at 10-11 as in
+  channel records, and the tone halfword format (BCD, as in the record).
+
+## 2026-11-11 App Manager: info dialogs, satellite list, data in the browser (SAT PASS 0.24)
+
+Offline build and browser-tested against the local site; **not yet tested on the radio** (a new `.SAT DATA`
+module and the refactored SAT screens have not been flashed).
+
+- The satellite table is no longer code. It is the hidden module `.SAT DATA` (`satdata.h`: 32-byte header,
+  64 bytes per satellite: orbit elements, then downlink/uplink/tone). SAT PASS, PLOT, TRACK and the resident
+  tracker read it from the bundle; without it SAT PASS shows NO SATELLITE DATA. `satellites.json` lists the
+  compatible FM satellites (label up to 7 characters); `build.py` packs `default.tle` into the default data.
+- `satpack.py` was rewritten as a library (`pack`). A bug found on the way: the mean-motion rate must include
+  the decay term moved to the shared epoch (`m_rate + 2·m_ddot·shift`); without it the SGP4 check failed
+  (range 34.9 km vs 17.1 km). `test_satpass.py` is back at 0.5 d 17 km / 76 Hz, 7 d 29 km / 124 Hz.
+- ASan found a 28-byte buffer written with 28 characters in `sattrack.c` `row()` (now 32). Host tests moved to
+  `host_satdata.h` (a fake bundle with `.SAT DATA`).
+- Browser: `dist/apps/satdata.mjs` ports the packer (byte-for-byte against the Python output, test fixtures in
+  `test/fixtures/satpass-*`), `info.mjs` is the Info / Info & settings dialog (description, controls, notes from
+  `catalog.json`: `summary`, `controls`, `notes`, `config`, `data`). SAT PASS's dialog lists the satellites with
+  on/off boxes (saved in the browser, all by default). **Add** or **Update** on the card fetches fresh elements
+  from CelesTrak for the ticked satellites (all if the dialog was never opened) and stages them in place of the
+  built-in data; if CelesTrak cannot be reached it falls back to the built-in data (first install) or keeps the
+  data already on the radio. The dialog's "Update data and stage" also adds the app when it is not added.
+  Refreshed data is never treated as an outdated app and survives app updates. CSP now allows `celestrak.org`.
+- Cards show one-line summaries (`summary`, at most 90 characters) and a size line only.

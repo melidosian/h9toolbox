@@ -6,28 +6,44 @@
   "title": "Module menu",
   "description": "The on-radio list that opens when you hold Back. Installed automatically with the first app.",
   "version": "1.1",
+  "summary": "The on-radio list that opens when you hold Back.",
+  "controls": [
+   "Hold Back for about half a second to open it. Up/Down move, Menu runs the selection.",
+   "RADIO restarts into the radio; USB UPDATE starts the USB loader."
+  ],
+  "notes": [
+   "Opening it also stops the SAT PASS tracker and puts your VFOs back."
+  ],
   "modules": [
    {
     "name": "MENU",
-    "bytes": 2223,
-    "ram": 2223,
-    "crc16": "f31f"
+    "bytes": 2739,
+    "ram": 2739,
+    "crc16": "522b"
    }
   ],
   "file": "menu.h9mod",
-  "bytes": 2223,
-  "ram": 2223,
-  "crc16": "f31f",
-  "sha256": "234ac22f77cb188f984a4d6e8d43759c4c79dfb95513e4126776451bb65e7619"
+  "bytes": 2739,
+  "ram": 2739,
+  "crc16": "522b",
+  "sha256": "b254b1b41306f4b7947330426cbf2b4dd38215f40c3436a4377fa9832ae72302"
  },
  "apps": [
   {
    "id": "brick_breaker",
    "name": "BRICK BREAKER",
    "title": "Brick Breaker",
-   "description": "Break 30 bricks with a bouncing ball. Menu moves the paddle left, Back moves it right, Up restarts after GAME OVER. Power-cycle to leave.",
+   "description": "A small game that runs from the app menu. Break 30 bricks with a bouncing ball; power-cycle the radio to leave it.",
    "version": "1.0",
    "category": "Games",
+   "summary": "Break 30 bricks with a bouncing ball.",
+   "controls": [
+    "Menu moves the paddle left, Back moves it right.",
+    "Up restarts after GAME OVER."
+   ],
+   "notes": [
+    "There is no exit key: power-cycle the radio to leave."
+   ],
    "modules": [
     {
      "name": "BRICK BREAKER",
@@ -46,7 +62,7 @@
    "id": "aprs",
    "name": "APRS",
    "title": "APRS",
-   "description": "Onboard APRS client: station list (opens with the stock Beacon List), station details, a map around your GPS position, messages (yours in green), and sending messages you type on the keypad to any station, or a status packet, from your callsign (experimental; stock firmware does the transmitting). Hold Menu to switch screens, Back to go back. Each screen loads into RAM when you open it.",
+   "description": "An on-radio APRS client. It lists the stations you hear (and opens with the stock Beacon List), shows each station's details, draws a map around your GPS position, keeps messages (yours in green), and sends messages you type on the keypad to any station, or a status packet, from your callsign. The stock firmware does the transmitting.",
    "version": "0.5",
    "category": "Radio",
    "modules": [
@@ -81,6 +97,15 @@
      "crc16": "2caa"
     }
    ],
+   "summary": "APRS client: station list, map, messages and sending, with your GPS position.",
+   "controls": [
+    "Hold Menu to switch screens (list, map, messages, send); Back goes back.",
+    "On the SEND screen, type with the number keys (press a digit repeatedly to cycle its letters); Back deletes; Menu or Up/Down finish a field.",
+    "Each screen loads into RAM when you open it."
+   ],
+   "notes": [
+    "Sending is experimental. Use your own callsign and keep it short."
+   ],
    "file": "aprs.h9mod",
    "bytes": 31557,
    "ram": 6619,
@@ -91,36 +116,81 @@
    "id": "sat_pass",
    "name": "SAT PASS",
    "title": "FM Satellite Passes",
-   "description": "The next five passes of FM repeater satellites (SO-50, ISS, AO-91, AO-27, PO-101, AO-123, LilacSat-2) over your GPS position, in the radio's time zone (UTC+0 by default): rise time, peak elevation, duration and time to go. Two pages, shown as tabs along the bottom (LIST, PLOT). On the list, Up / Down select a pass, Menu opens the plot and Back exits. PLOT draws the pass on a horizon plot (north up, rim = horizon, centre = overhead; rise green, set red, highest point yellow) with rise/set times and azimuths and the peak elevation; Up / Down step through the five listed passes and Menu or Back returns to the list. Uses the last fix saved on the chip until the GPS reports. Orbits are embedded when the app is built (elements of 2026-11-10); rebuild with fresh elements every week or two.",
-   "version": "0.6",
+   "description": "Predicts the next five passes of FM voice satellites over your GPS position, draws each pass on a sky plot, shows live Doppler-corrected frequencies, and can follow a pass by itself: it keeps VFO B on the downlink and VFO A on the uplink, sets the satellite's access tone, holds the squelch open and puts PF1 on PTT2, while the radio runs normally. Choose the satellites and refresh their orbital data in Satellite settings.",
+   "version": "0.24",
    "category": "Radio",
    "modules": [
     {
      "name": "SAT PASS",
-     "bytes": 6233,
-     "ram": 6233,
-     "crc16": "ff4b"
+     "bytes": 6497,
+     "ram": 6497,
+     "crc16": "b784"
     },
     {
      "name": ".SAT PLOT",
-     "bytes": 4701,
-     "ram": 4701,
-     "crc16": "42a6"
+     "bytes": 4545,
+     "ram": 4545,
+     "crc16": "3097"
+    },
+    {
+     "name": ".SAT TRACK",
+     "bytes": 5737,
+     "ram": 5737,
+     "crc16": "7866"
+    },
+    {
+     "name": ".SAT TRACKER",
+     "bytes": 5445,
+     "ram": 5445,
+     "crc16": "c8df"
+    },
+    {
+     "name": ".SAT DATA",
+     "bytes": 480,
+     "ram": 480,
+     "crc16": "e686"
     }
    ],
+   "summary": "Next five FM satellite passes, a sky plot, and live Doppler tuning of VFO A and B.",
+   "controls": [
+    "Open it from the radio's menu (hold Back). It needs GPS time and a position (or a saved fix).",
+    "LIST: Up/Down pick a pass; Menu opens the sky plot; Back exits.",
+    "PLOT: Up/Down step through the passes; Menu goes to TRACK; Back returns to the list.",
+    "TRACK: live azimuth, elevation, range and the Doppler-corrected SEND (uplink) and LISTEN (downlink) frequencies; Up/Down change pass; Back returns to the list.",
+    "TRACK, then Menu: the start screen. Up: sending on/off. Down: swap which VFO listens. 2: squelch open during the pass. 3: only this pass. 4: PF1 = PTT2. Menu: start. 1: test now (acts at once, whatever the time). Back: cancel.",
+    "After you start, the radio restarts and follows the pass. The status bar shows AOS (time to rise) or LOS (time left). Hold Back to stop: your VFO frequencies, tones, squelch and PF1 key are put back."
+   ],
+   "notes": [
+    "Times use the radio's own time zone setting.",
+    "Check amsat.org/status first: several FM satellites are intermittent or silent.",
+    "You are responsible for transmitting: low power, a suitable antenna, your licence. Try the uplink on a dummy load first.",
+    "Orbital data ages: refresh it in Satellite settings every week or two (needs a connection to CelesTrak).",
+    "If the radio loses power mid-pass, VFO A and B keep the last tracked values until you open the menu (hold Back)."
+   ],
+   "config": "satellites",
+   "data": [
+    ".SAT DATA"
+   ],
    "file": "sat_pass.h9mod",
-   "bytes": 10934,
-   "ram": 6233,
-   "crc16": "ff4b",
-   "sha256": "875332b5bbcebffcb8b3906b1226f4abcd24432ff37c3ad6879cae587cb3b79e"
+   "bytes": 22704,
+   "ram": 6497,
+   "crc16": "b784",
+   "sha256": "5875b5c4c4ee3e369b688f27a1cf5d751544b83fb2e6f080d9ae9074726291b8"
   },
   {
    "id": "gps",
    "name": "GPS",
    "title": "GPS Info",
-   "description": "Everything the radio's GPS receiver reports, on four pages: position (latitude/longitude, altitude, speed, course, satellites used, HDOP, Maidenhead grid), a sky plot of every satellite in view coloured by signal strength, a bar chart of signal-to-noise per satellite (GPS, GLONASS, Galileo, BeiDou), and UTC date/time (and local time from the radio's Time zone setting) with the last fix saved on the chip and sentence counts. Up/Down switch pages, Back exits. Read only.",
+   "description": "Everything the radio's GPS receiver reports, on four pages: position (latitude and longitude, altitude, speed, course, satellites used, HDOP, Maidenhead grid), a sky plot of every satellite in view, signal-to-noise bars per satellite (GPS, GLONASS, Galileo, BeiDou), and time and sentence counts. Read only.",
    "version": "0.3",
    "category": "Radio",
+   "summary": "GPS position, sky plot, signal bars and UTC and local time.",
+   "controls": [
+    "Up: previous page. Menu or Down: next page. Back: exit."
+   ],
+   "notes": [
+    "The INFO page shows UTC and local time (from the radio's Time zone setting) and the last fix saved on the chip."
+   ],
    "modules": [
     {
      "name": "GPS",
@@ -139,9 +209,14 @@
    "id": "aprs_monitor",
    "name": "APRS MONITOR",
    "title": "APRS Monitor (probe)",
-   "description": "First step to an onboard APRS client: reads packets and GPS straight from the APRS modem's serial ring and shows the last four stations heard. Also tests whether the ring keeps filling while an app runs. Receive only. Back returns to the menu.",
+   "description": "First step towards an on-radio APRS client: reads packets and GPS straight from the APRS modem's serial ring and shows the last four stations heard. Receive only.",
    "version": "0.1",
    "category": "Experimental",
+   "summary": "Receive-only probe of the APRS modem's packets and GPS.",
+   "controls": [
+    "Back returns to the menu."
+   ],
+   "notes": [],
    "modules": [
     {
      "name": "APRS MONITOR",
@@ -160,22 +235,29 @@
    "id": "vfo_probe",
    "name": "VFO PROBE",
    "title": "VFO Probe (research)",
-   "description": "Research, read-only: shows where the stock radio keeps its tuned frequencies, as a step towards SAT PASS tuning VFO A/B itself. Set VFO A and B to two different frequencies (e.g. 145.800 and 435.000), hold Back and open it. Page 1 shows the receive/transmit fields found in the firmware; Menu scans RAM for frequency-like values (Up/Down scroll). Writes nothing. Back returns to the menu.",
-   "version": "0.1",
+   "description": "A read-only research tool. Page 1 shows the radio's tuning fields, page 2 scans RAM for frequency-like values, and page 3 shows the SAT PASS tracker's status (calls, reverts, flags, squelch and PF1 bytes). It writes nothing.",
+   "version": "0.6",
    "category": "Experimental",
+   "summary": "Research: where the radio keeps its VFO frequencies, and the tracker's status.",
+   "controls": [
+    "Menu: next page. On the scan page, Up/Down scroll. Back exits."
+   ],
+   "notes": [
+    "Set VFO A and B to two different frequencies (for example 145.800 and 435.000) before scanning."
+   ],
    "modules": [
     {
      "name": "VFO PROBE",
-     "bytes": 2273,
-     "ram": 2273,
-     "crc16": "1d5b"
+     "bytes": 3121,
+     "ram": 3121,
+     "crc16": "0718"
     }
    ],
    "file": "vfo_probe.h9mod",
-   "bytes": 2273,
-   "ram": 2273,
-   "crc16": "1d5b",
-   "sha256": "711ff71e05887c2f1d5b08b89cc13c2fc970e830ee6f5b6fc50ebe19652a60f3"
+   "bytes": 3121,
+   "ram": 3121,
+   "crc16": "0718",
+   "sha256": "6726604280321290547a19b6cddacff5d9302f9405a2d485d441c6a2961a2653"
   }
  ]
 }

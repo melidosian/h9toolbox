@@ -69,7 +69,9 @@ class StubMatchesLayout(unittest.TestCase):
         self.assertEqual(0x1F000, build.SLOT_LIMIT - build.SLOT_DATA)
 
     def test_load_slot(self):
-        self.assertEqual(STUB.count("0x00029f00"), 5)
+        # the loader and ml_api use it 5 times; the resident hook (res_tick) twice more (the lower
+        # bound of the entry it may call, and the slot it checks the CRC of)
+        self.assertEqual(STUB.count("0x00029f00"), 7)
         self.assertIn("r1 = 0x2000", STUB)
         self.assertEqual(build.SLOT_END - build.LOAD, 0x2000)
 

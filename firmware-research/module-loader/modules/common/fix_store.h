@@ -6,7 +6,7 @@
  * when all 256 records are used. Record: u32 magic "GFX1", i32 lat, i32 lon
  * (signed microdegrees, as stock's GPS parser keeps them), u16 day (0 for
  * now), u16 check (see check_of). The loader stub's background recorder
- * (src/stub.s rec_tick) is the only writer; modules only read. fix_load
+ * (src/stub.s rec_tick) and SAT PASS (the first fix of a session) write it. fix_load
  * returns microdegrees; fix_bam converts to binary angles (2^32 = one turn). */
 #ifndef FIX_STORE_H
 #define FIX_STORE_H
@@ -19,8 +19,11 @@ typedef void (*fix_read_fn)(void *dst, uint32_t chip_address, uint32_t length);
 
 /* 1 and the fix (signed microdegrees) if one is stored, else 0. */
 int fix_load_micro(fix_read_fn read, int32_t *lat, int32_t *lon);
+/* Append a fix (signed microdegrees); erases the sector only when it is full. */
+void fix_save(fix_read_fn read, int32_t lat, int32_t lon);
 
 /* microdegrees -> binary angle (2^32 per turn): x 2^32 / 360e6 */
+static inline int32_t fix_micro(int32_t bam) { return (int32_t)(((int64_t)bam * 360000000) >> 32); }
 static inline int32_t fix_bam(int32_t micro) { return (int32_t)(((int64_t)micro * 200159983) >> 24); }
 
 #endif

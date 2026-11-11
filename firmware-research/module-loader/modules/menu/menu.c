@@ -8,6 +8,7 @@
  * has been released. */
 #include "h9mod.h"
 #include "gfx.h"
+#include "vfo_persist.h"   /* put the user's VFOs back if SAT TRACK's tracker had changed them */
 
 enum { TITLE_H = 22, ROW_Y = 26, ROW_H = 18, ROWS = 5, FOOT_Y = 117, MAX_ITEMS = 64 };
 enum { ITEM_RADIO = -1, ITEM_USB = -2 };
@@ -77,6 +78,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
 
     /* A module asked for another one: run it without showing the menu. */
     volatile struct h9_request *rq = H9_REQUEST;
+    if (rq->magic != H9_REQUEST_MAGIC) vfo_restore_pending(api->read);   /* opened by hold Back: the tracker is stopped */
     if (rq->magic == H9_REQUEST_MAGIC) {
         rq->magic = 0;
         for (unsigned i = 1; i < count; i++) {

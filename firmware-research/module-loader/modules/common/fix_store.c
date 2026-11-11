@@ -1,6 +1,16 @@
 /* Last GPS fix on the resource chip. See fix_store.h. */
 #include "fix_store.h"
 
+/* Stock's resource-chip routines (the ones H9 Toolbox's Bluetooth upload calls
+ * from resource_write.s, hardware-proven): sector erase takes the sector
+ * number (SPI NOR 0x20, 4 KiB), program splits at 256-byte pages; both turn
+ * interrupts off and wait until the chip is done. No range checks: this file
+ * owns FIX_STORE_SECTOR only. */
+#ifndef NOR_ERASE
+#define NOR_ERASE ((void (*)(uint32_t sector))0x01E50000)
+#define NOR_PROGRAM ((void (*)(const void *src, uint32_t chip_address, uint32_t length))0x01E5006E)
+#endif
+
 enum { REC = 16, COUNT = 4096 / REC };
 #define FIX_MAGIC 0x31584647u  /* "GFX1" */
 
@@ -41,3 +51,16 @@ int fix_load_micro(fix_read_fn read, int32_t *lat, int32_t *lon)
     *lat = r.lat; *lon = r.lon;
     return 1;
 }
+
+#ifdef FIX_WITH_SAVE   /* only SAT PASS links this half (fix_store_save.c) */
+/* Append a fix (the loader stub's background recorder writes the same format). */
+void fix_save(fix_read_fn read, int32_t lat, int32_t lon)
+{
+    struct fix_rec last, r;
+    unsigned i = scan(read, &last);
+    r.magic = FIX_MAGIC; r.lat = lat; r.lon = lon; r.day = 0;
+    r.check = check_of(&r);
+    if (i == COUNT) { NOR_ERASE(FIX_STORE_SECTOR >> 12); i = 0; }
+    NOR_PROGRAM(&r, FIX_STORE_SECTOR + i * REC, REC);
+}
+#endif
