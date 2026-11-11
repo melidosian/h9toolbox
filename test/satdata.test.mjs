@@ -66,3 +66,18 @@ test('every published app has a short summary and the satellite app offers its s
   const published = JSON.parse(readFileSync(new URL('../dist/apps/catalog/satellites.json', import.meta.url), 'utf8'));
   assert.deepEqual(published, JSON.parse(fixture('satpass-satellites.json').toString('utf8')));
 });
+
+test('every screenshot a catalog entry lists is a published PNG', () => {
+  const dir = new URL('../dist/apps/catalog/', import.meta.url);
+  const catalog = JSON.parse(readFileSync(new URL('catalog.json', dir), 'utf8'));
+  let shots = 0;
+  for (const app of catalog.apps) for (const shot of app.screenshots ?? []) {
+    const bytes = readFileSync(new URL(shot.file, dir));
+    assert.deepEqual([...bytes.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], `${shot.file} is a PNG`);
+    assert.equal(bytes.readUInt32BE(16), 480, `${shot.file} is 3x the radio's width`);
+    assert.equal(bytes.readUInt32BE(20), 384);
+    assert.ok(shot.caption.length > 5 && shot.caption.length < 90);
+    shots++;
+  }
+  assert.ok(shots >= 5);
+});

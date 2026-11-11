@@ -85,3 +85,9 @@
 .app-manager .sat-row input { margin-right: .5rem; }
 .app-manager .sat-name { font-weight: 700; }
 .app-manager .info-message { min-height: 1.4em; }
+
+/* Screenshots in the info dialog: the radio's 160 x 128 screen, shown at 2x and wrapping. */
+.app-manager .info-shots { display: flex; flex-wrap: wrap; gap: .6rem; margin: .6rem 0 .3rem; }
+.app-manager .info-shots figure { margin: 0; width: 240px; }
+.app-manager .info-shots img { display: block; width: 240px; height: 192px; border: 1px solid var(--line); border-radius: 4px; background: #000; image-rendering: pixelated; }
+.app-manager .info-shots figcaption { margin-top: .2rem; font-size: 11px; line-height: 1.3; color: var(--muted); }

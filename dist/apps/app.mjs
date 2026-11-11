@@ -7,7 +7,7 @@ import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=am5';
 import { CHIP_SLOT, buildBundle, checkModule, parseBundle, usage } from './bundle.mjs?v=am3';
 import { describeChanges } from './changes.mjs?v=am3';
 import { appState, fetchApp, fetchModule, loadCatalog, menuOutdated, partsOf, withApp, withModule, withModules, withoutApp } from './catalog.mjs?v=am4';
-import { mountInfo } from './info.mjs?v=am3';
+import { mountInfo } from './info.mjs?v=am5';
 
 // No stale files: the service worker (sw.js) fetches everything uncached.
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' }).catch(() => {});

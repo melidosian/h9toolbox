@@ -133,6 +133,17 @@ export function mountInfo(ctx) {
     close.addEventListener('click', () => dialog.close());
     head.append(close);
     dialog.append(head, el('p', 'info-lead', item.summary ?? item.description));
+    if (item.screenshots?.length) {
+      const strip = el('div', 'info-shots');
+      for (const shot of item.screenshots) {
+        const figure = el('figure');
+        const img = el('img'); img.src = new URL(shot.file, ctx.catalog().base); img.alt = shot.caption; img.loading = 'lazy';
+        img.width = 240; img.height = 192;
+        figure.append(img, el('figcaption', '', shot.caption));
+        strip.append(figure);
+      }
+      dialog.append(strip, el('p', 'note', 'Screens drawn by each app\'s own code from sample data (a simulation, not a photo of a radio).'));
+    }
     if (item.description && item.description !== item.summary) dialog.append(el('p', '', item.description));
     if (item.controls?.length) { dialog.append(el('h3', '', 'How to use it'), list(item.controls, 'info-list')); }
     if (item.notes?.length) { dialog.append(el('h3', '', 'Good to know'), list(item.notes, 'info-list')); }

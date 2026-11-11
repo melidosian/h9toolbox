@@ -175,7 +175,17 @@
    "bytes": 22704,
    "ram": 6497,
    "crc16": "b784",
-   "sha256": "5875b5c4c4ee3e369b688f27a1cf5d751544b83fb2e6f080d9ae9074726291b8"
+   "sha256": "5875b5c4c4ee3e369b688f27a1cf5d751544b83fb2e6f080d9ae9074726291b8",
+   "screenshots": [
+    {
+     "file": "shots/sat-plot.png",
+     "caption": "Sky plot of the next pass"
+    },
+    {
+     "file": "shots/sat-track.png",
+     "caption": "Live track: Doppler-corrected send and listen frequencies"
+    }
+   ]
   },
   {
    "id": "gps",
@@ -203,7 +213,21 @@
    "bytes": 6621,
    "ram": 6621,
    "crc16": "4166",
-   "sha256": "506814d9caa053eb86e3b31ee4c9f5595ba1c8282054f8a38fba79cc231cd881"
+   "sha256": "506814d9caa053eb86e3b31ee4c9f5595ba1c8282054f8a38fba79cc231cd881",
+   "screenshots": [
+    {
+     "file": "shots/gps-position.png",
+     "caption": "Position, speed and grid square"
+    },
+    {
+     "file": "shots/gps-sky.png",
+     "caption": "Sky plot of the satellites in view"
+    },
+    {
+     "file": "shots/gps-signals.png",
+     "caption": "Signal strength per satellite"
+    }
+   ]
   },
   {
    "id": "aprs_monitor",
