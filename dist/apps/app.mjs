@@ -2,14 +2,14 @@
 // bundle to the modules slot over Bluetooth (dist/doom/upload.mjs).
 import { connectBluetooth } from '../boot-logo/radio.mjs?v=up2';
 import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=20261109b';
-import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=am3';
+import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=am4';
 import { CHIP_SLOT, buildBundle, checkModule, parseBundle, usage } from './bundle.mjs?v=am3';
 import { describeChanges } from './changes.mjs?v=am3';
 import { appState, fetchApp, fetchModule, loadCatalog, menuOutdated, partsOf, withModule, withModules, withoutApp } from './catalog.mjs?v=am3';
 
 const $ = id => document.getElementById(id);
 const BUNDLE_NAME = 'H9 modules';
-let session = null, busy = false, logoBusy = false;
+let session = null, busy = false, connecting = false, logoBusy = false;
 let logoTool = null;    // the Boot logo section (boot-logo/logo-tool.mjs) on this page's link
 let installed = null;   // modules on the radio (null: not read / none)
 let staged = [];        // the list "Write to radio" will install
@@ -102,7 +102,12 @@ function render() {
   $('exportBundle').disabled = !staged.length || Boolean(buildError);
   $('addButton').disabled = busy || (!staged.length && !catalog);
   $('bundleButton').disabled = busy;
-  $('state').textContent = connected ? `Connected · ${session.name}` : 'Disconnected';
+  // Connecting covers the Bluetooth pairing and the first read of the radio.
+  const stateText = connecting ? (session ? `Connecting · ${session.name} · reading the radio…` : 'Connecting…')
+    : connected ? `Connected · ${session.name}` : 'Disconnected';
+  $('state').classList.toggle('connecting', connecting);
+  $('state').textContent = stateText;
+  $('connect').disabled = busy || connected || connecting;
 
   const u = usage(staged);
   meter('chip', u.chipUsed, u.chipTotal, staged.length ? `${kib(u.chipUsed)} of ${kib(u.chipTotal)} (${kib(Math.max(0, u.chipFree))} free)` : '–');
@@ -212,6 +217,10 @@ async function readFile(file) {
 }
 
 $('connect').addEventListener('click', () => run(async () => {
+  connecting = true; render();
+  try { await connectAndRead(); } finally { connecting = false; }
+}));
+async function connectAndRead() {
   session = await connectBluetooth({
     log: (message, level) => { if (level !== 'debug') log(message, level); },
     onDisconnect: () => { session = null; log('Radio disconnected.'); render(); },
@@ -220,8 +229,9 @@ $('connect').addEventListener('click', () => run(async () => {
   if (service.version !== 2) throw new Error('This radio does not run H9 Toolbox Firmware (write service missing).');
   log(`Connected (${service.ready ? 'flash ready' : 'flash not ready'}).`);
   logoTool?.reset();
+  render();
   await readRadio();
-}));
+}
 $('disconnect').addEventListener('click', () => { session?.disconnect(); session = null; render(); });
 $('reload').addEventListener('click', () => run(readRadio));
 

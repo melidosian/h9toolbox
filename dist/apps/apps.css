@@ -52,3 +52,12 @@
 .app-manager .apps { grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr)); }
 .app-manager .intro .eyebrow { overflow-wrap: anywhere; }
 .app-manager { grid-template-columns: minmax(0, 1fr); }
+
+/* Connecting: a spinner before the status text while Bluetooth pairs and the radio is first read. */
+.app-manager #state.connecting::before {
+  content: ''; display: inline-block; width: .85em; height: .85em; margin-right: .5em; vertical-align: -.1em;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: am-spin .8s linear infinite;
+}
+@keyframes am-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .app-manager #state.connecting::before { animation-duration: 2.4s; } }

@@ -207,6 +207,24 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
     for m in screens:
         if len(m["body"]) > aprs_limit:
             raise SystemExit(f"{m['name']} code ({len(m['body'])} B) overlaps the shared APRS state ({aprs_limit} B max)")
+    # SAT PASS reads APRS's last GPS fix from the shared state: stay below it
+    # so the fix survives.
+    # Both SAT PASS screens also stay below satshare.h's 64 bytes (just under APRS's state).
+    sat_limit = aprs_limit - 0x40
+    sat_dir = ROOT / "modules" / "satpass"
+    satpass = c_module("SAT PASS", sat_dir / "satpass.c", sat_dir / "orbit.c", ROOT / "modules" / "common" / "fix_store.c")
+    satplot = c_module(".SAT PLOT", sat_dir / "satplot.c", sat_dir / "orbit.c")
+    for m in (satpass, satplot):
+        if len(m["body"]) > sat_limit:
+            raise SystemExit(f"{m['name']} code ({len(m['body'])} B) overlaps the shared SAT PASS / APRS state ({sat_limit} B max)")
+    # GPS information app (reads the saved fix; stays below APRS's state too).
+    gps = c_module("GPS", ROOT / "modules" / "gps" / "gps.c", ROOT / "modules" / "common" / "fix_store.c")
+    if len(gps["body"]) > aprs_limit:
+        raise SystemExit(f"GPS code ({len(gps['body'])} B) overlaps the shared APRS state ({aprs_limit} B max)")
+    # Research probe (read-only): stock's tuning state; stays below APRS's state.
+    vfo_probe = c_module("VFO PROBE", ROOT / "modules" / "vfo_probe" / "vfo_probe.c")
+    if len(vfo_probe["body"]) > aprs_limit:
+        raise SystemExit("VFO PROBE overlaps the shared APRS state")
 
     # Brick Breaker: prove game.s is the hardware-tested source (its bytes at
     # the original cave), then relink it unchanged for RAM. Its entry re-runs
@@ -225,7 +243,7 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
     test_bundle = bundle([reset_test])
     parse_bundle(test_bundle)
     (out / "test-ml-reset-bundle.bin").write_bytes(test_bundle)
-    return [menu, bb, *screens, aprs, about]
+    return [menu, bb, *screens, aprs, satpass, satplot, gps, vfo_probe, about]
 
 
 def call_bytes(target: int, site: int) -> bytes:

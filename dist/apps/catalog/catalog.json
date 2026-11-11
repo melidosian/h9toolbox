@@ -88,6 +88,54 @@
    "sha256": "f38fd31cde163f414d373817111e77d7a1547f1db4aa4039bb93dca9bd18291a"
   },
   {
+   "id": "sat_pass",
+   "name": "SAT PASS",
+   "title": "FM Satellite Passes",
+   "description": "The next five passes of FM repeater satellites (SO-50, ISS, AO-91, AO-27, PO-101, AO-123, LilacSat-2) over your GPS position, in the radio's time zone (UTC+0 by default): rise time, peak elevation, duration and time to go. Two pages, shown as tabs along the bottom (LIST, PLOT). On the list, Up / Down select a pass, Menu opens the plot and Back exits. PLOT draws the pass on a horizon plot (north up, rim = horizon, centre = overhead; rise green, set red, highest point yellow) with rise/set times and azimuths and the peak elevation; Up / Down step through the five listed passes and Menu or Back returns to the list. Uses the last fix saved on the chip until the GPS reports. Orbits are embedded when the app is built (elements of 2026-11-10); rebuild with fresh elements every week or two.",
+   "version": "0.6",
+   "category": "Radio",
+   "modules": [
+    {
+     "name": "SAT PASS",
+     "bytes": 6233,
+     "ram": 6233,
+     "crc16": "ff4b"
+    },
+    {
+     "name": ".SAT PLOT",
+     "bytes": 4701,
+     "ram": 4701,
+     "crc16": "42a6"
+    }
+   ],
+   "file": "sat_pass.h9mod",
+   "bytes": 10934,
+   "ram": 6233,
+   "crc16": "ff4b",
+   "sha256": "875332b5bbcebffcb8b3906b1226f4abcd24432ff37c3ad6879cae587cb3b79e"
+  },
+  {
+   "id": "gps",
+   "name": "GPS",
+   "title": "GPS Info",
+   "description": "Everything the radio's GPS receiver reports, on four pages: position (latitude/longitude, altitude, speed, course, satellites used, HDOP, Maidenhead grid), a sky plot of every satellite in view coloured by signal strength, a bar chart of signal-to-noise per satellite (GPS, GLONASS, Galileo, BeiDou), and UTC date/time (and local time from the radio's Time zone setting) with the last fix saved on the chip and sentence counts. Up/Down switch pages, Back exits. Read only.",
+   "version": "0.3",
+   "category": "Radio",
+   "modules": [
+    {
+     "name": "GPS",
+     "bytes": 6621,
+     "ram": 6621,
+     "crc16": "4166"
+    }
+   ],
+   "file": "gps.h9mod",
+   "bytes": 6621,
+   "ram": 6621,
+   "crc16": "4166",
+   "sha256": "506814d9caa053eb86e3b31ee4c9f5595ba1c8282054f8a38fba79cc231cd881"
+  },
+  {
    "id": "aprs_monitor",
    "name": "APRS MONITOR",
    "title": "APRS Monitor (probe)",
@@ -107,6 +155,27 @@
    "ram": 2589,
    "crc16": "6ce2",
    "sha256": "93c5463b776a5f8cf88d3080fb80302654cf2c79ddf2fbd3a08dadef8a7d2454"
+  },
+  {
+   "id": "vfo_probe",
+   "name": "VFO PROBE",
+   "title": "VFO Probe (research)",
+   "description": "Research, read-only: shows where the stock radio keeps its tuned frequencies, as a step towards SAT PASS tuning VFO A/B itself. Set VFO A and B to two different frequencies (e.g. 145.800 and 435.000), hold Back and open it. Page 1 shows the receive/transmit fields found in the firmware; Menu scans RAM for frequency-like values (Up/Down scroll). Writes nothing. Back returns to the menu.",
+   "version": "0.1",
+   "category": "Experimental",
+   "modules": [
+    {
+     "name": "VFO PROBE",
+     "bytes": 2273,
+     "ram": 2273,
+     "crc16": "1d5b"
+    }
+   ],
+   "file": "vfo_probe.h9mod",
+   "bytes": 2273,
+   "ram": 2273,
+   "crc16": "1d5b",
+   "sha256": "711ff71e05887c2f1d5b08b89cc13c2fc970e830ee6f5b6fc50ebe19652a60f3"
   }
  ]
 }

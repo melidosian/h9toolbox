@@ -32,10 +32,38 @@
       ]
     },
     {
+      "id": "sat_pass",
+      "name": "SAT PASS",
+      "title": "FM Satellite Passes",
+      "description": "The next five passes of FM repeater satellites (SO-50, ISS, AO-91, AO-27, PO-101, AO-123, LilacSat-2) over your GPS position, in the radio's time zone (UTC+0 by default): rise time, peak elevation, duration and time to go. Two pages, shown as tabs along the bottom (LIST, PLOT). On the list, Up / Down select a pass, Menu opens the plot and Back exits. PLOT draws the pass on a horizon plot (north up, rim = horizon, centre = overhead; rise green, set red, highest point yellow) with rise/set times and azimuths and the peak elevation; Up / Down step through the five listed passes and Menu or Back returns to the list. Uses the last fix saved on the chip until the GPS reports. Orbits are embedded when the app is built (elements of 2026-11-10); rebuild with fresh elements every week or two.",
+      "version": "0.6",
+      "category": "Radio",
+      "modules": [
+        "SAT PASS",
+        ".SAT PLOT"
+      ]
+    },
+    {
+      "id": "gps",
+      "name": "GPS",
+      "title": "GPS Info",
+      "description": "Everything the radio's GPS receiver reports, on four pages: position (latitude/longitude, altitude, speed, course, satellites used, HDOP, Maidenhead grid), a sky plot of every satellite in view coloured by signal strength, a bar chart of signal-to-noise per satellite (GPS, GLONASS, Galileo, BeiDou), and UTC date/time (and local time from the radio's Time zone setting) with the last fix saved on the chip and sentence counts. Up/Down switch pages, Back exits. Read only.",
+      "version": "0.3",
+      "category": "Radio"
+    },
+    {
       "id": "aprs_monitor",
       "name": "APRS MONITOR",
       "title": "APRS Monitor (probe)",
       "description": "First step to an onboard APRS client: reads packets and GPS straight from the APRS modem's serial ring and shows the last four stations heard. Also tests whether the ring keeps filling while an app runs. Receive only. Back returns to the menu.",
+      "version": "0.1",
+      "category": "Experimental"
+    },
+    {
+      "id": "vfo_probe",
+      "name": "VFO PROBE",
+      "title": "VFO Probe (research)",
+      "description": "Research, read-only: shows where the stock radio keeps its tuned frequencies, as a step towards SAT PASS tuning VFO A/B itself. Set VFO A and B to two different frequencies (e.g. 145.800 and 435.000), hold Back and open it. Page 1 shows the receive/transmit fields found in the firmware; Menu scans RAM for frequency-like values (Up/Down scroll). Writes nothing. Back returns to the menu.",
       "version": "0.1",
       "category": "Experimental"
     }
