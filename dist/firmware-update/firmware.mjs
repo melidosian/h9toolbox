@@ -16,14 +16,14 @@ export const STOCK_IMAGE_SHA256 = '74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f2
 export const BUILD = {
   label: 'H9 Toolbox Firmware',
   packageFile: 'h9-toolbox-firmware-v1.0.38.fw',
-  packageSha256: '357289b98c7cada0ed5076807f3c38f4704b85a118f903c60c9058787caf0b98',
-  imageSha256: '6663c809b61d56d0b81c2f4f85225d61c77f124d1041e39c45769954a863c9dd',
+  packageSha256: 'b0135e0c066ed724ba6628b21eb2a77fc6bdd87cc25e8c51e5fcd7e0cf5bab0a',
+  imageSha256: 'a87fc7746bdf4e96538e443d6cc9c2db75ec0047c9ab00af3735e9ed937ce6c5',
   // Stock bytes of the sectors the build changes: rebuilds exact stock.
   stockSeedFile: 'h9-toolbox-firmware-stock-sectors.bin',
-  stockSeedSha256: 'e93a1c99e88902c75ee9f74d83255f9abe490acb389e519c0f8521260633116e',
+  stockSeedSha256: 'dbfd634eb54f0c1c931c613ee5085ad3decd26da8db5b727448fb3b1aef217fe',
   // Every sector any H9 Toolbox image differs from stock in; installs and
   // restores write only these.
-  sectors: [0x5000, 0x62000, 0x64000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000],
+  sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000],
 };
 // Earlier builds, recognised so a radio running one is backed up quickly and
 // upgraded directly: each seed holds that image's bytes at the sectors where it
@@ -31,29 +31,34 @@ export const BUILD = {
 export const PREVIOUS = [
   { id: 'toolbox1', label: 'Brick Breaker build of H9 Toolbox Firmware', file: 'H9-Toolbox-Firmware-1-',
     seedFile: 'h9-toolbox-firmware-1-sectors.bin',
-    seedSha256: '0463cf0273403d70e1ccf2f3eab12451534e114d79f8a8fdb361074abd84f7f0',
+    seedSha256: 'e0437c2645bf0479bcfc7826286001f8ebe2d615df3bd3478544bf982a2b5299',
     imageSha256: '83f79fb3281c37ab22a4fd3f154a6c52a50d3cf0d8063b546eb47ce3c603bac6',
-    sectors: [0x5000, 0x64000, 0x8d000, 0xac000, 0xae000, 0xd9000] },
+    sectors: [0x5000, 0x64000, 0x7d000, 0x8d000, 0xac000, 0xae000, 0xd9000] },
   { id: 'original', label: 'original Brick Breaker', file: 'Brick-Breaker-',
     seedFile: 'brick-breaker-original-sectors.bin',
-    seedSha256: 'cebebf7c4dbdb6160438494f93a192db6b4c518c83db805dcc60452ba4ab09a9',
+    seedSha256: '43ccec9f1c68b93950ce0b5a80525d57ed67495d45993b9649050a348c94f336',
     imageSha256: '741bbeb87eb84cd7c6988054c56a267bb73c89bbe5cc74dc4e5bc0d75ce7e193',
-    sectors: [0x5000, 0x62000, 0x64000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000] },
   { id: 'preview', label: 'H9 Toolbox Firmware app-loader preview', file: 'H9-Toolbox-Firmware-preview-',
     seedFile: 'h9-toolbox-firmware-preview-sectors.bin',
-    seedSha256: 'a4d4ed7e58de2e5a16c499a3ef7a02481249438101321e2514ba757c401c36ab',
+    seedSha256: '2df19410a92af3202194fab11da6c39cca27a376263aa86db127b41f36ad01f8',
     imageSha256: '79858310c73879a360e3f8c0cfb003a0043d74593a05421ddeb6f81b728bbcc1',
-    sectors: [0x5000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
   { id: 'release1', label: 'H9 Toolbox Firmware (app loader, first release)', file: 'H9-Toolbox-Firmware-release1-',
     seedFile: 'h9-toolbox-firmware-release1-sectors.bin',
-    seedSha256: '9a7c37551d1ed404c3ff6f7de238e48b11876b42eef8390d1ca2f5eed241a19a',
+    seedSha256: '624bf25b9dfbfaac1f66398ea7aa1a58d2717632b3efc940966fc0b3b56d099b',
     imageSha256: '08d2409af07979f46b1591e28c04e0c86c6575ef97150f23d153bf5832f9b160',
-    sectors: [0x5000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
   { id: 'release2', label: 'H9 Toolbox Firmware (app loader with GPS recorder)', file: 'H9-Toolbox-Firmware-release2-',
     seedFile: 'h9-toolbox-firmware-release2-sectors.bin',
-    seedSha256: 'a1e7994cdd259579ceffeb0082f6bec53c322629d7c599df56271781a1c6408c',
+    seedSha256: '3a8d30ce3288c8f33b920dbda9d5f3672533b68b24fca0779df0ecfb88517028',
     imageSha256: '2f5e428d307a9f224cecbbd6c010ae84a70f9e7fc9c3be18c01f40d28ac97da6',
-    sectors: [0x5000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
+  { id: 'release3', label: 'H9 Toolbox Firmware (app loader with satellite tracker)', file: 'H9-Toolbox-Firmware-release3-',
+    seedFile: 'h9-toolbox-firmware-release3-sectors.bin',
+    seedSha256: 'f8eab2841f28227100d5cd373356f84e57858dab495309859416136a7d6be987',
+    imageSha256: '6663c809b61d56d0b81c2f4f85225d61c77f124d1041e39c45769954a863c9dd',
+    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
 ];
 const KEY = new Uint8Array([0x4e, 0x61, 0xbc, 0x00]); // 12345678, little endian
 

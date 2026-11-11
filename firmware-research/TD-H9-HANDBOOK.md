@@ -205,6 +205,12 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
     TX space (answered directly), op 10 is notify/send (queued), op 11 is
     the connection-parameter request.
   - The `btstack` task is woken with a task post (app+`0x164F8`).
+  - **Clone writes above 0x3000** [STATIC; fix not yet on hardware]: Bluetooth's write op is sector-aware (read, erase
+    if needed, merge, write back); the serial / USB op only erases for address 0 (0x0000-0x1FFF) and 0x5000 and
+    otherwise just programs pages, so 0x3000-0x3FFF writes can only clear bits, and are ACKed anyway. The handler
+    wants exactly 37 bytes per `W` (BLE MTU at least 40) and never reports a failure. H9 Toolbox Firmware routes
+    serial writes at 0x2000-0x3FFF through Bluetooth's routine (`ml_serial_write`); check with
+    `module-loader/serial_clone_test.py`. Details: resource-flash-log.md, 2026-11-11.
   - The clone ("programming") protocol runs in the BT data callback
     app+`0x5DBA8` (registered at app+`0x24004`), through `0x5D170` and the
     handler `0x5CF18`.

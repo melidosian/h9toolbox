@@ -4039,3 +4039,107 @@ Offline build and host tests only; **not re-run on the radio**.
 - Still foreground only: it beacons while its screen is open and stops when you leave (a background beacon would
   use the SAT TRACKER's resident mechanism; not done). Sizes: APRS BEACON 6,737 B (limit 6,768); MAP is at 6,767.
 - New `aprs-beacon` screenshot and catalog text (controls, notes).
+
+## 2026-11-11 KISS terminal + VFO control page (`dist/tnc/`, unlinked, noindex)
+
+Offline build and host tests only (`test/tnc.test.mjs`, 12 tests); **not run against a radio**. Demo mode verified in Chrome.
+
+- One BLE connection, two routes. KISS terminal: AF00 service (AF01 write-without-response, one whole frame per write; AF02 notifications into a streaming decoder), from the static findings in `prototypes/kiss-tnc/H9-BLE-NOTES.md` (still unconfirmed on hardware). VFO control: the FF00 programming service, one short programming session per action, every write read back.
+- VFO plumbing reused from `prototypes/vfo-control`: active side `0x3004` (hardware-verified), B channel `0x0CA5` (verified on most attempts), A channel `0x0CA4` and display modes `0x0CA2/3` by the same layout (A not yet tried). No live frequency command is known, so "Tune" writes frequency+name into a chosen memory channel (default 199, listen-only by default, needs an acknowledgement) and points the side at it. Unverified on the radio.
+- `dist/channel.mjs` gained `channelBlocks(n)` (blocks one channel touches) so a tune reads/writes only those.
+- Open hardware questions: do AF00 and FF00 coexist on one GATT connection; does the AF01 write reach RF; does AF02 forward received packets; does the display follow a retune.
+
+## 2026-11-11 Why writes above 0x3000 work over BLE but not over serial / USB-C (static analysis)
+
+Prompted by CHIRP issue #12216 (the TD-H9 module): writes to 0x3000+ (GNSS, APRS, SMS settings) "work 100% over
+ble-serial, spotty over K-type serial or USB-C, with no sign of failure" (the module's author, 2026-11-07; others:
+1 -> 0 changes stick, 0 -> 1 do not, or a corrupted area). Disassembled stock 1.0.38 (`app+X` = CPU `0x01E00100+X`;
+call targets are `address + offset + 4`). **[STATIC]; not yet confirmed on the radio.**
+
+- One clone state machine, `app+0x5CF18` (CPU `0x01E5D018`), serves every transport. Each transport's wrapper builds a
+  small ops table on the stack and calls it: BLE `app+0x5D170` (table state `0x1202C`, send byte `0x4FD82`, send
+  buffer `0x4FD9E`, write op `0x5017C`, flags 0); serial `app+0x78A6A` (CPU `0x01E78B6A`, state `0x12038`, send ops
+  `0x781DA`/`0x7823E`, write op `app+0x78248` = CPU `0x01E78348`, three extra hooks, flags 7), called from the UART/USB
+  task at `0x01E78BD8` with the bytes of one read (up to 256) and transport id 1 or 2.
+- The `W` (87) branch needs the frame to be exactly **37 bytes** (`W`, address hi/lo, size 0x20, 32 data, checksum)
+  in one hand-off (`if (len != 37)`), then calls the write op `(address, data+4, 32, first_block)` with
+  `first_block = (address == 0) | (address == 0x5000)`, then sends the ACK `06` **without looking at the write's
+  result**. Anything malformed, a frame split across transfers (BLE MTU too small, or two serial reads), or a write
+  that failed is dropped or ACKed with no error reply: the "no indication" everyone reports.
+- **BLE write op** (`0x5017C` is a thunk to `0x01E5012A`, partition 4, offset, data, length): sector-aware
+  read-modify-write. It reads the 4 KiB sector into a RAM buffer, checks whether the target bytes are 0xFF, erases the
+  sector if not (`call` to the sector erase), merges the new bytes and writes the sector back. Works at any address.
+- **Serial write op** (`0x01E78348`): erases only when `first_block`: at address 0 it erases **2 sectors**
+  (`0x0000-0x1FFF`) and at 0x5000 **1 sector** (partition 4, via `0x01E70DBC`); then, after the readiness check
+  (`0x12234 == 0x5AA5`) and a range check (`0x01E4FECC`), it page-programs the bytes with `0x01E5006E` (256-byte
+  pages, no erase). So over serial the sector holding `0x3000-0x3FFF` is **never erased**: programming flash can only
+  clear bits, so `1 -> 0` changes stick and `0 -> 1` do not, and a value that needs a set bit comes out ANDed with
+  the old one ("ignored" or "a corrupted data area"). That matches every report in the thread (GPS off works, on
+  never does; "doesn't persist usually").
+- The main block `0x0000-0x1FFF` works over serial because writing address 0 first erases it: clients that write in
+  address order get it right, and ones that skip block 0 would see the same symptom there.
+- **MTU**: the 37-byte frame must arrive in one GATT write, so the ATT MTU must be at least 40 (37 + 3 header)
+  (`ble-serial -m 37`, as the thread says); a smaller one splits the frame and the radio silently drops it.
+- Possible fixes: (1) clients: use BLE for 0x3000+, and over serial check by reading back; there is no protocol
+  command that erases the 0x3000 sector. (2) Firmware (ours, would need a flash and hardware test): make the serial
+  op use the BLE routine for addresses at or above 0x2000: patch the literal `0x01E78348` stored in the serial
+  wrapper at `0x01E78B9E` to a small cave routine that tail-calls `0x01E5027C` for such addresses and the original
+  op otherwise; or erase sector 3 on the first block. Unknown: what else lives in `0x2000-0x2FFF` and
+  `0x3140-0x3FFF` (an erase must not wipe it).
+- Settled: the `r2 = r4  #` right after the literal in the serial wrapper is a parallel pair (JieLi's objdump prints
+  the paired store indented): `[sp+12] = r2` stores the literal while `r2 = r4` runs beside it, so the serial write op
+  is `0x01E78348` (the bytes at app+0x78A9E are `c2ff 4883 e701`).
+
+## 2026-11-11 Firmware fix: serial / USB clone writes at 0x2000-0x3FFF use the sector-aware writer (offline, not flashed)
+
+- `src/stub.s` `ml_serial_write` (stub 1,152 B of the 1,632-byte cave, at `0x01EA7D36`): `if (r0 < 0x2000 || r0 >= 0x4000)`
+  tail into the stock serial write op (saves rets/r4, `call`s `0x01E78348` with r0-r3 untouched); otherwise `r3 =
+  0x01E5027C; goto r3`, Bluetooth's write thunk (partition 4, address, data, length; it overwrites r3, so the
+  first-block flag is not needed). 0x4000-0x4FFF never reach it (the S2 write hook takes them first), nor do 0x5000+.
+- `build.py` patches the 4-byte literal in the serial wrapper's ops table (`SERIAL_WRITE_SITE` app+0x78AA0, stock
+  `4883e701`, checked in stock and in the base) to the shim's address, and adds flash sector `0x7D000` to the changed
+  set. Build: app `926f623c` -> new package `b0135e0c066ed724ba6628b21eb2a77fc6bdd87cc25e8c51e5fcd7e0cf5bab0a`,
+  image `a87fc774...`. The shim and the patched wrapper were decoded back with the pi32v2 decoder.
+- Installer (`dist/firmware-update`): `release_update.mjs` made seeds against the new build; the build that was hosted
+  (`357289b9`) is now PREVIOUS `release3`; every seed grew by the 0x7D000 sector. Node tests pass (132).
+- **Risk/behaviour**: only 0x2000-0x3FFF changes. The main block (0x0000-0x1FFF, written after the block-0 erase) and the
+  0x5000 region keep the stock path. Each block at 0x3000+ now costs Bluetooth's read-modify-write of a 4 KiB sector
+  (a few ms, tens of ms when it erases), so serial clients get the ACK a little later than for the main block. A
+  frame split across serial reads or a short BLE MTU is still silently dropped (the handler wants exactly 37 bytes).
+- **Hardware test (not done)**: flash this build, then `python3 -I serial_clone_test.py <port>` (pyserial) over the
+  K-plug or USB-C: it toggles the Talk around bit at 0x3014 (0 -> 1 is the write stock serial cannot do), reads back,
+  and restores. PASS expected on this build, FAIL on stock firmware. `test_serial_clone.py` checks the tool against
+  simulated stock and fixed radios.
+
+- **Hardware (build b0135e0c, USB-C serial, `/dev/cu.usbmodem101` on macOS, normal mode)**: `serial_clone_test.py --read-only`
+  read 0x3000-0x311F. The full test then wrote Talk around (0x3014 bit 0) from 0 to 1 with the radio running the new
+  build: read back OK, original block restored OK, **PASS**. This is the 0 -> 1 write the stock serial op cannot do.
+  Not yet done: the same test on the previous build for a FAIL baseline; the K-plug cable; a back-to-back write of
+  the whole 0x3000-0x3120 range (CHIRP's pattern) to check ACK timing.
+
+- **Hardware (build b0135e0c, USB-C serial): whole-range test** (`serial_clone_test.py --range`): read the 9 blocks of
+  0x3000-0x311F, wrote them all back to back (the first with Talk around 0 -> 1, the rest unchanged), read all back:
+  **PASS**, all 9 blocks restored. ACK times: first 30 ms, slowest 44 ms, mean 32 ms, 0.29 s in total. That is well inside
+  the 0.5 s timeouts CHIRP logs show, so the sector-aware write's extra time is not a problem here.
+
+## 2026-11-11 CHIRP patch for radios running H9 Toolbox Firmware
+
+Downloaded Fred Trimble's `tdh8.py` (beta 103126.0, 145,949 B, from CHIRP issue 12216) to a scratch folder (not in
+the repo, GPL) and made `chirp/tdh8-h9toolbox.patch`: writes at 0x3000+ are read back and verified (one retry, then a
+`RadioError` that says why), prompt text, and a fix for an unset `_msg` in `_read_block`. The module's upload was run
+against simulated radios through stubbed CHIRP imports (`chirp/test_chirp_patch.py`): fixed radio passes, stock serial
+is reported (the original module passes silently there), clearing bits raises no false alarm. A ready-patched copy is
+at `~/Documents/ChatGPT/TID-H9/chirp-test/tdh8_h9toolbox.py` (outside the repo) to load as a CHIRP test module. Not yet run in
+CHIRP on a radio.
+
+- **Hardware (build b0135e0c, K-plug with a CH340 cable, `/dev/cu.usbserial-10`, 38400 baud (CHIRP's rate), normal mode)**:
+  read-only dump of 0x3000-0x311F identical to the USB-C one; single-bit test **PASS** (Talk around 0 -> 1 read back,
+  restored); `--range` **PASS** (9 blocks back to back, all restored). ACK times: first 52 ms, slowest 52 ms, mean
+  49 ms, 0.44 s for 9 blocks (slower than USB-C's 32 ms mean at 115200 because of the baud rate). So both serial
+  transports now set bits above 0x3000. Still not done: the same tests on the previous build for a FAIL baseline, and the
+  patched CHIRP module in CHIRP.
+
+- **Hardware (build b0135e0c): patched CHIRP module in CHIRP**, Talk Around Off -> On (a 0 -> 1 write at 0x3014) uploaded and
+  confirmed by a re-download, over **both the CH340 K-plug and USB-C serial**: worked, no error (the user's report).
+  Not yet done: the error path on stock / the previous build, a Bluetooth (ble-serial) upload for read-back false
+  alarms, and a channel edit in the main region through the patched module.

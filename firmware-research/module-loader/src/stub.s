@@ -523,6 +523,33 @@ mlcrc_done:
     r0 = r2
     {pc, r5-r4} = [sp++]
 
+/* ---- serial / USB clone writes: use Bluetooth's sector-aware write ------
+ * The clone 'W' handler (app+0x5CF18) serves Bluetooth, the K-plug UART and
+ * USB-C serial. Each transport hands it a write routine at [ops+12], called
+ * (address r0, 32 data bytes r1, length r2, first-block flag r3). Bluetooth's
+ * (app+0x5017C) is sector-aware: it reads the 4 KiB sector, erases it if the
+ * new bytes need it, merges and writes back. The serial one (app+0x78248)
+ * erases only when address 0 (two sectors, 0x0000-0x1FFF) or 0x5000 (one) is
+ * written and otherwise just programs flash pages, which can clear bits but
+ * not set them: writes to 0x3000-0x3FFF (GNSS, APRS and SMS settings) came out
+ * ANDed with the old values, or "ignored", and were still ACKed
+ * (resource-flash-log.md, 2026-11-11; CHIRP issue 12216). build.py points the
+ * serial wrapper's ops table (the literal 0x01E78348 at app+0x78A9E) here.
+ * 0x2000-0x3FFF go to Bluetooth's routine, which ignores r3; everything else
+ * goes to the stock serial routine unchanged (0x4000-0x4FFF never get this far:
+ * the S2 hook takes them first). */
+    .globl ml_serial_write
+ml_serial_write:
+    if (r0 < 0x2000) goto mlsw_stock
+    if (r0 >= 0x4000) goto mlsw_stock
+    r3 = 0x01e5027c         /* Bluetooth's write (partition 4, address, data, length): r3 is not needed */
+    goto r3
+mlsw_stock:
+    [--sp] = {rets, r4}
+    r4 = 0x01e78348         /* the stock serial write, with r0-r3 still the caller's */
+    call r4
+    {pc, r4} = [sp++]
+
 /* ---- what a module gets in r0 ---------------------------------------- */
     .balign 4
 ml_api:

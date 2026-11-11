@@ -56,6 +56,30 @@ class Bundle(unittest.TestCase):
             build.parse_bundle(bytes(data))
 
 
+class SerialCloneWrite(unittest.TestCase):
+    """The patch that sends serial / USB clone writes at 0x2000-0x3FFF through Bluetooth's sector-aware routine."""
+
+    def test_shim_routes_the_range_and_keeps_the_stock_path(self):
+        shim = STUB[STUB.index("ml_serial_write:"):STUB.index("/* ---- what a module gets in r0")]
+        self.assertIn("if (r0 < 0x2000) goto mlsw_stock", shim)
+        self.assertIn("if (r0 >= 0x4000) goto mlsw_stock", shim)
+        self.assertIn("r3 = 0x01e5027c", shim)                 # Bluetooth's write: it overwrites r3, so r3 may be clobbered
+        self.assertIn("goto r3", shim)
+        stock = shim[shim.index("mlsw_stock:"):]
+        self.assertIn("[--sp] = {rets, r4}", stock)            # r3 (the first-block flag) must survive for the stock routine
+        self.assertIn("r4 = 0x01e78348", stock)
+        self.assertIn("call r4", stock)
+        self.assertNotIn("r3 =", stock)
+
+    def test_build_patches_the_pinned_literal(self):
+        self.assertEqual(build.SERIAL_WRITE_SITE, 0x78AA0)
+        self.assertEqual(build.SERIAL_WRITE_OLD, (0x01E78348).to_bytes(4, "little"))
+        self.assertEqual(build.IMAGE_BASE + 0x78A9E, 0x01E78B9E)    # c2ff 4883 e701: r2 = 0x01E78348 in the serial wrapper
+
+    def test_documented_in_the_loader_source(self):
+        self.assertIn("CHIRP issue 12216", STUB)
+
+
 class StubMatchesLayout(unittest.TestCase):
     """The stub's constants must agree with build.py and the site's uploader."""
 
