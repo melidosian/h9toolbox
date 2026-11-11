@@ -112,7 +112,7 @@ test('published catalog: every file matches its entry', async () => {
   const names = catalog.apps.flatMap(a => partsOf(a).map(p => p.name));
   assert.equal(new Set(names).size, names.length);
   const aprs = catalog.apps.find(a => a.id === 'aprs');
-  assert.deepEqual(partsOf(aprs).map(p => p.name), ['APRS', '.APRS INFO', 'APRS MAP', 'APRS MSG', 'APRS SEND']);
+  assert.deepEqual(partsOf(aprs).map(p => p.name), ['APRS', '.APRS LIST', '.APRS INFO', 'APRS MAP', 'APRS MSG', 'APRS SEND', 'APRS BEACON']);
   assert.ok(buildBundle([await fetchModule(catalog, catalog.menu, fileFetch), ...await fetchApp(catalog, aprs, fileFetch)]).length < CHIP_SLOT);
 });
 

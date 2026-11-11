@@ -17,16 +17,16 @@
   "modules": [
    {
     "name": "MENU",
-    "bytes": 2739,
-    "ram": 2739,
-    "crc16": "522b"
+    "bytes": 2703,
+    "ram": 2703,
+    "crc16": "f1a7"
    }
   ],
   "file": "menu.h9mod",
-  "bytes": 2739,
-  "ram": 2739,
-  "crc16": "522b",
-  "sha256": "b254b1b41306f4b7947330426cbf2b4dd38215f40c3436a4377fa9832ae72302"
+  "bytes": 2703,
+  "ram": 2703,
+  "crc16": "f1a7",
+  "sha256": "7d1e7cd3591cb1cdd30dcebb1225710d335538b1f8e28b315729f495625e20fb"
  },
  "apps": [
   {
@@ -59,58 +59,143 @@
    "sha256": "6b66802925187d1846a0912e8fd2e0f95280ea7e71015c027c83f7f732a85e6d"
   },
   {
+   "id": "maze_chase",
+   "name": "MAZE CHASE",
+   "title": "Maze Chase",
+   "version": "0.3",
+   "category": "Games",
+   "summary": "Eat every dot while four prowlers hunt you.",
+   "description": "An original maze game. Steer through a 25 by 19 maze eating every dot while four prowlers (red, pink, cyan and orange, each hunting a different way) chase you. A power pellet in each corner turns them blue for a few seconds so you can eat them for 200, 400, 800 and 1600 points. You have three lives; each level makes the prowlers faster. The tunnel in the middle row wraps from one side to the other. Sound effects play through the radio's speaker: dot munches, power pellets, eaten prowlers, a start jingle, level clear, defeat.",
+   "controls": [
+    "On the title screen, 5 turns sound on or off; any other key starts.",
+    "2, 4, 6, 8 steer (up, left, right, down); Up and Down also steer up and down.",
+    "The turn you choose is taken at the next opening.",
+    "Menu pauses and resumes. Back leaves to the menu.",
+    "After GAME OVER: Menu plays again, Back leaves."
+   ],
+   "notes": [
+    "Sound is experimental. It drives the speaker's DAC the way the Doom firmware does, and has not been tried inside the app loader yet. If the radio acts up, switch sound off on the title screen.",
+    "Score and best score are kept only until you leave the game.",
+    "Not tested on a radio yet."
+   ],
+   "screenshots": [
+    {
+     "file": "shots/maze-chase-1.png",
+     "caption": "Eating dots while four prowlers hunt you"
+    },
+    {
+     "file": "shots/maze-chase-2.png",
+     "caption": "Later in a game: lives at the top right"
+    }
+   ],
+   "modules": [
+    {
+     "name": "MAZE CHASE",
+     "bytes": 6421,
+     "ram": 6421,
+     "crc16": "04f2"
+    }
+   ],
+   "file": "maze_chase.h9mod",
+   "bytes": 6421,
+   "ram": 6421,
+   "crc16": "04f2",
+   "sha256": "381b49b5c9701798780072744196e5f1075604f17223a4511c3fc9867a5a1718"
+  },
+  {
    "id": "aprs",
    "name": "APRS",
    "title": "APRS",
-   "description": "An on-radio APRS client. It lists the stations you hear (and opens with the stock Beacon List), shows each station's details, draws a map around your GPS position, keeps messages (yours in green), and sends messages you type on the keypad to any station, or a status packet, from your callsign. The stock firmware does the transmitting.",
-   "version": "0.5",
+   "description": "An on-radio APRS client. The list shows the stations you hear (and starts with the stock Beacon List), each with how long ago you heard it and how far away it is. Each station has a details page, and a map draws them around your GPS position. Messages are kept (yours to you in green, and the ones you send show ACK once the other station acknowledges). SEND types and sends messages or a status packet from your callsign, and BEACON sends your position as you move (smart beaconing). The stock firmware does the transmitting.",
+   "version": "0.7",
    "category": "Radio",
    "modules": [
     {
      "name": "APRS",
-     "bytes": 6619,
-     "ram": 6619,
-     "crc16": "a66f"
+     "bytes": 2987,
+     "ram": 2987,
+     "crc16": "5809"
+    },
+    {
+     "name": ".APRS LIST",
+     "bytes": 6741,
+     "ram": 6741,
+     "crc16": "bb63"
     },
     {
      "name": ".APRS INFO",
-     "bytes": 6425,
-     "ram": 6425,
-     "crc16": "0e3b"
+     "bytes": 6736,
+     "ram": 6736,
+     "crc16": "f5a4"
     },
     {
      "name": "APRS MAP",
-     "bytes": 6579,
-     "ram": 6579,
-     "crc16": "4cb1"
+     "bytes": 6767,
+     "ram": 6767,
+     "crc16": "d1ee"
     },
     {
      "name": "APRS MSG",
-     "bytes": 6599,
-     "ram": 6599,
-     "crc16": "d23c"
+     "bytes": 6422,
+     "ram": 6422,
+     "crc16": "e931"
     },
     {
      "name": "APRS SEND",
-     "bytes": 5335,
-     "ram": 5335,
-     "crc16": "2caa"
+     "bytes": 5375,
+     "ram": 5375,
+     "crc16": "65ea"
+    },
+    {
+     "name": "APRS BEACON",
+     "bytes": 6737,
+     "ram": 6737,
+     "crc16": "91d7"
     }
    ],
-   "summary": "APRS client: station list, map, messages and sending, with your GPS position.",
+   "summary": "APRS client: stations, map, messages, sending and smart beaconing from your GPS.",
    "controls": [
-    "Hold Menu to switch screens (list, map, messages, send); Back goes back.",
-    "On the SEND screen, type with the number keys (press a digit repeatedly to cycle its letters); Back deletes; Menu or Up/Down finish a field.",
-    "Each screen loads into RAM when you open it."
+    "The bottom line names the screens: 1 list, 2 map, 3 messages, 4 send, 5 beacon. Press the digit to jump there (holding Menu cycles list, map, messages). Back returns to the list; Back on the list leaves the app.",
+    "List: Up/Down choose a station, Menu opens its details (and from there Menu writes it a message). Rows show the call, how long ago it was heard (NOW, 5M, 2H; grey rows come from the radio's stored Beacon List) and its distance and direction from you.",
+    "Map: Up/Down zoom (1 to 500 km), Menu picks the next station. Without a GPS fix it centres on the selected station.",
+    "Messages: Up/Down choose, Menu reads. Messages sent to your callsign are green and counted as new on the list until you open Messages.",
+    "Send: type with the number keys (press a digit repeatedly to cycle its letters, 0 is space); Back deletes; Menu or Up/Down finish a field; then Menu to review and Menu again to transmit.",
+    "Beacon (screen 5, and its own entry in the radio's menu): Up/Down choose MODE, EVERY or SYMBOL and Menu changes it. MODE SMART sends as you move (about every 300 m: every 60 s at 18 km/h and faster, up to 10 min when slow; a sharp turn sends at once; one more after 30 s stopped). MODE TIMED sends every 1, 2, 5, 10, 15 or 30 minutes (EVERY). HOLD Menu for about a second to start or stop beaconing; it starts off. 5 sends one position now. Back stops and leaves. The first position goes out about 15 s after you start."
    ],
    "notes": [
-    "Sending is experimental. Use your own callsign and keep it short."
+    "Sending and beaconing are experimental. Use your own callsign (set in the radio) and keep it short. They transmit on the APRS TX channel, 2 m only; you need an amateur licence.",
+    "APRS BEACON transmits by itself while its screen is open (leaving the screen stops it), on the APRS TX channel, 2 m only. Try it with the antenna disconnected first.",
+    "With no GPS fix it beacons your last known position (this session's last fix, else the one the radio saved), marked \"last known\" and without course or speed. It listens to the GPS only while it runs; heard stations are not shown there.",
+    "Smart-beacon scheduling by Tomasz Kuehn (github.com/tomaszkuehn/TD-H9-aprs-smartbeacon, MIT licence).",
+    "APRS 0.7 and APRS BEACON have not been tested on a radio yet."
+   ],
+   "screenshots": [
+    {
+     "file": "shots/aprs-list.png",
+     "caption": "Station list: call, how long ago it was heard, distance and direction"
+    },
+    {
+     "file": "shots/aprs-details.png",
+     "caption": "Station details"
+    },
+    {
+     "file": "shots/aprs-map.png",
+     "caption": "Map around your GPS position"
+    },
+    {
+     "file": "shots/aprs-messages.png",
+     "caption": "Messages, with ACK on the ones you sent"
+    },
+    {
+     "file": "shots/aprs-beacon.png",
+     "caption": "Beacon: smart or timed, symbol, and start/stop"
+    }
    ],
    "file": "aprs.h9mod",
-   "bytes": 31557,
-   "ram": 6619,
-   "crc16": "a66f",
-   "sha256": "f38fd31cde163f414d373817111e77d7a1547f1db4aa4039bb93dca9bd18291a"
+   "bytes": 41765,
+   "ram": 6767,
+   "crc16": "5809",
+   "sha256": "92e549fbc25e301f84f43b4d985ad614d7bd68732bc798fe54ac170ec216184f"
   },
   {
    "id": "sat_pass",
@@ -122,27 +207,27 @@
    "modules": [
     {
      "name": "SAT PASS",
-     "bytes": 6497,
-     "ram": 6497,
-     "crc16": "b784"
+     "bytes": 6433,
+     "ram": 6433,
+     "crc16": "8308"
     },
     {
      "name": ".SAT PLOT",
-     "bytes": 4545,
-     "ram": 4545,
-     "crc16": "3097"
+     "bytes": 3881,
+     "ram": 3881,
+     "crc16": "cd06"
     },
     {
      "name": ".SAT TRACK",
-     "bytes": 5737,
-     "ram": 5737,
-     "crc16": "7866"
+     "bytes": 5073,
+     "ram": 5073,
+     "crc16": "dd5a"
     },
     {
      "name": ".SAT TRACKER",
-     "bytes": 5445,
-     "ram": 5445,
-     "crc16": "c8df"
+     "bytes": 4729,
+     "ram": 4729,
+     "crc16": "d321"
     },
     {
      "name": ".SAT DATA",
@@ -171,12 +256,11 @@
    "data": [
     ".SAT DATA"
    ],
-   "file": "sat_pass.h9mod",
-   "bytes": 22704,
-   "ram": 6497,
-   "crc16": "b784",
-   "sha256": "5875b5c4c4ee3e369b688f27a1cf5d751544b83fb2e6f080d9ae9074726291b8",
    "screenshots": [
+    {
+     "file": "shots/sat-list.png",
+     "caption": "Pass list: the next five passes with rise time, peak elevation, length and time to go"
+    },
     {
      "file": "shots/sat-plot.png",
      "caption": "Sky plot of the next pass"
@@ -185,7 +269,12 @@
      "file": "shots/sat-track.png",
      "caption": "Live track: Doppler-corrected send and listen frequencies"
     }
-   ]
+   ],
+   "file": "sat_pass.h9mod",
+   "bytes": 20596,
+   "ram": 6433,
+   "crc16": "8308",
+   "sha256": "489135a976f44d09b07f07a1c1e01188f8fb59b6ed078c0a2881a9e5b0edc78b"
   },
   {
    "id": "gps",
@@ -201,19 +290,6 @@
    "notes": [
     "The INFO page shows UTC and local time (from the radio's Time zone setting) and the last fix saved on the chip."
    ],
-   "modules": [
-    {
-     "name": "GPS",
-     "bytes": 6621,
-     "ram": 6621,
-     "crc16": "4166"
-    }
-   ],
-   "file": "gps.h9mod",
-   "bytes": 6621,
-   "ram": 6621,
-   "crc16": "4166",
-   "sha256": "506814d9caa053eb86e3b31ee4c9f5595ba1c8282054f8a38fba79cc231cd881",
    "screenshots": [
     {
      "file": "shots/gps-position.png",
@@ -227,7 +303,20 @@
      "file": "shots/gps-signals.png",
      "caption": "Signal strength per satellite"
     }
-   ]
+   ],
+   "modules": [
+    {
+     "name": "GPS",
+     "bytes": 6513,
+     "ram": 6513,
+     "crc16": "a010"
+    }
+   ],
+   "file": "gps.h9mod",
+   "bytes": 6513,
+   "ram": 6513,
+   "crc16": "a010",
+   "sha256": "eaf3f13781c436a26162425adbf40dcdf513de721af4f0cd63386f6e639b5297"
   },
   {
    "id": "aprs_monitor",
@@ -244,16 +333,16 @@
    "modules": [
     {
      "name": "APRS MONITOR",
-     "bytes": 2589,
-     "ram": 2589,
-     "crc16": "6ce2"
+     "bytes": 2477,
+     "ram": 2477,
+     "crc16": "f10e"
     }
    ],
    "file": "aprs_monitor.h9mod",
-   "bytes": 2589,
-   "ram": 2589,
-   "crc16": "6ce2",
-   "sha256": "93c5463b776a5f8cf88d3080fb80302654cf2c79ddf2fbd3a08dadef8a7d2454"
+   "bytes": 2477,
+   "ram": 2477,
+   "crc16": "f10e",
+   "sha256": "13062a327473ffdb6fdbaed06b82c8c3465770c7cc8954bad7076cdf57bebd82"
   },
   {
    "id": "vfo_probe",
@@ -272,16 +361,16 @@
    "modules": [
     {
      "name": "VFO PROBE",
-     "bytes": 3121,
-     "ram": 3121,
-     "crc16": "0718"
+     "bytes": 3035,
+     "ram": 3035,
+     "crc16": "1a99"
     }
    ],
    "file": "vfo_probe.h9mod",
-   "bytes": 3121,
-   "ram": 3121,
-   "crc16": "0718",
-   "sha256": "6726604280321290547a19b6cddacff5d9302f9405a2d485d441c6a2961a2653"
+   "bytes": 3035,
+   "ram": 3035,
+   "crc16": "1a99",
+   "sha256": "cc92882530a99198c9d8fabb04d93f2224eaa2bb8ef8f8d8ef7f7ffa8064cf6c"
   }
  ]
 }
