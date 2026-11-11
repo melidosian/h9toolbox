@@ -13,6 +13,8 @@
  *        run module 0 (the menu) -> it returns the index to run, or 0
  *        run that module         -> when it returns, back to the menu
  *        menu returns 0, or the menu cannot load -> reset (stock cpu_reset)
+ * Every other pass, rec_tick saves stock's GPS fix to the resource chip
+ * when it has moved (background recorder, below).
  *
  * Storage: the "modules" upload slot (dist/doom/upload.mjs, H9DATA01
  * directory at 0xCC0000, one segment at 0xCC1000, COMPLETE marker), holding
@@ -74,9 +76,161 @@ ml_back_released:
     [sp+76] = r0
 
 ml_stock_loop_call:
+    call rec_tick
     r3 = 0x01e58ee4
     call r3
     {pc, r4} = [sp++]
+
+/* ---- background GPS recorder (rec_tick runs on every my_app loop) ------
+ * Stock's NMEA parser (CPU 0x01E86780...) keeps the fix in its state block:
+ *   0x12550 (0x11AD0+0xA80) byte: 1 = valid fix (GGA quality > 0, RMC 'A')
+ *   0x12558 (+0xA88) i32 latitude, 0x12560 (+0xA90) i32 longitude:
+ *           signed microdegrees (0x01E54450: deg*1e6 + min*1e6/60, S/W < 0)
+ * When the fix is valid and more than 100,000 udeg (about 0.1 degree) from
+ * the last saved one, append a 16-byte record to the resource chip's sector
+ * 0x3FF000 (modules/common/fix_store.h: "GFX1", lat, lon, u16 day = 0,
+ * u16 check), erasing it only when all 256 records are used.
+ * RAM: the run-next mailbox's spare words (0x2BEF4: magic "GFCR", the last
+ * saved lat, lon). They describe the flash, so they stay true across
+ * cpu_reset; with no magic, rec_scan reads them back from the chip. */
+rec_tick:
+    [--sp] = {rets, r7-r4}
+    r0 = 0x00012550
+    r0 = b[r0+0] (u)
+    if (r0 == 0) goto rect_done
+    r0 = 0x00012558
+    r4 = [r0+0]
+    r5 = [r0+8]
+    r0 = r4
+    r0 |= r5
+    if (r0 == 0) goto rect_done
+    r6 = 0x0002bef4
+    r0 = [r6+0]
+    r1 = 0x52434647
+    if (r0 == r1) goto rect_have
+    call rec_scan
+    r1 = 0x52434647
+    [r6+0] = r1
+rect_have:
+    /* |new - saved| > 100000 in either axis: (d + 100000) > 200000 unsigned */
+    r7 = 0x000186a0
+    r3 = 0x00030d40
+    r0 = [r6+4]
+    r1 = r4
+    r1 -= r0
+    r1 = r1 + r7
+    if (r3 < r1) goto rect_save
+    r0 = [r6+8]
+    r1 = r5
+    r1 -= r0
+    r1 = r1 + r7
+    if (r3 < r1) goto rect_save
+    goto rect_done
+rect_save:
+    r0 = r4
+    r1 = r5
+    call rec_save
+rect_done:
+    {pc, r7-r4} = [sp++]
+
+/* unsigned rec_scan(void): the first erased record (256 if full); stores the
+ * newest valid record's lat/lon at 0x2BEF8/0x2BEFC (0x7FFFFFFF: none). */
+rec_scan:
+    [--sp] = {rets, r9-r4}
+    sp += -16
+    r7 = 0x7fffffff
+    r8 = r7
+    r6 = 0
+recs_loop:
+    r0 = 0x00000100
+    if (r6 == r0) goto recs_done
+    r0 = sp + 0
+    r1 = r6 << 4
+    r2 = 0x003ff000
+    r1 = r1 + r2
+    r2 = 16
+    call ml_read
+    r0 = [sp+0]
+    r1 = 0xffffffff
+    if (r0 == r1) goto recs_done
+    r1 = 0x31584647
+    if (r0 != r1) goto recs_next
+    r0 = [sp+4]
+    r1 = [sp+8]
+    r3 = sp + 0
+    r2 = h[r3+12] (u)
+    r9 = r0
+    r9 ^= r1
+    r9 ^= r2
+    r2 = 0x5a5a
+    r9 ^= r2
+    r2 = r9 >> 16
+    r9 ^= r2
+    r9 = r9 << 16
+    r9 = r9 >> 16
+    r2 = h[r3+14] (u)
+    if (r9 != r2) goto recs_next
+    r7 = r0
+    r8 = r1
+recs_next:
+    r6 += 1
+    goto recs_loop
+recs_done:
+    r0 = 0x0002bef4
+    [r0+4] = r7
+    [r0+8] = r8
+    r0 = r6
+    sp += 16
+    {pc, r9-r4} = [sp++]
+
+/* void rec_save(lat, lon): append one record (erase first if full). */
+rec_save:
+    [--sp] = {rets, r7-r4}
+    sp += -16
+    r4 = r0
+    r5 = r1
+    call rec_scan
+    r6 = r0
+    r0 = 0x00000100
+    if (r6 != r0) goto recsv_have
+    r0 = 0x000003ff
+    r3 = 0x01e50000
+    call rec_stock
+    r6 = 0
+recsv_have:
+    r0 = 0x31584647
+    [sp+0] = r0
+    [sp+4] = r4
+    [sp+8] = r5
+    r0 = r4
+    r0 ^= r5
+    r1 = 0x5a5a
+    r0 ^= r1
+    r1 = r0 >> 16
+    r0 ^= r1
+    r0 = r0 << 16
+    [sp+12] = r0
+    r0 = sp + 0
+    r1 = r6 << 4
+    r2 = 0x003ff000
+    r1 = r1 + r2
+    r2 = 16
+    r3 = 0x01e5006e
+    call rec_stock
+    r0 = 0x0002bef4
+    [r0+4] = r4
+    [r0+8] = r5
+    sp += 16
+    {pc, r7-r4} = [sp++]
+
+/* rec_stock: call the stock routine in r3 with r0-r2, keeping r4-r14 (as
+ * ml_read). 0x01E50000 = sector erase (sector number; SPI NOR 0x20),
+ * 0x01E5006E = program (src, chip address, length): the routines H9
+ * Toolbox's Bluetooth upload uses (resource-service/src/resource_write.s). */
+rec_stock:
+    [--sp] = {rets, r14-r4}
+    call r3
+    {pc, r14-r4} = [sp++]
 
 /* ---- run loop (never returns) ----------------------------------------- */
 ml_main:

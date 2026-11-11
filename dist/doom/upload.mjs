@@ -50,7 +50,9 @@ export const SLOTS = {
     areas: [
       { name: 'resource', start: DIRECTORY + 0x1000, end: MODULES_DIRECTORY },
       { name: 'font', start: 0x717000, end: 0x800000 },
-      { name: 'voice', start: 0x3a7000, end: 0x400000 },
+      // Stops one sector short: 0x3FF000 holds the last GPS fix, written by
+      // H9 Toolbox Firmware's module loader (module-loader/src/stub.s).
+      { name: 'voice', start: 0x3a7000, end: 0x3ff000 },
     ],
   },
   modules: { name: 'modules', directory: MODULES_DIRECTORY, areas: [{ name: 'modules', start: MODULES_DIRECTORY + 0x1000, end: MUSIC_DIRECTORY }] },

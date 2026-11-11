@@ -50,7 +50,7 @@ enum { H9_WIDTH = 160, H9_HEIGHT = 128 };
 struct h9_request {
     uint32_t magic;
     char name[H9_NAME_BYTES];
-    uint32_t spare[3];
+    uint32_t spare[3];  /* the stub's GPS recorder (src/stub.s rec_tick) */
 };
 #define H9_REQUEST ((volatile struct h9_request *)0x2BEE0)
 #define H9_SHARED_TOP 0x2BEE0u

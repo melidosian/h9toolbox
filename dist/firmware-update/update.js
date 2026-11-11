@@ -1,4 +1,4 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, writeSector } from './firmware.mjs?v=20261110a';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, writeSector } from './firmware.mjs?v=20261110c';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
 
@@ -195,7 +195,9 @@ async function validateSelectedBackup(announceWaiting = true) {
     refresh(); return;
   }
   if (!file && createdBackup.source !== 'stock' && target.kind === 'build') {
-    if (createdBackup.source === 'build' || createdBackup.source === 'previous') {
+    // `source` is what the backup scan matched: 'build', or an earlier
+    // build's PREVIOUS id (e.g. 'release1').
+    if (createdBackup.source === 'build' || previousInfo(createdBackup.source)) {
       // The radio was verified (sector and shifted-window CRCs) to run a known
       // modified image, so its stock state is exact official v1.0.38: rebuild
       // it from the hosted, hash-checked files and use it as the restore point.

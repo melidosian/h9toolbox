@@ -1,4 +1,4 @@
-import { sha256 } from './firmware.mjs?v=20261110a';
+import { sha256 } from './firmware.mjs?v=20261110c';
 
 export const TYPE_C_ZIP_URL = 'https://raw.githubusercontent.com/teedubyeah/TDH9/1ccb67c2684204b0097533486c545607caaf65b8/Firmware/1.0.38/H9_Update-Type-C_1.0.38.zip';
 export const TYPE_C_ZIP_SHA256 = '1d1b6f87705f026dc5c5b118786d133cbc7f0589f606c8572581df981492155a';
