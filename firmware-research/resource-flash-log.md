@@ -3334,3 +3334,193 @@ Hardware results for S1 and S2, and U2 onward, will be recorded here.
 - Hardware (APRS 0.5): typed send transmitted; aprs.fi 2026-11-10 16:59:57
   CST `KD9CRQ>APZH9T,WIDE1-1,qAR,N6NKO-1::QRX      :R{1` (addressee "QRX",
   text "R"). Whether that matches what was typed: asked.
+
+## 2026-11-10 SAT PASS: FM satellite pass predictor (module, 0.1)
+
+- New app `module-loader/modules/satpass/`: the next five passes of SO-50, ISS,
+  AO-91, AO-27, PO-101, AO-123 and LilacSat-2 over the GPS position, in UTC.
+  Time and position come from `$xxRMC` in the APRS ring (KISS cmd 0x10); the
+  module consumes the ring itself (advances `0x16E36`). Until the GPS reports,
+  it starts from APRS's saved fix (`struct aprs` `my_lat`/`my_lon`/`my_fix`,
+  magic checked).
+- Orbit model (`orbit.c`): two-body Kepler from TLE mean elements (SGP4
+  un-Kozai mean motion and semi-major axis), secular J2 rates for RAAN,
+  perigee and mean anomaly, the ndot/2 term, and IAU 1982 GMST. Integer only:
+  binary angles, Q30 CORDIC sin/cos/atan2 (24 steps), km Q8, no 64-bit
+  division (only `__divdi3` would be a library call). Search: 30 s steps over
+  36 h, bisection of AOS and LOS to 1 s, ternary search for the peak.
+- Embedded elements: `satpack.py <tle>` writes `sats.h` (elements of
+  2026-11-10 from CelesTrak's amateur group).
+- Accuracy (`test_satpass.py`, against Python sgp4, 5 places, 36 h): worst
+  AOS/LOS error 19 s at 0.5 days after epoch, 18 s at 7 days, 25 s at 14 days;
+  peak elevation within 2.5 degrees; no missed passes.
+- Size: 6,593 B, under the 6,624 B limit so APRS's saved state (and its last
+  fix) survives. A version using the whole slot was 6,537 B; staying under the
+  APRS state cost the "(GO OUTSIDE)" hint.
+- Hardware: not yet flashed. Unknown: how long the 36 h search takes on the
+  radio (about 30,000 position evaluations at most).
+
+## 2026-11-10 Stock tuning path (static) and VFO PROBE (for SAT PASS tuning)
+
+- Goal: let SAT PASS put satellite uplink/downlink frequencies into the
+  VFOs. Static analysis of stock 1.0.38 (`td-h9-open-firmware`
+  `artifacts/main/disassembly/instructions.jsonl`, same app.bin `11a07bc0…`):
+  - 282 calls to the RF register write `0x01E5070A`; registers `0x38`/`0x39`
+    (frequency low/high, 10 Hz units; the register map matches the Beken
+    BK4819 family) are written only at `0x01E590D2`/`0x01E590DA`, inside
+    **`rf_set_freq` `0x01E59094`** (r0 = 0 receive / 1 transmit,
+    r1 = frequency, r2/r3 = tone, stack arg). It adds a per-band calibration
+    from the halfwords at `0x11AD0 + 0x334*2` / `0x333*2` (÷10), chosen by
+    the band byte `0x11AD0+0x10CD` (set elsewhere to 0 at ≤ 299.99999 MHz).
+  - Callers: **receive tune `0x01E5942E(ch)`**: `ch` = pointer to a
+    channel-like struct (+0 u32 frequency, +4 byte, +6 u16 tone, +8 byte,
+    +0xC word, +0x10 byte), or 0 for the live state: frequency
+    `0x11AD0+0x1BC`, tone `+0x98`, bytes `+0x17`, `+0x18`, `+0x77A`.
+    `0x01E595F8` tunes from a table at `0x01EB3214` indexed by `+0x2A`
+    (probably a fixed channel list). **Transmit tune `0x01E5AD68(ch)`**:
+    frequency from `ch` or from `+0x1BC` / `+0x1CC` (chosen by `+0x10EA`),
+    passed through `0x01E56AE2(freq, dir)`, which adds/subtracts the offset at
+    `+0x1C8` by direction byte `+0x789` (1 = minus, 2 = plus) unless the flag
+    at `+0x1B` is set.
+  - `0x01E56B08` swaps `+0x1BC` and `+0x1CC` (through `+0x1C4`) when
+    `+0x1D` is set: probably the reverse function.
+  - [HYP] `+0x1BC` is the active receive frequency and `+0x1CC` the transmit
+    base; where VFO A and B keep their own frequencies is not yet known.
+- `modules/vfo_probe/` (VFO PROBE 0.1, catalog Experimental, 2,177 B): read-only.
+  Page 1 shows those fields; Menu scans RAM `0x100–0x29EFF` for aligned
+  words in 136–174 / 400–520 MHz and lists addresses. Hardware: pending
+  (set A = 145.800, B = 435.000, open the probe; then switch A/B and repeat).
+
+## 2026-11-10 Background GPS recorder in the loader stub; stock GPS state (static)
+
+- Stock's NMEA parser (CPU `0x01E86780…`, uses the name table at
+  `0x01EB16A0`: GPGGA/GNGGA/GPRMC/GNRMC/GPGSV/BDGSV) keeps the fix in the
+  `0x11AD0` block: `+0xA80` (`0x12550`) valid byte (GGA quality > 0, RMC
+  status 'A'), `+0xA81` quality, `+0xA83` satellites, `+0xA88` (`0x12558`)
+  latitude and `+0xA90` (`0x12560`) longitude as **signed microdegrees**
+  (converter `0x01E54450`: deg×1e6 + min×1e6/60, negative for S/W),
+  hemisphere letters at `+0xA8C`/`+0xA94`, date at `+0xAA4` (u16 year, month,
+  day) and time at `+0xAA8` (hour shifted by the timezone setting). [STATIC]
+- Neither the main app nor `APRS-1.0.15.bin` contains GPS receiver commands
+  ($PCAS/$PMTK/UBX): no known way to aid the receiver itself.
+- Stub (`src/stub.s`, 608 → 960 B): `rec_tick` runs on every my_app loop
+  before the stock loop call. With a valid fix more than 100,000 µdeg from
+  the last saved one (either axis), it appends a 16-byte record ("GFX1", lat,
+  lon µdeg, u16 day 0, u16 check) to resource-chip sector `0x3FF000` through
+  stock erase `0x01E50000` / program `0x01E5006E` (the S2 upload routines),
+  erasing only when all 256 records are used. RAM: the run-next mailbox's
+  spare words `0x2BEF4` (magic "GFCR", last saved lat/lon), rebuilt from the
+  chip when the magic is missing. Disassembly of the built stub checked
+  (compares unsigned, shifts zero-fill).
+- Game slot's voice area now ends at `0x3FF000` (`dist/doom/upload.mjs`).
+- Modules: `common/fix_store.c` reads the newest valid record (torn records
+  skipped); host test `common/test_fix_store.c` builds records as the stub
+  does. SAT PASS reads it at start (6,457 B; its own save code was dropped,
+  the stub is the only writer); VFO PROBE 0.1 shows stock's fix (valid, lat,
+  lon) on page 1.
+- SAT PASS size work: midpoint peak (was a ternary search), one shared epoch
+  in the table (satpack.py moves each satellite to it), elements date in the
+  header. SGP4 check after: AOS/LOS ≤ 25 s, peak ≤ 5.3° at 14 days.
+- Build: package `dceac70c…`, flash `2f5e428d…` (differs from the hosted
+  first release `08d2409a…` in `0x5000`, `0xAC000`, `0xD9000`). Web
+  installer moved to it (`release_update.mjs`; first release kept as
+  PREVIOUS `release1`). Not flashed; hardware pending.
+- Installer bug (user report, first install attempt of `dceac70c…`): after a
+  backup of a radio running the first release, step 02 said the firmware was
+  not recognised. The backup scan stores the matched PREVIOUS id
+  (`release1`), but `validateSelectedBackup` only accepted the literal
+  `'previous'`, so no earlier build ever got the rebuilt-stock restore point.
+  Fixed (`previousInfo(createdBackup.source)`), `update.js?v=20261110d`.
+  Nothing was written to the radio.
+
+## 2026-11-10 GPS app (GPS 0.1) and SAT PASS 0.2 diagnostics
+
+- User report after the single-flash build: GPS lock in stock, then SAT PASS
+  showed no fix. Cause not found yet (candidates: framing of the forwarded
+  NMEA, stock's own reader sharing the ring, stock's periodic ring reset in
+  the dispatcher at `0x01E87318`: resets `h[0x16E34]`/`+2`/`b[+4]` through
+  `0x01E85766` when a timer compare at `0x11AD0+0x228` expires). SAT PASS
+  0.2 shows `L<lines> R<rmc> S<status>` on its bottom row to tell them apart.
+  Hardware: pending.
+- New app `module-loader/modules/gps/` (GPS 0.1, 6,247 B, catalog Radio):
+  four pages from the ring's NMEA (GGA, RMC, GSV): POSITION (lat/lon in
+  degrees, altitude m/ft, speed km/h and mph, course with 16-point compass,
+  satellites used/in view, HDOP, quality, Maidenhead grid), SKY (azimuth/
+  elevation plot, colour by SNR), SIGNALS (SNR bars by constellation), INFO
+  (UTC date/time, the chip's saved fix, sentence counts, last RMC age).
+  Redraws a page's text each second and the plots when the satellite table
+  changes (at most once a second).
+- Host test `modules/gps/test_gps.c` (ASan + UBSan; sample GN/GP/GL
+  sentences framed as the modem does): found a unit slip (NMEA minutes to
+  microdegrees: x 5/3, not x 50/3); now checks Chicago (EN61EV) and Sydney
+  (QF56OD) grids, hemispheres, status V keeping the last position, GSV
+  replacement per constellation, and torn input.
+- `fix_store`: `fix_load_micro` (microdegrees) replaces `fix_load`;
+  `fix_bam` converts for SAT PASS (6,613 B, still under 6,624).
+- Not yet known on hardware: whether the ring carries GGA and GSV as well as
+  RMC (the monitor only counted lines), so the SKY / SIGNALS pages may stay
+  empty. The INFO page's RMC / GGA / GSV counts answer that.
+
+## 2026-11-10 GPS ring: RMC 0, GGA 120, GSV 0 (hardware, user)
+
+- GPS 0.1 on the radio: GGA counted up (altitude correct), RMC and GSV
+  stayed 0, so no position / satellites. Stock's cmd `0x10` handler
+  (`0x01E86FF4`) assembles lines from the payload byte by byte (`$` start,
+  `\n` end, 0x3FF limit) and feeds each to the NMEA parser (GGA, RMC, GSV
+  all handled), so the sentences exist in stock's stream.
+- Likely cause (not yet confirmed): our modules buffered each KISS frame in
+  100 bytes (SAT PASS) / 200 bytes (APRS) and parsed it afterwards. If the
+  modem batches the second's sentences into one frame, only the first (GGA)
+  survived the cap. GPS 0.2 and SAT PASS 0.3 now stream the payload through
+  the line assembler byte by byte (no frame buffer; host test feeds GGA + GSA
+  + RMC + 2 GSV in one frame, 300+ bytes). APRS (`aprs_core.c`, 200-byte
+  frame) still buffers and may drop position the same way.
+- GPS 0.2 also takes position, time and fix from GGA when RMC is absent, and
+  its INFO page lists the distinct sentence names seen and the longest frame,
+  so the next hardware run shows what the modem really sends.
+
+## 2026-11-10 SAT PASS 0.4: horizon plot of a pass; local time from stock's Time zone
+
+- User: SAT PASS works after the streaming fix. New hidden module
+  `.SAT PLOT` (`modules/satpass/satplot.c`, 4,405 B): from SAT PASS's detail
+  view, Menu again draws the pass on a polar plot (north up, rim = horizon,
+  centre = zenith; rings at 30/60 degrees; path sampled 48 times with
+  orbit.c; rise green, set red, highest point yellow; rise/set local time
+  and azimuth, peak elevation). Any key returns to SAT PASS, which restores
+  time, selection and detail view from `satshare.h` (32 bytes at
+  `0x2BEE0 - 0x600 - 0x20`, just below APRS's state; both SAT screens now
+  stay under 6,592 B, checked by build.py). SAT PASS 6,513 B (dropped the
+  GPS diagnostic row, "AT time" and "IN ..." from the detail view).
+- Host render (`modules/satpass/render_plot.c` to PPM): PO-101 over Chicago
+  rises az 176, sets 343, peak 53 degrees, matching the pass list and SGP4.
+- Local time: stock's Time zone setting (settings map `0x3070`, options
+  UTC-12..+12) is applied by stock's NMEA code to the GPS hour from the byte
+  at `[0xC0F0 + 0xD6]` = RAM `0xC1C6`, minus 12 (CPU `0x01E86A76`). SAT PASS,
+  the plot and GPS 0.3's INFO page add it to UTC (whole hours; `L` after a
+  local clock, `Z` for UTC+0). That RAM address comes from the disassembly
+  only: [STATIC], hardware check pending (a wrong value shows as UTC).
+- Sizes: GPS 6,621 B (limit 6,624). Firmware package unchanged (`dceac70c…`).
+
+## 2026-11-10 SAT PASS 0.5: page tabs
+
+- User: the plot is "money"; make the second page visible. Every SAT PASS
+  screen now draws a tab row at the bottom (`sat_tabs` in `satshare.h`):
+  `LIST DETAIL PLOT` with the current page in yellow; Menu goes to the next
+  page, Back to the previous; the plot shows `KEY<` (any key returns).
+  Size: SAT PASS 6,573 B (limit 6,592; dropped the unused "NO GPS" state,
+  the position restore and a hint to fit), `.SAT PLOT` 4,501 B. The plot moved
+  up 4 px (centre y 64) to clear the tab row. Hardware: pending.
+
+## 2026-11-10 SAT PASS 0.6: Up/Down steps through passes in the plot
+
+- User: "allow up/down buttons in plot to cycle through next passes".
+  `satshare.h` now carries the whole list (rise times and a packed
+  duration + satellite index per pass, 64 bytes at `0x2BEE0 - 0x600 - 0x40`);
+  `.SAT PLOT` redraws the plot for the next / previous pass on Up / Down
+  (shows `n/5`) and Menu or Back returns, leaving SAT PASS on the pass last
+  viewed. To make room the DETAIL page is gone (the plot shows the same rise,
+  set, azimuth and peak data): tabs are now `LIST PLOT`. Sizes: SAT PASS
+  6,233 B, `.SAT PLOT` 4,701 B (limit 6,560, set in build.py).
+- Host render (`modules/satpass/render_plot.c`, scripted keys d,d,u,menu over
+  five Chicago passes): shows pass 2/5 (SO-50, 4 degrees, low in the north) and
+  returns to SAT PASS with that pass selected. Hardware: pending.

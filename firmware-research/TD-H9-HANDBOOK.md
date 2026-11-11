@@ -71,6 +71,7 @@ resource-service tables start at app+`0xA7E50`) [HW].
 |---|---|
 | `0x3A7000–0x3FFFFF` | Voice partition tail: erased, never written by stock [HW]. |
 | `0x717000–0x7FFFFF` | Font partition tail: erased, never written by stock [HW]. |
+| `0x3FF000` | Last GPS fix (H9 Toolbox module loader's background recorder, `module-loader/modules/common/fix_store.h`); the game slot stops before it. |
 | `0x900000` | `rw_freq`: **stock writes here**. Never use it. |
 | `0xA00000` | Boot logo (H9 Toolbox boot-logo tool). |
 | `0xA1F000` | Game slot directory (`H9DATA01`); data from `0xA20000` to `0xCC0000` (2.6 MB), then the font and voice tails. |
@@ -165,6 +166,10 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
 | **Deliberate restart** | stock `cpu_reset` `0x01EC6FC8` / `0x01EC6FF4` | IRQs off (`0x02001634`), set bit 4 of `[0x1E0000]`, spin. **Calling ROM `0x0200000A` directly froze the radio** [HW]. |
 | KISS transmit | `0x01E5DBCC(buf, len)` | stock: deframes KISS, AX.25 decode, PTT handler, modem send, airtime wait, end of TX [HW, APRS SEND] |
 | RF register write / read | `0x01E5070A(reg, value)` / `0x01E505FE` | see §2 [STATIC] |
+| Set RF frequency | `0x01E59094(rx0/tx1, freq, tone…)` | the only writer of RF registers `0x38`/`0x39` (frequency, 10 Hz units); adds per-band calibration [STATIC] |
+| Receive / transmit tune | `0x01E5942E(ch)` / `0x01E5AD68(ch)` | `ch` = channel-like struct (+0 u32 frequency, +6 tone) or 0 for the live state (`0x11AD0+0x1BC` receive frequency, `+0x1CC` transmit base, `+0x1C8` offset, `+0x789` shift direction) [STATIC] |
+| NOR sector erase / program | `0x01E50000(addr >> 12)` / `0x01E5006E(src, addr, len)` | 4 KiB erase (command `0x20`), page program; interrupts off, waits; no range checks [HW, S2 uploads] |
+| Stock GPS fix | RAM `0x12550` valid, `0x12558` lat, `0x12560` lon | signed microdegrees from stock's NMEA parser (`0x01E86780…`, converter `0x01E54450`); date `+0xAA4` (u16 year, month, day) and local time `+0xAA8` [STATIC] |
 
 ## 8. How the system behaves
 
