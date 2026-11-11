@@ -155,7 +155,7 @@ test('quick backup of a known application skips the settings area and round-trip
 
 test('hosted H9 Toolbox Firmware files rebuild every known image and plan only pinned sectors', async () => {
   const { readFile } = await import('node:fs/promises');
-  const { BUILD, PREVIOUS, STOCK_IMAGE_SHA256, loadBuildPackage, loadPreviousImage, loadStockSeed, classifyRadio, sha256 } = await import('../dist/firmware-update/firmware.mjs');
+  const { BUILD, PREVIOUS, STOCK_IMAGE_SHA256, loadBuildPackage, loadPreviousImage, loadStockSeed, classifyRadio, describeMismatch, stockCompatible, verifyStockCompatible, looksLikeH9, sha256 } = await import('../dist/firmware-update/firmware.mjs');
   const file = name => readFile(new URL(`../dist/firmware-update/${name}`, import.meta.url)).then(b => new Uint8Array(b));
   const build = await loadBuildPackage(await file(BUILD.packageFile));
   const stock = await loadStockSeed(await file(BUILD.stockSeedFile), build.image);
@@ -167,6 +167,27 @@ test('hosted H9 Toolbox Firmware files rebuild every known image and plan only p
     const crcs = expectedCrcs(image);
     const scan = crcs.map(crc => crc ?? 0);
     assert.equal(classifyRadio(scan, named), name);
+    if (name === 'stock') {   // a stock radio with one stray sector: named, with that sector
+      const odd = scan.slice(); odd[(0xd9000 - APP_START) / SECTOR_SIZE] ^= 1;
+      assert.throws(() => classifyRadio(odd, named), /Closest: stock v1\.0\.38, 1 of \d+ firmware sectors differ \(0xd9000\)/);
+      assert.match(describeMismatch(odd, named), /0xd9000/);
+      // permissive: stock apart from pinned (rewritten) sectors still installs; a stray sector elsewhere does not
+      const pinned = scan.slice(); pinned[(BUILD.sectors[0] - APP_START) / SECTOR_SIZE] ^= 1; pinned[(BUILD.sectors.at(-1) - APP_START) / SECTOR_SIZE] ^= 1;
+      assert.deepEqual(stockCompatible(pinned, stock), [BUILD.sectors[0], BUILD.sectors.at(-1)]);
+      const stray = scan.slice(); stray[(0x30000 - APP_START) / SECTOR_SIZE] ^= 1;
+      assert.equal(stockCompatible(stray, stock), null);
+      assert.doesNotThrow(() => verifyStockCompatible(stock, stock));
+      // full-image install of an unrecognised H9: the plan is exactly the differing sectors
+      assert.ok(looksLikeH9(stock) && !looksLikeH9(new Uint8Array(stock.length)));
+      const odd2 = stock.slice(); odd2[0x30010] ^= 1; odd2[0x80010] ^= 1;
+      const plan2 = planUpdate(expectedCrcs(odd2).map(c => c ?? 0), odd2, build.image, null, []);
+      for (const physical of [0x30000, 0x80000]) assert.ok(plan2.includes(physical), `plan misses 0x${physical.toString(16)}`);
+      assert.ok(plan2.length <= BUILD.sectors.length + 2, 'plan rewrites only the pinned sectors plus the two differing ones');
+      const leftover = stock.slice(); leftover[BUILD.sectors.at(-1)] ^= 0x55;
+      assert.doesNotThrow(() => verifyStockCompatible(leftover, stock));
+      const hacked = stock.slice(); hacked[0x30000] ^= 0x55;
+      assert.throws(() => verifyStockCompatible(hacked, stock), /stock v1\.0\.38 main-firmware backup/);
+    }
     const plan = planUpdate(scan, image, build.image, null, known);
     assert.ok(plan.every(physical => BUILD.sectors.includes(physical)), `${name}: plan leaves the pinned sectors`);
     const writes = plan.filter(physical => crcs[(physical - APP_START) / SECTOR_SIZE] !== expectedCrcs(build.image)[(physical - APP_START) / SECTOR_SIZE]);

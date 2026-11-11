@@ -12,7 +12,7 @@
 
 import {
   APP_START, SECTOR_SIZE, loadBuildPackage, loadStockSeed, scanRadio, sha256, writeSector,
-} from '../firmware-update/firmware.mjs?v=20261110c';
+} from '../firmware-update/firmware.mjs?v=20261111f';
 import { createHidArchive, readAccessibleFlash } from '../firmware-update/readback.mjs?v=20261110a';
 import {
   BLANK_CRC, DoomHid, FAR_END, FAR_START, checkDoomCode, checkFirmware, checkPack, checkSong,

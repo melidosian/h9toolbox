@@ -143,9 +143,81 @@ export function loadPreviousImage(bytes, buildImage, previous) {
   return rebuildImage(buildImage, BUILD.imageSha256, bytes, previous.seedSha256, previous.sectors, previous.imageSha256, previous.label);
 }
 
+// Sectors (below IMAGE_SIZE) where the radio's CRCs differ from exact stock.
+export function stockDifferences(current, stock) {
+  const result = [];
+  for (let physical = APP_START; physical < IMAGE_SIZE; physical += SECTOR_SIZE) {
+    if (current[(physical - APP_START) / SECTOR_SIZE] !== crc16(stock.subarray(physical, physical + SECTOR_SIZE))) result.push(physical);
+  }
+  return result;
+}
+
+// "Stock-compatible": a radio (or backup) that is exact stock v1.0.38 in every
+// sector the installer does not rewrite. Installing H9 Toolbox Firmware writes
+// only BUILD.sectors, so whatever those hold (for example leftovers of an older
+// firmware after an official update) is replaced, and the result is still the
+// exact package. Returns the differing sectors (all pinned), or null.
+export function stockCompatible(current, stock) {
+  const differing = stockDifferences(current, stock);
+  return differing.every(physical => BUILD.sectors.includes(physical)) ? differing : null;
+}
+
+// Flash holds the application encrypted: each 32-byte block is XORed with a
+// CRC stream (key 0xF181 ^ ((flash - 0x5000) >> 2), stepped per byte).
+function decryptFlash(image) {
+  const out = new Uint8Array(Math.max(0, image.length - APP_START));
+  for (let flash = APP_START; flash < image.length; flash += 32) {
+    let key = (0xf181 ^ ((flash - APP_START) >> 2)) & 0xffff;
+    for (let i = 0; i < 32 && flash + i < image.length; i++) {
+      out[flash - APP_START + i] = image[flash + i] ^ (key & 0xff);
+      key = ((key << 1) ^ ((key & 0x8000) ? 0x1021 : 0)) & 0xffff;
+    }
+  }
+  return out;
+}
+
+// A TD-H9 application carries its model name ("TD-H9", at app+0xB162A in
+// v1.0.38); another model's does not. Full-image installs on an unrecognised
+// radio require it, since the stock-compatibility check (which implies the
+// model) no longer applies.
+export function looksLikeH9(image) {
+  const plain = decryptFlash(image), name = new TextEncoder().encode('TD-H9');
+  outer: for (let i = 0; i + name.length <= plain.length; i++) {
+    if (plain[i] !== name[0]) continue;
+    for (let k = 1; k < name.length; k++) if (plain[i + k] !== name[k]) continue outer;
+    return true;
+  }
+  return false;
+}
+
+export function verifyStockCompatible(image, stock) {
+  requireValue(image.length === IMAGE_SIZE, 'Select a raw 0xDA000-byte full-flash backup.');
+  const crcs = expectedCrcs(image);
+  requireValue(stockCompatible(crcs, stock), `${BUILD.label} requires a stock v1.0.38 main-firmware backup (it differs from stock outside the sectors the install rewrites). No writes allowed.`);
+}
+
 export async function verifyStockBackup(image) {
   requireValue(image.length === IMAGE_SIZE && await sha256(image) === STOCK_IMAGE_SHA256,
     `${BUILD.label} requires an exact stock v1.0.38 main-firmware backup. No writes allowed.`);
+}
+
+// For a radio that matches no known image: which known image it is closest to
+// and where it differs (sector addresses), so a report says what to look at.
+export function describeMismatch(current, images) {
+  let best = null;
+  for (const [name, image] of images) {
+    if (!image) continue;
+    const differing = [];
+    for (let physical = APP_START; physical < IMAGE_SIZE; physical += SECTOR_SIZE) {
+      if (current[(physical - APP_START) / SECTOR_SIZE] !== crc16(image.subarray(physical, physical + SECTOR_SIZE))) differing.push(physical);
+    }
+    if (!best || differing.length < best.differing.length) best = { name, differing };
+  }
+  if (!best) return '';
+  const label = best.name === 'stock' ? 'stock v1.0.38' : best.name === 'build' ? BUILD.label : best.name;
+  const total = (IMAGE_SIZE - APP_START) / SECTOR_SIZE;
+  const shown = best.differing.slice(0, 16).map(physical => `0x${physical.toString(16)}`).join(', ');
+  return `Closest: ${label}, ${best.differing.length} of ${total} firmware sectors differ (${shown}${best.differing.length > 16 ? ', …' : ''}).`;
 }
 
 // Which known image the radio holds, by sector CRC: `images` is a list of
@@ -162,7 +234,7 @@ export function classifyRadio(current, images) {
   };
   const found = images.find(([, image]) => image && matches(image));
   if (found) return found[0];
-  throw new Error(`Radio is neither exact stock v1.0.38, ${BUILD.label}, nor an earlier H9 Toolbox build. No backup seed accepted.`);
+  throw new Error(`Radio is neither exact stock v1.0.38, ${BUILD.label}, nor an earlier H9 Toolbox build. No backup seed accepted. ${describeMismatch(current, images)}`);
 }
 
 export async function loadBackup(bytes, target) {

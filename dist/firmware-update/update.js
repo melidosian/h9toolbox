@@ -1,4 +1,4 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, writeSector } from './firmware.mjs?v=20261110c';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261111f';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
 
@@ -83,6 +83,9 @@ function refresh() {
   $('backupFile').disabled = busy;
   $('flash').textContent = target?.kind === 'build' ? `Install ${BUILD.label}` : target?.kind === 'stock' ? 'Install stock v1.0.38' : 'Install firmware';
 }
+function requireH9(image) {
+  if (!looksLikeH9(image)) throw new Error('This radio\'s firmware does not look like a TD-H9 application (no "TD-H9" model name). Installing is blocked.');
+}
 function fail(error) { status(error?.message || String(error), true); }
 function pending() { try { return JSON.parse(localStorage.getItem(resumeKey)); } catch { return null; } }
 function forgetPlan() { $('acknowledge').checked = false; refresh(); }
@@ -94,8 +97,8 @@ function setLogoStep(kind) {
   if (kind === 'build') {
     gate.textContent = `This radio runs ${BUILD.label}. Power-cycle it normally, then open the App Manager.`;
     gate.classList.add('ready');
-  } else if (kind === 'stock' || previousInfo(kind)) {
-    gate.textContent = `This radio runs ${kind === 'stock' ? 'stock v1.0.38' : `the ${previousInfo(kind).label}`}. Install ${BUILD.label} above first, then open the App Manager.`;
+  } else if (kind === 'stock' || kind === 'stock-like' || previousInfo(kind)) {
+    gate.textContent = `This radio runs ${kind === 'stock' || kind === 'stock-like' ? 'stock v1.0.38' : `the ${previousInfo(kind).label}`}. Install ${BUILD.label} above first, then open the App Manager.`;
     gate.classList.remove('ready');
   }
 }
@@ -194,7 +197,7 @@ async function validateSelectedBackup(announceWaiting = true) {
     if (announceWaiting && file) status('Backup selected. Choose firmware to check it against.');
     refresh(); return;
   }
-  if (!file && createdBackup.source !== 'stock' && target.kind === 'build') {
+  if (!file && createdBackup.source !== 'stock' && createdBackup.source !== 'stock-like' && createdBackup.source !== 'other' && target.kind === 'build') {
     // `source` is what the backup scan matched: 'build', or an earlier
     // build's PREVIOUS id (e.g. 'release1').
     if (createdBackup.source === 'build' || previousInfo(createdBackup.source)) {
@@ -228,7 +231,15 @@ async function validateSelectedBackup(announceWaiting = true) {
       : file.name.toLowerCase().endsWith('.h9hid')
         ? await loadHidArchive(new Uint8Array(await file.arrayBuffer()), target.image)
         : await loadBackup(new Uint8Array(await file.arrayBuffer()), target.image);
-    if (target.kind === 'build') await verifyStockBackup(loaded.image);
+    // Stock outside the pinned sectors: the quick install. Anything else that is
+    // still a TD-H9 application (a backup of an unrecognised radio, taken here or
+    // loaded from the saved .h9hid after a refresh) unlocks a full-image install of
+    // every differing sector. Either way the radio is checked against this backup
+    // right before writing, so a file that does not match the radio is refused then.
+    if (target.kind === 'build') {
+      await ensureReferences();
+      if (!stockCompatible(expectedCrcs(loaded.image), stockSeed)) { requireH9(loaded.image); loaded.fullInstall = true; }
+    }
     if (selection !== backupSelection) return;
     backup = loaded;
     $('backupState').textContent = `${name} · ${backup.source === 'hid' ? 'HID archive verified' : 'boot region verified'}`;
@@ -325,7 +336,23 @@ $('createBackup').addEventListener('click', async () => {
     const current = await scanRadio(hid, progress);
     await ensureReferences();
     const images = namedImages();
-    const source = images.length > 1 ? classifyRadio(current, images) : 'other';
+    let source = 'other';
+    if (images.length > 1) {
+      try { source = classifyRadio(current, images); } catch (error) {
+        // Not an exact known image: still fine if it is stock everywhere except
+        // the sectors the install rewrites (e.g. leftovers after an official update).
+        const leftovers = stockSeed ? stockCompatible(current, stockSeed) : null;
+        if (leftovers) {
+          source = 'stock-like';
+          status(`This radio is stock v1.0.38 except ${leftovers.length} sector(s) the install rewrites anyway (${leftovers.slice(0, 8).map(p => `0x${p.toString(16)}`).join(', ')}${leftovers.length > 8 ? ', …' : ''}). Backing it up in full, which takes longer.`);
+        } else {
+          // Not stock-compatible: still take the full backup (it is only a read). That
+          // backup then unlocks a full-image install of every differing sector.
+          source = 'other';
+          status(`${error.message} Taking a full backup anyway (read only, slower). Once it is saved, Install rewrites every firmware sector that differs from the package.`, true);
+        }
+      }
+    }
     setLogoStep(source);
     status('Recovering accessible flash bytes using shifted CRC windows. This may take several minutes; keep USB connected.');
     phase('Recovering flash bytes from shifted CRC windows');
@@ -340,10 +367,11 @@ $('createBackup').addEventListener('click', async () => {
     // identical in all of them) and are never written through HID.
     const loaded = await loadHidArchive(archive, target?.image ?? stockSeed);
     if (source === 'stock') await verifyStockBackup(loaded.image);
+    else if (source === 'stock-like') verifyStockCompatible(loaded.image, stockSeed);
     const expected = source === 'build' ? BUILD.imageSha256 : previousInfo(source)?.imageSha256;
     if (expected && await sha256(loaded.image) !== expected)
       throw new Error('Recovered image differs from the pinned build it matched. No backup accepted.');
-    const sourceName = source === 'build' ? 'H9-Toolbox-Firmware-' : previousInfo(source)?.file ?? '';
+    const sourceName = source === 'build' ? 'H9-Toolbox-Firmware-' : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
     const sourceLabel = source === 'build' ? BUILD.label : previousInfo(source)?.label;
     const date = new Date().toISOString().slice(0, 10);
     const name = `TD-H9-${sourceName}HID-recovery-${date}.h9hid`;
@@ -370,7 +398,7 @@ async function inspectRadio() {
   const marker = pending();
   const resumeSector = marker?.packageHash === target.packageHash && marker?.backupHash === backup.hash ? marker.sector : null;
   const changed = planUpdate(current, backup.image, target.image, resumeSector, knownImages());
-  if (target.kind === 'build' && !changed.every(physical => BUILD.sectors.includes(physical)))
+  if (target.kind === 'build' && !backup.fullInstall && !changed.every(physical => BUILD.sectors.includes(physical)))
     throw new Error(`${BUILD.label} sector plan leaves its ${BUILD.sectors.length} pinned sectors. No writes allowed.`);
   phase('Checking the radio (shifted CRC windows)');
   await verifyLiveGamePlan(current, changed, resumeSector);
@@ -381,7 +409,8 @@ async function inspectRadio() {
     return current[index] !== backupCrcs[index] && current[index] !== targetCrcs[index] &&
       !knownCrcs.some(crcs => crcs[index] === current[index]);
   });
-  if (unknown.length && (unknown.length !== 1 || unknown[0] !== resumeSector)) throw new Error('Unknown sector state outside the saved interrupted update. No writes allowed.');
+  if (unknown.length && (unknown.length !== 1 || unknown[0] !== resumeSector))
+    throw new Error(`The radio does not match this backup: ${unknown.length} sector(s) are neither in the backup nor in the new firmware (${unknown.slice(0, 6).map(p => `0x${p.toString(16)}`).join(', ')}${unknown.length > 6 ? ', …' : ''}). Choose the backup taken from this radio before the install, or take a new one. No writes allowed.`);
   const index = physical => (physical - APP_START) / SECTOR_SIZE;
   return {
     update: changed.filter(physical => current[index(physical)] !== targetCrcs[index(physical)]),
@@ -407,6 +436,8 @@ async function performWrite(direction) {
       status('Radio checked: it already matches; nothing was written.');
       return;
     }
+    if (direction === 'update' && backup.fullInstall && work.length > BUILD.sectors.length)
+      status(`Full firmware install: this radio is not on stock v1.0.38, so ${work.length} of ${(IMAGE_SIZE - APP_START) / SECTOR_SIZE} firmware sectors differ and are rewritten (the rest already match). This takes longer. Keep USB connected and the radio powered on; if it is interrupted, reconnect in PTT + 2 HID mode and press the same button again.`);
     status(`Radio checked. ${direction === 'update' ? 'Writing' : 'Restoring'} ${work.length} sectors. Keep USB connected and the radio powered on.`);
     phase((done, total) => done >= total ? `${total} sectors written and verified` : `Writing and verifying sector ${done + 1} of ${total}`);
     progress(0, work.length);

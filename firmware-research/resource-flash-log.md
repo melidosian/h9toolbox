@@ -3524,3 +3524,60 @@ Hardware results for S1 and S2, and U2 onward, will be recorded here.
 - Host render (`modules/satpass/render_plot.c`, scripted keys d,d,u,menu over
   five Chicago passes): shows pass 2/5 (SO-50, 4 degrees, low in the north) and
   returns to SAT PASS with that pass selected. Hardware: pending.
+
+## 2026-11-11 Web installer: stock-compatible radios (user report)
+
+- Report (a user who had just updated 1.0.33 -> 1.0.38): the backup step
+  stopped with "Radio is neither exact stock v1.0.38, H9 Toolbox Firmware,
+  nor an earlier H9 Toolbox build. No backup seed accepted." The radio is
+  probably stock apart from sectors the official update left as they were
+  (not confirmed: we have no scan from that radio).
+- The error now names the closest known image and the sectors that differ
+  (`describeMismatch`). The installer is also more permissive:
+  `stockCompatible` accepts a radio (or a backup file) that is exact stock
+  v1.0.38 in every sector outside `BUILD.sectors`, the only sectors an
+  install writes; whatever those hold is replaced, so the result is still the
+  exact package. Such a radio is backed up in full (no known-image shortcut,
+  so slower) as source `stock-like`, and its own backup is the restore point.
+  A user-selected backup file only has to be stock-compatible too (was exact
+  stock SHA-256). A difference anywhere else still stops with the sector list.
+- Tests: pinned-only differences pass, a stray sector (0x30000) fails, a
+  leftover in the last pinned sector is fine. Hardware: untried (no radio in
+  that state here).
+- Follow-up (user): the backup step no longer refuses a radio that is not
+  stock-compatible: it takes the full recovery anyway (read only; source
+  `other`, file `TD-H9-Unrecognised-HID-recovery-<date>.h9hid`) and keeps
+  Install locked (the pinned sectors are patches of stock 1.0.38). Note: for a
+  radio with no known-image shortcut the recovery returns the whole accessible
+  flash including the settings area `0xDA000-0xFFFFF` (v1 archive), so that
+  file holds the user's channels and settings: not for sharing as-is. The
+  shortcut backups of known images stay firmware-only.
+- Follow-up (user: "instead of all 213, rewrite the ones that differ"): a
+  radio that is not stock-compatible but was just backed up in full (source
+  `other`, the user's own recovery, boot region checked against the target's
+  as before) now unlocks a **full-image install**: `planUpdate` already lists
+  exactly the sectors where the backup differs from the package, so only
+  those are written (the pinned-sector limit is lifted for this case only),
+  each verified, then a final CRC check of every sector; the interrupted-sector
+  resume and Restore (the backup) work as before. The page states the sector
+  count before writing. Guard added because the stock-compatibility check no
+  longer implies the model: the recovered firmware must contain the name
+  "TD-H9" (`looksLikeH9`: the flash is decrypted block by block with the
+  CRC stream `0xF181 ^ ((flash - 0x5000) >> 2)`, found at app+0xB162A in
+  v1.0.38; the same keystream as the handbook's flash encryption, proven here
+  by decrypting the string). A user-selected backup file still has to be
+  stock-compatible. Tests: plan lists the two non-pinned sectors a changed
+  backup differs in; `looksLikeH9` true for stock, false for zeros.
+  Hardware: untried (no unrecognised radio here); the commenter's radio is
+  the first candidate.
+- Follow-up (user: what if he refreshes and then cannot restore?): the
+  freshly taken backup lived only in page memory, and a selected file had to be
+  stock-compatible, so after a refresh an unrecognised radio's own `.h9hid`
+  was refused. Now any backup file that is a TD-H9 application is accepted in
+  full-install mode, and what makes it safe is the check right before writing:
+  every sector of the radio must equal the backup or the new firmware (one
+  interrupted sector allowed), otherwise nothing is written (the message names
+  the mismatching sectors). So the saved `.h9hid` restores and resumes after a
+  refresh, an old or foreign file is refused, and a half-installed radio
+  resumes (its sectors are backup-or-package). The file stays the only copy:
+  keep it (the page does not store the backup itself).

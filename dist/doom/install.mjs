@@ -3,7 +3,7 @@
 
 import {
   APP_START, FLASH_SIZE, H9Hid, IMAGE_SIZE, SECTOR_SIZE, crc16, decodePackage,
-} from '../firmware-update/firmware.mjs?v=20261110c';
+} from '../firmware-update/firmware.mjs?v=20261111f';
 
 // The Doom code region: after the settings VM (0xDA000-0xE9FFF), written by no
 // stock code. The firmware runs it in place, unencrypted, at 0x01EE5000.
