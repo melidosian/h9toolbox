@@ -4143,3 +4143,19 @@ CHIRP on a radio.
   confirmed by a re-download, over **both the CH340 K-plug and USB-C serial**: worked, no error (the user's report).
   Not yet done: the error path on stock / the previous build, a Bluetooth (ble-serial) upload for read-back false
   alarms, and a channel edit in the main region through the patched module.
+
+- **Hardware (build b0135e0c, USB-C serial): Fred Trimble's unmodified `tdh8.py` (beta 103126.0, SHA-256 79a98773...) loaded in
+  CHIRP**: Talk Around Off -> On uploaded and read back On after a re-download (user's report): **no change to the
+  CHIRP module is needed on this firmware.** The optional read-back patch (`chirp/`) only adds an error for radios that
+  cannot set the bits (stock firmware over serial). K-plug not re-run with the original module.
+
+- CHIRP: the optional patch is now only the Radio Information text for the TD-H3 Plus / TD-H9 (4 lines added, 1 changed, no
+  code): serial / USB-C uploads above 0x3000 work on H9 Toolbox Firmware, and can silently fail to set bits on other
+  firmware. The earlier read-back verification patch was dropped at the user's request. Tested against stubbed CHIRP only.
+
+- CHIRP (revised at the user's request): the optional patch is the Radio Information text **plus** the read-back of writes
+  at 0x3000+ again (30 lines added, 1 changed), using the user's wording for the read-back's comment. 7 simulated-radio
+  and information tests pass (`chirp/test_chirp_patch.py`). Not run in CHIRP yet.
+
+- The CHIRP patch, its test and the CHIRP stubs were removed from the repository (`chirp/` keeps a README with the notes);
+  the patch to Fred's GPL module goes to him by email instead. They remain in the earlier commit `6bd1670`.
