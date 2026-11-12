@@ -13,6 +13,9 @@ task frame and the menu redraws the screen). When a module returns, the menu
 comes back. If no valid module bundle is on the chip, holding Back does
 nothing and the radio keeps running.
 
+**Version:** [`VERSION`](VERSION) holds the firmware version (v0.1.4 at the time of writing); [`CHANGELOG.md`](CHANGELOG.md) lists what each
+version changed. The ABOUT module shows it on the radio (`FIRMWARE V0.1.4`).
+
 ## Layout
 
 | Where | What |

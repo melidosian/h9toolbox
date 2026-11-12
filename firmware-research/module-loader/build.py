@@ -288,7 +288,17 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path) -> dict:
         raise ValueError("Brick Breaker's caves are not erased in stock")
 
     stub_prog = link([assemble(ROOT / "src" / "stub.s", out)], IMAGE_BASE + CAVE, "ml_hotkey", out, "stub")
-    stub = text_of(stub_prog, IMAGE_BASE + CAVE)
+    stub = bytearray(text_of(stub_prog, IMAGE_BASE + CAVE))
+    version_text = (ROOT / "VERSION").read_text().strip()      # H9 Toolbox Firmware version, "major.minor.patch"
+    major, minor, patch_no = (int(part) for part in version_text.split("."))
+    if not (major < 256 and minor < 256 and patch_no < 256):
+        raise ValueError(f"VERSION {version_text!r} must be three numbers below 256")
+    version_word = major << 16 | minor << 8 | patch_no
+    version_at = symbol(stub_prog, "ml_fw_version") - (IMAGE_BASE + CAVE)
+    if stub[version_at:version_at + 4] != b"\0\0\0\0":
+        raise ValueError("ml_fw_version is not the empty word the build expects")
+    stub[version_at:version_at + 4] = version_word.to_bytes(4, "little")
+    stub = bytes(stub)
     if stub_prog.entry != IMAGE_BASE + CAVE or len(stub) > TABLES - CAVE:
         raise ValueError(f"stub ({len(stub)} B) must start the cave and end before the S2 tables")
 
@@ -300,6 +310,9 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path) -> dict:
     patched[CAVE:TABLES] = stock[CAVE:TABLES]                 # remove the game
     patched[OLD_LAUNCHER:SVC] = stock[OLD_LAUNCHER:SVC]       # remove its launcher
     patched[CAVE:CAVE + len(stub)] = stub
+    api_at = patched.find(b"H9AP", CAVE, CAVE + len(stub))        # the loader's API table: magic, version, ..., firmware word
+    if api_at < 0 or struct.unpack_from("<I", patched, api_at + 24)[0] != version_word or struct.unpack_from("<I", patched, api_at + 4)[0] < 2:
+        raise ValueError("the image's API table does not carry the firmware version")
     patched[HOOK:HOOK + 4] = call_bytes(CAVE, HOOK)
     patched[HEAP_END_SITE + 2:HEAP_END_SITE + 6] = LOAD.to_bytes(4, "little")
     patched[SERIAL_WRITE_SITE:SERIAL_WRITE_SITE + 4] = serial_write.to_bytes(4, "little")
@@ -324,6 +337,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path) -> dict:
         "flash_sha256": sha256(target).hexdigest(),
         "changed_flash_sectors": [hex(c) for c in sorted(changed)],
         "stub_bytes": len(stub), "stub_sha256": sha256(stub).hexdigest(),
+        "firmware_version": version_text,
         "stub_symbols": {n: hex(symbol(stub_prog, n)) for n in ("ml_hotkey", "ml_main", "ml_api", "ml_read")},
         "heap_end": hex(LOAD),
         "serial_write": hex(serial_write),

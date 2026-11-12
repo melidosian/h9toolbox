@@ -13,7 +13,7 @@
  *
  * Menu opens the VFO TRACKING start screen (what will be written, which side listens, whether
  * the other side sends); starting it hands over to the hidden module .SAT TRACKER (satauto.c), which
- * arms the resident tracker and restarts the radio. */
+ * arms the resident tracker and returns to the radio (older loaders restart it). */
 #include <stdint.h>
 
 #include "doppler.h"
@@ -120,7 +120,7 @@ static void draw(const struct satdata *data, const struct satshare *sh, unsigned
     gfx_text(96, 119, "MENU:VFO", 8, 1, GFX_WHITE, BG);
 }
 
-/* Leave the choices where .SAT TRACKER finds them and ask the loader for it (it arms and restarts the radio). */
+/* Leave the choices where .SAT TRACKER finds them and ask the loader for it (it arms and returns to the radio; older loaders restart it). */
 static void start_tracking(const struct h9_api *api, const struct satshare *s, unsigned n, unsigned flags, unsigned only)
 {
     volatile struct satshare *sh = SAT_SHARED;
@@ -164,7 +164,7 @@ static void confirm(const struct h9_api *api, const struct satdata *data, const 
         row(50, open ? "2: SQUELCH OPEN IN PASS ON" : "2: SQUELCH OPEN IN PASS OFF", open ? GFX_GREEN : DIM);
         row(62, only ? "3: ONLY THIS PASS  ON" : "3: ONLY THIS PASS  OFF", only ? GFX_GREEN : DIM);
         row(73, ptt2 ? "4: PF1 = PTT2 (TX ON A) ON" : "4: PF1 = PTT2 (TX ON A) OFF", ptt2 ? GFX_GREEN : DIM);
-        row(84, "RESTARTS. HOLD BACK = STOP", GFX_WHITE);
+        row(84, api->version >= 2 ? "HOLD BACK = STOP" : "RESTARTS. HOLD BACK = STOP", GFX_WHITE);
         row(95, "1 = TEST NOW (ABOVE CHOICES)", GFX_GREEN);
         row(106, "MENU START   BACK CANCEL", GFX_YELLOW);
         unsigned k = gfx_wait_key();

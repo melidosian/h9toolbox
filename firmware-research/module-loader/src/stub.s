@@ -13,7 +13,8 @@
  *      menu and every module about 180 bytes of task stack: the 124-byte frame, the
  *      hook's two saved registers and ml_main's eleven):
  *        run module 0 (the menu) -> it returns the index to run, or 0
- *        run that module         -> when it returns, back to the menu
+ *        run that module         -> when it returns, back to the menu, or (it returned
+ *                                   0xFFFF, API version 2) leave for the radio at once
  *        menu returns 0, or the menu cannot load -> ml_main returns and the stock
  *        loop carries on (the menu has redrawn the screen; it also offers RESTART,
  *        which is the old stock cpu_reset)
@@ -322,11 +323,17 @@ ml_run:
     r0 = ml_api
     r1 = r11
     call r3
-    if (r11 != 0) goto ml_back_to_menu
+    if (r11 != 0) goto ml_module_done
     /* The menu returned: 0 = back to the radio, else the module to run. */
     if (r0 == 0) goto ml_main_return
     r11 = r0
     goto ml_run
+ml_module_done:
+    /* A module returned: 0xFFFF = leave for the radio now, without loading the menu (the module's code
+     * stays in the slot: SAT TRACKER's resident tracker runs from it); anything else = back to the menu. */
+    r1 = 0xffff
+    if (r0 == r1) goto ml_main_return
+    goto ml_back_to_menu
 ml_load_failed:
     if (r11 == 0) goto ml_main_return
 ml_back_to_menu:
@@ -563,8 +570,11 @@ mlsw_stock:
     .balign 4
 ml_api:
     .long 0x50413948        /* "H9AP" */
-    .long 1                 /* API version */
+    .long 2                 /* API version: 2 = a module may return 0xFFFF (H9_RETURN_RADIO) to leave for the radio */
     .long 0x00cc1000        /* bundle chip address */
     .long 0x00029f00        /* load address */
     .long 0x2000            /* slot bytes */
     .long ml_read           /* void read(dst, chip_address, length) */
+    .globl ml_fw_version
+ml_fw_version:
+    .long 0                 /* H9 Toolbox Firmware version 0x00MMmmpp (0x000104 = v0.1.4): build.py writes it from VERSION */

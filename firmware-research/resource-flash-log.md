@@ -4360,3 +4360,36 @@ result yet.**
   the list is the modules then USB UPDATE; footer "MENU: RUN   BACK: RADIO". Menu-only change (bundle module, firmware unchanged,
   package `f3255fa6...`). The only way to restart from the menu is gone; `h9_reset` stays in the module API. Not yet seen: whether the stock
   screen comes back complete after Back (status bar, icons) and the stack headroom (RESUME PROBE pages 1 and 2 not reported).
+
+## 2026-11-12 SAT TRACK starts without a restart (loader API 2; built and staged, NOT flashed or pushed)
+
+- Question: does SAT PASS still restart the radio to start VFO mode? Yes: `.SAT TRACKER` (`satauto.c` `arm()`) ended with `h9_reset()` because the resident
+  tracker runs from the module's code in the RAM slot, and a module returning made the loader load the menu over that code (which would disarm the
+  tracker at its CRC check). Stopping already needed no restart (hold Back, menu, Back).
+- Loader (`src/stub.s`): API version 1 -> 2. A module other than the menu that returns `0xFFFF` (`H9_RETURN_RADIO`, `h9mod.h`) makes `ml_run` go to
+  `ml_main_return` at once, without loading the menu, so its code stays in the slot (new label `ml_module_done`; stub 1,160 B). Any other return still goes
+  back to the menu. Disassembly checked.
+- `.SAT TRACKER`: after arming, on API >= 2 it clears the screen, calls `0x01E58E3E(0)` / `0x01E53306(0)` and returns `H9_RETURN_RADIO`; on API 1 it still
+  resets. `.SAT TRACK`'s start screen says "HOLD BACK = STOP" instead of "RESTARTS. ..." on API 2. SAT PASS 0.25. Host test `test_sattrack.c` passes
+  (run natively: the Docker test image `h9-hostcc` is not installed here; it needs `orbit.c` on the command line).
+- Installer: package `bae75ca15880a32df475344171819dec27d388ddcc2b82180aac4f726405fa91`; the previous build (return to radio, `f3255fa6`) kept as PREVIOUS
+  `release5` (seed `h9-toolbox-firmware-release5-sectors.bin`). node tests 132 pass, `test_build.py` OK.
+- To check on the radio after flashing: SAT PASS -> TRACK -> Menu -> key 1 (test now): the radio should return to its normal screen and the VFOs should
+  follow the "pass"; hold Back -> menu stops it and restores the VFOs; Back -> radio. Unknown until then: that the slot CRC check in `res_tick` passes
+  with no restart and that the first tracker call right after is clean.
+
+## 2026-11-12 Firmware versioning starts at v0.1.4 (built and staged, NOT flashed or pushed)
+
+- User chose v0.1.4. `module-loader/VERSION` is the one source; `build.py` writes `major << 16 | minor << 8 | patch` into the loader stub's new
+  `ml_fw_version` word (the API table's seventh field, API version 2 and later; an older loader has no such field, so modules check `api->version` first)
+  and refuses a build whose image lacks it; the manifest records `firmware_version`. ABOUT shows `FIRMWARE V0.1.4` (`OLD` on API 1). The installer's
+  `BUILD` has `version: '0.1.4'` and `label: 'H9 Toolbox Firmware v0.1.4'`; `test/firmware-version.test.mjs` keeps them equal. `CHANGELOG.md` lists v0.1.4 and
+  the earlier, unnumbered builds by their installer ids (preview, release1..release5); they are not back-numbered (six earlier builds would not fit under 0.1.4).
+- Package `cd1bfd70d1d72c3290d554a397e0a325f6e6fd68827413a14227b389de02fb05` (supersedes `bae75ca1...` staged earlier tonight: same loader, now with the version
+  word); previous build (`f3255fa6...`, return to radio) kept as PREVIOUS `release5`. node tests 133 pass; `test_build.py` OK.
+
+- **Installer recognises the interim build (2026-11-12 night):** the user's radio ran the loader build staged before versioning (package `bae75ca1...`, API 2, no
+  version word), which the installer did not know, so it fell back to a full flash recovery from shifted CRC windows (about an hour; `readAccessibleFlash` only
+  takes the quick verified path for an exact known image). That build was rebuilt byte for byte (same package hash; the stub without `ml_fw_version`) and added as
+  PREVIOUS `release6`; v0.1.4 (`cd1bfd70...`) is BUILD. node tests 133 pass. If a radio is stock except the install's own sectors, the installer still
+  does the full recovery (`stock-like`): a possible improvement is to take stock as the restore point there, since those sectors are code, not user data.

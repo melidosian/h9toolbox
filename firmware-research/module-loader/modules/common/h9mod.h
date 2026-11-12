@@ -3,8 +3,8 @@
  * A module is linked for RAM 0x29F00 and run by the main-flash loader stub:
  *     unsigned module_main(const struct h9_api *api, unsigned self);
  * `self` is the module's own index in the bundle. When it returns, the stub
- * shows the menu again. The menu (index 0) returns the index to run, or 0
- * to restart the radio.
+ * shows the menu again (API version 2: unless it returned H9_RETURN_RADIO). The menu
+ * (index 0) returns the index to run, or 0 for the radio (older loaders restart it).
  *
  * Freestanding: no globals (no .data/.bss is set aside beyond what the
  * bundle entry declares), no library calls. */
@@ -15,11 +15,13 @@
 
 struct h9_api {
     uint32_t magic;      /* "H9AP" */
-    uint32_t version;    /* 1 */
+    uint32_t version;    /* 1; 2 = the loader returns to the radio (menu returns 0, module returns H9_RETURN_RADIO) */
     uint32_t bundle;     /* chip address of the bundle header */
     uint32_t load;       /* 0x29F00 */
     uint32_t slot;       /* bytes available at `load` (8 KiB) */
     void (*read)(void *dst, uint32_t chip_address, uint32_t length);
+    uint32_t firmware;   /* API version 2 and later only (older loaders have nothing here): H9 Toolbox Firmware version
+                          * 0x00MMmmpp, 0x000104 = v0.1.4 (module-loader/VERSION) */
 };
 
 /* Bundle layout on the resource chip (little-endian). */
@@ -41,6 +43,12 @@ void h9_usb_loader(void);
 void h9_reset(void);  /* restart into the radio (stock cpu_reset) */
 
 enum { H9_WIDTH = 160, H9_HEIGHT = 128 };
+
+/* Return value for a module other than the menu (loader API version 2 and later, see struct h9_api): the loader
+ * leaves for the radio at once, without loading the menu, so the module's code stays in the RAM slot. SAT TRACKER
+ * uses it to start the resident tracker without a restart. The menu returns 0 for the radio. On API version 1 the
+ * same value would just open the menu, over the module's code, so check api->version first. */
+enum { H9_RETURN_RADIO = 0xFFFF };
 
 /* "Run this module next": a module writes the name here and returns; the
  * loader then runs the menu (module 0), which clears the request and returns

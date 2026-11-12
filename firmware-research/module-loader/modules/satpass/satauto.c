@@ -221,7 +221,9 @@ static void tracker(const struct h9_api *api)
 }
 
 
-/* Arm the tracker for the pass list in satshare (the choices are in st_flags) and restart the radio. */
+/* Arm the tracker for the pass list in satshare (the choices are in st_flags). On loader API version 2 the
+ * radio is not restarted: the caller returns H9_RETURN_RADIO (this code stays in the slot) after the screen is
+ * redrawn; on version 1 the radio restarts, as it always did. */
 static void arm(const struct h9_api *api, unsigned self)
 {
     volatile struct satshare *sh = SAT_SHARED;
@@ -243,6 +245,7 @@ static void arm(const struct h9_api *api, unsigned self)
     sh->st_reverts = 0;
     sh->st_flags &= ~(64u | 128u);
     sh->res_magic = RES_MAGIC;
+    if (api->version >= 2) return;
     h9_reset();
 }
 
@@ -254,5 +257,9 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
     gfx_text(0, 50, "STARTING VFO TRACKING", 21, 1, GFX_WHITE, GFX_BLACK);
     arm(api, self);
-    return 0;
+    if (api->version < 2) return 0;
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);   /* stock redraws only what it thinks changed */
+    STOCK_REFRESH();
+    STOCK_REDRAW();
+    return H9_RETURN_RADIO;
 }

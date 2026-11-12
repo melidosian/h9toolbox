@@ -22,7 +22,7 @@ static void line(unsigned row, const char *label, const char *value)
 
 unsigned module_main(const struct h9_api *api, unsigned self)
 {
-    char value[9];
+    char value[16];
     gfx_fill(0, 0, H9_WIDTH, 22, GFX_GREEN);
     gfx_text(8, 3, "ABOUT", 12, 2, GFX_BLACK, GFX_GREEN);
     gfx_fill(0, 22, H9_WIDTH, H9_HEIGHT - 22, GFX_BLACK);
@@ -31,6 +31,22 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     hex(value, api->slot, 4);        line(2, "RAM SLOT   0X", value);
     hex(value, api->bundle, 6);      line(3, "BUNDLE     0X", value);
     hex(value, self, 2);             line(4, "MODULE #     ", value);
+    if (api->version >= 2) {          /* 0x000104 reads "V0.1.4" */
+        char *d = value;
+        *d++ = 'V';
+        for (unsigned shift = 16;; shift -= 8) {
+            unsigned part = api->firmware >> shift & 255;
+            if (part >= 100) *d++ = (char)('0' + part / 100);
+            if (part >= 10) *d++ = (char)('0' + part / 10 % 10);
+            *d++ = (char)('0' + part % 10);
+            if (!shift) break;
+            *d++ = '.';
+        }
+        *d = 0;
+    } else {                          /* an older loader has no version field */
+        value[0] = 'O'; value[1] = 'L'; value[2] = 'D'; value[3] = 0;
+    }
+    line(5, "FIRMWARE   ", value);
     gfx_text(4, 116, "MENU OR BACK: RETURN", 26, 1, GFX_GREY, GFX_BLACK);
 
     gfx_wait_release();

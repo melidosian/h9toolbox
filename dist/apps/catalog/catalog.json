@@ -202,7 +202,7 @@
    "name": "SAT PASS",
    "title": "FM Satellite Passes",
    "description": "Predicts the next five passes of FM voice satellites over your GPS position, draws each pass on a sky plot, shows live Doppler-corrected frequencies, and can follow a pass by itself: it keeps VFO B on the downlink and VFO A on the uplink, sets the satellite's access tone, holds the squelch open and puts PF1 on PTT2, while the radio runs normally. Choose the satellites and refresh their orbital data in Satellite settings.",
-   "version": "0.24",
+   "version": "0.25",
    "category": "Radio",
    "modules": [
     {
@@ -219,15 +219,15 @@
     },
     {
      "name": ".SAT TRACK",
-     "bytes": 5073,
-     "ram": 5073,
-     "crc16": "dd5a"
+     "bytes": 5113,
+     "ram": 5113,
+     "crc16": "2c4c"
     },
     {
      "name": ".SAT TRACKER",
-     "bytes": 4729,
-     "ram": 4729,
-     "crc16": "d321"
+     "bytes": 4785,
+     "ram": 4785,
+     "crc16": "2e1c"
     },
     {
      "name": ".SAT DATA",
@@ -243,7 +243,7 @@
     "PLOT: Up/Down step through the passes; Menu goes to TRACK; Back returns to the list.",
     "TRACK: live azimuth, elevation, range and the Doppler-corrected SEND (uplink) and LISTEN (downlink) frequencies; Up/Down change pass; Back returns to the list.",
     "TRACK, then Menu: the start screen. Up: sending on/off. Down: swap which VFO listens. 2: squelch open during the pass. 3: only this pass. 4: PF1 = PTT2. Menu: start. 1: test now (acts at once, whatever the time). Back: cancel.",
-    "After you start, the radio restarts and follows the pass. The status bar shows AOS (time to rise) or LOS (time left). Hold Back to stop: your VFO frequencies, tones, squelch and PF1 key are put back."
+    "After you start, the radio goes back to its normal screen and follows the pass (on older firmware it restarts first). The status bar shows AOS (time to rise) or LOS (time left). Hold Back to stop: your VFO frequencies, tones, squelch and PF1 key are put back."
    ],
    "notes": [
     "Times use the radio's own time zone setting.",
@@ -271,10 +271,10 @@
     }
    ],
    "file": "sat_pass.h9mod",
-   "bytes": 20596,
+   "bytes": 20692,
    "ram": 6433,
    "crc16": "8308",
-   "sha256": "489135a976f44d09b07f07a1c1e01188f8fb59b6ed078c0a2881a9e5b0edc78b"
+   "sha256": "2dbab36f4a65b63d30094ea8c0dc3723c8bdea858cc3ef8165facf106bfe0ca7"
   },
   {
    "id": "gps",
