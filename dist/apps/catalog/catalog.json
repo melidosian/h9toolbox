@@ -5,11 +5,11 @@
   "name": "MENU",
   "title": "Module menu",
   "description": "The on-radio list that opens when you hold Back. Installed automatically with the first app.",
-  "version": "1.1",
-  "summary": "The on-radio list that opens when you hold Back.",
+  "version": "1.2",
+  "summary": "The on-radio list that opens when you hold Back; Back returns to the radio.",
   "controls": [
    "Hold Back for about half a second to open it. Up/Down move, Menu runs the selection.",
-   "RADIO restarts into the radio; USB UPDATE starts the USB loader."
+   "Back returns to the radio without a restart (needs the firmware with the return-to-radio loader); USB UPDATE starts the USB loader."
   ],
   "notes": [
    "Opening it also stops the SAT PASS tracker and puts your VFOs back."
@@ -17,16 +17,16 @@
   "modules": [
    {
     "name": "MENU",
-    "bytes": 2703,
-    "ram": 2703,
-    "crc16": "f1a7"
+    "bytes": 2663,
+    "ram": 2663,
+    "crc16": "ac00"
    }
   ],
   "file": "menu.h9mod",
-  "bytes": 2703,
-  "ram": 2703,
-  "crc16": "f1a7",
-  "sha256": "7d1e7cd3591cb1cdd30dcebb1225710d335538b1f8e28b315729f495625e20fb"
+  "bytes": 2663,
+  "ram": 2663,
+  "crc16": "ac00",
+  "sha256": "52bc1a07201c32b00a3d1ab2632d87fa7cfbe9bfacf610a5741801bf7dfc817f"
  },
  "apps": [
   {

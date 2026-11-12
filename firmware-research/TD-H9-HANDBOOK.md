@@ -185,7 +185,7 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
   - Modules are copied into the 8 KiB RAM slot at `0x29F00` and checked
     (CRC) before running; they get the stock NOR read, LCD, keys and delay
     through `modules/common/h9lib.s`.
-  - The menu also offers RADIO (a clean `cpu_reset`) and USB UPDATE.
+  - Back in the menu returns to the radio without a restart (the stub keeps my_app's frame and `ml_main` returns; the menu clears the screen and calls `0x01E58E3E(0)` and `0x01E53306(0)` first) [HW, 2026-11-12: the exit worked]; the menu also offers USB UPDATE. A restart is no longer in the menu (`h9_reset` is still in the module API).
   - The App Manager (`dist/apps/`) installs modules over Bluetooth; the
     first modules are the menu, Brick Breaker, APRS and APRS Monitor.
   - Doom is unaffected: it is built on the earlier H9 Toolbox app

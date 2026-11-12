@@ -5,11 +5,11 @@
     "name": "MENU",
     "title": "Module menu",
     "description": "The on-radio list that opens when you hold Back. Installed automatically with the first app.",
-    "version": "1.1",
-    "summary": "The on-radio list that opens when you hold Back.",
+    "version": "1.2",
+    "summary": "The on-radio list that opens when you hold Back; Back returns to the radio.",
     "controls": [
       "Hold Back for about half a second to open it. Up/Down move, Menu runs the selection.",
-      "RADIO restarts into the radio; USB UPDATE starts the USB loader."
+      "Back returns to the radio without a restart (needs the firmware with the return-to-radio loader); USB UPDATE starts the USB loader."
     ],
     "notes": [
       "Opening it also stops the SAT PASS tracker and puts your VFOs back."

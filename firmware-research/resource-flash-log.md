@@ -4159,3 +4159,204 @@ CHIRP on a radio.
 
 - The CHIRP patch, its test and the CHIRP stubs were removed from the repository (`chirp/` keeps a README with the notes);
   the patch to Fred's GPL module goes to him by email instead. They remain in the earlier commit `6bd1670`.
+
+## 2026-11-11 Spectrum suite, step 1: RF PROBE 0.1 (offline, not yet on a radio)
+
+Plan: a band scope (live trace, peak hold, waterfall), a CTCSS/DCS tone finder, then a scanner, after a probe to learn what
+the RF chip gives us. Static findings in stock 1.0.38 (call targets are `address + offset + 4`):
+- The chip is BK4819-like. Stock reads **0x67 & 0x1FF = RSSI**, five reads averaged in `0x01E50D0C`; `0x01E50D32` converts
+  `RSSI >> 1` minus 160 (dBm). It also reads 0x63 and 0x65 (glitch, noise: squelch inputs), **0x68 / 0x69 (CTCSS / CDCSS
+  detect)**, 0x0C (interrupt flags), 0x30/0x31/0x34/0x35, 0x48, 0x51, 0x5F, 0x64, 0x6F-0x71 (44 read sites in all).
+- The frequency registers are 0x38 (low 16) and 0x39 (high), units of 10 Hz (`0x01E59094`, plus a calibration offset).
+  Quansheng scopes retune by writing those, then reading 0x30, writing 0, writing it back (re-lock), waiting about a
+  millisecond, and reading 0x67. RF_READ is `0x01E505FE`, RF_WRITE `0x01E5070A`.
+- `modules/rf_probe/rf_probe.c` (3,393 B, "RF PROBE"): LIVE (frequency, RSSI and dBm, a bar, registers 0x30 0x0C 0x63
+  0x65 and the CTCSS / DCS values, Up/Down 12.5 kHz, 1/3 1 MHz), SWEEP (80 points around the frequency, step 6.25-50 kHz,
+  settling delay 0-20 ms, time per sweep measured over four sweeps, low and high level), REGS (0x00-0x7F, 24 at a time). It
+  wakes the chip if battery save has it asleep, keeps the speaker off, and restores 0x38/0x39/0x30 and the speaker on exit.
+  Receive only. `render_rf.c` draws its pages against a fake chip; ASan caught a 32-byte buffer overflow there (fixed).
+- Unverified until a radio: that 0x67 is the live RSSI in a module context, the CTCSS scale (`data * 0.4843` Hz), how many
+  points per second the retune-wait-read cycle allows, and whether the band filter holds across a sweep.
+
+- RF PROBE 0.2 (4,067 B; limit 4,448 because its waterfall rows live in the slot's free RAM at 0x2B060-0x2B880, 52 rows of
+  40 bytes, 4 bits a bin; build.py checks it): the SWEEP page is now a scope. Top 40 px: the 80-point spectrum, colour by height
+  (16-step map), a cyan peak-hold dot that decays one RSSI unit a sweep, a grid, and a tick axis with the centre bright. Below:
+  a 52-row waterfall (newest on top, 1 px a row, 2 px a bin) with an auto-contrast map (floor and top follow the sweep, the floor
+  a little under the noise so noise is dark blue). The 93-row region is one LCD window streamed a line at a time, so a redraw is
+  about 15 KB. Sweep time and redraw time are shown. Host-rendered against a fake chip with drifting and bursting carriers.
+
+- **Hardware (RF PROBE 0.2, user)**: sweep 45-47 ms for 80 points (1,650-1,780 points/s) with delay 2, redraw 10-20 ms, so speed
+  is not the limit (the module's `h9_delay(2)` is evidently much shorter than 2 ms of the 10 ms tick). But a transmission on a
+  close frequency (from another radio) did not show on the waterfall: the receiver may not be retuning or receiving through the
+  raw register path. RF PROBE 0.3 adds a RAW / STOCK tune switch (stock's own retune `0x01E595B6` from the working RX frequency
+  `0x11C8C`, the SAT tracker's proven path), a read-back check of the frequency registers (OK / BAD), the live register 0x30,
+  and a MAX level since the page opened to catch short transmissions. Next: see whether LIVE responds on the exact frequency,
+  and whether STOCK-tuned reads move while RAW ones do not.
+
+## 2026-11-11 Battery and power: what stock exposes (static only; first version of this entry corrected the same day)
+
+Read from `td-h9-open-firmware/artifacts/main/disassembly` (stock v1.0.38; app offset + 0x01E00100 = address). **No hardware
+result yet.**
+
+- **Battery voltage routine: `0x01E4ECCC`** [STATIC]. Returns volts x 100 (10 mV units) as `adc(4) * 3.3 * 415 / 1024 + 24`
+  (double-precision helpers; constants 0x400A666666666666, 0x4079F000..., 0x3F50000000000000, then `add r0,#0x18`). So channel 4
+  is the battery through a divider of about 4.15, a 10-bit ADC at 3.3 V, and a fixed +0.24 V correction. Callers: 0x4F690 (a
+  screen that shows it, rejects a value above 0x26C = 620), 0x55AEA (stores it in RAM halfword **0x11B80**, the state
+  machine below), 0x5BF14 (formats it as `%1d.%02dV` after a 1..0x270E check; this is the `Voltage:%1d.%02dV` screen, split by
+  /100 and %100), 0x887B2 (the same, drawn on a 160x128 screen).
+- **`0x01E4EC74(ch)` is not a hardware read** [STATIC]: it looks the channel up in a cache the ADC driver keeps, ten entries of
+  8 bytes from RAM **0x12A30** (word channel id, halfword value at +4), special cases for id 0x0F (returns halfword 0x11B96) and
+  0x50000F (the mean of sixteen halfwords at 0x12338). Earlier text here that called it an ADC read and guessed channel 0 (the
+  sampler at 0x895C8, which averages ten values into 0x12D24) was **wrong about channel 0 being VBAT**: the battery is channel 4.
+  What channel 0 is, is not known. Keypad ladders stay channels 13 and 10.
+- **Battery level state machine `0x055A0E`** [STATIC]: level byte **0xC0F5** (0-3); compares 0x11B80 with RAM halfwords at
+  0x1213A (idx 0x335; 0xFFFF = disabled, compared at 0x55B14 to decide a power-off), 0x1213E, 0x12140, 0x12142 (idx 0x337-0x339),
+  with a 0x14 (0.20 V) hysteresis when falling. Where those thresholds are loaded from is not traced (the flash table at
+  0x1EB08EA is unrelated). Level 0 / the power-off path draws `0x01E891E4(0|1)`: "Please charge!" / "Power off!".
+- Strings that go with it: `battery` (the status-bar icon rectangle, drawn by `0x01E5143E`), `Low battery!`, `gImage_Low_battery`,
+  `gImage_ptt_low_battery`, tone `low_voltage.*`, the APRS "Report Voltage" setting, and the Bluetooth `+CIND ... ("battchg",(0-5))`.
+- **No charger or charge-state reading found.** RAM byte 0x12D28 and the others tested are used all over the code (not a charge flag).
+  The ADC table view in POWER PROBE exists to look for one.
+- **Built: POWER PROBE 0.1** (`modules/power_probe/power_probe.c`, 4,427 B, crc16 0xB73B, in `build.py`, `modules/catalog.json`,
+  `dist/apps/catalog/power_probe.h9mod`). Gauge (ten segments, volts, percent from a generic per-cell Li-ion curve, trend,
+  min/max, UP/DOWN trim in 0.01 V, 5 cell count), graph (160 points at 1/5/30/60 s, colour by percent, TX dips), data (0x01E4ECCC,
+  RAM 0x11B80, 0xC0F5, 0x11B01, the four thresholds, the ADC table). Reads only: calls `0x01E4ECCC`, reads RAM, no RF chip, no
+  writes. `render_power.c` renders it against a fake battery (discharge, TX dips, a charger scene); UBSan/ASan clean. All 132
+  node tests and the 11 build tests pass. **Unverified until a radio:** that the routine returns sane volts from a module, the
+  +24 correction, the thresholds, whether a charger shows in the ADC table, and the percent curve.
+
+- **Hardware (RF PROBE 0.3, user)**: on LIVE the receiver responds (the bar turns red on a transmission), and with the tune
+  method set to **STOCK** (stock's own retune per point) the SWEEP page sees the transmitter; with **RAW** (registers 0x38/0x39
+  plus the 0x30 toggle, `h9_delay(2)` between points) it does not. So the chip is live and RSSI works; the raw sequence either
+  does not let the receiver settle (the measured 0.59 ms per point, h9_delay(2) is shorter than expected) or misses something
+  stock's retune does (band filter / AGC / the extra calls in `0x01E59094`). RF PROBE 0.4 (4,523 B; waterfall now 48 rows at
+  0x2B100, limit 4,608) waits with a spin loop calibrated against the 100 Hz tick (default 1.0 ms, 0.1 ms steps, 0-9.9 ms).
+  Next: does RAW see it with a real 1 ms wait, and how fast is a STOCK sweep (points per second)?
+
+- **Hardware (RF PROBE 0.4, user)**: RAW tuning shows the transmitter with the 1.0 ms calibrated wait, so the earlier miss was the
+  receiver not having time to settle. SPECTRUM 0.1 (`modules/spectrum/`, 3,977 B, in the catalog as "Spectrum Scope", offline only):
+  160 points, one pixel each, spans of 2 / 3 / 4 / 6 MHz (12.5, 18.75, 25, 37.5 kHz a point; default 4 MHz, the whole 2 m band),
+  kept inside the band the radio started in, a spectrum coloured by height with peak-hold dots and a dotted marker onto the
+  strongest peak with its frequency and dBm, a 40-row waterfall (80 columns of the stronger of each pair, 4 bits, at 0x2B240 to
+  0x2B880; build.py checks the code stays under it), auto-contrast. FOLLOW (key 5) slides the window to the peak when it is more
+  than about 25 dB over the floor; LISTEN (Menu) tunes with stock's retune (`0x01E595B6` from `0x11C8C`), opens the receive audio
+  as the APRS screens do (AF select 1, register 0x30 = 0xBFF5) and the speaker, until Menu or Back. Wait per point 0.1 ms steps from
+  1.0 ms. Host-rendered only. build.py also gained a power_probe module from another session (not mine).
+
+## 2026-11-12 APRS LINK: talk to the APRS modem chip from a module (offline, not yet on hardware)
+
+- User asked for a Toolbox app or firmware change to communicate with the APRS chip, like the resource-write fix.
+- Link facts (static): main CPU UART1 (`0x001E2100`, pins `0x20,0x21`), 2 KiB RX ring, DMA TX through the object's bulk-write slot
+  (`[[0x11AD0+556]+20]`, wrapped by `0x01E5B4AA` as `write(buffer, length)`). **Baud: unresolved, two static readings disagree.**
+  The APRS controller sets its USART1 (the main link, pins PA/PB 6,7) to **115,200** baud (`0x08005F20`,
+  evidence/stock/aprs-uart-receive.md); the 9,600 baud in the earlier notes is the controller's USART2, the GPS port
+  (`0x11 / 4` raw output). The main side's open record carries `19200` and its baud helper computes a divisor of 1249, which is 9,600
+  baud if the UART divides 48 MHz by `4 * (DIV + 1)`; the else branch of that helper and the real clock were not traced. The two ends
+  work together on hardware, so one reading is off. APRS LINK shows the live divisor (`DIV` in the title bar, UART1 register `+8`): 1249
+  would be 9,600 baud, about 103 would be 115,200. **An earlier message to the user said the link is 9,600 baud; that was premature.**
+- New module `.APRS LINK` (`modules/aprs_link/`, 2,606 B, catalog "APRS Link (research)" 0.1, Experimental). Sends stock-style frames
+  (5 × `C0`, command, escaped payload, 3 × `C0`) for the three read-only queries from the APRS controller parser: `0x20` version,
+  `0x13` status (48-byte block), `0x11` + `03` pin read. Drains the ring like APRS MONITOR, deframes, shows the command sent, the
+  time to the first reply in 10 ms steps and the last frame as hex and ASCII. It sends no packet and writes no setting.
+  Host test `modules/aprs_link/test_aprs_link.c` (fake chip, escaped payload byte) passes under ASan/UBSan.
+- Open until a radio run: whether calling `0x01E5B4AA` from a module is safe (stock calls it with a stack buffer, so the DMA must copy
+  or wait), what the three replies contain, the reply time, and whether stock's own polling collides with the module's frames.
+- Not done: a PC-to-chip bridge over USB-C / CH340 / Bluetooth. It needs the serial task's command handler (`0x5CF18`, see 2026-11-11) to
+  forward a new command byte to `0x01E5B4AA` and return the ring's bytes; that is a firmware change like `ml_serial_write` and comes
+  after the replies are known.
+
+- **APRS LINK 0.1 refinement (offline, 2026-11-12 night):** confirmed statically that stock's UART1 object (`0x1E32C`, stored at
+  `0x11CFC`) has its function slots filled at `0x01EC5B18..`: `+8` byte write, `+12` byte read, `+16` bulk read, `+20` bulk write
+  (`0x01EC5F94(buffer, length)`), so `0x01E5B4AA(buffer, length)` is the right call. The UART event callback `0x01E78FFE` ignores TX
+  event 1 (it only acts on event 3), so stock does not wait for the DMA; the module therefore keeps the frame in its persistent state
+  (not on the stack) and ignores a second send within 50 ms. The chip's GPS sentences (command `0x10`, payload starting `$`, once a
+  second, hardware-confirmed 2026-11-10) are counted separately so they never replace a reply on the screen. Now 2,631 B. Host test
+  (fake chip with GPS interleaved, an escaped `C0` payload byte, resend guard) passes under ASan/UBSan; screen rendered on the host.
+  Still unknown until a radio run: that the bulk-write DMA actually transmits for a module call, the chip's reply layouts and timing.
+
+- **APRS LINK 0.1 (second refinement, offline):** stock itself frames commands to the controller with the same framer and write helper
+  (callers `0x01E67A88`: command `0x20` with a one-byte zero payload, the version query; `0x01E72F4A`: command `0x11` with one byte
+  (the sub-command); `0x01E8707A`: answers the controller's `0x11 / 3` with `{3, 0}`). The app's version query now matches stock exactly
+  (`20 00`), the pin query is `11 03`, and the status query `13` is not sent by stock anywhere found (the controller supports it).
+  Hardware precedent: APRS SEND transmitted on air on 2026-11-10 through `0x01E5DBCC` -> `0x01E5B4EA` -> `0x01E5B4BE` -> `0x01E5B4AA`,
+  so the UART write helper works when a module calls it. The title bar now shows the live UART divisor.
+
+- **APRS LINK 0.1 (third check, offline): the exact frames against the controller model.** `modules/aprs_link/model_check.c` feeds the app's
+  frames (`C0 x5, 20 00, C0 x3`; `C0 x5, 13, C0 x3`; `C0 x5, 11 03, C0 x3`) to `replacement-source/aprs/h9_aprs_controller.c` (written from the
+  decompiled APRS-1.0.15 parser) and deframes the output with the app's logic. Results: version -> one frame, command `0x21`, 16 bytes
+  (the model's own strings; stock's are `V1.0.15` / `V1.0.0`); status -> one frame, command `0x13`, 48 bytes with an escaped `C0`
+  payload byte restored; pin -> one frame, command `0x10`, 1 byte (`01`). The pin reply uses command `0x10` like the GPS sentences but
+  starts with `00`/`01`, not `$`, so the GPS filter does not hide it. This tests the framing, the commands and the deframer against the
+  decompiled parser, not the real binary (no ARM emulator is installed; installing one would be a download and was not done).
+
+- **APRS LINK 0.1 (fourth check, offline): the real APRS-1.0.15 firmware answers the queries.** No ARM emulator is installed and none was
+  downloaded, so `module-loader/modules/aprs_link/emu/` holds a small Thumb (ARMv6-M) interpreter written for this (`thumb.py`) and a
+  stub chip model (`chip.py`: clock-ready bits including RCC_CR bit 10, ADC calibration bits self-clearing, USART status always ready,
+  USART1/2 data writes captured, SysTick delivered by calling the image's own handler `0x08004984`). The stock image (SHA-256
+  `1dbbc104...`) boots through its reset handler (8,419 instructions) to its main loop and prints its boot banner
+  ("APRS Module Version Info ... V1.0.15 / V1.0.0") on USART1. APRS LINK's frames are then placed in the receive buffer (`0x20000994`,
+  length `0x20000124`, ready `0x20000126`) and the image's own main loop and parser answer on USART1:
+  - `C0x5 20 00 C0x3` -> frame command `0x21`, 16 bytes: `00 "V1.0.15" 00 "V1.0.0" 00`.
+  - `C0x5 13 C0x3` -> frame command `0x13`, 48 bytes (the status block; byte 20 = 1, last two = tick difference).
+  - `C0x5 11 03 C0x3` -> frame command `0x10`, 1 byte (`00` here: the GPIO pin stub reads low).
+  The app's deframer decodes all three. This confirms the command bytes, the leading `C0` x5, the reply commands and the layouts against
+  the real chip code, not only the model. The chip also sends its boot banner (150 bytes, no `C0` delimiters) at power-up, which the
+  app's deframer would show as a long garbled frame if the chip reset while the app is open. Still not covered: the radio's own UART
+  write, the baud divisor, reply timing on the real link (the interpreter has no timing), and pin/GPIO levels.
+  Run: `APRS_IMAGE=<APRS-1.0.15.bin> python3 emu/loop_test.py` from `modules/aprs_link/`.
+
+- **Baud, chip side, from the real firmware (interpreter, offline):** while booting, the stock APRS-1.0.15 image writes USART1 BRR
+  (`0x40013808`) = `0xD0` (208) and USART2 BRR (`0x40004408`) = `0x9C4` (2,500). Their ratio is 12.02, the ratio of 115,200 to 9,600
+  baud, and both fit a 24 MHz peripheral clock (24,000,000 / 115,200 = 208.3; 24,000,000 / 9,600 = 2,500). So **the main-radio link
+  (USART1) is 115,200 baud and the GPS port (USART2) is 9,600**. The main side's static divisor reading (1249, 9,600 baud at 48 MHz) must
+  therefore be wrong about its clock or formula; APRS LINK's `DIV` readout will give the real value. If 115,200 holds, the serial link is
+  about 11.5 KB/s and not a bottleneck for anything the AFSK modem or a faster modem would produce.
+
+- **Caveat to the baud entry above:** the BRR values (`0xD0`, `0x9C4`) were produced under the interpreter's stubbed RCC registers; the
+  image derives its clock from RCC state with a table of 4 / 8 / 16 / 24 MHz literals (`0x080060A4..0x080060D4`, `0x08003BF4`), so the
+  "24 MHz" fit is not independent evidence. What does not depend on the stubs: the descriptors request 115,200 baud for USART1
+  (`0x1C200`) and 9,600 for USART2 (`0x2580`), both literals in the image. The main side's open record says `19200` and its helper's
+  divisor (1249 at 48 MHz) is 19,200 baud if the UART divides by `2 * (DIV + 1)` (the helper takes half the baud rate), or 9,600 if by
+  `4 * (DIV + 1)`; neither is 115,200. The ends disagree on paper and work together on hardware, so one reading is wrong. APRS LINK's
+  `DIV` readout (UART1 register `+8`) is the next data point; no static route to the real answer was found.
+
+## 2026-11-12 Leaving the module menu without a restart: findings and RESUME PROBE (offline, not yet on hardware)
+
+- User: "No more rebooting". Today every exit is a reset: `ml_hotkey` (src/stub.s) pops its own `{rets, r4}`, adds 124 to SP (drops my_app's task
+  frame, as Brick Breaker's launcher did) and jumps to `ml_main`, which "never returns to the stock UI"; menu item RADIO and
+  "menu returns 0" both end in `ml_reset`.
+- Design to resume instead: keep the frame (call `ml_main` nested, return through `ml_stock_loop_call`), make the menu's RADIO item return 0, and on
+  return re-apply stock state. Costs: (a) the menu and every module run about 132 bytes deeper (the 124-byte frame plus the hook's saved
+  `rets, r4`) in my_app's task stack; (b) stock does not redraw by itself (the menu and module pixels stay) and the RF state may be a
+  module's. Known stock helpers (already used by SAT PASS): `0x01E53306(0)` marks the three display rows for redraw, `0x01E58E3E(0)` is the full RF refresh
+  (reloads both VFOs, PTT, squelch). Not known: whether they restore the status bar and icons.
+- Unknown: my_app's stack size. The task table at app+`0xA2A64` (12-byte entries, create loop at `0x01E2D022`) has my_app = prio 2, stack field `0x0800`,
+  queue field `0x300`; the unit (bytes or words) is decided in a ROM routine (`0x020030FE`) that is not in the image. Modules already run on that stack
+  with the frame dropped (APRS SEND: about 0.9 KiB under stock's KISS transmit plus the PTT handler), so it is at least ~1.5 KiB.
+- `RESUME PROBE` 0.1 (`modules/resume_probe/`, 2,485 B, local catalog only): page 1 reports an address in its own frame, the fill word of the unused stack,
+  how many of 16 words agree (is it really a pattern) and how many bytes below it still hold the fill (never used since power-on), against the 132
+  bytes resume costs; page 2 clears the screen and runs `0x01E58E3E(0)` then `0x01E53306(0)` so the screen can be compared with the normal one.
+  Both answer the two unknowns without a firmware flash. Next (after those results): the stub change, its build, then a flash only on an explicit "go".
+
+## 2026-11-12 Return to the radio without a restart: firmware + menu built (offline, NOT flashed)
+
+- `src/stub.s`: the hold-Back hook (`ml_hotkey`) no longer drops my_app's 124-byte frame: it calls `ml_main` and then continues through
+  `ml_back_released` (clears the hold state at `[sp+76]`) into the stock loop call. `ml_main` now saves `{rets, r14-r4}` and returns where it used to
+  reset (no valid bundle, menu cannot load, menu returns 0). The menu and every module run about 180 bytes deeper in the task stack (124 frame
+  + 8 hook + 48 `ml_main`). Disassembly of the built stub checked (`ml_hotkey` -> `call ml_main` -> `ml_back_released` -> `res_tick`, `rec_tick`,
+  stock call, `{pc, r4}`; `ml_main` push/pop balanced, three exits to `ml_main_return`). Stub 1,148 B (cave limit 1,632 B).
+- `modules/menu/menu.c`: items RADIO (clears the screen, `0x01E58E3E(0)`, `0x01E53306(0)`, returns 0), RESTART (the old `h9_reset`), USB UPDATE.
+  Compatible both ways: new menu on the old stub still restarts for RADIO; old menu on the new stub behaves as before.
+- Firmware delta against the hosted build (`b0135e0c`): sectors `0x5000`, `0x7D000` (the serial shim literal now points at the moved
+  `ml_serial_write`), `0xAC000` (the stub), `0xD9000` (tail); nothing else. Package `f3255fa6e56f408f74244d66949258c65fcd412d4566b5ad79f91bcb71a81197`.
+  Staged locally in `dist/firmware-update/` with `release_update.mjs` as PREVIOUS `release4` (the hosted `b0135e0c` build, so a radio on it is
+  recognised and can be restored); uncommitted; node tests 132 pass; `test_build.py` OK (`test_modules.py` needs the Docker image `h9-hostcc`, absent here).
+- `build/test-ml-reset-bundle.bin` (a bundle whose menu returns 0 at once) now tests the resume path: holding Back should flash and the radio should keep running.
+- Unknown until hardware: the task stack's free room (RESUME PROBE page 1 measures it; 180 B is the cost), whether `0x01E58E3E(0)` + `0x01E53306(0)` restore the
+  whole stock screen (page 2), and the state a module leaves behind (receiver, speaker, VFOs). RESTART stays as the fallback.
+
+- **Hardware (2026-11-12, user): the new loader worked** ("it worked with the new firmware"): leaving the menu no longer restarts the radio.
+  Follow-up: menu 1.2 drops RADIO and RESTART; **Back in the menu returns to the radio** (clears the screen, `0x01E58E3E(0)`, `0x01E53306(0)`, returns 0);
+  the list is the modules then USB UPDATE; footer "MENU: RUN   BACK: RADIO". Menu-only change (bundle module, firmware unchanged,
+  package `f3255fa6...`). The only way to restart from the menu is gone; `h9_reset` stays in the module API. Not yet seen: whether the stock
+  screen comes back complete after Back (status bar, icons) and the stack headroom (RESUME PROBE pages 1 and 2 not reported).

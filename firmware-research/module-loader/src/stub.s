@@ -8,11 +8,15 @@
  *   1. ml_check validates the module bundle on the resource chip while the
  *      stock my_app frame is still intact. No valid bundle: the stock loop
  *      continues as if nothing happened (the radio stays usable).
- *   2. Otherwise drop my_app's frame (as Brick Breaker did) and enter
- *      ml_main, which never returns to the stock UI:
+ *   2. Otherwise call ml_main on top of my_app's own frame (Brick Breaker's launcher
+ *      dropped the frame and could only reset to leave; this keeps it, which costs the
+ *      menu and every module about 180 bytes of task stack: the 124-byte frame, the
+ *      hook's two saved registers and ml_main's eleven):
  *        run module 0 (the menu) -> it returns the index to run, or 0
  *        run that module         -> when it returns, back to the menu
- *        menu returns 0, or the menu cannot load -> reset (stock cpu_reset)
+ *        menu returns 0, or the menu cannot load -> ml_main returns and the stock
+ *        loop carries on (the menu has redrawn the screen; it also offers RESTART,
+ *        which is the old stock cpu_reset)
  * Every other pass, rec_tick saves stock's GPS fix to the resource chip
  * when it has moved (background recorder, below).
  *
@@ -57,11 +61,11 @@ ml_hotkey:
     call ml_check
     if (r0 == 0) goto ml_arm_back_hold
 
-    /* my_app has only its original 124-byte task frame at this call site. */
-    {rets, r4} = [sp++]
-    sp += 124
-    r3 = ml_main
-    goto r3
+    /* Keep my_app's 124-byte task frame: ml_main runs above it and returns when the
+     * menu asks for the radio. Then clear the hold state (as when Back is released)
+     * and carry on with the stock loop. */
+    call ml_main
+    goto ml_back_released
 
 ml_arm_back_hold:
     r3 = 0x0000c3b2
@@ -296,15 +300,18 @@ rec_stock:
     call r3
     {pc, r14-r4} = [sp++]
 
-/* ---- run loop (never returns) ----------------------------------------- */
+/* ---- run loop (returns when the menu asks for the radio) ---------------
+ * Saves every register the stock caller expects preserved (the JieLi ABI keeps
+ * r4-r14); r10/r11 below are its locals. */
 ml_main:
+    [--sp] = {rets, r14-r4}
     /* The menu stops the resident tracker: its code is about to be replaced. */
     r0 = 0x0002b8b4
     r1 = 0
     [r0+0] = r1
     call ml_check
     r10 = r0
-    if (r10 == 0) goto ml_reset
+    if (r10 == 0) goto ml_main_return
     r11 = 0
 ml_run:
     r0 = r11
@@ -317,14 +324,16 @@ ml_run:
     call r3
     if (r11 != 0) goto ml_back_to_menu
     /* The menu returned: 0 = back to the radio, else the module to run. */
-    if (r0 == 0) goto ml_reset
+    if (r0 == 0) goto ml_main_return
     r11 = r0
     goto ml_run
 ml_load_failed:
-    if (r11 == 0) goto ml_reset
+    if (r11 == 0) goto ml_main_return
 ml_back_to_menu:
     r11 = 0
     goto ml_run
+ml_main_return:
+    {pc, r14-r4} = [sp++]
 
 /* Restart the radio the way stock's cpu_reset does (app+0xC6EC8/0xC6EF4):
  * interrupts off (ROM 0x02001634), PWR_CON 0x1E0000 |= bit 4, spin. Same

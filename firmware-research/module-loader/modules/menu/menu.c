@@ -1,8 +1,15 @@
 /* H9 Toolbox module menu (module 0 of the bundle).
  *
- * Lists the bundle's other modules, then RADIO (restart into the radio) and
- * USB UPDATE (the BR23 USB loader, as holding 8 at power-on). Up/Down move,
- * Menu runs the selection. Returns the module index to run.
+ * Lists the bundle's other modules, then USB UPDATE (the BR23 USB loader, as
+ * holding 8 at power-on). Up/Down move, Menu runs the selection, Back goes
+ * back to the radio without a restart. Returns the module index to run, or 0
+ * for the radio.
+ *
+ * Going back needs the firmware whose loader stub keeps the radio's task frame
+ * (src/stub.s ml_main returns); on the older firmware returning 0 restarts the
+ * radio. Before returning it clears the screen and calls stock's RF refresh and
+ * display redraw (the calls SAT PASS makes after a VFO step), because stock
+ * does not redraw by itself.
  *
  * Holding Back is what opened the menu, so input is ignored until every key
  * has been released. */
@@ -11,7 +18,11 @@
 #include "vfo_persist.h"   /* put the user's VFOs back if SAT TRACK's tracker had changed them */
 
 enum { TITLE_H = 22, ROW_Y = 26, ROW_H = 18, ROWS = 5, FOOT_Y = 117, MAX_ITEMS = 64 };
-enum { ITEM_RADIO = -1, ITEM_USB = -2 };
+enum { ITEM_USB = -2 };
+#ifndef STOCK_REFRESH
+#define STOCK_REFRESH() ((void (*)(unsigned))0x01E58E3E)(0)   /* full RF refresh: reloads both VFOs (satauto.c) */
+#define STOCK_REDRAW() ((void (*)(unsigned))0x01E53306)(0)    /* marks the three display rows for redraw */
+#endif
 
 static void read_entry(const struct h9_api *api, unsigned index, struct h9_entry *entry)
 {
@@ -19,11 +30,11 @@ static void read_entry(const struct h9_api *api, unsigned index, struct h9_entry
 }
 
 /* Item i of the list: the visible modules (vis[], bundle indices), then
- * RADIO and USB UPDATE. */
+ * USB UPDATE. */
 static int item_module(unsigned item, unsigned modules, const uint8_t *vis)
 {
     if (item < modules) return vis[item];
-    return item == modules ? ITEM_RADIO : ITEM_USB;
+    return ITEM_USB;
 }
 
 static void draw_row(const struct h9_api *api, unsigned item, unsigned modules, const uint8_t *vis, unsigned row, int selected)
@@ -34,9 +45,7 @@ static void draw_row(const struct h9_api *api, unsigned item, unsigned modules, 
     const char *name;
     char label[H9_NAME_BYTES + 1];
     int which = item_module(item, modules, vis);
-    if (which == ITEM_RADIO) {
-        name = "RADIO";
-    } else if (which == ITEM_USB) {
+    if (which == ITEM_USB) {
         name = "USB UPDATE";
     } else {
         read_entry(api, (unsigned)which, &entry);
@@ -99,13 +108,13 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         if (first != '.') vis[shown++] = (uint8_t)i;
     }
     modules = shown;
-    unsigned items = modules + 2, selected = 0, top = 0;
+    unsigned items = modules + 1, selected = 0, top = 0;
 
     gfx_fill(0, 0, H9_WIDTH, TITLE_H, GFX_BLUE);
     gfx_text(8, 3, "H9 TOOLBOX", 12, 2, GFX_WHITE, GFX_BLUE);
     gfx_fill(0, TITLE_H, H9_WIDTH, ROW_Y - TITLE_H, GFX_BLACK);
     gfx_fill(0, ROW_Y + ROWS * ROW_H, H9_WIDTH, FOOT_Y - (ROW_Y + ROWS * ROW_H), GFX_BLACK);
-    gfx_text(4, FOOT_Y, "UP/DOWN: MOVE  MENU: RUN", 26, 1, GFX_GREY, GFX_BLACK);
+    gfx_text(4, FOOT_Y, "MENU: RUN   BACK: RADIO", 26, 1, GFX_GREY, GFX_BLACK);
     gfx_fill(0, FOOT_Y + 8, H9_WIDTH, H9_HEIGHT - FOOT_Y - 8, GFX_BLACK);
     draw_list(api, items, modules, vis, top, selected);
 
@@ -117,12 +126,13 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             selected = selected ? selected - 1 : items - 1;
         } else if (key == H9_KEY_DOWN) {
             selected = selected + 1 < items ? selected + 1 : 0;
+        } else if (key == H9_KEY_BACK) {
+            gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);   /* stock redraws only what it thinks changed */
+            STOCK_REFRESH();
+            STOCK_REDRAW();
+            return 0;
         } else if (key == H9_KEY_MENU) {
             int which = item_module(selected, modules, vis);
-            if (which == ITEM_RADIO) {
-                message("RESTARTING");
-                h9_reset();
-            }
             if (which == ITEM_USB) {
                 message("USB UPDATE");
                 h9_usb_loader();

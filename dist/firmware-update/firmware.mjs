@@ -16,8 +16,8 @@ export const STOCK_IMAGE_SHA256 = '74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f2
 export const BUILD = {
   label: 'H9 Toolbox Firmware',
   packageFile: 'h9-toolbox-firmware-v1.0.38.fw',
-  packageSha256: 'b0135e0c066ed724ba6628b21eb2a77fc6bdd87cc25e8c51e5fcd7e0cf5bab0a',
-  imageSha256: 'a87fc7746bdf4e96538e443d6cc9c2db75ec0047c9ab00af3735e9ed937ce6c5',
+  packageSha256: 'f3255fa6e56f408f74244d66949258c65fcd412d4566b5ad79f91bcb71a81197',
+  imageSha256: '883dc4a750ab368fd0cbf7f5cc3aa34ee2689757549ffcef074ce9d2f54f417b',
   // Stock bytes of the sectors the build changes: rebuilds exact stock.
   stockSeedFile: 'h9-toolbox-firmware-stock-sectors.bin',
   stockSeedSha256: 'dbfd634eb54f0c1c931c613ee5085ad3decd26da8db5b727448fb3b1aef217fe',
@@ -58,6 +58,11 @@ export const PREVIOUS = [
     seedFile: 'h9-toolbox-firmware-release3-sectors.bin',
     seedSha256: 'f8eab2841f28227100d5cd373356f84e57858dab495309859416136a7d6be987',
     imageSha256: '6663c809b61d56d0b81c2f4f85225d61c77f124d1041e39c45769954a863c9dd',
+    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
+  { id: 'release4', label: 'H9 Toolbox Firmware (app loader before return-to-radio)', file: 'H9-Toolbox-Firmware-release4-',
+    seedFile: 'h9-toolbox-firmware-release4-sectors.bin',
+    seedSha256: 'f885740bdafb474cce0504aa1eb815a4595ad514a210bc402bcf5372d04eff01',
+    imageSha256: 'a87fc7746bdf4e96538e443d6cc9c2db75ec0047c9ab00af3735e9ed937ce6c5',
     sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
 ];
 const KEY = new Uint8Array([0x4e, 0x61, 0xbc, 0x00]); // 12345678, little endian

@@ -6,9 +6,10 @@ Brick Breaker taken out of main flash; Brick Breaker is now the first
 module. Supersedes the plan in [`../resource-loader/DESIGN.md`](../resource-loader/DESIGN.md).
 
 **On the radio:** hold **Back** for about half a second (as Brick Breaker's
-launcher). A menu lists the modules on the chip, then **RADIO** (restart into
-the radio) and **USB UPDATE** (the BR23 USB loader, as holding 8 at
-power-on). **Up/Down** move, **Menu** runs. When a module returns, the menu
+launcher). A menu lists the modules on the chip, then **USB UPDATE** (the
+BR23 USB loader, as holding 8 at power-on). **Up/Down** move, **Menu** runs,
+**Back** returns to the radio without a restart (the loader keeps the radio's
+task frame and the menu redraws the screen). When a module returns, the menu
 comes back. If no valid module bundle is on the chip, holding Back does
 nothing and the radio keeps running.
 

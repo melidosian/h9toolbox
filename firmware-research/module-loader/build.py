@@ -256,8 +256,9 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
     bb_prog = link([game], LOAD, "brick_breaker_after_stock_setup", out, "mod_brick_breaker")
     bb = {"name": "BRICK BREAKER", "body": text_of(bb_prog, LOAD), "bss": 0,
           "entry": symbol(bb_prog, "brick_breaker_after_stock_setup") - LOAD}
-    # Hardware test for the stub's ml_reset (not shipped in the catalog): a
-    # one-module bundle whose "menu" returns 0 at once.
+    # Hardware test for the stub's return-to-radio path (not shipped in the catalog): a
+    # one-module bundle whose "menu" returns 0 at once, so holding Back should flash and
+    # leave the radio running (older stubs reset here instead).
     reset_test = c_module("MENU", ROOT / "modules" / "reset_test" / "reset_test.c")
     test_bundle = bundle([reset_test])
     parse_bundle(test_bundle)
