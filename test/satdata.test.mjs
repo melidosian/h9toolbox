@@ -11,7 +11,7 @@ const { satellites } = JSON.parse(fixture('satpass-satellites.json').toString('u
 test('the browser packer produces the same bytes as satpack.py', () => {
   const { body, info } = pack(tles, satellites);
   assert.deepEqual(Buffer.from(body), fixture('satpass-satdata.bin'));
-  assert.equal(info.count, 7);
+  assert.equal(info.count, 8);
   assert.equal(info.date, '2026-11-10');
 });
 

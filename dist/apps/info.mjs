@@ -78,7 +78,7 @@ export function mountInfo(ctx) {
         const label = el('label', 'sat-row');
         const box = el('input'); box.type = 'checkbox'; box.checked = selected.has(s.id);
         const text = el('span', 'sat-name', `${s.label}`);
-        const detail = el('span', 'note', ` ${s.name} · up ${s.up.toFixed(3)} / down ${s.down.toFixed(3)} MHz · ${s.tone ? `tone ${s.tone.toFixed(1)} Hz` : 'no tone'}${s.note ? ` · ${s.note}` : ''}`);
+        const detail = el('span', 'note', ` ${s.name} · ${s.up ? `up ${s.up.toFixed(3)} / ` : ''}down ${s.down.toFixed(3)} MHz${s.up ? '' : ' (receive only)'} · ${s.tone ? `tone ${s.tone.toFixed(1)} Hz` : 'no tone'}${s.note ? ` · ${s.note}` : ''}`);
         label.append(box, text, detail);
         box.addEventListener('change', () => { box.checked ? selected.add(s.id) : selected.delete(s.id); saveSelection(selected); });
         rows.append(label);
