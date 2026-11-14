@@ -6,7 +6,8 @@ with commands and hashes, is in [resource-flash-log.md](resource-flash-log.md);
 search it for the addresses below.
 
 Tags: **[HW]** proven on the radio · **[STATIC]** from disassembly of the
-pinned stock image · **[HYP]** a working hypothesis, not proven.
+pinned stock image · **[HYP]** a working hypothesis, not proven ·
+**[PHOTO]** read from a teardown photo (`teardown/`), not electrically tested.
 
 Addresses: *app+X* is an offset into the stock `app.bin`
 (SHA-256 `11a07bc0…`). Code runs at **CPU = 0x01E00100 + app offset**; in
@@ -41,13 +42,13 @@ ROM routines live at `0x0200xxxx`.
 |---|---|
 | Main MCU | JieLi BR23 (chip key `0xF181`) [HW]. CPU about 135,000–200,000 busy-loop iterations per 10 ms tick (C-hello LOOP) [HW]; `clk_set("sys", 240 MHz)` changes nothing measurable, so it already runs fast [HW]. |
 | Main flash | 1 MiB SPI NOR, ID `0x856014` [HW]. |
-| Resource chip | 16 MiB SPI NOR on SPI2 (port A pins 24/26/25, CS = GPIO 23 = bank 1 `0x1E5040` bit 7) [HW]. Reads about 2 MB/s [HW]. |
+| Resource chip | 16 MiB SPI NOR on SPI2 (port A pins 24/26/25, CS = GPIO 23 = bank 1 `0x1E5040` bit 7) [HW]. Reads about 2 MB/s [HW]. Physical part: GigaDevice `25Q128ESIG` (GD25Q128E), 8-lead, on the back face next to the main chip (teardown photo 12) [PHOTO]. |
 | Screen | 160 × 128 RGB565 [HW]; a full-screen write takes 10–30 ms [HW]. Backlight duty = level × 2000 + 2000; stock caps it at 10000 [HW]. |
 | Speaker | BR23 DAC to an amplifier enabled by **PA3** (bank `0x1E5000` bit 3). PA3 must be configured as an **output** (DIR bit 3 = 0) as well as driven high [HW]; the radio app does this at start-up, and stock's speaker writer (app+`0x52228`) only writes OUT. |
 | LED | GPIO 9 (bank `0x1E5000` bit 9) [HW]. |
 | Keypad | Resistor ladders on **two ADC channels (13 and 10)**, matched against voltage windows by the stock scan `0x01E515AC`, with no debounce [STATIC]. A single noisy sample can read as a key; take a key only when two readings in a row agree [HW]. |
 | RF chip registers | Write with `0x01E5070A(reg, value)`, read with `0x01E505FE` [STATIC]. Register `0x30` bit 9 enables the RF chip's audio DAC (receive audio): receive setup writes `0xBDF1` (off), squelch open writes `0xBFF5`, close `0xBDF5` [HW]. |
-| APRS MCU | A separate small MCU (probably ARM Cortex-M) running the 1200-baud AFSK modem; talks to the main MCU over USART2, with a handshake on GPIOB5 [STATIC]. Not identified; research parked. |
+| APRS MCU | A separate small MCU (probably ARM Cortex-M) running the 1200-baud AFSK modem; talks to the main MCU over USART2, with a handshake on GPIOB5 [STATIC]. Not identified; research parked. Teardown 2026-11-13: the board carries a Puya `PY32F003F18P6` (Cortex-M0+, 20 leads) with a 5-hole header beside it (teardown photo 10) [PHOTO]; leading candidate, not yet confirmed against the APRS image. |
 | Receiver chip | Demodulates in hardware and hands the MCUs **audio only**: no IQ or wideband samples (so no TV, no SDR). |
 
 ## 3. Main flash map (1 MiB)

@@ -4393,3 +4393,45 @@ result yet.**
   takes the quick verified path for an exact known image). That build was rebuilt byte for byte (same package hash; the stub without `ml_fw_version`) and added as
   PREVIOUS `release6`; v0.1.4 (`cd1bfd70...`) is BUILD. node tests 133 pass. If a radio is stock except the install's own sectors, the installer still
   does the full recovery (`stock-like`): a possible improvement is to take stock as the restore point there, since those sectors are code, not user data.
+
+## 2026-11-13: teardown photo catalog started
+
+The user is sending photos of a TD-H9 teardown. They are catalogued in
+`firmware-research/teardown/` (index in `teardown/README.md`, one analysis note
+per photo in `teardown/analysis/`). Findings are visual only until marked otherwise.
+
+### 2026-11-13: teardown photos 01–05 (front face), visual only
+
+Catalogued in `teardown/` with one analysis note each. Read from the photos: board
+silk `H9PLUS-V1.2`, `25/12/24`, lot `393856A260509P18411423`; a `BAT` test pad under
+the LCD; five 0.2 Ω (`R200`) power resistors and an air coil under the LCD; a row of
+5 empty plated holes at the lower-left keypad edge (likely a debug/programming
+header, not probed); U.FL coax to a top-edge antenna board (GPS is a guess); speaker
+contacts are two springs. No IC markings yet: the back face has not been photographed.
+Nothing here is hardware-verified.
+
+### 2026-11-13: teardown photo 06 (top end), visual only
+
+The tan block on the top-edge antenna board is a ceramic patch antenna (silver top,
+single off-centre feed, trimmed edges), facing the top of the radio; standard GPS
+patch construction. Corrects the photo 01 note, which left open that it might be
+foam. GPS use is still inferred: no receiver chip seen, no firmware link made.
+
+### 2026-11-13: teardown photos 07–14 (front macros, first back-face chips), visual only
+
+Chip markings read from photos (catalogue in `teardown/`):
+- `PUYA PY32F003 F18P6 5L1TA1B`: Puya PY32F003F18P6, Cortex-M0+, 20 leads, at the
+  bottom corner of the back face. The row of 5 plated holes noted in photos 03–05 is
+  right beside it. Leading candidate for the unidentified APRS MCU. **Not confirmed**:
+  the APRS image's vector table has not been checked against this part, and the
+  header has not been traced or probed.
+- `GigaDevice 25Q128ESIG ENK091`: GD25Q128E, 16 MiB NOR. Physical match for the
+  resource chip on SPI2. JEDEC ID not cross-checked in this entry.
+- `2904 JRC`: NJM2904 dual op-amp in the analogue section (photo soft, position on
+  the board not yet placed).
+- `24.000` crystal beside a 48-lead square chip with no visible marking: taken to be
+  the JieLi BR23 main chip from context only.
+- 7 bare pads in two silk-boxed groups (3 + 4, square pad = pin 1 of the 4-group) at
+  the board edge beside the main chip. Functions unknown.
+Handbook rows "Resource chip" and "APRS MCU" updated with these, tagged [PHOTO].
+No separate 1 MiB flash chip seen; it is probably inside the main chip (unverified).

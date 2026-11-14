@@ -18,3 +18,6 @@ private/
 
 # Local Sites hosting project metadata; GitHub Pages uses the workflow above.
 .openai/
+
+# TD-H9 teardown photos: withheld until published deliberately
+firmware-research/teardown/photos/
