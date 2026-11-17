@@ -51,6 +51,12 @@ TD-H9 owners report successful use of the Bluetooth programmer on several radios
 
 The checked-in workflow publishes `dist/` directly to GitHub Pages on each push to `main`, or when **Deploy GitHub Pages** is run manually. GitHub Pages serves the site over HTTPS. Web Bluetooth still requires a supported browser; hosting on Pages does not add iPhone Safari support.
 
+## Development site
+
+The Cloudflare Pages project uses `dev` as its production branch, with preview builds disabled. In Cloudflare Pages, use no framework preset, run `bash scripts/build-dev-site.sh` from the repository root, and publish `dist`. The build includes `/kiss-tnc/`, sends a `noindex` header, and records the deployed commit at `/dev-build.txt`.
+
+For `dev.h9toolbox.com`, add the hostname in the project's **Custom domains** tab, then create a `dev` CNAME at Squarespace pointing to the project's `pages.dev` hostname.
+
 ## Current workflow
 
 1. Enable the TD-H9's Bluetooth programming mode.

@@ -4393,3 +4393,13 @@ result yet.**
   takes the quick verified path for an exact known image). That build was rebuilt byte for byte (same package hash; the stub without `ml_fw_version`) and added as
   PREVIOUS `release6`; v0.1.4 (`cd1bfd70...`) is BUILD. node tests 133 pass. If a radio is stock except the install's own sectors, the installer still
   does the full recovery (`stock-like`): a possible improvement is to take stock as the restore point there, since those sectors are code, not user data.
+
+## 2026-11-17 H9 Toolbox development site
+
+- The public H9 Toolbox site responds over HTTPS from GitHub Pages. Its
+  workflow deploys on pushes to `main`. The `dev` branch adds a main-branch
+  check to that job for manual runs and a Cloudflare Pages build script.
+- The Cloudflare staging check found 92 assets including the main site,
+  app manager, programmer, firmware installer, and KISS TNC. The staged
+  site sends `X-Robots-Tag: noindex` and includes the build's commit SHA in
+  `/dev-build.txt`. Squarespace is authoritative for `h9toolbox.com`.
