@@ -4409,3 +4409,9 @@ result yet.**
   `h9toolbox-dev.pages.dev`. Verified HTTPS, the deployed SHA and KISS TNC
   JavaScript at `dev.h9toolbox.com`, and an HTTPS 200 from GitHub Pages at
   `h9toolbox.com`. Site tests reported 120 passes and one skip.
+
+## 2026-11-17 — Smart Beacon on the normal radio screen
+
+- Back from an armed APRS BEACON opens hidden `.APRS BG`, which retains the existing Smart or Timed schedule and returns to the normal radio screen using loader API 2. The resident tick reads the modem ring with its own cursor so the stock reader still sees GPS and APRS data. Holding Back to open the Toolbox menu pauses the resident module before replacing its RAM slot. Reopening Beacon restores the armed session and schedule from a checked snapshot when it is still valid. Hold Menu in Beacon to stop it.
+- Background TX pins the configured APRS TX setting, side and frequency at handoff. It waits for that side and frequency on the normal radio screen, and checks the stock periodic beacon's idle conditions and keyed RF state before calling the stock KISS sender. Resident ticks leave the selected channel alone. The foreground screen uses 6,705 bytes and the resident module 4,125 bytes, within their respective RAM bounds.
+- Host screen and scheduler tests passed under ASan/UBSan, including Back, resume without a duplicate first beacon, and rejection of a damaged snapshot. The loader and App Manager tests passed. Both modules use the existing v0.1.4 loader. The single-module packages under `module-loader/build/background-beacon/modules/` are `aprs_beacon.h9mod` SHA-256 `1572935ddc6267ae1c453001059f8627b11d4ccc314927299902d988d0c2e000` and `aprs_bg.h9mod` SHA-256 `e6fa53c1093307497daa4aa6409fbb556cb875b8a8ea8637eac8267cde9cb8b3`. Live radio testing is pending.
