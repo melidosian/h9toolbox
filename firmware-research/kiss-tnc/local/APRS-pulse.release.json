@@ -1,0 +1,8 @@
+{
+ "kind": "aprs_release_image",
+ "flashable": true,
+ "image_sha256": "32bd00314f210d0585c2fefdebc7d95da3bf8e9238678f05da167cfe8717f012",
+ "image_bytes": 384,
+ "image_base": 134225920,
+ "description": "APRS controller liveness diagnostic (not stock; bit-bangs PB6, the stock USART1 TX pin, without PLL or USART)"
+}

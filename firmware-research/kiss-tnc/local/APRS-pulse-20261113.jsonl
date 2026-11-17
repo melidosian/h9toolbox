@@ -1,0 +1,7 @@
+{"baud": 38400, "event": "attempt_started", "image_bytes": 384, "image_sha256": "32bd00314f210d0585c2fefdebc7d95da3bf8e9238678f05da167cfe8717f012", "port": "/dev/cu.usbmodem1101", "utc": "2026-11-14T03:49:58.155895+00:00"}
+{"acknowledged_end": 128, "event": "block_acknowledged", "length": 128, "offset": 0, "utc": "2026-11-14T03:49:58.395284+00:00"}
+{"acknowledged_end": 256, "event": "block_acknowledged", "length": 128, "offset": 128, "utc": "2026-11-14T03:49:58.560712+00:00"}
+{"acknowledged_end": 384, "event": "block_acknowledged", "length": 128, "offset": 256, "utc": "2026-11-14T03:49:58.726141+00:00"}
+{"acknowledged_end": 384, "event": "exit_acknowledged", "utc": "2026-11-14T03:49:58.727252+00:00"}
+{"ended": "timeout", "event": "post_exit_capture", "hex": "", "length": 0, "seconds": 3.0, "utc": "2026-11-14T03:50:01.787365+00:00"}
+{"acknowledged_end": 384, "error": null, "event": "transfer_acknowledged", "utc": "2026-11-14T03:50:01.790589+00:00"}

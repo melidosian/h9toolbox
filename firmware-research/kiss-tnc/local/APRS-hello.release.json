@@ -1,0 +1,8 @@
+{
+ "kind": "aprs_release_image",
+ "flashable": true,
+ "image_sha256": "d02683bff771bdac67e8c6c130df80e1066a4e70414e3d5deb84c00d098405a0",
+ "image_bytes": 512,
+ "image_base": 134225920,
+ "description": "APRS controller hello diagnostic (not stock; prints HELLO A..E on USART1 at five candidate baud divisors)"
+}

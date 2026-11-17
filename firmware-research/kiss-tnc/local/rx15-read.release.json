@@ -1,0 +1,9 @@
+{
+ "kind": "aprs_release_image",
+ "flashable": true,
+ "image_sha256": "03d113944844e6aa9d25d67e6c12eb3832ea36a2757871f3ef378804b4d5917f",
+ "image_bytes": 17408,
+ "image_base": 134225920,
+ "description": "APRS-1.0.15 + rx15 (offset 0x321A 0x12->0x11) + READ: sub-command 5 of command 0x11 (hook BL at 0x08005C0A, handler 104 B at 0x08006398)",
+ "base_image_sha256": "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33"
+}

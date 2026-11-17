@@ -1,0 +1,8 @@
+{
+ "kind": "aprs_release_image",
+ "flashable": true,
+ "image_sha256": "cfd484d0ff628d43076633d40e6263a0da8182162dfa77526dab40fc140a41da",
+ "image_bytes": 512,
+ "image_base": 134225920,
+ "description": "APRS controller beacon diagnostic (not stock; prints HELLO A..J on USART1 forever: 115,200 and 38,400 baud at five candidate clocks)"
+}

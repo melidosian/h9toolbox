@@ -1,0 +1,9 @@
+{
+ "kind": "aprs_release_image",
+ "flashable": true,
+ "image_sha256": "17d53fbf989cdb7ffa5356b31cb78d7630da5510cf7f516a5c058fb3a4a1dd40",
+ "image_bytes": 17304,
+ "image_base": 134225920,
+ "description": "APRS-1.0.15 with one byte changed at file offset 0x321A (0x12 -> 0x11): accept received frames of 15 bytes",
+ "base_image_sha256": "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33"
+}

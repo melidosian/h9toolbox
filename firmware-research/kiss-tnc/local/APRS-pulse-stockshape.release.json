@@ -1,0 +1,8 @@
+{
+ "kind": "aprs_release_image",
+ "flashable": true,
+ "image_sha256": "d3dc914105b2747686015f60ab826819493205b9fc16df1bcb17d8ec50991bdd",
+ "image_bytes": 17304,
+ "image_base": 134225920,
+ "description": "APRS controller liveness diagnostic (not stock; PB6 pulses with stock reset address and image length)"
+}
