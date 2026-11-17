@@ -4403,3 +4403,9 @@ result yet.**
   app manager, programmer, firmware installer, and KISS TNC. The staged
   site sends `X-Robots-Tag: noindex` and includes the build's commit SHA in
   `/dev-build.txt`. Squarespace is authoritative for `h9toolbox.com`.
+- Cloudflare Pages deployed `9d067abb391012bc1d67e2a1f49ac86fbeb304c2`
+  from `dev`. Automatic deploys are enabled for `dev` and previews for
+  other branches are disabled. The Squarespace `dev` CNAME points at
+  `h9toolbox-dev.pages.dev`. Verified HTTPS, the deployed SHA and KISS TNC
+  JavaScript at `dev.h9toolbox.com`, and an HTTPS 200 from GitHub Pages at
+  `h9toolbox.com`. Site tests reported 120 passes and one skip.

@@ -53,9 +53,11 @@ The checked-in workflow publishes `dist/` directly to GitHub Pages on each push 
 
 ## Development site
 
-The Cloudflare Pages project uses `dev` as its production branch, with preview builds disabled. In Cloudflare Pages, use no framework preset, run `bash scripts/build-dev-site.sh` from the repository root, and publish `dist`. The build includes `/kiss-tnc/`, sends a `noindex` header, and records the deployed commit at `/dev-build.txt`.
+[Open the development site](https://dev.h9toolbox.com/). Pushes to `dev` deploy automatically to the `h9toolbox-dev` Cloudflare Pages project. Preview builds for other branches are disabled.
 
-For `dev.h9toolbox.com`, add the hostname in the project's **Custom domains** tab, then create a `dev` CNAME at Squarespace pointing to the project's `pages.dev` hostname.
+The project runs `bash scripts/build-dev-site.sh` from the repository root and publishes `dist`. The build includes `/kiss-tnc/`, sends a `noindex` header, and records the deployed commit at `/dev-build.txt`.
+
+Squarespace DNS points `dev.h9toolbox.com` to `h9toolbox-dev.pages.dev` via a CNAME record. Both hostnames serve the same HTTPS site.
 
 ## Current workflow
 
