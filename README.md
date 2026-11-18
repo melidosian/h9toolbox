@@ -16,9 +16,10 @@ the channel screen for a menu of apps; each loads into RAM from the radio's
   While APRS runs it follows the APRS RX/TX channel settings and listens with
   squelch open and the speaker muted.
 - **Brick Breaker**, the game that started this project, now one app among others.
-- **App Manager** (https://h9toolbox.com/apps/): adds, updates and removes apps
-  over Bluetooth, shows the space left, and changes the boot logo. Everything
-  is read back to verify.
+- **App Manager** (https://h9toolbox.com/apps/) adds, updates and removes apps,
+  shows the space left, and changes the boot logo over Bluetooth or experimental
+  USB-C. Everything is read back to verify. For USB-C, use a data cable and
+  connect with the radio powered on to its normal channel screen.
 
 Install it with the web flasher (https://h9toolbox.com/firmware-update/,
 USB-C, desktop Chrome or Edge): it backs up the radio first, upgrades stock,

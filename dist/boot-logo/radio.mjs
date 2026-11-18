@@ -1,4 +1,4 @@
-// TD-H9 resource-flash service session over the Bluetooth programming link.
+// TD-H9 resource-flash service session over Bluetooth or USB serial.
 // Ported from prototypes/resource-reader/app.mjs, whose read and write paths
 // were proven on hardware (2026-11-08): bulk reads at about 6.5 KiB/s with the
 // fixed 15 ms link, and guarded sector erase/program with a status check after
@@ -7,8 +7,8 @@
 import { readBlockReply } from '../protocol.mjs';
 import {
   BANK_SIZE, BLOCK, BULK_HEADER, BULK_SIZES, LINK_FIXED_ADDRESS, LINK_STOCK_ADDRESS, LOGO_ADDRESS, RAM_SELECT_ADDRESS, RAM_SIZE,
-  LOGO_BYTES, OP, SECTOR, assembleBulk, bulkSlotAddress, controlFrame, crc16, dataFrame, hex,
-  logoSectorPlan, parseBulkReply, parseStatus, readPlan, statusAddress,
+  LOGO_BYTES, OP, SECTOR, assembleBulk, bulkSlotAddress, checkRange, controlFrame, crc16, dataAddress, dataFrame, hex,
+  logoSectorPlan, parseBulkReply, parseStatus, statusAddress,
 } from './resource.mjs?v=20261108a';
 
 const MAGIC = Uint8Array.of(0x50, 0x56, 0x4f, 0x4a, 0x48, 0x5c, 0x14);
@@ -19,17 +19,19 @@ const NOTIFY = '0000ff01-0000-1000-8000-00805f9b34fb';
 const MAX_RETRIES = 5;
 const ERASED_CRC = 0xe03e;
 const CHECK_EVERY = 16; // blocks between write-status checks (SECTOR / BLOCK = 128)
+const USB_BUFFER_SIZE = 64 * 1024;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 export class BulkUnsupported extends Error {}
 export class Stopped extends Error {}
 
 export class ResourceRadio {
-  // write(bytes): sends one GATT write. log(message, level): console-style.
-  constructor({ write, log = () => {}, linkDelayMs = 1500 }) {
+  // write(bytes) sends one complete clone request.
+  constructor({ write, log = () => {}, linkDelayMs = 1500, transport = 'bluetooth' }) {
     this.write = write;
     this.log = log;
     this.linkDelayMs = linkDelayMs;
+    this.transport = transport;
     this.queue = [];
     this.wake = null;
     this.checksumMode = 'auto';
@@ -43,7 +45,7 @@ export class ResourceRadio {
     this.stopRequested = false;
   }
 
-  // Feed one notification. Bulk packets (B7 5A seq len) may arrive split
+  // Feed a Bluetooth notification or serial chunk. Bulk packets (B7 5A seq len) may arrive split
   // across notifications larger than the link MTU and are reassembled by
   // their length byte; everything else is reply bytes.
   receive(bytes) {
@@ -151,39 +153,40 @@ export class ResourceRadio {
 
   // 32-byte reads (works on every service version; about 1 KiB/s).
   async readSlow(start, length, onProgress) {
+    checkRange(start, length);
     const output = new Uint8Array(length);
-    const steps = [...readPlan(start, length)];
-    const blocks = length / BLOCK;
     const began = performance.now();
-    let done = 0, index = 0, bank = -1, retries = 0;
+    let offset = 0, bank = -1, retries = 0;
     await this.enterProgramming();
-    while (index < steps.length) {
-      this.checkStop();
-      const step = steps[index];
-      try {
-        if (step.kind === 'bank') {
-          const state = await this.selectBank(step.bank);
-          if (!state.ready) throw new Error('Flash stopped reporting ready.');
-          bank = step.bank;
-        } else {
-          if (Math.floor(step.chip / BANK_SIZE) !== bank) throw new Error('Bank selection lost.');
-          output.set(await this.readBlock(step.address), step.chip - start);
-          done++;
-          if (done % 16 === 0 || done === blocks) onProgress(done / blocks, done * BLOCK / ((performance.now() - began) / 1000));
+    try {
+      while (offset < length) {
+        this.checkStop();
+        const chip = start + offset;
+        const nextBank = Math.floor(chip / BANK_SIZE);
+        try {
+          if (bank !== nextBank) {
+            const state = await this.selectBank(nextBank);
+            if (!state.ready) throw new Error('Flash stopped reporting ready.');
+            bank = nextBank;
+          }
+          output.set(await this.readBlock(dataAddress(chip)), offset);
+        } catch (error) {
+          if (this.stopRequested || error instanceof Stopped || ++retries > MAX_RETRIES) throw error;
+          this.log(`Retry ${retries} reading flash at 0x${chip.toString(16)}: ${error.message}`, 'warn');
+          await this.leaveProgramming();
+          await this.enterProgramming();
+          bank = -1;
+          continue;
         }
-        index++;
+        offset += BLOCK;
         retries = 0;
-      } catch (error) {
-        if (error instanceof Stopped || ++retries > MAX_RETRIES) throw error;
-        this.log(`Retry ${retries}: ${error.message}`, 'warn');
-        await this.leaveProgramming();
-        await this.enterProgramming();
-        while (index > 0 && steps[index].kind !== 'bank') index--;
-        done = steps.slice(0, index).filter(entry => entry.kind === 'data').length;
-        bank = -1;
+        if (offset % (16 * BLOCK) === 0 || offset === length) {
+          onProgress(offset / length, offset / ((performance.now() - began) / 1000));
+        }
       }
+    } finally {
+      await this.leaveProgramming();
     }
-    await this.leaveProgramming();
     return { bytes: output, seconds: (performance.now() - began) / 1000, method: '32-byte' };
   }
 
@@ -285,6 +288,8 @@ export class ResourceRadio {
 
   // onProgress(fraction, bytesPerSecond)
   async readRange(start, length, onProgress = () => {}) {
+    // The firmware sends bulk packets only through the Bluetooth stack.
+    if (this.transport === 'serial') return this.readSlow(start, length, onProgress);
     try {
       return await this.readFast(start, length, onProgress);
     } catch (error) {
@@ -295,7 +300,7 @@ export class ResourceRadio {
     }
   }
 
-  // Timing of each write (diagnostic): the GATT write itself, then the wait
+  // Timing of each write (diagnostic): sending the request, then the wait
   // for the radio's 06. uploadPack logs a summary per sector.
   async sendWrite(frame) {
     const began = performance.now();
@@ -343,7 +348,7 @@ export class ResourceRadio {
       // Same fixed 15 ms, latency-0 link as fast reads: every block is a
       // Bluetooth round trip, so the link interval sets the write speed. The
       // read-back below restores the stock link when it finishes.
-      const link = parseBulkReply(await this.readBlock(LINK_FIXED_ADDRESS));
+      const link = this.transport === 'bluetooth' ? parseBulkReply(await this.readBlock(LINK_FIXED_ADDRESS)) : null;
       if (link) {
         linkRequested = link.status === 0;
         this.log(`Requested a fixed 15 ms, latency-0 link for writing: ${link.statusText}.`, link.status === 0 ? 'info' : 'warn');
@@ -421,6 +426,69 @@ export async function connectBluetooth({ log = () => {}, onDisconnect = () => {}
     if (device.gatt.connected) device.gatt.disconnect();
     throw error;
   }
+}
+
+// Web Serial reaches the clone handler with the radio powered on normally.
+export async function connectUsb({ log = () => {}, onDisconnect = () => {} } = {}) {
+  const serial = globalThis.navigator?.serial;
+  if (!serial) throw new Error('USB-C requires desktop Chrome or Edge over HTTPS.');
+  const known = (await serial.getPorts()).filter(port => {
+    const { usbVendorId, usbProductId } = port.getInfo();
+    return usbVendorId === 0x4c4a && usbProductId === 0x4155;
+  });
+  const port = known.length === 1 ? known[0] : await serial.requestPort();
+  await port.open({ baudRate: 115200, bufferSize: USB_BUFFER_SIZE });
+  if (!port.readable || !port.writable) {
+    await port.close().catch(() => {});
+    throw new Error('The USB serial port disconnected while opening.');
+  }
+  const reader = port.readable.getReader();
+  let writer = port.writable.getWriter();
+  let sent = 0;
+  let closing;
+  const radio = new ResourceRadio({ transport: 'serial', log, write: async bytes => {
+    if (closing) throw new Error('USB-C radio disconnected.');
+    // Chromium can split a write at the serial data pipe's ring boundary.
+    // The radio expects each clone request to arrive in one piece.
+    if (sent + bytes.length > USB_BUFFER_SIZE) {
+      await writer.close();
+      writer.releaseLock();
+      if (closing || !port.writable) throw new Error('USB-C radio disconnected.');
+      writer = port.writable.getWriter();
+      sent = 0;
+    }
+    await writer.write(bytes);
+    sent += bytes.length;
+  } });
+
+  const reading = (async () => {
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        radio.receive(value);
+      }
+    } catch (error) {
+      if (!closing) log(`USB serial: ${error.message}`, 'warn');
+    }
+  })();
+
+  function disconnect() {
+    if (!closing) {
+      radio.stopRequested = true;
+      closing = (async () => {
+        await reader.cancel().catch(() => {});
+        await reading;
+        reader.releaseLock();
+        writer.releaseLock();
+        await port.close().catch(error => log(`USB serial close: ${error.message}`, 'warn'));
+        onDisconnect();
+      })();
+    }
+    return closing;
+  }
+  void reading.then(disconnect);
+  return { radio, name: 'TD-H9 (USB-C)', disconnect };
 }
 
 export { crc16 };

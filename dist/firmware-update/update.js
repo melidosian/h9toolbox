@@ -462,7 +462,7 @@ async function performWrite(direction) {
     showResult(direction === 'update' && target.kind === 'build'
       ? { title: `${BUILD.label} installed and verified`,
           text: `All ${work.length} changed sectors were written and every firmware sector's CRC matches the package (${seconds}).`,
-          steps: ['Disconnect USB and power-cycle the radio.', 'Open the App Manager, connect over Bluetooth, and install apps (APRS, Brick Breaker) and a boot logo.', 'On the radio, hold Back for the app menu.'],
+          steps: ['Power-cycle the radio so it starts normally.', 'Open the App Manager, connect over Bluetooth or experimental USB-C, and install apps (APRS, Brick Breaker) and a boot logo.', 'On the radio, hold Back for the app menu.'],
           action: { href: '../apps/', label: 'Open the App Manager' } }
       : { title: direction === 'update' ? 'Firmware written and verified' : backup.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
           text: `All ${work.length} changed sectors were written and every firmware sector's CRC matches ${direction === 'update' ? 'the package' : backup.source === 'hosted-stock' ? 'official stock v1.0.38' : 'your backup'} (${seconds}).`,

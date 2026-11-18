@@ -4415,3 +4415,25 @@ result yet.**
 - Back from an armed APRS BEACON opens hidden `.APRS BG`, which retains the existing Smart or Timed schedule and returns to the normal radio screen using loader API 2. The resident tick reads the modem ring with its own cursor so the stock reader still sees GPS and APRS data. Holding Back to open the Toolbox menu pauses the resident module before replacing its RAM slot. Reopening Beacon restores the armed session and schedule from a checked snapshot when it is still valid. Hold Menu in Beacon to stop it.
 - Background TX pins the configured APRS TX setting, side and frequency at handoff. It waits for that side and frequency on the normal radio screen, and checks the stock periodic beacon's idle conditions and keyed RF state before calling the stock KISS sender. Resident ticks leave the selected channel alone. The foreground screen uses 6,705 bytes and the resident module 4,125 bytes, within their respective RAM bounds.
 - Host screen and scheduler tests passed under ASan/UBSan, including Back, resume without a duplicate first beacon, and rejection of a damaged snapshot. The loader and App Manager tests passed. Both modules use the existing v0.1.4 loader. The single-module packages under `module-loader/build/background-beacon/modules/` are `aprs_beacon.h9mod` SHA-256 `1572935ddc6267ae1c453001059f8627b11d4ccc314927299902d988d0c2e000` and `aprs_bg.h9mod` SHA-256 `e6fa53c1093307497daa4aa6409fbb556cb875b8a8ea8637eac8267cde9cb8b3`. Live radio testing is pending.
+
+## 2026-11-18 App Manager over USB-C serial
+
+- **Static evidence:** decoded the stock v1.0.38 app (SHA-256 `11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3`).
+  The serial wrapper at app+`0x78A6A` calls the shared clone handler at app+`0x5CF18` and supplies USB send callbacks for transport 2.
+  The handler reaches the resource service patches at app+`0x5D018` (32-byte reads, including the selected bank and high data window)
+  and app+`0x5D122` (guarded writes). PTT+2 exposes `4C4A:4155` HID only on the Mac. App Manager needs the normal channel screen.
+- The App Manager offers experimental Web Serial at 115200 baud and checks for the resource service before enabling writes.
+  USB-C uses the existing 32-byte clone reads and guarded write frames. Bulk reads and link timing commands call the Bluetooth stack
+  directly, so the USB path skips them. App bundles and boot logos use their existing storage layout and read-back checks.
+- **Simulated:** fragmented serial replies, verified bundle install/read/remove, verified logo rewrite, stock firmware refusal, and unplug cleanup.
+  Desktop Chrome loaded the page and catalog and passed Connect USB-C, initial modules-slot read, and Disconnect with a simulated port.
+- **Live USB-C (macOS):** the normal firmware exposed a serial interface at `4C4A:4155`. An exclusive native serial read passed 1,500
+  consecutive app-storage blocks in 11.886 s and 260 paced reads in 4.907 s. The browser sometimes received no reply, and the old
+  retry restarted the bank and hit the same failure again. The 32-byte reader now reselects the bank and resumes at the missing block.
+  With that change alone the existing 92,195-byte bundle verified in 73 s, with repeated timeouts.
+- **Browser framing:** the first lost request was reproducible at chip `0xCC1D80`. After 75 handshake, status and directory request bytes
+  and 108 four-byte data reads, that request occupies outgoing offsets 507–510, straddling the second 255-byte browser buffer boundary.
+  Later captures also hit predicted boundaries. Chromium backs Web Serial with a ring buffer of the requested size.
+  App Manager now uses a 64 KiB buffer and drains and recreates its writer between requests before a frame would straddle the boundary.
+  The browser read the same bundle in 24 s with zero retries and a matching directory SHA-256, then parsed all 22 modules.
+  The writer rollover and interrupted reads passed in simulation. The live browser check read the installed bundle.
