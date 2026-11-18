@@ -3,7 +3,9 @@ import { flashAprs, IMAGE_SIZE, IMAGES, isAprsRadio, RADIO_FILTER, STOCK_URL, ve
 const ids = ['prepare', 'stockFile', 'saveStock', 'imageState', 'deviceState',
   'connect', 'target', 'confirmMode', 'flash', 'saveJournal', 'progress', 'progressText', 'status'];
 const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
-const serial = navigator.serial;
+const platform = navigator.userAgentData?.platform || navigator.platform;
+const macOS = /^mac/i.test(platform);
+const serial = macOS ? null : navigator.serial;
 const images = {};
 let port = null;
 let busy = false;
@@ -11,7 +13,7 @@ let writing = false;
 let journal = [];
 
 function ready() {
-  return Boolean(port && images.stock && images[ui.target.value]);
+  return Boolean(serial && port && images.stock && images[ui.target.value]);
 }
 
 function render() {
@@ -159,5 +161,6 @@ window.addEventListener('beforeunload', event => {
   }
 });
 
-if (!serial) status('USB-C access requires desktop Chrome or Edge over HTTPS.');
+if (macOS) status('macOS writes are disabled after a failed hardware test. Save the stock image for Windows recovery.');
+else if (!serial) status('USB-C access requires desktop Chrome or Edge over HTTPS.');
 render();
