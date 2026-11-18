@@ -4410,6 +4410,73 @@ result yet.**
   JavaScript at `dev.h9toolbox.com`, and an HTTPS 200 from GitHub Pages at
   `h9toolbox.com`. Site tests reported 120 passes and one skip.
 
+## 2026-11-17 — APRS modem firmware restore
+
+### Vendor stock APRS recovery confirmed (2026-11-17)
+
+- With the radio on `APRS Update` (PTT+7) and Windows `COM4` at 38,400 baud,
+  the user ran the bundled TIDRADIO `Upgrade.exe` with the pinned stock
+  APRS-1.0.15 image (`1dbbc104…`, 17,304 bytes). After reboot, the user
+  confirmed APRS Info shows `V1.0.15`. This demonstrates a running modem
+  and a working internal version-query round trip. Packet decode and GNSS
+  reception were not tested in this recovery check.
+- Compared the pinned vendor executable (`b96e1aa2…`) with the checked-in
+  flasher. The block order, frame encoding, checksum and exit command agree.
+  Vendor `_update.Form1.sp_Open` sets DTR and RTS before opening the Windows
+  serial port. `sp_DataReceiveClear` then reads bytes until a 20 ms read
+  timeout. The Python code sets line state on an open pyserial port and calls
+  `reset_input_buffer()` without waiting for a quiet interval. Vendor
+  `sp_DataReceive` polls for seven buffered bytes, then reads them. Both tools
+  check status `0x10` on the seven-byte exit acknowledgment and close on
+  success. The vendor does no flash readback.
+- The four earlier same-hash stock journals are macOS USB serial transfers.
+  Each logged 136 block acknowledgments and exit acknowledgment, with no
+  post-reboot version readback. The stricter Python write-ACK rule therefore
+  did not stop those recorded runs. The host and updater changed together in
+  the successful comparison. USB serial buffering, timing and initial line
+  state are candidates. No byte-level capture of the successful Windows run
+  or the earlier macOS attempts is available to isolate the cause.
+
+### Toolbox stock APRS restore confirmed on Windows (2026-11-17)
+
+- Updated `aprs_flasher.py` to configure DTR and RTS before opening the port,
+  drain input until 20 ms of serial silence as the vendor does, and save raw
+  block and exit replies in the existing journal. The startup drain stops
+  after 3 seconds of continuous input. Block order and reply checks are
+  unchanged. All 15 focused tests passed.
+- With the user's confirmation that the radio was in PTT+7 APRS Update mode,
+  flashed the pinned stock APRS-1.0.15 image (`1dbbc104…`, 17,304 bytes) on
+  Windows `COM4` at 38,400 baud. The startup drain discarded zero bytes.
+  All 136 block replies were `54 49 44 00 01 13 14`, with the last 24-byte
+  block at offset `0x4380`. Exit reply was `54 49 44 00 01 10 11`.
+  Elapsed time through exit acknowledgment was 22.705 seconds. Local journal
+  `output/aprs-1.0.15/APRS-stock-toolbox-20261117T200752Z.jsonl` has SHA-256
+  `b816d40ea0afd343e21ce7606f917a26d10ca1fdf37d14fb8d4ad05e4014868d`.
+- The user rebooted normally and confirmed APRS Info shows `V1.0.15`.
+  This verifies the Windows stock flash and internal version query. No
+  post-flash packet or GNSS check was reported. Because the host and startup
+  handling differed from the earlier macOS runs, this does not isolate the
+  cause of their failure to produce a verified boot.
+
+- Follow-up on the Mac attempts: the pinned stock main image
+  (`11a07bc0…`) translates host write `0x03` to an internal UART `JL 0x0D`
+  command (`0x01E7878E` → `0x01E786BA` → `0x01E5B4AA`). A valid modem-side
+  `PY 02 01 0D` reply triggers the host's `TID 00 01 13 14` at
+  `0x01E79066` → `0x01E7871E(1)`. The older `THD` transcription was wrong.
+  On host exit `0xFF`, `0x01E787AE` calls `0x01E7871E(2)` to send
+  `TID 00 01 10 11` before `0x01E787BA` sends `JL 0x55` to the modem. The
+  final host acknowledgment can therefore be logged before the modem has
+  processed the exit. A failed exit or boot is consistent with the journals.
+  Its cause remains unverified without an internal UART trace.
+- The captured branch's old Python source and the updated source generate
+  the same 137 messages for stock, SHA-256 of concatenated bytes
+  `b7e3b4568c03d075852cd0977639729423df57d5871fc2fa4c0c8cae20da3dbd`.
+  The four Mac journals lack raw bytes and the exact running source.
+  Median block intervals were 165.19–165.40 ms on the Mac and 166.42 ms on
+  the successful Windows run. The first block acknowledgment arrived
+  about 19 ms later on Windows and the new drain discarded zero bytes.
+  This does not show a corrupt payload, timing failure, or macOS driver bug.
+
 ## 2026-11-17 — Smart Beacon on the normal radio screen
 
 - Back from an armed APRS BEACON opens hidden `.APRS BG`, which retains the existing Smart or Timed schedule and returns to the normal radio screen using loader API 2. The resident tick reads the modem ring with its own cursor so the stock reader still sees GPS and APRS data. Holding Back to open the Toolbox menu pauses the resident module before replacing its RAM slot. Reopening Beacon restores the armed session and schedule from a checked snapshot when it is still valid. Hold Menu in Beacon to stop it.
