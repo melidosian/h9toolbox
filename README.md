@@ -33,6 +33,7 @@ Firmware reverse-engineering notes, offline analysis, the Windows/Linux USB-C fl
 
 - [VFO control discovery](prototypes/vfo-control/README.md) contains the local Bluetooth remote-control experiment and its current hardware observations.
 - [Firmware research](firmware-research/README.md) contains the analysis, replacement-source work, USB flasher, and HID recovery tools.
+- [TD-H9 KISS TNC for Pat](firmware-research/kiss-tnc/README.md) includes the main and APRS updates and the local Bluetooth packet bridge.
 - `private/downloads/` holds local radio backups, probe captures, and official firmware packages. It is ignored by Git because radio data can contain private settings. `private/downloads/migration-manifest.json` records the original download paths and SHA-256 hashes.
 - `archive/sites-source/` and `archive/sites-source-history.bundle` preserve the earlier Sites source and its Git history. The active H9 Toolbox site remains in `dist/`.
 

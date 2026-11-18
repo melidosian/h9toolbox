@@ -4525,3 +4525,10 @@ result yet.**
   `1775b82` used the 20 ms startup drain and received all expected block
   and exit replies. APRS Info still did not return the modem version.
   The patched image is available for a Windows boot and packet test.
+
+## 2026-11-18 TD-H9 KISS and Pat upload
+
+- Windows APRS Update completed with the RX15 and unsigned receive-byte patch. APRS Info reported V1.0.15 after reboot. A Winlink information frame containing `0xFF` reached Bluetooth and Pat received a message. The APRS image SHA-256 is `3a70e2f48283cfd0d06fb29a08f462fc0b8302898e09d41946d5f74205daf741`.
+- The main image adds raw AX.25 through the AF00 Bluetooth service using the stock PTT and modem UART. The running app matched the published H9 Toolbox base plus six pinned patch spans. Rebuilding through the factory container produced the exact tested package, SHA-256 `0bede1c07c996d631ed7f2e584573f8fae4803e0cb3c0ccb5133bb80092c364a`. The radio backup stayed local.
+- On the Mac, the 32-byte host packet limit fragmented the login. An 80-byte limit let K9ESV-10 acknowledge it in one data frame. The first message upload then stalled after proposal acceptance on Pat’s standalone 19-byte transfer header. A 100 ms batch window let the host send that header with the beginning of the body. At 1200 baud with one outstanding frame, a 1.60 s BLE TX interval and a 0.70 s RX-to-TX guard, the gateway acknowledged the data and Pat recorded a successful upload.
+- The [KISS setup](kiss-tnc/README.md) includes the verified firmware, the portable launcher and the pinned tncd patch. macOS was used for the over-the-air host test. Linux and Windows host builds were verified offline.
