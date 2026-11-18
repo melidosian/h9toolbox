@@ -27,6 +27,8 @@ The builder applies the exact tested changes to the repo’s pinned H9 Toolbox m
 
 ### APRS modem
 
+The [experimental dev-site updater](https://dev.h9toolbox.com/aprs-update/) uses Web Serial in desktop Chrome or Edge. It supports the pinned packet fix and stock recovery image. The browser path has been tested with a simulated radio. Use the Windows procedure below for the hardware-verified route.
+
 Use Windows for the hardware-verified update path. Before entering update mode, have the modified image, its release manifest, and the stock APRS 1.0.15 recovery image ready. The [stock image reference](../h9-firmware-research/README.md#aprs-and-pi32-work) gives its source and SHA-256. Both images are 17,304 bytes. The APRS modem firmware requires its own stock recovery image.
 
 Run this preflight in PowerShell from the repo root. Set `$stock` to your copy of the verified stock image. The modified and stock hashes should match `image_sha256` and `base_image_sha256`, respectively, in the release manifest. The `plan` command runs without opening a serial port.

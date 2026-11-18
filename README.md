@@ -57,7 +57,7 @@ The checked-in workflow publishes `dist/` directly to GitHub Pages on each push 
 
 [Open the development site](https://dev.h9toolbox.com/). Pushes to `dev` deploy automatically to the `h9toolbox-dev` Cloudflare Pages project. Preview builds for other branches are disabled.
 
-The project runs `bash scripts/build-dev-site.sh` from the repository root and publishes `dist`. The build includes `/kiss-tnc/`, sends a `noindex` header, and records the deployed commit at `/dev-build.txt`.
+The project runs `bash scripts/build-dev-site.sh` from the repository root and publishes `dist`. The build includes `/kiss-tnc/` and the [experimental APRS modem flasher](https://dev.h9toolbox.com/aprs-update/), sends a `noindex` header, and records the deployed commit at `/dev-build.txt`.
 
 Squarespace DNS points `dev.h9toolbox.com` to `h9toolbox-dev.pages.dev` via a CNAME record. Both hostnames serve the same HTTPS site.
 
