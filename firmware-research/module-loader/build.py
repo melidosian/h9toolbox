@@ -53,6 +53,15 @@ HEAP_END_SITE, HEAP_END_OLD = 0x05FA9E, bytes.fromhex("c5ff00bf0200")
 # app+0x78A9E, "c2ff 4883 e701"): retargeted to the stub's ml_serial_write (src/stub.s explains why).
 SERIAL_WRITE_SITE, SERIAL_WRITE_OLD = 0x78AA0, bytes.fromhex("4883e701")
 LOAD, SLOT_END = 0x29F00, 0x2BF00
+APRS_BOOT_SITE = 0x88186
+APRS_SERVICE_RAM = 0x29C00
+# S2 control allowlist and pre-program erased-block check in the pinned bb-s2 base.
+S2_WRITE_GUARDS = ((0xA52A4, 0xA542C, "ml_s2_allowed"),
+                   (0xA535A, 0xA548E, "ml_s2_program_check"))
+KISS_MANIFEST = RESEARCH / "kiss-tnc" / "main_kiss_patch.json"
+KISS_MANIFEST_SHA256 = "2f9b8b2f155f762c2e4a5f13a8892429fcc0ab09dd755f2aa941e1abe1e58c74"
+KISS_HELPER = 0xA7C7C
+KISS_CALLS = {0x5DB40: 0xA7CAA, 0x5DB6A: 0xA7CB6, 0x5DB86: 0xA7CE8, 0x870E0: 0xA7CF8}
 SLOT_DIRECTORY, SLOT_DATA, SLOT_LIMIT = 0xCC0000, 0xCC1000, 0xCE0000
 
 BUNDLE_MAGIC, BUNDLE_VERSION = b"H9MODS01", 1
@@ -279,7 +288,43 @@ def call_bytes(target: int, site: int) -> bytes:
     return code
 
 
-def build_firmware(stock: bytes, stock_package: Path, out: Path) -> dict:
+def apply_dev_kiss(app: bytearray, stub_end: int) -> tuple[dict, set[int]]:
+    """Move the pinned position-independent KISS helpers after the loader stub."""
+    raw = KISS_MANIFEST.read_bytes()
+    if sha256(raw).hexdigest() != KISS_MANIFEST_SHA256:
+        raise ValueError("KISS manifest differs from the release audited for relocation")
+    manifest = json.loads(raw)
+    helper_start = (stub_end + 3) & ~3
+    delta = helper_start - KISS_HELPER
+    edits = []
+    for patch in manifest["patches"]:
+        site = int(patch["offset"], 16)
+        before = bytes.fromhex(patch["before"])
+        code = bytes.fromhex(patch["after"])
+        if site == KISS_HELPER:
+            site = helper_start
+            if not CAVE <= stub_end <= site or site + len(code) > TABLES:
+                raise ValueError("KISS helpers do not fit between the loader and resource-service tables")
+            helper_bytes = len(code)
+        elif site in KISS_CALLS:
+            target = KISS_CALLS[site]
+            if code[:4] != call_bytes(target, site):
+                raise ValueError(f"KISS call at app+{site:#x} differs from its audited target")
+            code = call_bytes(target + delta, site) + code[4:]
+        if app[site:site + len(before)] != before:
+            raise ValueError(f"KISS patch overlaps changed bytes at app+{site:#x}")
+        edits.append((site, code))
+
+    for site, code in edits:
+        app[site:site + len(code)] = code
+    sectors = {(offset + 0x5100) & ~0xFFF
+               for site, code in edits for offset in (site, site + len(code) - 1)}
+    return {"source_package_sha256": manifest["package_sha256"],
+            "helper_app_offset": hex(helper_start), "helper_bytes": helper_bytes}, sectors
+
+
+def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool = False,
+                   disable_morse: bool = False, dev_kiss: bool = False) -> dict:
     if not H9TB_RAW.is_file():
         raise SystemExit(f"Build H9 Toolbox Firmware first: resource-service/build.py --stage bb-s2 ({H9TB_RAW})")
     base = H9TB_RAW.read_bytes()
@@ -292,7 +337,12 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path) -> dict:
     if stock[CAVE:TABLES] != b"\xff" * (TABLES - CAVE) or stock[OLD_LAUNCHER:SVC] != b"\xff" * (SVC - OLD_LAUNCHER):
         raise ValueError("Brick Breaker's caves are not erased in stock")
 
-    stub_prog = link([assemble(ROOT / "src" / "stub.s", out)], IMAGE_BASE + CAVE, "ml_hotkey", out, "stub")
+    stub_source = ROOT / "src" / "stub.s"
+    if aprs_mute:
+        combined = out / "stub_with_mute.s"
+        combined.write_text(stub_source.read_text() + "\n" + (ROOT / "src" / "aprs_mute.s").read_text())
+        stub_source = combined
+    stub_prog = link([assemble(stub_source, out)], IMAGE_BASE + CAVE, "ml_hotkey", out, "stub")
     stub = bytearray(text_of(stub_prog, IMAGE_BASE + CAVE))
     version_text = (ROOT / "VERSION").read_text().strip()      # H9 Toolbox Firmware version, "major.minor.patch"
     major, minor, patch_no = (int(part) for part in version_text.split("."))
@@ -319,8 +369,28 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path) -> dict:
     if api_at < 0 or struct.unpack_from("<I", patched, api_at + 24)[0] != version_word or struct.unpack_from("<I", patched, api_at + 4)[0] < 2:
         raise ValueError("the image's API table does not carry the firmware version")
     patched[HOOK:HOOK + 4] = call_bytes(CAVE, HOOK)
-    patched[HEAP_END_SITE + 2:HEAP_END_SITE + 6] = LOAD.to_bytes(4, "little")
+    patched[HEAP_END_SITE + 2:HEAP_END_SITE + 6] = APRS_SERVICE_RAM.to_bytes(4, "little")
     patched[SERIAL_WRITE_SITE:SERIAL_WRITE_SITE + 4] = serial_write.to_bytes(4, "little")
+    for site, original, name in S2_WRITE_GUARDS:
+        if base[site:site + 4] != call_bytes(original, site):
+            raise ValueError(f"Resource write guard at {site:#x} differs from the pinned S2 call")
+        patched[site:site + 4] = call_bytes(symbol(stub_prog, name) - IMAGE_BASE, site)
+    mute_sites = ((0x7B7A0, 0x5224C, "ml_mute_squelch"), (0x706A2, 0x52228, "ml_mute_volume"))
+    if aprs_mute:
+        for site, original, name in mute_sites:
+            expected_call = call_bytes(original, site)
+            if stock[site:site + 4] != expected_call or base[site:site + 4] != expected_call:
+                raise ValueError(f"APRS mute hook at {site:#x} differs from stock")
+            patched[site:site + 4] = call_bytes(symbol(stub_prog, name) - IMAGE_BASE, site)
+    boot_call = call_bytes(0x515C6, APRS_BOOT_SITE)
+    if stock[APRS_BOOT_SITE:APRS_BOOT_SITE + 4] != boot_call or base[APRS_BOOT_SITE:APRS_BOOT_SITE + 4] != boot_call:
+        raise ValueError("APRS state boot hook differs from stock")
+    patched[APRS_BOOT_SITE:APRS_BOOT_SITE + 4] = call_bytes(symbol(stub_prog, "ml_aprs_boot") - IMAGE_BASE, APRS_BOOT_SITE)
+    if disable_morse:
+        sys.path.insert(0, str(ROOT))
+        import morse_disable
+        patched = morse_disable.apply(stock, patched)
+    kiss, kiss_sectors = apply_dev_kiss(patched, CAVE + len(stub)) if dev_kiss else (None, set())
     raw = out / "h9_toolbox_modules_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)
 
@@ -334,6 +404,11 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path) -> dict:
     original, target = parse_firmware(stock_package).image, parse_firmware(package).image
     changed = {o for o in range(0, len(original), 4096) if original[o:o + 4096] != target[o:o + 4096]}
     expected = H9TB_SECTORS | {(HEAP_END_SITE + 0x5100) & ~0xFFF, (SERIAL_WRITE_SITE + 0x5100) & ~0xFFF}
+    expected |= kiss_sectors
+    if aprs_mute:
+        expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in mute_sites}
+    if disable_morse:
+        expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in morse_disable.patches(stock)}
     if changed != expected:
         raise ValueError(f"changed sectors {sorted(map(hex, changed))}, expected {sorted(map(hex, expected))}")
     return {
@@ -344,19 +419,25 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path) -> dict:
         "stub_bytes": len(stub), "stub_sha256": sha256(stub).hexdigest(),
         "firmware_version": version_text,
         "stub_symbols": {n: hex(symbol(stub_prog, n)) for n in ("ml_hotkey", "ml_main", "ml_api", "ml_read")},
-        "heap_end": hex(LOAD),
+        "heap_end": hex(APRS_SERVICE_RAM),
+        "aprs_service_ram": {"start": hex(APRS_SERVICE_RAM), "end": hex(LOAD)},
         "serial_write": hex(serial_write),
+        "resource_write_protection": {"start": "0x3fc000", "end_exclusive": "0x400000"},
+        "morse_disabled": {"enabled": disable_morse, "menu_labels_retained": True, "space_reclaimed": 0, "hardware_tested": False},
+        "aprs_mute": {"enabled": aprs_mute, "setting": "build-time", "hardware_tested": False},
+        "dev_kiss": kiss,
     }
 
 
-def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path) -> dict:
+def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
+          aprs_mute: bool = False, disable_morse: bool = False, dev_kiss: bool = False) -> dict:
     stock = stock_image.read_bytes()
     if sha256(stock).hexdigest() != STOCK_SHA256:
         raise ValueError("Expected the exact official v1.0.38 main application")
     if sha256(stock_package.read_bytes()).hexdigest() != STOCK_PACKAGE_SHA256:
         raise ValueError("Expected the exact official v1.0.38 .fw package")
     out.mkdir(parents=True, exist_ok=True)
-    firmware = build_firmware(stock, stock_package, out)
+    firmware = build_firmware(stock, stock_package, out, aprs_mute, disable_morse, dev_kiss)
     modules = build_modules(out, toolchain)
     data = bundle(modules)
     parse_bundle(data)
@@ -386,17 +467,19 @@ def main() -> int:
     parser.add_argument("--stock-image", type=Path, required=True)
     parser.add_argument("--stock-package", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "build")
+    parser.add_argument("--aprs-mute", action="store_true", help="Experimental normal-mode CH-B speaker gate")
+    parser.add_argument("--disable-morse", action="store_true", help="Experimental CW entry, key and message guards")
+    parser.add_argument("--dev-kiss", action="store_true", help="Include the KISS main firmware changes from dev")
     args = parser.parse_args()
     bundled = RESEARCH / "toolchain" / "jieli" / "jieli-linux-toolchains-20260730.1"
     toolchain = Path(os.environ.get("JIELI_TOOLCHAIN", bundled)).expanduser().resolve()
     if not (toolchain / "pi32v2").is_dir():
         raise SystemExit(f"No JieLi toolchain at {toolchain}: run sh firmware-research/toolchain/jieli/setup.sh")
     print(json.dumps(build(args.stock_image.resolve(), args.stock_package.resolve(), toolchain,
-                           args.output.resolve()), indent=1))
+                           args.output.resolve(), args.aprs_mute, args.disable_morse, args.dev_kiss), indent=1))
     print("Offline build only; not hardware tested")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

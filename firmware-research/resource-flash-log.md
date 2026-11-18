@@ -4542,3 +4542,65 @@ result yet.**
 ## 2026-11-18 macOS Chrome APRS boot failure
 
 - The user reported APRS Info stayed on `Querying…` after flashing the KISS APRS image in Mac Chrome. The open browser session showed 17,304 bytes acknowledged and the completed-transfer message, which follows the exit acknowledgment. This reproduced the post-reboot symptom from native macOS writes. The page now disables macOS writes and keeps the hash-checked stock recovery download available. The Windows serial updater remains the verified recovery path.
+
+## 2026-11-18 — APRS firmware continuation on the Mac
+
+- Reconstructed the available cloud source from chat records over pinned base
+  `25422163`. Loader API 3 reserves `0x29C00–0x29EFF` and clears it at startup.
+  Beacon keeps its session through module overlays and its one-minute retry
+  through clock rollover. The existing background tick still pauses while
+  Toolbox owns `my_app`.
+- The private November 17 readback of main flash `0xEA000–0xFBFFF` is 72 KiB,
+  SHA-256 `0fb13a7df0b151f55e8fcc13c614be4bbe755749f4fea97a5328bbd837f1c4be`.
+  The first 17 sectors contain data. `0xFB000` was entirely erased in that
+  readback. An offline Pi32v2 link at candidate address `0x01EF6000` fits the
+  service, dispatcher and settings journal in 3,308 bytes, SHA-256
+  `14e2fdf60b849bba765dcdfff068508c0fee7904eb2be30091d4dcdc71847f3a`.
+  This link is separate from the firmware build. The stock modem writer
+  drops batches if its stock reader stalls, so a second cursor alone cannot
+  supply continuous GNSS updates. Stock PTT and Bluetooth KISS share RF state.
+  The remaining execution and TX checks are in the [resident plan](module-loader/resident-service/TX-CONTEXT-PLAN.md).
+- Resource flash `0x3FC000`, `0x3FD000`, `0x980000` and the GAME directory sector
+  at `0xA1F000` were blank in the November 9 backup. Current contents are
+  unknown. Experimental loader guards S2 erase/begin at app+`0xA52A4` and
+  the per-block pre-program check at `0xA535A`. Both reject `0x3FC000–0x3FFFFF`.
+  The browser uploader also protects that range and retains read-back for
+  pre-existing overlapping packs. The journal has no hardware binding and
+  refuses to overwrite an unrecognized or torn sector. A known-good prior
+  record remains readable after an interrupted alternate-sector write.
+- The compiled normal-mode CH-B speaker gate is build-time only. Bluetooth
+  audio and decode require verification. Morse guards cover both terminal
+  entry points, the keying branch and message dispatch. The menu still shows
+  Morse and code space remains occupied. The locale label tables and stable
+  dispatch IDs are recorded in [Morse removal](module-loader/MORSE-REMOVAL.md).
+- Both experimental build options passed the exact changed-sector check.
+  Combined package SHA-256 `9cc54abd1e1c8e0728a8ec3fed5d3b8450158be1f8846e9198383024fef44c43`.
+  Beacon and background modules are 6,761 and 4,158 bytes respectively.
+  122 browser tests, 12 loader tests, two Morse tests, the assembled mute
+  gate test, nine simulated HID restore tests and the APRS/journal host
+  tests passed. The stock-base satellite tracker test reports 12 failures
+  with the generated satellite data. No radio USB updater was attached.
+  No radio write, transmission, push or release occurred.
+
+## 2026-11-18 — SmartBeacon rebuild with the `dev` packet firmware
+
+- Used `dev` at `8879e70c223ffb970cd4e262173468d4fa34b6a7`. Both standalone
+  packet images rebuilt byte-for-byte from the pinned factory packages.
+  Main KISS SHA-256 `0bede1c07c996d631ed7f2e584573f8fae4803e0cb3c0ccb5133bb80092c364a`.
+  APRS modem RX15 and unsigned `0xFF` SHA-256
+  `3a70e2f48283cfd0d06fb29a08f462fc0b8302898e09d41946d5f74205daf741`.
+- The KISS helpers' original app+`0xA7C7C` span overlaps the expanded loader.
+  `--dev-kiss` places the 248-byte block at app+`0xA7D20–0xA7E17` on this
+  build. The four external calls target the same offsets within the block.
+  The block's 20 relative branches and calls land within it. The RX helper
+  still calls the stock packet parser after forwarding to the Bluetooth queue.
+  The `dev` auto-channel receive patch is retained. The scan found the expected
+  changes only and confirmed 56 bytes of padding before the resource tables.
+- The combined app-only package validated against factory Type-C v1.0.38.
+  SHA-256 `daf623d791525d6cf3c3a6d708bce81fcf6a81f6e0f0a9aeec3c761b9bd81c7c`.
+  The 20-module bundle matches the prior build (SHA-256
+  `d1ae531ad0e404aff04446e215bfb6ba45c2f81a8edfa9af4aa3f0688e1a8964`).
+  The rebuilt bundle passed the App Manager parser test after the full site
+  suite ran with 133 passes and that test skipped. The loader, APRS updater,
+  mute, Morse and targeted C tests passed. The satellite tracker still reports
+  its 12 baseline fixture failures. The combined main image needs radio validation.

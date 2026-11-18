@@ -78,6 +78,13 @@ On Windows, extract the toolchain outside OneDrive (it is large) and set
 `$env:JIELI_TOOLCHAIN`; Docker cannot mount the session temp folder, so build
 inside the repository.
 
+For the offline SmartBeacon build with the packet changes from `dev`, add
+`--aprs-mute --disable-morse --dev-kiss` and use a dedicated output directory.
+The builder places the pinned KISS helpers after the loader stub, checks the
+original instructions at all patch sites, and records the placement in the
+manifest. The RX15 and unsigned-byte modem fixes run on the second processor.
+Rebuild that image with the [KISS build instructions](../kiss-tnc/README.md).
+
 The build checks: the base is the pinned H9 Toolbox app (`1334a32c…`) and
 its hook calls Brick Breaker's launcher; Brick Breaker's caves are erased in
 stock; `game.s` still assembles to the hardware-tested game

@@ -539,6 +539,23 @@ mlcrc_done:
     r0 = r2
     {pc, r5-r4} = [sp++]
 
+/* Keep the S2 uploader out of the two settings candidates, VFO recovery,
+ * and last GPS fix. Check both the control request and each data block. */
+    .globl ml_s2_allowed
+ml_s2_allowed:
+    r3 = 0x01ea552c
+    goto ml_s2_guard
+    .globl ml_s2_program_check
+ml_s2_program_check:
+    r3 = 0x01ea558e
+ml_s2_guard:
+    r2 = r0 >> 14
+    if (r2 != 0xff) goto ml_s2_guard_pass
+    r0 = 0
+    rts
+ml_s2_guard_pass:
+    goto r3
+
 /* ---- serial / USB clone writes: use Bluetooth's sector-aware write ------
  * The clone 'W' handler (app+0x5CF18) serves Bluetooth, the K-plug UART and
  * USB-C serial. Each transport hands it a write routine at [ops+12], called
@@ -566,11 +583,25 @@ mlsw_stock:
     call r4
     {pc, r4} = [sp++]
 
+/* Clear the protected APRS state at my_app startup before any module runs.
+ * Finish with the original stock delay, preserving its argument in r0. */
+    .globl ml_aprs_boot
+ml_aprs_boot:
+    r1 = 0x29c00
+    r2 = 0
+    r3 = 0x29f00
+ml_aprs_clear:
+    [r1+0] = r2
+    r1 += 4
+    if (r1 != r3) goto ml_aprs_clear
+    r3 = 0x01e516c6
+    goto r3
+
 /* ---- what a module gets in r0 ---------------------------------------- */
     .balign 4
 ml_api:
     .long 0x50413948        /* "H9AP" */
-    .long 2                 /* API version: 2 = a module may return 0xFFFF (H9_RETURN_RADIO) to leave for the radio */
+    .long 3                 /* API 3 reserves 0x29C00–0x29EFF and retains H9_RETURN_RADIO */
     .long 0x00cc1000        /* bundle chip address */
     .long 0x00029f00        /* load address */
     .long 0x2000            /* slot bytes */

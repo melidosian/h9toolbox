@@ -3,9 +3,11 @@
     python3 -I -m unittest test_build.py   (from this folder)
 """
 from pathlib import Path
+import json
 import re
 import struct
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parent
@@ -65,7 +67,7 @@ class SerialCloneWrite(unittest.TestCase):
         self.assertIn("if (r0 >= 0x4000) goto mlsw_stock", shim)
         self.assertIn("r3 = 0x01e5027c", shim)                 # Bluetooth's write: it overwrites r3, so r3 may be clobbered
         self.assertIn("goto r3", shim)
-        stock = shim[shim.index("mlsw_stock:"):]
+        stock = shim[shim.index("mlsw_stock:"):shim.index("ml_aprs_boot:")]
         self.assertIn("[--sp] = {rets, r4}", stock)            # r3 (the first-block flag) must survive for the stock routine
         self.assertIn("r4 = 0x01e78348", stock)
         self.assertIn("call r4", stock)
@@ -78,6 +80,80 @@ class SerialCloneWrite(unittest.TestCase):
 
     def test_documented_in_the_loader_source(self):
         self.assertIn("CHIRP issue 12216", STUB)
+
+
+class ResourceWriteProtection(unittest.TestCase):
+    def test_s2_control_and_data_check_the_same_reserved_range(self):
+        from pi32v2isa import objdump, table
+
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            obj = build.assemble(ROOT / "src" / "stub.s", out)
+            origin = build.IMAGE_BASE + build.CAVE
+            stub = build.link([obj], origin, "ml_hotkey", out, "stub")
+        image = build.text_of(stub, origin)
+        decoder = objdump.decoder_for(table.load(), mcpu="r3")
+
+        def instructions(name, count):
+            offset = build.symbol(stub, name) - origin
+            for _ in range(count):
+                _, _, size, instruction = decoder.decode(image, offset)
+                yield offset, size, instruction
+                offset += size
+
+        for _, target, name in build.S2_WRITE_GUARDS:
+            self.assertEqual(next(instructions(name, 1))[2], f"r3 = {build.IMAGE_BASE + target}")
+        shift, branch, deny, ret, allow = instructions("ml_s2_guard", 5)
+        self.assertEqual(shift[2], "r2 = r0 >> 14")
+        match = re.fullmatch(r"if \(r2 != 255\) goto (-?\d+)", branch[2])
+        self.assertIsNotNone(match)
+        self.assertEqual(branch[0] + branch[1] + int(match[1]), allow[0])
+        self.assertEqual((deny[2], ret[2], allow[2]), ("r0 = 0", "rts", "goto r3"))
+        self.assertEqual((0xff << 14, 0x100 << 14), (0x3FC000, 0x400000))
+
+
+class DevKiss(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        manifest = json.loads(build.KISS_MANIFEST.read_text())
+        cls.app = bytearray(b"\xff" * build.TABLES)
+        for entry in manifest["patches"]:
+            site = int(entry["offset"], 16)
+            before = bytes.fromhex(entry["before"])
+            cls.app[site:site + len(before)] = before
+        cls.helper = bytes.fromhex(manifest["patches"][-1]["after"])
+
+    def test_relocates_calls_and_keeps_loader_and_helper_bytes(self):
+        from pi32v2isa import objdump, table
+
+        app = self.app.copy()
+        end = build.KISS_HELPER + 166
+        app[build.CAVE:end] = b"\x5a" * (end - build.CAVE)
+        original_stub = app[build.CAVE:end]
+        report, sectors = build.apply_dev_kiss(app, end)
+        destination = int(report["helper_app_offset"], 16)
+        self.assertEqual(destination, end + 2)
+        self.assertEqual(app[build.CAVE:end], original_stub)
+        self.assertEqual(app[destination:destination + len(self.helper)], self.helper)
+        self.assertEqual(app[0x86328:0x8632C], bytes.fromhex("40200000"))
+        self.assertEqual(app[0x5DB44:0x5DB46], b"\0\0")
+        decode = objdump.decoder_for(table.load(), mcpu="r3").decode
+        for site, target in build.KISS_CALLS.items():
+            _, _, size, call = decode(app, site)
+            self.assertEqual(size, 4)
+            self.assertTrue(call.startswith("call "))
+            self.assertEqual(site + size + int(call[5:]), destination + target - build.KISS_HELPER)
+        self.assertEqual(sectors, {0x62000, 0x8B000, 0x8C000, 0xAC000})
+
+    def test_rejects_existing_patch_and_cave_overflow_before_applying(self):
+        app = self.app.copy()
+        app[0x870E0] ^= 1
+        before = app.copy()
+        with self.assertRaisesRegex(ValueError, "overlaps changed bytes"):
+            build.apply_dev_kiss(app, build.KISS_HELPER)
+        self.assertEqual(app, before)
+        with self.assertRaisesRegex(ValueError, "do not fit"):
+            build.apply_dev_kiss(self.app, build.TABLES - 4)
 
 
 class StubMatchesLayout(unittest.TestCase):
