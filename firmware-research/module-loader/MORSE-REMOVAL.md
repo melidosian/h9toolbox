@@ -1,10 +1,9 @@
-# Morse/CW disable prototype and removal investigation
+# Stock Morse/CW removal
 
-The requested combined APRS build should drop stock Morse/CW. The opt-in
-`--disable-morse` prototype now disables the two identified terminal-entry
-paths, keying branch and CW transmit-message action. It does not hide stock menu labels,
-remove the complete subsystem, or reclaim code/data. Hardware validation is
-still required.
+`--disable-morse` removes the Morse category from the stock menu and blocks
+the traced terminal-entry, keying and transmit-message paths. Stock code and
+saved settings remain in place for compatibility with the factory firmware.
+Hardware validation is pending.
 
 Pinned stock 1.0.38 findings:
 
@@ -26,16 +25,23 @@ Pinned stock 1.0.38 findings:
   in the nine descriptors at app+`0xB3350–0xB3390` (stride 8). The Morse
   label is index 7, followed by GNSS at 8 and APRS at 10. Menu action code
   at app+`0x7694C–0x76966` reads the selected entry through the ID map at
-  `0x16277` before dispatch. A future menu change must preserve those IDs.
+  `0x16277` before dispatch.
   The CW submenu includes terminal, key, speed, tone, power, threshold and message.
 
-Before removal: trace the persisted enable load and all CW dispatch/keying
-paths, disable them consistently even with an existing enabled setting,
-then remove/skip menu entries in every locale. Only reclaim code/data after
-incoming references are demonstrated exclusive. Shared speaker, keypad,
-beep and ordinary RF routines must remain. Bench-test boot/menu/voice/recovery.
+## Root menu
 
-The prototype is partial: feature entry is disabled, not full menu/code removal.
+The top-level builder at app+`0x6D34A` calls `0x6811E` with selector 11.
+The jump table at `0x68136` routes selector 11 to `0x68296`, which fills
+the category list at RAM `0x12C77`. The list includes a count at `0x12C74`.
+The menu's stack helper at `0x68044` copies the 106-byte list when it opens
+a submenu. The selection code reads the resulting category ID for dispatch.
+
+The patch at `0x682B6` writes ten entries and skips ID 7. GNSS, Site Type,
+and APRS retain IDs 8, 9, and 10. The locale label descriptors are shared
+across users of those IDs and keep their stock indices. The replacement
+maintains the original instruction span, return frame and `r0` on exit.
+The other audited entry paths provide separate guards for saved enabled
+settings and stale menu state.
 
 ## Follow-up static trace
 
@@ -75,7 +81,7 @@ conditional enable tests with a short unconditional branch plus two NOPs to
 the same stock Off path, +0x6F5CC. It changes the +0x76990 dispatch halfword
 from 0x0092 to 0x0316, landing at the existing matching-frame epilogue +0x76FAE.
 The keying check at +0x876B2 now branches to its existing inactive path at
-+0x87E38. All four sites require exact stock signatures before applying.
++0x87E38. All five sites require exact stock signatures before applying.
 No RF/audio helper, context allocator/cleanup or saved setting is altered.
 
 Independent review confirmed both decoded branch destinations, matching
@@ -85,7 +91,7 @@ exclude computed indirect entry points. Tests verify exact changed-byte
 bounds, target decoding, wrong-base refusal and conflict refusal. Combined
 build/package changed-sector verification passes with `--aprs-mute --disable-morse`.
 
-Before release, bench-check CW settings already ON/OFF, both terminal/key
-entry modes, message action, exit/back behavior, ordinary voice/keypad/beeps,
-PTT and recovery. Menu labels remain present and stock firmware restored
-later will still see the user's old CW setting. No code space is reclaimed.
+Before release, bench-check startup with the stock CW preference enabled
+and disabled. Exercise menu scrolling, GNSS and APRS entry, ordinary voice,
+keypad tones, PTT and recovery. Reclaiming code space requires a separate
+proof that the instructions have no callers outside CW.

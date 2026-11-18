@@ -28,10 +28,11 @@ boot initialization, not an arbitrary unused-looking address.
 ## Persistence evidence
 
 The M11 app (SHA-256 `b2075a713d072076081ea33b3e32b0e25c9a302d01369c9227c1aaea91352136`)
-uses a four-byte record. App+`0xA7988` reads it with `0x01E52CB2(4, 0x80000, …)`.
-App+`0xA7938` writes it with `0x01E50128` and the same selector and offset.
-That maps to resource flash `0x980000` in the stock `rw_freq` partition.
-RAM `0x2BE80` holds M11's markers, saved selection and runtime gate byte.
+reads two setting bytes at app+`0xA78AA` with `0x01E52CB2(4, 0x80000, dst, 2)`.
+App+`0xA7864` and `0xA7A3A` write one byte each with `0x01E50128`, selector 4,
+and offsets `0x80000` and `0x80001`. The resource addresses are `0x980000` and
+`0x980001` in stock `rw_freq`. The four-byte RAM structure at `0x2BE80` adds
+two runtime markers around those setting bytes.
 
 Toolbox has a power-cut-tested two-sector journal in
 `modules/common/toolbox_settings_pair.c`. The candidates at `0x3FC000` and

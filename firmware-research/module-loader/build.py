@@ -423,7 +423,8 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         "aprs_service_ram": {"start": hex(APRS_SERVICE_RAM), "end": hex(LOAD)},
         "serial_write": hex(serial_write),
         "resource_write_protection": {"start": "0x3fc000", "end_exclusive": "0x400000"},
-        "morse_disabled": {"enabled": disable_morse, "menu_labels_retained": True, "space_reclaimed": 0, "hardware_tested": False},
+        "morse_disabled": {"enabled": disable_morse, "menu_entry_hidden": disable_morse,
+                           "space_reclaimed": 0, "hardware_tested": False},
         "aprs_mute": {"enabled": aprs_mute, "setting": "build-time", "hardware_tested": False},
         "dev_kiss": kiss,
     }
@@ -468,7 +469,7 @@ def main() -> int:
     parser.add_argument("--stock-package", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "build")
     parser.add_argument("--aprs-mute", action="store_true", help="Experimental normal-mode CH-B speaker gate")
-    parser.add_argument("--disable-morse", action="store_true", help="Experimental CW entry, key and message guards")
+    parser.add_argument("--disable-morse", action="store_true", help="Hide stock CW and block its keying and message paths")
     parser.add_argument("--dev-kiss", action="store_true", help="Include the KISS main firmware changes from dev")
     args = parser.parse_args()
     bundled = RESEARCH / "toolchain" / "jieli" / "jieli-linux-toolchains-20260730.1"

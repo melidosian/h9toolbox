@@ -1,4 +1,4 @@
-"""Pinned stock CW-entry/key disable; does not reclaim code or hide menu labels.
+"""Remove CW from the stock menu and disable its known execution paths.
 
 Use the stock disabled branch for both terminal entry paths, and the shared
 menu handler's existing default epilogue for CW transmit-message dispatch.
@@ -14,6 +14,8 @@ ENTRY_GATES = ((0x6F96E, bytes.fromhex('60ff01102cfe')),
 DISABLED_TARGET = 0x6F5CC
 KEY_GATE = (0x876B2, bytes.fromhex('60ff0100c003'), 0x87E38)
 MENU_TABLE, MENU_ENTRY, MENU_EXIT = 0x76982, 0x76990, 0x76FAE
+MENU_ROOT_TAIL = 0x682B6
+MENU_ROOT_STOCK = bytes.fromhex('4027 984a 4028 984b 4029 984c 402b 9840 402a 984d')
 
 
 def patches(stock):
@@ -53,6 +55,28 @@ def patches(stock):
     if stock[MENU_ENTRY:MENU_ENTRY+2] != old:
         raise ValueError('Morse message dispatch differs from stock')
     result.append((MENU_ENTRY, old, struct.pack('<H', (MENU_EXIT-MENU_TABLE)//2)))
+
+    # r1 points to the menu descriptor. Byte 0 is the count and bytes 3–13
+    # are stock category IDs. Keep the first seven IDs and compact 8–10.
+    # The stock initializer returns with r0 = 10 and otherwise leaves r1 alone.
+    if stock[MENU_ROOT_TAIL:MENU_ROOT_TAIL + len(MENU_ROOT_STOCK)] != MENU_ROOT_STOCK:
+        raise ValueError('Morse top-level menu list differs from stock')
+    source = '''
+        r0 = 8
+        b[r1+10] = r0
+        r0 = 9
+        b[r1+11] = r0
+        r0 = 0
+        b[r1+13] = r0
+        r0 = 10
+        b[r1+12] = r0
+        b[r1+0] = r0
+        nop
+    '''
+    code = bytes(next(s for s in elf.read(asm.assemble_source(source)).sections if s.name == '.text').data)
+    if len(code) != len(MENU_ROOT_STOCK):
+        raise ValueError('Morse top-level menu initializer changed size')
+    result.append((MENU_ROOT_TAIL, MENU_ROOT_STOCK, code))
     return result
 
 

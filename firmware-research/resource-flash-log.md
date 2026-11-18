@@ -4604,3 +4604,19 @@ result yet.**
   suite ran with 133 passes and that test skipped. The loader, APRS updater,
   mute, Morse and targeted C tests passed. The satellite tracker still reports
   its 12 baseline fixture failures. The combined main image needs radio validation.
+
+### Stock Morse menu follow-up
+
+- The shared top-level menu selector 11 at app+`0x6811E` fills the list at
+  `0x68296`. The `--disable-morse` build now skips category ID 7 at
+  `0x682B6` and keeps IDs 8–10. The label table and dispatch IDs remain
+  stable across locales. Existing terminal, keying and message guards stay
+  in place. On-device navigation, RF and recovery checks are pending.
+- The combined app-only package with the menu change is
+  `a86229953723522d10526d9efeefac47d9323274aaaa9ea7d4ff6342cb5825f4`.
+  Compared with the prior experimental image, only the Morse menu
+  initializer changes inside the app. The app-only factory-package check
+  and three Morse tests pass. The 20-module bundle is identical.
+- Rechecked the exact M11 image. It reads two bytes at resource `0x980000`
+  and updates those bytes independently. The marker bytes exist in RAM.
+  The corrected call sites are recorded in [APRS mute](module-loader/APRS-MUTE.md).
