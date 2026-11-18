@@ -14,6 +14,7 @@ import sys
 from tempfile import TemporaryDirectory
 import time
 from urllib.request import urlopen
+import webbrowser
 
 HERE = Path(__file__).resolve().parent
 WEB = "http://127.0.0.1:8080/"
@@ -58,6 +59,22 @@ def wait_for_radio(children):
             pass
         time.sleep(0.3)
     raise RuntimeError("Timed out waiting for the H9 Bluetooth KISS connection")
+
+
+def open_pat(children):
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        ensure_running(children)
+        try:
+            with urlopen(WEB, timeout=1):
+                break
+        except OSError:
+            time.sleep(0.3)
+    else:
+        print(f"Pat's web interface is still starting. Open {WEB} when ready.", flush=True)
+        return
+    if not webbrowser.open(WEB):
+        print(f"Open {WEB} in your browser.", flush=True)
 
 
 def run(args):
@@ -112,6 +129,8 @@ def run(args):
         print(f"Open {WEB} on this computer. The terminal shows live AX.25 RX and TX.", flush=True)
         if not args.allow_tx:
             print("Receive-only. Restart with --allow-tx to use Pat's Connect button.", flush=True)
+        if args.open_browser:
+            open_pat(children)
         while True:
             ensure_running(children)
             time.sleep(0.5)
@@ -126,6 +145,7 @@ def main():
     parser.add_argument("--mbox", type=Path, help="Use an alternate Pat mailbox")
     parser.add_argument("--gateway", help="Add an H9 connection alias for this callsign")
     parser.add_argument("--allow-tx", action="store_true", help="Enable RF transmission on manual connect")
+    parser.add_argument("--open-browser", action="store_true", help="Open the Pat web interface when ready")
     try:
         run(parser.parse_args())
     except KeyboardInterrupt:

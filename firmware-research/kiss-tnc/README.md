@@ -1,4 +1,4 @@
-# TD-H9 KISS TNC for Pat
+# TD-H9 KISS TNC for Pat and packet terminals
 
 This setup carried a Winlink upload over 1200-baud AX.25 through K9ESV-10. It pairs the TD-H9 Type-C main firmware with the separate APRS 1.0.15 modem and a local Bluetooth bridge. The same Python host setup targets macOS, Windows, and Linux.
 
@@ -27,18 +27,37 @@ The builder applies the exact tested changes to the repo’s pinned H9 Toolbox m
 
 ### APRS modem
 
-The hardware-verified update path was Windows. Install `pyserial`, power off, then hold **PTT+7** while powering on with USB connected. Confirm **APRS Update** on the radio. Use `aprs_flasher.py ports` to identify its COM port. Run this example in PowerShell from the repo root with your own port and stock recovery image path.
+Use Windows for the hardware-verified update path. Before entering update mode, have the modified image, its release manifest, and the stock APRS 1.0.15 recovery image ready. The [stock image reference](../h9-firmware-research/README.md#aprs-and-pi32-work) gives its source and SHA-256. Both images are 17,304 bytes. The APRS modem firmware requires its own stock recovery image.
+
+Run this preflight in PowerShell from the repo root. Set `$stock` to your copy of the verified stock image. The modified and stock hashes should match `image_sha256` and `base_image_sha256`, respectively, in the release manifest. The `plan` command runs without opening a serial port.
 
 ```powershell
 py -3 -m pip install pyserial
-py -3 firmware-research/h9-firmware-research/aprs_flasher.py flash `
-  firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.bin `
-  --port COM4 --baud 38400 --allow-modified `
-  --release-manifest firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.release.json `
-  --recovery-image "C:\path\to\stock\APRS-1.0.15.bin" --yes
+$flasher = "firmware-research/h9-firmware-research/aprs_flasher.py"
+$image = "firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.bin"
+$manifest = "firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.release.json"
+$stock = "C:\path\to\stock\APRS-1.0.15.bin"
+Get-FileHash -Algorithm SHA256 -LiteralPath $image,$stock
+py -3 $flasher plan $image
 ```
 
-The updater waits for 20 ms of serial silence before the first block. Power-cycle normally and check that **APRS Info** shows **V1.0.15**. If it stays at **Querying…**, restore the stock APRS image in the same mode with the stock file as the target, omitting the modified-image options. The modem patch can also be rebuilt with:
+With USB connected, power the radio off, then hold **PTT+7** while powering on. The screen should show **APRS Update**. List ports and substitute the radio’s actual COM port for `COM4`.
+
+```powershell
+py -3 $flasher ports
+py -3 $flasher flash $image --port COM4 --baud 38400 --allow-modified `
+  --release-manifest $manifest --recovery-image $stock --yes
+```
+
+The updater sets DTR and RTS before opening the port and waits for **20 ms of serial silence** before the first block. A completed transfer has 136 block acknowledgments and an exit acknowledgment. The updater saves them to a JSONL journal. After a normal power cycle, check that **APRS Info** shows **V1.0.15**, then verify an over-the-air packet connection and a received data frame. Earlier Mac runs returned transfer acknowledgments and still showed **Querying…** after reboot.
+
+If the write fails or APRS Info stays on **Querying…**, re-enter **APRS Update** on Windows and restore the stock image from the beginning.
+
+```powershell
+py -3 $flasher flash $stock --port COM4 --baud 38400 --yes
+```
+
+The modem patch can also be rebuilt with:
 
 ```text
 python firmware-research/kiss-tnc/build_aprs_rx.py /path/to/stock/APRS-1.0.15.bin regenerated-aprs.bin
@@ -71,9 +90,15 @@ On Windows, change the build output to `../tncd-h9.exe`. The [tncd patch](host/t
 python run_pat.py --device DEVICE_ID --pat-config "PATH/TO/config.json" --tncd ./tncd-h9 --gateway K9ESV-10 --allow-tx
 ```
 
-4. Open [Pat](http://127.0.0.1:8080/) and choose **Connect → H9 K9ESV-10**, or the alias for your chosen gateway. The terminal shows live AX.25 RX and TX. Press Ctrl+C to stop the three local processes.
+4. Open [Pat](http://127.0.0.1:8080/) and choose **Connect → H9 K9ESV-10**, or the alias for your chosen gateway. To open Pat automatically once its web interface is ready, add `--open-browser` to the launcher command. The terminal shows live AX.25 RX and TX. Press Ctrl+C to stop the three local processes.
 
 The launcher keeps the Pat configuration in a temporary copy and uses the normal Pat mailbox. Use `--mbox PATH` to select a separate mailbox. A manual Connect can transmit everything queued in that mailbox. Omit `--allow-tx` for passive packet monitoring. The launcher disables automatic connections and binds its listeners to loopback.
+
+### Connect a packet terminal
+
+With the launcher running, configure [Paracon](https://paracon.readthedocs.io/en/stable/userguide/#connections) or another AGWPE client for `127.0.0.1:8000` and radio port **0**. The service advertises this port as `Port1 TD-H9 BLE`. Paracon could read the old `TD-H9 BLE` label as port 8 and show BBS replies only in Monitor. Restart the launcher and Paracon after updating an existing copy of the configuration.
+
+One verified over-the-air example is the [McHenry County RACES `PESV` packet BBS](https://mcraces.org/winlink/) on **145.610 MHz FM simplex** with no tone or offset. Enter `PESV` under **Connect To → Call** and leave **Via** blank for a direct connection.
 
 ### Settings from the successful upload
 
