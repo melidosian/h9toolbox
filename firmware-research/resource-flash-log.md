@@ -4504,3 +4504,24 @@ result yet.**
   App Manager now uses a 64 KiB buffer and drains and recreates its writer between requests before a frame would straddle the boundary.
   The browser read the same bundle in 24 s with zero retries and a matching directory SHA-256, then parsed all 22 modules.
   The writer rollover and interrupted reads passed in simulation. The live browser check read the installed bundle.
+
+## 2026-11-18 APRS modem `0xFF` receive fix
+
+- Five checksum-valid copies of the missing on-air `I[0/4]` frame decoded
+  from the H9 speaker. The frame never reached BLE. It carries a `0xFF`
+  byte, while the adjacent frames that reached BLE do not.
+- The queue's pop routine returns an unsigned byte or `-1` for empty.
+  The wrapper's `sxtb r0, r0` at `0x08005E20` converts `0xFF` to `-1`
+  after the byte has been consumed. The parser later rejects the frame
+  at its FCS check. Replacing the sign extension with a NOP in the
+  original RX15 image made the captured frame reach the emulated UART.
+  The same replay preserved all 256 byte values and 15-byte frames and
+  rejected a frame with a corrupt FCS.
+- The resulting image SHA-256 is
+  `3a70e2f48283cfd0d06fb29a08f462fc0b8302898e09d41946d5f74205daf741`.
+  The first Mac transfer used the old updater without the 20 ms startup
+  drain. It reported complete acknowledgments and APRS Info stayed on
+  `Querying…` after reboot. Mac restores of RX15 and stock 1.0.15 with
+  `1775b82` used the 20 ms startup drain and received all expected block
+  and exit replies. APRS Info still did not return the modem version.
+  The patched image is available for a Windows boot and packet test.
