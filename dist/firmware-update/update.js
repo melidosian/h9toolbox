@@ -7,17 +7,24 @@ const $ = id => document.getElementById(id);
 const slides = [...document.querySelectorAll('.guide-slide')];
 const stepIndicators = [...document.querySelectorAll('.guide-steps li')];
 const browserReady = window.isSecureContext && Boolean(navigator.hid?.requestDevice);
-const smartBeacon = {
-  label: 'H9 Toolbox Firmware with SmartBeacon',
-  file: 'smartbeacon/h9-smartbeacon-bench.fw',
-  residentFile: 'smartbeacon/h9-smartbeacon-resident.bin',
+const devBuild = {
+  label: BUILD.label,
+  file: 'dev/h9-toolbox-firmware-v0.1.5.fw',
+  packageSha256: 'e64b6a5f3d5dd17077a392bffc837486a7076e9e52c6cc2b19e34e2a0dec85e0',
+  imageSha256: 'e976a10f89aea4f42757c582bb10cc828018e56bf36eb7b8ee2093748b335e92',
+  residentFile: 'dev/h9-toolbox-aprs-scheduler.bin',
   residentSha256: 'aa6f231787913d7787ba282ea0bf503733b5dfbb19b9bdb1760bded90364959e',
   sectors: [...BUILD.sectors, 0x61000, 0x63000, 0x6d000, 0x74000, 0x75000, 0x7b000, 0x80000, 0x89000, 0x8a000],
+};
+const earlierDevBuild = {
+  id: 'Earlier H9 Toolbox development build',
+  label: 'Earlier H9 Toolbox development build',
+  file: 'dev/h9-toolbox-earlier-dev.fw',
   packageSha256: 'ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04',
   imageSha256: 'c230c64720957d7d8a021c9038c53399c5fd406c40577919fd1ae291cd70dd3d',
 };
-const devSmartBeacon = $('optBuild').hasAttribute('data-smartbeacon');
-const release = devSmartBeacon ? smartBeacon : BUILD;
+const useDevBuild = $('optBuild').hasAttribute('data-dev-firmware');
+const release = useDevBuild ? devBuild : BUILD;
 class BackupRequiredError extends Error {}
 let currentStep = 0;
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
@@ -29,7 +36,7 @@ let currentStep = 0;
 let createdBackup = null;
 // True once the connected radio has been backed up on this page.
 let radioBackedUp = false;
-let target = null, stockSeed = null, buildImage = null, benchImage = null, previousImages = [], backup = null, device = null, hid = null, busy = false;
+let target = null, stockSeed = null, buildImage = null, devImage = null, previousImages = [], backup = null, device = null, hid = null, busy = false;
 let cancelBackup = false, backupRunning = false;
 let firmwareSelection = 0, backupSelection = 0;
 const resumeKey = 'h9-hid-pending-v1';
@@ -167,10 +174,10 @@ function forgetPlan() { $('acknowledge').checked = false; refresh(); }
 function resetBackupOverride() {
   $('skipBackup').checked = false;
 }
-const previousInfo = kind => PREVIOUS.find(item => item.id === kind);
+const previousInfo = kind => previousImages.find(item => item.info.id === kind)?.info;
 // [name, image] pairs of every known image, for classifyRadio.
 function namedImages() {
-  return [['stock', stockSeed ?? target?.image], ['build', buildImage], [smartBeacon.label, benchImage], ...previousImages.map(p => [p.info.id, p.image])]
+  return [['stock', stockSeed ?? target?.image], ['build', buildImage], [devBuild.label, devImage], ...previousImages.map(p => [p.info.id, p.image])]
     .filter(([, image]) => image);
 }
 // Show write errors in place and verified outcomes on the restart slide.
@@ -201,41 +208,41 @@ function showResult(result) {
 async function ensureReferences() {
   if (buildImage && previousImages.length && (stockSeed || target?.kind === 'stock')) return;
   const hosted = await loadHostedBuild();
-  buildImage = hosted.build.image; benchImage = hosted.bench; previousImages = hosted.previous; stockSeed ??= hosted.stock;
+  buildImage = hosted.build.image; devImage = hosted.dev; previousImages = hosted.previous; stockSeed ??= hosted.stock;
 }
 function knownImages() {
   if (target?.kind !== 'build') return [];
   const known = previousImages.map(item => item.image);
-  return devSmartBeacon ? [buildImage, ...known] : known;
+  return useDevBuild ? [buildImage, ...known] : known;
 }
 
-async function loadSmartBeaconFile(file, expectedHash) {
+async function loadReleaseFile(file, expectedHash) {
   const response = await fetch(`./${file}?v=${expectedHash.slice(0, 8)}`);
-  if (!response.ok) throw new Error('The SmartBeacon release file could not be downloaded.');
+  if (!response.ok) throw new Error('The H9 Toolbox release file could not be downloaded.');
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (await sha256(bytes) !== expectedHash)
-    throw new Error('The SmartBeacon release file did not match the published checksum.');
+    throw new Error('The H9 Toolbox release file did not match the published checksum.');
   return bytes;
 }
 
-async function loadSmartBeaconImage() {
-  const bytes = await loadSmartBeaconFile(smartBeacon.file, smartBeacon.packageSha256);
+async function loadDevImage(info) {
+  const bytes = await loadReleaseFile(info.file, info.packageSha256);
   const image = decodePackage(bytes);
-  if (await sha256(image) !== smartBeacon.imageSha256)
-    throw new Error('The SmartBeacon main image did not match the published checksum.');
+  if (await sha256(image) !== info.imageSha256)
+    throw new Error('The H9 Toolbox main image did not match the published checksum.');
   return image;
 }
 
-async function stageSmartBeaconResident() {
-  status('Checking and verifying the SmartBeacon scheduler. Keep USB connected.');
-  phase('Verifying the SmartBeacon scheduler');
-  const bytes = await loadSmartBeaconFile(smartBeacon.residentFile, smartBeacon.residentSha256);
+async function stageAprsScheduler() {
+  status('Checking and verifying the APRS scheduler. Keep USB connected.');
+  phase('Verifying the APRS scheduler');
+  const bytes = await loadReleaseFile(devBuild.residentFile, devBuild.residentSha256);
   const image = new Uint8Array(RESIDENT_END - RESIDENT_START).fill(0xff);
   image.set(bytes);
-  const result = await stageRegion(hid, image, RESIDENT_START, 'SmartBeacon scheduler area',
+  const result = await stageRegion(hid, image, RESIDENT_START, 'APRS scheduler area',
     hid.writeSmartBeaconResident.bind(hid), progress);
   if (result !== 'ready')
-    throw new Error('The SmartBeacon scheduler area contains different data. The updater left it untouched and did not install the main firmware.');
+    throw new Error('The APRS scheduler area contains different data. The updater left it untouched and did not install the main firmware.');
 }
 
 // Fetch the hosted build, its stock seed, and the earlier builds' sectors;
@@ -253,8 +260,13 @@ async function loadHostedBuild() {
   const previous = [];
   for (const [index, info] of PREVIOUS.entries())
     previous.push({ info, image: await loadPreviousImage(new Uint8Array(await previousResponses[index].arrayBuffer()), build.image, info) });
-  const bench = devSmartBeacon ? await loadSmartBeaconImage() : null;
-  return { build, stock, previous, bench };
+  let dev = null;
+  if (useDevBuild) {
+    const [current, earlier] = await Promise.all([loadDevImage(devBuild), loadDevImage(earlierDevBuild)]);
+    dev = current;
+    previous.push({ info: earlierDevBuild, image: earlier });
+  }
+  return { build, stock, previous, dev };
 }
 async function verifyLivePlan(current, changed, resumeSector, reference, known) {
   const targetCrcs = expectedCrcs(target.image);
@@ -290,7 +302,7 @@ async function validateSelectedBackup(announceWaiting = true) {
     if (announceWaiting && file) status('Backup selected. Choose firmware to check it against.');
     refresh(); return;
   }
-  if (!file && !['stock', 'stock-like', 'other', smartBeacon.label].includes(createdBackup.source) && target.kind === 'build') {
+  if (!file && !['stock', 'stock-like', 'other', devBuild.label].includes(createdBackup.source) && target.kind === 'build') {
     // `source` is what the backup scan matched: 'build', or an earlier
     // build's PREVIOUS id (e.g. 'release1').
     if (createdBackup.source === 'build' || previousInfo(createdBackup.source)) {
@@ -351,7 +363,7 @@ function beginFirmwareSelection() {
   $('firmwareHelp').hidden = true;
   $('firmwareHelp').open = false;
   $('status').hidden = true;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; benchImage = null; previousImages = []; backup = null; forgetPlan();
+  ++backupSelection; target = null; stockSeed = null; buildImage = null; devImage = null; previousImages = []; backup = null; forgetPlan();
   return selection;
 }
 
@@ -384,8 +396,8 @@ $('loadBuild').addEventListener('click', async () => {
     status(`Downloading the pinned ${release.label} package and recovery seeds from H9 Toolbox.`);
     const hosted = await loadHostedBuild();
     if (selection !== firmwareSelection) return;
-    target = devSmartBeacon ? { kind: 'build', image: hosted.bench, packageHash: smartBeacon.packageSha256 } : hosted.build;
-    stockSeed = hosted.stock; buildImage = hosted.build.image; benchImage = hosted.bench; previousImages = hosted.previous;
+    target = useDevBuild ? { kind: 'build', image: hosted.dev, packageHash: devBuild.packageSha256 } : hosted.build;
+    stockSeed = hosted.stock; buildImage = hosted.build.image; devImage = hosted.dev; previousImages = hosted.previous;
     $('firmwareFile').value = '';
     $('firmwareState').textContent = `${release.label} · exact .fw verified`;
     status(`${release.label} package, exact stock v1.0.38 seed, and earlier-build sectors verified locally. No radio write sent.`);
@@ -404,7 +416,7 @@ $('loadStockGitHub').addEventListener('click', async () => {
     const stockBytes = await extractPinnedStockFirmware(new Uint8Array(await zipResponse.arrayBuffer()));
     const loaded = await loadStockPackage(stockBytes);
     if (selection !== firmwareSelection) return;
-    target = loaded; buildImage = hosted.build.image; benchImage = hosted.bench; previousImages = hosted.previous; $('firmwareFile').value = '';
+    target = loaded; buildImage = hosted.build.image; devImage = hosted.dev; previousImages = hosted.previous; $('firmwareFile').value = '';
     $('firmwareState').textContent = 'Stock v1.0.38 · pinned GitHub ZIP and extracted .fw verified';
     status('Stock Type-C v1.0.38 package verified locally. The hosted builds are available as fast backup seeds. No radio write sent.');
     await validateSelectedBackup(false);
@@ -515,15 +527,15 @@ async function createBackup() {
   if (source === 'stock') await verifyStockBackup(loaded.image);
   else if (source === 'stock-like') verifyStockCompatible(loaded.image, stockSeed);
   const expected = source === 'build' ? BUILD.imageSha256
-      : source === smartBeacon.label ? smartBeacon.imageSha256 : previousInfo(source)?.imageSha256;
+      : source === devBuild.label ? devBuild.imageSha256 : previousInfo(source)?.imageSha256;
   if (expected && await sha256(loaded.image) !== expected)
     throw new Error('Recovered image differs from the pinned build it matched. No backup accepted.');
   if (cancelBackup) throw new Error('HID backup cancelled. No radio write was sent.');
   $('cancelBackup').disabled = true;
-  const sourceName = source === 'build' ? 'H9-Toolbox-Firmware-'
-      : source === smartBeacon.label ? 'SmartBeacon-Bench-'
-        : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
-  const sourceLabel = source === 'build' ? BUILD.label : source === smartBeacon.label ? smartBeacon.label : previousInfo(source)?.label;
+  const sourceName = source === 'build' || source === devBuild.label ? 'H9-Toolbox-Firmware-'
+    : source === earlierDevBuild.id ? 'H9-Toolbox-Earlier-Dev-'
+      : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
+  const sourceLabel = source === 'build' ? BUILD.label : source === devBuild.label ? devBuild.label : previousInfo(source)?.label;
   const date = new Date().toISOString().slice(0, 10);
   const name = `TD-H9-${sourceName}HID-recovery-${date}.h9hid`;
   const url = URL.createObjectURL(new Blob([archive], { type: 'application/octet-stream' }));
@@ -534,8 +546,8 @@ async function createBackup() {
   status(`${sourceLabel ? `Backup of the installed ${sourceLabel}` : 'Backup'} download started (${recovered.method === 'verified-known-image-seed' ? 'matched a known image' : 'full recovery'}). Keep that file. Protected boot bytes are not in it.`);
   // Choose the restore point the same way as for a selected file.
   await validateSelectedBackup(false);
-  if (source === smartBeacon.label)
-    status('SmartBeacon main firmware backup saved. This backup covers the main firmware only.');
+  if (source === devBuild.label)
+    status('H9 Toolbox firmware backup saved. This file covers the main firmware only.');
   finish(`Backup built and verified in ${formatDuration((performance.now() - backupBegan) / 1000)}`);
 }
 // Check the radio and plan both directions: a full sector-CRC scan, the
@@ -583,11 +595,11 @@ const stockRestart = ['Disconnect USB and power-cycle the radio.', 'Check the fi
 const toolboxRestart = [
   'Disconnect USB and power-cycle the radio.',
   'From the channel screen, hold Back to open the app menu.',
-  devSmartBeacon ? 'Open the SmartBeacon catalog in App Manager and install the matching menu and apps.'
+  useDevBuild ? 'Open the development app catalog in App Manager and install the matching menu and apps.'
     : 'Use the App Manager over Bluetooth or experimental USB-C to add apps or a boot logo.',
 ];
 const appManagerLink = {
-  href: devSmartBeacon ? '../apps/?catalog=smartbeacon' : '../apps/',
+  href: useDevBuild ? '../apps/?catalog=smartbeacon' : '../apps/',
   label: 'Open the App Manager',
 };
 
@@ -618,15 +630,15 @@ async function performWrite(direction) {
       await ensureReferences();
       const image = target.kind === 'stock' ? target.image : stockSeed;
       reference = { image, hash: await sha256(image), source: 'verified-firmware' };
-      if (target.kind === 'stock') known = [buildImage, benchImage, ...previousImages.map(item => item.image)].filter(Boolean);
+      if (target.kind === 'stock') known = [buildImage, devImage, ...previousImages.map(item => item.image)].filter(Boolean);
     }
     const destination = direction === 'update' ? target.image : reference.image;
     const checked = await inspectRadio(reference, known);
     const work = checked[direction];
     const toolbox = direction === 'update' && target.kind === 'build';
     let aprs = null;
-    if (toolbox && devSmartBeacon) await stageSmartBeaconResident();
-    if (toolbox && !devSmartBeacon) {
+    if (toolbox && useDevBuild) await stageAprsScheduler();
+    if (toolbox && !useDevBuild) {
       status('Checking the APRS update file and staging area. Keep USB connected.');
       const response = await fetch(`./${BUILD.aprsStageFile}?v=${BUILD.aprsStageSha256.slice(0, 8)}`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Could not download the staged APRS update file.');

@@ -4990,3 +4990,8 @@ result yet.**
   radio with zero writes, an occupied resident area with zero writes, and
   installation from stock with the scheduler verified before the main write.
   The production updater still selects v0.1.5.
+- The dev updater now names the release H9 Toolbox Firmware v0.1.5
+  and lists SmartBeacon as a feature. It uses the API 5 build with the
+  v0.1.5 version stamp (main package SHA-256 `e64b6a5f3d5dd17077a392bffc837486a7076e9e52c6cc2b19e34e2a0dec85e0`).
+  The scheduler and app hashes are unchanged. The earlier v0.1.4 bench
+  main image remains a recognized input for upgrades.

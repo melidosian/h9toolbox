@@ -10,24 +10,22 @@ mkdir -p dist/aprs-update
 cp prototypes/aprs-update/{index.html,aprs.css,aprs.js,protocol.mjs} dist/aprs-update/
 cp firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.bin dist/aprs-update/
 
-# Publish the matching bench firmware, scheduler image and app bundle on dev.
-smartbeacon_release=firmware-research/module-loader/smartbeacon-release
-(cd "$smartbeacon_release" && sha256sum -c SHA256SUMS)
-mkdir -p dist/firmware-update/smartbeacon
-cp "$smartbeacon_release"/{SHA256SUMS,h9-smartbeacon-bench.fw,h9-smartbeacon-resident.bin,h9-smartbeacon-apps.bin} dist/firmware-update/smartbeacon/
+# Publish the dev build of H9 Toolbox Firmware and its matching files.
+dev_release=firmware-research/module-loader/smartbeacon-release
+(cd "$dev_release" && sha256sum -c SHA256SUMS)
+mkdir -p dist/firmware-update/dev
+cp "$dev_release"/{SHA256SUMS,h9-toolbox-firmware-v0.1.5.fw,h9-toolbox-earlier-dev.fw,h9-toolbox-aprs-scheduler.bin,h9-toolbox-dev-apps.bin} dist/firmware-update/dev/
 rm -f dist/firmware-update/smartbeacon/index.html
-sed -e 's|id="optBuild"|id="optBuild" data-smartbeacon|' \
-  -e 's|H9 Toolbox Firmware v0.1.5</strong>|H9 Toolbox Firmware with SmartBeacon</strong>|' \
-  -e 's|Load H9 Toolbox v0.1.5</button>|Load SmartBeacon firmware</button>|' \
-  -e 's|Includes the app loader, Bluetooth packet support, and an optional APRS modem update.|Adds Smart and Timed APRS beacons, APRS Mute, and the API 5 Toolbox menu.|' \
+sed -e 's|id="optBuild"|id="optBuild" data-dev-firmware|' \
+  -e 's|Includes the app loader, Bluetooth packet support, and an optional APRS modem update.|Includes the Toolbox app loader, Bluetooth packet support, SmartBeacon, timed APRS beacons, and APRS Mute.|' \
   -e 's|<!-- dev-before-install -->|<p class="fine">If you have an armed APRS schedule, disarm it on the radio before entering update mode. An armed schedule can resume on restart.</p>|' \
-  -e 's|H9 Toolbox Firmware also stages the optional APRS modem update if space is available.|The updater verifies the SmartBeacon scheduler before installing the main firmware.|' \
+  -e 's|H9 Toolbox Firmware also stages the optional APRS modem update if space is available.|The updater verifies the APRS scheduler before installing the main firmware.|' \
   dist/firmware-update/index.html > dist/firmware-update/index.html.tmp
 mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
 
-# Offer the catalog built for the H3-style SmartBeacon bench firmware.
+# Offer the catalog built for the dev firmware.
 test -s dist/apps/catalog/smartbeacon/catalog.json
-sed 's|<!-- dev-smartbeacon-catalog -->|<p class="note" id="smartbeaconCatalogLink"><a href="?catalog=smartbeacon">SmartBeacon bench apps</a> · For the matching dev firmware.</p>|' \
+sed 's|<!-- dev-smartbeacon-catalog -->|<p class="note" id="smartbeaconCatalogLink"><a href="?catalog=smartbeacon">Development app catalog</a> · For the dev build of H9 Toolbox Firmware v0.1.5.</p>|' \
   dist/apps/index.html > dist/apps/index.html.tmp
 mv dist/apps/index.html.tmp dist/apps/index.html
 

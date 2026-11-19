@@ -17,7 +17,7 @@
    "Up and Down move or adjust. Menu opens or saves. Back returns one level."
   ],
   "notes": [
-   "Use the matching SmartBeacon bench firmware."
+   "Use the dev build of H9 Toolbox Firmware v0.1.5."
   ],
   "modules": [
    {
