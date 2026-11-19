@@ -11,8 +11,8 @@ The stock timed-beacon call at app+`0x87494` runs the resident TX callback
 before its original timer. The native selector, setup, modem dwell and
 end-TX functions run synchronously on that same task. Before keying, the
 adapter checks the configured APRS selector, both working frequency words,
-the stock TX shift transform and the RF carrier bit used by stock receive
-at app+`0x7B206`. For a borrowed VFO it selects and tunes receive first.
+the stock TX shift transform and the live squelch output at RF register
+`0x0C` bit 1. For a borrowed VFO it selects and tunes receive first.
 The adapter restores the previous selectors and receive tuning after the
 stock TX flag and RF TX-link bit clear. Failed cleanup stops further
 automatic TX until reboot.

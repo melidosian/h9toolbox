@@ -31,8 +31,8 @@
 #define ROUTE_BYTE H9_TX_BYTE(0x11AECu)
 #define TX_SETTING H9_TX_BYTE(0xC533u)
 
-/* The stock dual-watch receive path checks register 0x0c bit 0 at app+0x7B206. */
-enum { RF_TX = 0x4000, RF_CARRIER = 1, WIRE_MAX = 2 * APRS_TX_FRAME_MAX + 10 };
+/* BK4819 register 0x0C bit 1 is the live squelch output. Bit 0 is the IRQ line. */
+enum { RF_TX = 0x4000, RF_CARRIER = 1u << 1, WIRE_MAX = 2 * APRS_TX_FRAME_MAX + 10 };
 
 struct h9_beacon_attempt {
     const struct ts_settings *config;

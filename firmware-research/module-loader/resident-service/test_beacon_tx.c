@@ -10,7 +10,7 @@ static struct h9_runtime_status request;
 static unsigned irq_depth, native_calls, keys, frames, stops, setups, redraws, stock_calls;
 static unsigned keyed, wrong_route, wrong_shift, change_after_key, reject_prepare, fail_stop;
 static unsigned entered_during_stock, consume_during_beacon;
-static unsigned carriers, receiving_side, settles;
+static unsigned carriers, rf_irq, receiving_side, settles;
 
 static uint32_t word(unsigned address)
 {
@@ -30,7 +30,7 @@ static unsigned stock_read(unsigned reg)
     assert(!irq_depth);
     if (reg == 0x30) return keyed ? 0x4000 : 0;
     assert(reg == 0x0c && !keyed);
-    return (carriers >> receiving_side) & 1u;
+    return (((carriers >> receiving_side) & 1u) << 1) | rf_irq;
 }
 static void stock_setup(void);
 static void stock_receive(void) { assert(!keyed && !irq_depth); receiving_side = ram[0x11aec]; }
@@ -164,7 +164,7 @@ static void reset(void)
     put_word(0x11CA8, 14439000); put_word(0x11CAC, 14439000);
     keyed = wrong_route = wrong_shift = change_after_key = reject_prepare = fail_stop = 0;
     entered_during_stock = consume_during_beacon = 0;
-    carriers = receiving_side = settles = 0;
+    carriers = rf_irq = receiving_side = settles = 0;
     irq_depth = native_calls = keys = frames = stops = setups = redraws = stock_calls = 0;
     stock_setup();
 }
@@ -172,6 +172,7 @@ static void reset(void)
 int main(void)
 {
     reset();
+    rf_irq = 1;  /* An unrelated receiver interrupt does not indicate a carrier. */
     consume_during_beacon = entered_during_stock = 1;
     h9_beacon_tx_stock(&board, "pk", 2, external);
     assert(stock_calls == 1 && !board.stock_calls && !native_calls);

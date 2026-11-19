@@ -4863,8 +4863,8 @@ result yet.**
   The worker matches TX results to the pending event and uses the sent
   course for future SmartBeacon turn decisions.
 - The adapter checks the working A/B frequency words and the stock shift
-  calculation before keying. The raw carrier check comes from stock
-  app+`0x7B206–0x7B20C`, which reads RF register `0x0C` and checks bit 0.
+  calculation before keying. The initial build used RF register `0x0C`
+  bit 0 after tracing the stock receive path at app+`0x7B206–0x7B20C`.
   When it borrows a VFO it runs the stock RX tuner and lets it settle before
   checking for a carrier. The native GPS-source branch at app+`0x5C2D8`
   uses coordinate words at `0x12558` and `0x12560` via indexed word loads.
@@ -4897,3 +4897,39 @@ result yet.**
   native satellite fixture reproduced its prior 12 failures. On-radio
   RF frequency, outgoing APRS decode and incoming APRS decode with mute
   enabled remain to be verified. This build has yet to be flashed.
+
+### 2026-11-18 Automatic TX installed on the H9
+
+- Read the live app bundle and both settings sectors over USB before
+  entering PTT + 2. The radio had a saved one-minute Timed schedule armed,
+  using B Lock at 144.390 MHz. APRS Mute was saved off.
+- The HID preflight matched all 213 app sectors to the H3-menu bench
+  firmware using aligned and shifted CRCs. Every shifted window across
+  the two resident sectors and their neighbors matched the archived
+  `0xFA000` data and installed `0xFB000` resident. Saved both sectors and
+  the verified prior main image for rollback.
+- With a dummy load attached, installed and verified the two resident
+  sectors and eight main sectors, writing `0x5000` last. The full aligned
+  and shifted checks matched the automatic TX build. The H9 returned to
+  the normal channel screen and its usual USB serial connection.
+- The live backup had 21 app entries, including a newer Power Probe.
+  Built the matching app bundle from that backup to retain its order and
+  existing diagnostics. The 79,286-byte installed app bundle read back
+  with SHA-256
+  `760af33a4770ee0028e8b7c5605b81019dd8aae94266960c5c185c5d12c18b16`.
+  Both scheduler settings sectors remained byte-identical after the
+  firmware and app update.
+
+- The on-radio Timed check reached WAITING FOR IDLE RADIO on B with a
+  dummy load. USB readback showed squelch level 1 and battery saver 1:4.
+  Beken's register list identifies `0x0C` bit 0 as the interrupt indicator
+  and bit 1 as the live squelch output. Changed the carrier guard to bit 1
+  and added a regression case with clear squelch and a pending IRQ.
+  [Beken BK4819 V3 register list](https://alfaexploit.com/files/BK4819V3Registers_List_20201218.pdf)
+- The isolated correction changes one byte in the resident body and
+  updates the CRC in the stock bench package's resident verifier. The
+  app bundle matches byte for byte. The corrected main package SHA-256
+  is `ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04`.
+  Its resident SHA-256 is
+  `aa6f231787913d7787ba282ea0bf503733b5dfbb19b9bdb1760bded90364959e`
+  and startup CRC is `0xA272`.
