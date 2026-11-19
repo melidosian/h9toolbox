@@ -16,7 +16,7 @@
 struct h9_runtime_prefix;
 struct h9_api {
     uint32_t magic;      /* "H9AP" */
-    uint32_t version;    /* 1; 2 = the loader returns to the radio (menu returns 0, module returns H9_RETURN_RADIO) */
+    uint32_t version;    /* 2 adds return to radio, 4 adds resident APRS, 5 adds flash helper jumps */
     uint32_t bundle;     /* chip address of the bundle header */
     uint32_t load;       /* 0x29F00 */
     uint32_t slot;       /* bytes available at `load` (8 KiB) */

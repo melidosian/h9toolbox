@@ -630,8 +630,8 @@ ml_aprs_clear:
     .balign 4
 ml_api:
     .long 0x50413948        /* "H9AP" */
-    .ifdef ML_RUNTIME_BOOT
-    .long 4                 /* API 4 adds the verified resident APRS prefix */
+    .ifdef ML_API_VERSION
+    .long ML_API_VERSION    /* 4 adds the resident APRS prefix, 5 the flash helpers */
     .else
     .long 3                 /* API 3 reserves 0x29C00–0x29EFF and retains H9_RETURN_RADIO */
     .endif

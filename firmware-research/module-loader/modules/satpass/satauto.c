@@ -28,6 +28,14 @@
 
 unsigned module_main(const struct h9_api *api, unsigned self);
 
+/* A retained tracker enters through the same loader check as a new module. */
+#ifdef H9_FLASH_HELPERS
+unsigned module_flash_entry(const struct h9_api *api, unsigned self);
+#define TRACKER_ENTRY module_flash_entry
+#else
+#define TRACKER_ENTRY module_main
+#endif
+
 /* ---- resident tracker ---------------------------------------------------- */
 
 #ifndef SAT_HOST   /* the host test supplies its own hardware access */
@@ -237,7 +245,7 @@ static void arm(const struct h9_api *api, unsigned self)
     unsigned pending = vfo_backup_load(api->read, &a, &b, &ta, &tb);
     vfo_backup_save(api->read, a, b, ta, tb, (pending & ~VFO_ARMED) | touched | VFO_ARMED);
     sh->spare = 0;                       /* no satellite's tone applied yet */
-    sh->res_entry = (uint32_t)(uintptr_t)module_main;
+    sh->res_entry = (uint32_t)(uintptr_t)TRACKER_ENTRY;
     sh->res_lencrc = e.size << 16 | e.crc;
     sh->res_tick = 0;
     sh->st_ticks = 0; sh->st_down = sh->st_up = 0;

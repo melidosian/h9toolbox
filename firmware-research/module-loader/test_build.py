@@ -156,6 +156,74 @@ class DevKiss(unittest.TestCase):
             build.apply_dev_kiss(self.app, build.TABLES - 4)
 
 
+class FlashHelpers(unittest.TestCase):
+    # These addresses are part of ABI 5 and are already embedded in modules.
+    origin = 0x01E85180
+    exports = (
+        "gfx_fill", "gfx_text", "gfx_wait_release", "gfx_wait_key",
+        "h9_lcd_window", "h9_lcd_write", "h9_key", "h9_delay",
+        "h9_led", "h9_usb_loader", "h9_reset", "memcpy", "memset",
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        from pi32v2isa import objdump, table
+
+        folder = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(folder.cleanup)
+        out = Path(folder.name)
+        fake = out / "fake_library.s"
+        fake.write_text('    .section .text,"ax",@progbits\n' +
+                        "".join(f"    .globl {name}\n{name}:\n    rts\n" for name in cls.exports))
+        cls.flash, bridges = build.build_flash_helpers([build.assemble(fake, out)], out)
+        cls.helpers = build.elf.read((out / "flash_helpers.elf").read_bytes())
+        module = out / "test_module.s"
+        module.write_text('    .section .text,"ax",@progbits\n    .globl module_main\nmodule_main:\n' +
+                          "".join(f"    call {name}\n" for name in cls.exports) + "    rts\n")
+        cls.module = build.link([build.assemble(module, out), bridges], build.LOAD,
+                                "module_flash_entry", out, "test_module")
+        cls.body = build.text_of(cls.module, build.LOAD)
+        cls.decode = objdump.decoder_for(table.load(), mcpu="r3").decode
+
+    def instructions(self, name, count):
+        address = build.symbol(self.module, name)
+        result = []
+        for _ in range(count):
+            _, _, step, instruction = self.decode(self.body, address - build.LOAD)
+            address += step
+            result.append((address, instruction))
+        return result
+
+    def test_stable_flash_jump_targets(self):
+        self.assertEqual(self.helpers.entry, self.origin)
+        for index, name in enumerate(self.exports):
+            off = 4 * index
+            _, _, size, op = self.decode(self.flash, off)
+            self.assertEqual(size, 4)
+            self.assertTrue(op.startswith("goto "))
+            self.assertEqual(self.origin + off + size + int(op[5:]), build.symbol(self.helpers, name))
+
+    def test_module_checks_loader_before_entering(self):
+        self.assertEqual(self.module.entry, build.symbol(self.module, "module_flash_entry"))
+        read, branch, run, zero, ret = self.instructions("module_flash_entry", 5)
+        self.assertEqual(read[1], "r2 = [r0+4]")
+        mismatch = re.fullmatch(r"if \(r2 != 5\) goto (-?\d+)", branch[1])
+        self.assertIsNotNone(mismatch)
+        self.assertEqual(branch[0] + int(mismatch[1]), run[0])
+        self.assertEqual(run[0] + int(run[1].removeprefix("goto ")), build.symbol(self.module, "module_main"))
+        self.assertEqual((zero[1], ret[1]), ("r0 = 0", "rts"))
+
+    def test_tail_calls_preserve_fourth_and_stack_arguments(self):
+        for index, name in enumerate(self.exports):
+            target = self.origin + 4 * index
+            if name in ("gfx_fill", "gfx_text", "h9_lcd_window"):
+                instructions = [op for _, op in self.instructions(name, 7)]
+                self.assertEqual(instructions, ["sp += -8", "[sp] = r4", f"r4 = {target}",
+                                                "[sp+4] = r4", "r4 = [sp]", "sp += 4", "pc = [sp++]"])
+            else:
+                self.assertEqual([op for _, op in self.instructions(name, 2)], [f"r3 = {target}", "goto r3"])
+
+
 class StubMatchesLayout(unittest.TestCase):
     """The stub's constants must agree with build.py and the site's uploader."""
 

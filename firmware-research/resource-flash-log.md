@@ -4700,3 +4700,47 @@ result yet.**
   is the one verified on the radio. The additional removal is in main
   flash. The module slot is 8 KiB and resident state reserves a separate
   512 bytes from the shared heap.
+
+### Shared module routines in the retired Morse ranges
+
+- The follow-up image has 3,408 retired Morse bytes available after the
+  248-byte dev KISS helper block. The largest contiguous span starts at
+  app+`0x85080` and has 1,510 bytes. The same starting address has 1,424
+  bytes in the installed bench image.
+- In an offline Pi32v2 link test, `h9lib.o` and `gfx.o` (including the font
+  and `memcpy`/`memset`) fit at app+`0x85080` in 1,287 bytes, including a
+  52-byte table of 13 stable entry jumps. The body SHA-256 is
+  `60a3eaacd8810701ad147c93150ee3c075c832a191162add00d9dad1a88a0ed4`.
+  Each jump was decoded and checked against its linked destination.
+- Relinked the existing dev module objects at their normal RAM address.
+  The baseline links matched the archived modules byte-for-byte. The
+  experiment replaced the local library with 8- or 18-byte tail-call
+  bridges and included a 14-byte API version check at module entry.
+  Net savings across the 16 graphics-using C modules were 1,041–1,101
+  bytes per module. APRS MAP was 6,767 → 5,714 bytes, APRS LIST 6,741 →
+  5,688, GPS 6,513 → 5,456 and SAT PASS 6,433 → 5,352. The APRS launcher
+  does not link the library and measured zero savings after the entry
+  check. The experiment measures code and constant data in the existing
+  slot. It has no on-radio runtime or display timing measurements.
+
+- The `--flash-shared` dev rebuild installs this 1,287-byte library in the
+  main image and advertises loader API 5. The 17 C modules enter through the
+  compatibility check. SAT TRACKER saves that same guarded entry point for
+  its background calls. BRICK BREAKER and `.SAT DATA` are byte-identical.
+  The 19-entry app bundle shrank from 85,562 to 68,475 bytes. An offline
+  upgrade of the last H9 app snapshot preserved all 21 entries, including
+  the bytes of the ten diagnostic-only entries.
+- Main package SHA-256
+  `ca3d3eabc4eda706bfc238fa9369d0584207cf9720ef95fc3d68b3d6eccad39d`.
+  App bundle SHA-256
+  `bba23b36aef577e7aae4d134d198aefa4440113489b0998187d67b663cbb00cd`.
+  The prior bench main image differs in 12 sectors. The main KISS edits,
+  separate RX15 and unsigned-byte modem image, and far scheduler body
+  matched their baselines byte-for-byte. The earlier API 4 main package
+  also reproduced byte-for-byte with the shared helper option omitted.
+- The stock-derived package inspection, assembled API guard and
+  argument-passing checks, App Manager round trip of the new bundle,
+  Morse, mute, serial clone and targeted native APRS tests passed.
+  All 134 web tests passed. The native satellite fixture produced the
+  same 12 failures as the unmodified baseline. On-radio execution of
+  the shared routines is pending.

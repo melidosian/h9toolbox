@@ -78,12 +78,25 @@ On Windows, extract the toolchain outside OneDrive (it is large) and set
 `$env:JIELI_TOOLCHAIN`; Docker cannot mount the session temp folder, so build
 inside the repository.
 
-For the offline SmartBeacon build with the packet changes from `dev`, add
-`--aprs-mute --disable-morse --dev-kiss` and use a dedicated output directory.
-The builder places the pinned KISS helpers after the loader stub, checks the
-original instructions at all patch sites, and records the placement in the
-manifest. The RX15 and unsigned-byte modem fixes run on the second processor.
-Rebuild that image with the [KISS build instructions](../kiss-tnc/README.md).
+For the resident SmartBeacon dev build with shared app routines in main
+flash, use a dedicated output directory and these flags.
+
+```sh
+python3 -I build.py --stock-image <app.bin> --stock-package <TD-H9-V1.0.38.fw> \
+  --output build/dev-rebuild/flash-shared \
+  --aprs-mute --disable-morse --dev-kiss --resident-beacon --flash-shared
+```
+
+API 5 puts the LCD, drawing, font, key, delay and memory helpers at
+app+`0x85080` in the retired Morse range. Modules use the stable jump table
+there and check the loader version at entry. The bundle format and 8 KiB
+slot stay the same. Install the API 5 main firmware before loading its
+matching `h9_modules.bin`. The resident scheduler body is the separate
+`resident_0xFB000_OFFLINE.bin` recorded in the manifest.
+
+The pinned KISS helpers occupy the preceding flash range. The RX15 and
+unsigned-byte fixes run on the separate APRS processor. Rebuild that image
+with the [KISS build instructions](../kiss-tnc/README.md).
 
 The build checks: the base is the pinned H9 Toolbox app (`1334a32c…`) and
 its hook calls Brick Breaker's launcher; Brick Breaker's caves are erased in

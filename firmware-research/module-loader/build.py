@@ -65,6 +65,15 @@ KISS_MANIFEST_SHA256 = "2f9b8b2f155f762c2e4a5f13a8892429fcc0ab09dd755f2aa941e1ab
 KISS_HELPER = 0xA7C7C
 KISS_RESIDENT_HELPER = 0x84F88
 KISS_CALLS = {0x5DB40: 0xA7CAA, 0x5DB6A: 0xA7CB6, 0x5DB86: 0xA7CE8, 0x870E0: 0xA7CF8}
+FLASH_HELPERS = 0x85080   # after the relocated KISS helpers in the retired Morse code
+FLASH_HELPERS_API = 5
+# API 5 assigns one four-byte jump per export, in this order. Keep these
+# addresses fixed for ABI 5 even when the implementation's layout changes.
+FLASH_EXPORTS = (
+    ("gfx_fill", 5), ("gfx_text", 7), ("gfx_wait_release", 0), ("gfx_wait_key", 0),
+    ("h9_lcd_window", 4), ("h9_lcd_write", 2), ("h9_key", 0), ("h9_delay", 1),
+    ("h9_led", 1), ("h9_usb_loader", 0), ("h9_reset", 0), ("memcpy", 3), ("memset", 3),
+)
 SLOT_DIRECTORY, SLOT_DATA, SLOT_LIMIT = 0xCC0000, 0xCC1000, 0xCE0000
 
 BUNDLE_MAGIC, BUNDLE_VERSION = b"H9MODS01", 1
@@ -183,26 +192,60 @@ def symbol(program: elf.Program, name: str) -> int:
     return values[0]
 
 
-def compile_c(source: Path, out: Path, toolchain: Path) -> Path:
+def compile_c(source: Path, out: Path, toolchain: Path, *, flags: tuple[str, ...] = ()) -> Path:
     obj = out / (source.stem + ".o")
     rel = lambda p: "/w/" + p.relative_to(RESEARCH).as_posix()
     run(["docker", "run", "--rm", "--platform", "linux/amd64", "-v", f"{toolchain}:/opt/jieli:ro",
-         "-v", f"{RESEARCH}:/w", "-w", "/w", "h9-jieli", "/opt/jieli/pi32v2/bin/clang", *C_FLAGS,
+         "-v", f"{RESEARCH}:/w", "-w", "/w", "h9-jieli", "/opt/jieli/pi32v2/bin/clang", *C_FLAGS, *flags,
          # vendored third-party code is used unchanged: its `(T){0}` initialiser trips -Wmissing-braces
          *(["-Wno-missing-braces"] if "third_party" in source.parts else []),
          "-I", rel(ROOT / "modules" / "common"), "-c", rel(source), "-o", rel(obj)])
     return obj
 
 
-def build_modules(out: Path, toolchain: Path, resident: bool = False) -> list[dict]:
+def build_flash_helpers(lib: list[Path], out: Path) -> tuple[bytes, Path]:
+    origin = IMAGE_BASE + FLASH_HELPERS
+    jumps = out / "flash_helper_table.s"
+    jumps.write_text('    .section .text,"ax",@progbits\n' +
+                     "".join(f"    .globl jump_{name}\njump_{name}:\n    goto {name}\n"
+                             for name, _ in FLASH_EXPORTS))
+    entry = "jump_" + FLASH_EXPORTS[0][0]
+    helpers = link([assemble(jumps, out), *lib], origin, entry, out, "flash_helpers")
+    body = text_of(helpers, origin)
+    if any(s.length and s.flags & 2 and s.name != ".text" for s in helpers.sections):
+        raise ValueError("Flash helpers need an executable body without other loaded sections")
+
+    calls = out / "module_flash_calls.s"
+    source = [f".equ MODULE_FLASH_API, {FLASH_HELPERS_API}\n",
+              (ROOT / "src" / "flash_module.s").read_text(), "\n"]
+    for index, (name, arguments) in enumerate(FLASH_EXPORTS):
+        target = origin + 4 * index
+        if symbol(helpers, "jump_" + name) != target:
+            raise ValueError(f"Flash entry for {name} moved from {target:#x}")
+        bridge = "flash_call_r3" if arguments >= 4 else "flash_call"
+        source.append(f"    {bridge} {name}, {target:#x}\n")
+    calls.write_text("".join(source))
+    return body, assemble(calls, out)
+
+
+def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
+                  flash_shared: bool = False) -> tuple[list[dict], bytes | None]:
     common = ROOT / "modules" / "common"
     run([sys.executable, "-I", str(common / "font5x7.py")])
     lib = [assemble(common / "h9lib.s", out), compile_c(common / "gfx.c", out, toolchain)]
+    entry = "module_main"
+    flash = None
+    flags = ()
+    if flash_shared:
+        flash, calls = build_flash_helpers(lib, out)
+        lib = [calls]
+        entry = "module_flash_entry"
+        flags = ("-DH9_FLASH_HELPERS",)
 
     def c_module(name: str, source: Path, *extra: Path) -> dict:
-        objs = [compile_c(source, out, toolchain), *(compile_c(e, out, toolchain) for e in extra)]
-        prog = link([*objs, *lib], LOAD, "module_main", out, "mod_" + source.stem)
-        return {"name": name, "body": text_of(prog, LOAD), "bss": 0, "entry": symbol(prog, "module_main") - LOAD}
+        objs = [compile_c(src, out, toolchain, flags=flags) for src in (source, *extra)]
+        prog = link([*objs, *lib], LOAD, entry, out, "mod_" + source.stem)
+        return {"name": name, "body": text_of(prog, LOAD), "bss": 0, "entry": prog.entry - LOAD}
 
     menu = c_module("MENU", ROOT / "modules" / "menu" / "menu.c", ROOT / "modules" / "common" / "vfo_backup.c")
     about = c_module("ABOUT", ROOT / "modules" / "about" / "about.c")
@@ -285,7 +328,7 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False) -> list[di
     test_bundle = bundle([reset_test])
     parse_bundle(test_bundle)
     (out / "test-ml-reset-bundle.bin").write_bytes(test_bundle)
-    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, maze, about]
+    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, maze, about], flash
 
 
 def call_bytes(target: int, site: int) -> bytes:
@@ -353,11 +396,15 @@ def build_resident(out: Path, toolchain: Path) -> bytes:
 
 def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool = False,
                    disable_morse: bool = False, dev_kiss: bool = False,
-                   resident: bytes | None = None, resident_screen_crc: int | None = None) -> dict:
+                   resident: bytes | None = None, resident_screen_crc: int | None = None, *,
+                   flash: bytes | None = None) -> dict:
     if resident and not (aprs_mute and disable_morse and dev_kiss):
         raise ValueError("Resident APRS requires --aprs-mute, --disable-morse and --dev-kiss")
     if resident and resident_screen_crc is None:
         raise ValueError("Resident APRS requires the CRC of its matching screen")
+    if flash is not None and not resident:
+        raise ValueError("Flash helpers require the resident dev build")
+    api_version = FLASH_HELPERS_API if flash is not None else 4 if resident else 3
     if not H9TB_RAW.is_file():
         raise SystemExit(f"Build H9 Toolbox Firmware first: resource-service/build.py --stage bb-s2 ({H9TB_RAW})")
     base = H9TB_RAW.read_bytes()
@@ -376,7 +423,8 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         definitions = ""
         if resident:
             definitions = (f".equ ML_RUNTIME_BOOT, {IMAGE_BASE + OLD_LAUNCHER:#x}\n"
-                           f".equ ML_RESIDENT_SCREEN_CRC, {resident_screen_crc}\n")
+                           f".equ ML_RESIDENT_SCREEN_CRC, {resident_screen_crc}\n"
+                           f".equ ML_API_VERSION, {api_version}\n")
         combined.write_text(definitions + stub_source.read_text() + "\n" + (ROOT / "src" / "aprs_mute.s").read_text())
         stub_source = combined
     stub_prog = link([assemble(stub_source, out)], IMAGE_BASE + CAVE, "ml_hotkey", out, "stub")
@@ -417,9 +465,10 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         patched[OLD_LAUNCHER:OLD_LAUNCHER + len(verifier)] = verifier
         (out / "resident_0xFB000_OFFLINE.bin").write_bytes(resident)
     patched[CAVE:CAVE + len(stub)] = stub
-    api_at = patched.find(b"H9AP", CAVE, CAVE + len(stub))        # the loader's API table: magic, version, ..., firmware word
-    if api_at < 0 or struct.unpack_from("<I", patched, api_at + 24)[0] != version_word or struct.unpack_from("<I", patched, api_at + 4)[0] < 2:
-        raise ValueError("the image's API table does not carry the firmware version")
+    api_at = symbol(stub_prog, "ml_api") - IMAGE_BASE
+    if (struct.unpack_from("<4sI", patched, api_at) != (b"H9AP", api_version)
+            or struct.unpack_from("<I", patched, api_at + 24)[0] != version_word):
+        raise ValueError("the image's API table disagrees with the build")
     patched[HOOK:HOOK + 4] = call_bytes(CAVE, HOOK)
     heap_end = RESIDENT_RAM if resident else APRS_SERVICE_RAM
     patched[HEAP_END_SITE + 2:HEAP_END_SITE + 6] = heap_end.to_bytes(4, "little")
@@ -448,6 +497,14 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
             retired = next((KISS_RESIDENT_HELPER, end) for start, end, _ in morse_disable.REMOVED
                            if start <= KISS_RESIDENT_HELPER < end)
     kiss, kiss_sectors = apply_dev_kiss(patched, CAVE + len(stub), retired) if dev_kiss else (None, set())
+    if flash is not None:
+        end = FLASH_HELPERS + len(flash)
+        kiss_end = int(kiss["helper_app_offset"], 16) + kiss["helper_bytes"]
+        if not kiss_end <= FLASH_HELPERS < end <= retired[1]:
+            raise ValueError("Flash helpers must fit after KISS in the retired Morse range")
+        if patched[FLASH_HELPERS:end] != bytes(len(flash)):
+            raise ValueError("Flash helpers overlap existing instructions")
+        patched[FLASH_HELPERS:end] = flash
     raw = out / "h9_toolbox_modules_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)
 
@@ -478,6 +535,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         "changed_flash_sectors": [hex(c) for c in sorted(changed)],
         "stub_bytes": len(stub), "stub_sha256": sha256(stub).hexdigest(),
         "firmware_version": version_text,
+        "loader_api": api_version,
         "stub_symbols": {n: hex(symbol(stub_prog, n)) for n in ("ml_hotkey", "ml_main", "ml_api", "ml_read")},
         "heap_end": hex(heap_end),
         "aprs_service_ram": {"start": hex(APRS_SERVICE_RAM), "end": hex(LOAD)},
@@ -494,22 +552,28 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
                             "screen_crc16": f"{resident_screen_crc:04x}", "auto_tx": False}
                            if resident else None,
         "dev_kiss": kiss,
+        "flash_helpers": {"app_offset": hex(FLASH_HELPERS), "bytes": len(flash),
+                          "sha256": sha256(flash).hexdigest(), "exports": [name for name, _ in FLASH_EXPORTS]}
+                         if flash is not None else None,
     }
 
 
 def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
           aprs_mute: bool = False, disable_morse: bool = False, dev_kiss: bool = False,
-          resident_beacon: bool = False) -> dict:
+          resident_beacon: bool = False, *, flash_shared: bool = False) -> dict:
     stock = stock_image.read_bytes()
     if sha256(stock).hexdigest() != STOCK_SHA256:
         raise ValueError("Expected the exact official v1.0.38 main application")
     if sha256(stock_package.read_bytes()).hexdigest() != STOCK_PACKAGE_SHA256:
         raise ValueError("Expected the exact official v1.0.38 .fw package")
+    if flash_shared and not resident_beacon:
+        raise ValueError("--flash-shared needs --resident-beacon")
     out.mkdir(parents=True, exist_ok=True)
     resident = build_resident(out, toolchain) if resident_beacon else None
-    modules = build_modules(out, toolchain, resident_beacon)
+    modules, flash = build_modules(out, toolchain, resident_beacon, flash_shared=flash_shared)
     screen_crc = crc16(next(m["body"] for m in modules if m["name"] == "APRS BEACON")) if resident else None
-    firmware = build_firmware(stock, stock_package, out, aprs_mute, disable_morse, dev_kiss, resident, screen_crc)
+    firmware = build_firmware(stock, stock_package, out, aprs_mute, disable_morse, dev_kiss, resident, screen_crc,
+                              flash=flash)
     data = bundle(modules)
     parse_bundle(data)
     (out / "h9_modules.bin").write_bytes(data)
@@ -543,16 +607,20 @@ def main() -> int:
     parser.add_argument("--dev-kiss", action="store_true", help="Include the KISS main firmware changes from dev")
     parser.add_argument("--resident-beacon", action="store_true",
                         help="Include the passive reboot-persistent resident scheduler and mute setting")
+    parser.add_argument("--flash-shared", action="store_true",
+                        help="Put common app routines in the retired Morse space and build the matching API 5 bundle")
     args = parser.parse_args()
     if args.resident_beacon and not (args.aprs_mute and args.disable_morse and args.dev_kiss):
         parser.error("--resident-beacon needs --aprs-mute, --disable-morse and --dev-kiss")
+    if args.flash_shared and not args.resident_beacon:
+        parser.error("--flash-shared needs --resident-beacon")
     bundled = RESEARCH / "toolchain" / "jieli" / "jieli-linux-toolchains-20260730.1"
     toolchain = Path(os.environ.get("JIELI_TOOLCHAIN", bundled)).expanduser().resolve()
     if not (toolchain / "pi32v2").is_dir():
         raise SystemExit(f"No JieLi toolchain at {toolchain}: run sh firmware-research/toolchain/jieli/setup.sh")
     print(json.dumps(build(args.stock_image.resolve(), args.stock_package.resolve(), toolchain,
                            args.output.resolve(), args.aprs_mute, args.disable_morse,
-                           args.dev_kiss, args.resident_beacon), indent=1))
+                           args.dev_kiss, args.resident_beacon, flash_shared=args.flash_shared), indent=1))
     print("Offline build only; not hardware tested")
     return 0
 
