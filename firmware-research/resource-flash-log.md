@@ -4744,3 +4744,31 @@ result yet.**
   All 134 web tests passed. The native satellite fixture produced the
   same 12 failures as the unmodified baseline. On-radio execution of
   the shared routines is pending.
+
+### 2026-11-18 API 5 bench installation
+
+- Before the update, USB serial read back the radio's complete 85,899-byte
+  app bundle and verified its SHA-256 against the directory. The backup also
+  includes the directory and the two committed SmartBeacon settings sectors.
+  Generation 18 had APRS mute on and the 5-minute schedule armed. Stock APRS
+  was on for B receive, with Timed Beacon, PTT Linkage and both relays off.
+- In PTT + 2 mode, aligned and shifted CRC scans matched the prior API 4
+  image. The update wrote only the 12 main app sectors that differed, with
+  the header sector last. The same scans matched the API 5 image after
+  writing, and the existing resident scheduler sector at `0xFB000` matched
+  CRC-16 `0x72C9` before and after. The separate APRS MCU was left in place.
+- The radio returned to Normal mode and answered the USB resource service.
+  The matching 75,330-byte bundle retained all 21 installed entries. The 11
+  matching rebuilt apps, including APRS BEACON, were updated. The other ten
+  entries kept their prior code, data and entry points. Verified the full
+  installed bundle, SHA-256
+  `1a520dd5a8bff7278d563325be936655e9759575ac57b4ffbfa0a3ed72d01096`.
+  Both settings sectors matched the preflight backup byte-for-byte after
+  installation. SmartBeacon transmission is disabled in this bench build.
+- The operator confirmed ABOUT showed API VERSION 05 with a changing tick
+  and APRS MAP drew normally. These screens exercise the shared drawing,
+  font, key and delay routines. APRS BEACON displayed GPS FIX BEACON DUE
+  after the update, confirming the resident service published live status.
+- Three normal-mode USB checks with APRS mute enabled found no newly
+  stored packet in the stock Beacon List. Over-the-air decoding with mute
+  enabled still needs a positive observation.
