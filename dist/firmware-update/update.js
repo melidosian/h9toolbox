@@ -1,6 +1,7 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261111g';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261118aprs';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
+import { stageAprs } from './aprs-stage.mjs';
 
 const $ = id => document.getElementById(id);
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
@@ -101,6 +102,27 @@ function setLogoStep(kind) {
     gate.textContent = `This radio runs ${kind === 'stock' || kind === 'stock-like' ? 'stock v1.0.38' : `the ${previousInfo(kind).label}`}. Install ${BUILD.label} above first, then open the App Manager.`;
     gate.classList.remove('ready');
   }
+}
+function setKissStep(state) {
+  const gate = $('kissGate');
+  gate.classList.toggle('ready', state === 'ready');
+  gate.textContent = {
+    ready: 'APRS update staged and verified. You can now finish from the radio keypad.',
+    occupied: 'The staging area is occupied. Its contents were preserved. Skip the keypad update on this radio.',
+  }[state] ?? 'Use this step after Install confirms that the APRS update was staged.';
+}
+function toolboxResult(work, duration, aprs) {
+  return {
+    title: work.length ? `${BUILD.label} installed and verified` : `${BUILD.label} already installed`,
+    text: aprs === 'ready'
+      ? `Main firmware and staged APRS update verified (${duration}). The modem update is ready in step 05.`
+      : 'Main firmware verified. The APRS staging area holds other data, so it was preserved. You can use step 04 for apps and the boot logo.',
+    steps: ['Disconnect USB before restarting the radio.',
+      aprs === 'ready' ? 'Use step 04 for apps or step 05 to unlock KISS packet connections.'
+        : 'Restart normally to use the Toolbox apps.'],
+    action: aprs === 'ready' ? { href: '#unlock-kiss', label: 'Go to Unlock KISS TNC' }
+      : { href: '../apps/', label: 'Open the App Manager' },
+  };
 }
 // [name, image] pairs of every known image, for classifyRadio.
 function namedImages() {
@@ -315,6 +337,7 @@ $('connect').addEventListener('click', async () => {
     await chosen.open();
     const candidate = new H9Hid(chosen), geometry = await candidate.initialize();
     device = chosen; hid = candidate; radioBackedUp = false;
+    setKissStep(null);
     $('deviceState').textContent = 'Connected';
     status(`Radio connected (app 0x${geometry.address.toString(16)}, 4 KiB sectors). Back it up next. No write sent.`);
   } catch (error) { fail(error); }
@@ -419,16 +442,36 @@ async function inspectRadio() {
   };
 }
 async function performWrite(direction) {
-  if (!backup || !target || !hid || !$('acknowledge').checked) return;
+  if (busy || !backup || !target || !hid || !$('acknowledge').checked ||
+      (direction === 'update' && !radioBackedUp)) return;
   const destination = direction === 'update' ? target.image : backup.image;
   const began = performance.now();
   showResult(null);
+  setKissStep(null);
   busy = true; refresh();
   try {
     const checked = await inspectRadio();
     const work = checked[direction];
+    const toolbox = direction === 'update' && target.kind === 'build';
+    let aprs = null;
+    if (toolbox) {
+      status('Checking the APRS update file and staging area. Keep USB connected.');
+      const response = await fetch(`./${BUILD.aprsStageFile}?v=${BUILD.aprsStageSha256.slice(0, 8)}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Could not download the staged APRS update file.');
+      phase('Staging and verifying the APRS update');
+      aprs = await stageAprs(hid, new Uint8Array(await response.arrayBuffer()), progress);
+      status(aprs === 'ready' ? 'Staged APRS update verified. Step 05 uses the radio keypad.'
+        : 'The APRS staging area is occupied. Preserving its contents and continuing the main firmware install.');
+    }
     $('planState').textContent = `Radio checked: ${work.length} sector(s) to ${direction === 'update' ? 'write' : 'restore'}${checked.interrupted ? ', including one interrupted sector' : ''}.`;
     if (!work.length) {
+      if (toolbox) {
+        finish('Main firmware verified');
+        setLogoStep('build');
+        setKissStep(aprs);
+        showResult(toolboxResult(work, formatDuration((performance.now() - began) / 1000), aprs));
+        return;
+      }
       finish('Radio checked; nothing to write');
       showResult(direction === 'update'
         ? { title: target.kind === 'build' ? `${BUILD.label} is already installed` : 'This firmware is already installed', text: 'Every firmware sector on the radio already matches this package exactly, so nothing needed rewriting. Your radio is up to date.' }
@@ -459,11 +502,9 @@ async function performWrite(direction) {
     const seconds = formatDuration((performance.now() - began) / 1000);
     finish(`${work.length} sectors ${direction === 'update' ? 'installed' : 'restored'} and every sector CRC verified in ${seconds}`);
     setLogoStep(knownRadio(after));
-    showResult(direction === 'update' && target.kind === 'build'
-      ? { title: `${BUILD.label} installed and verified`,
-          text: `All ${work.length} changed sectors were written and every firmware sector's CRC matches the package (${seconds}).`,
-          steps: ['Power-cycle the radio so it starts normally.', 'Open the App Manager, connect over Bluetooth or experimental USB-C, and install apps (APRS, Brick Breaker) and a boot logo.', 'On the radio, hold Back for the app menu.'],
-          action: { href: '../apps/', label: 'Open the App Manager' } }
+    setKissStep(aprs);
+    showResult(toolbox
+      ? toolboxResult(work, seconds, aprs)
       : { title: direction === 'update' ? 'Firmware written and verified' : backup.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
           text: `All ${work.length} changed sectors were written and every firmware sector's CRC matches ${direction === 'update' ? 'the package' : backup.source === 'hosted-stock' ? 'official stock v1.0.38' : 'your backup'} (${seconds}).`,
           steps: ['Disconnect USB and power-cycle the radio.', 'Check the version and your saved channels and settings.', 'Your boot logo is kept: it lives on the separate resource flash.'] });

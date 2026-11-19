@@ -159,7 +159,7 @@ def build(stock_package: Path, output: Path, base_package: Path | None = None) -
     original = app_bytes(baseline)
     if digest(original) != app_hash:
         raise ValueError("Unexpected KISS application contents")
-    version = (ROOT / "VERSION").read_text().strip()
+    version = (RESEARCH / "module-loader" / "VERSION").read_text().strip()
     components = tuple(map(int, version.split(".")))
     if len(components) != 3 or any(not 0 <= part <= 255 for part in components):
         raise ValueError("Expected a three-part firmware version, with each part below 256")

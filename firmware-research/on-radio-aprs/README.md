@@ -31,7 +31,8 @@ python3 -m unittest test_stage
 The default base is the pinned KISS package. To preserve the separately built
 resident-beacon and live-squelch changes on a bench radio, pass that exact
 package with `--base-package`. The manifest identifies the base and the
-firmware version. The standard site installer still uses its own hosted build.
+firmware version. The website installer uses the default build and stages
+its matching bundle over USB before installing the main firmware.
 
 The outputs are `build/h9-kiss-aprs-stage.fw`,
 `build/aprs-stage-0xf4000.bin`, and `build/manifest.json`. Keep the three
@@ -44,6 +45,13 @@ checks the updater code before executing it and the updater checks the
 modem image before sending it.
 
 ## Stage and install
+
+For website installs, select **H9 Toolbox Firmware** and complete the
+usual backup and install. When Install verifies the APRS stage, use
+**Step 05 · Unlock KISS TNC** to finish from the keypad. The website
+preserves occupied staging slots and allows the main USB install to proceed.
+
+Use these steps for a command-line install.
 
 1. Have a charged radio, the official main firmware and the working Windows
    APRS recovery path ready. Close any radio flasher that might be using

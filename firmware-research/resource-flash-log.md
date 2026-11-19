@@ -4616,3 +4616,22 @@ result yet.**
 - The dev-site APRS page now explains the staged and browser USB paths
   separately, with Windows recovery instructions. The browser still
   serves its existing recovery and packet images. Both display V1.0.15.
+
+## 2026-11-18 Web install stages APRS and offers optional KISS setup
+
+- The browser release pairs the default v0.1.5 KISS main image
+  (`b1c26380…`) with its verified APRS V1.0.15X stage (`a180b40c…`).
+  v0.1.4 and its predecessors remain recognized by the installer. The
+  unversioned v0.1.4 .fw stays available for the pinned Doom and KISS builds.
+- After main-image preflight, WebHID checks aligned and shifted CRCs
+  across `0xF4000–0xF9FFF`. It programs the stage high to low before
+  main firmware, with no staging erases. An exact written prefix can
+  resume; unrelated data in the slot is preserved. The stage excludes
+  the resident beacon at `0xFA000–0xFBFFF` and the settings and resource
+  flash. Stock installs and main restores leave the stage and modem alone.
+- Step 05 walks through PTT+7 and links to the downloadable Bluetooth
+  bridge, with direct KISS TCP and Pat/AGWPE instructions.
+- The hosted package and stage reproduced byte for byte. A simulated
+  Chrome WebHID session exercised backup, staging before main writes,
+  Step 05, main restore, and an occupied slot. The new web installer
+  has not yet been run against the physical H9.
