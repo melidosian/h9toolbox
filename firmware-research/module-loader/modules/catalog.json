@@ -68,8 +68,8 @@
       "id": "aprs",
       "name": "APRS",
       "title": "APRS",
-      "description": "An on-radio APRS client. The list shows the stations you hear (and starts with the stock Beacon List), each with how long ago you heard it and how far away it is. Each station has a details page, and a map draws them around your GPS position. Messages are kept (yours to you in green, and the ones you send show ACK once the other station acknowledges). SEND types and sends messages or a status packet from your callsign, and BEACON sends your position as you move (smart beaconing). The stock firmware does the transmitting.",
-      "version": "0.8",
+      "description": "An on-radio APRS client with stations, map, messaging and smart beaconing. The six-message inbox and outbox survive power cycles when the reserved mailbox sectors are available. Sent messages retain their ID and show ACK only after the recipient's acknowledgement is heard. The stock firmware does the transmitting.",
+      "version": "1.0",
       "category": "Radio",
       "modules": [
         "APRS",
@@ -78,21 +78,23 @@
         "APRS MAP",
         "APRS MSG",
         "APRS SEND",
+        ".APRS STORE",
         "APRS BEACON",
         ".APRS BG"
       ],
-      "summary": "APRS client: stations, map, messages, sending and smart beaconing from your GPS.",
+      "summary": "APRS stations, map, persistent inbox/outbox, sending and GPS smart beaconing.",
       "controls": [
         "The bottom line names the screens: 1 list, 2 map, 3 messages, 4 send, 5 beacon. Press the digit to jump there (holding Menu cycles list, map, messages). Back returns to the list; Back on the list leaves the app.",
         "List: Up/Down choose a station, Menu opens its details (and from there Menu writes it a message). Rows show the call, how long ago it was heard (NOW, 5M, 2H; grey rows come from the radio's stored Beacon List) and its distance and direction from you.",
-        "Map: Up/Down zoom (1 to 500 km), Menu picks the next station. Without a GPS fix it centres on the selected station.",
-        "Messages: Up/Down choose, Menu reads. Messages sent to your callsign are green and counted as new on the list until you open Messages.",
-        "Send: type with the number keys (press a digit repeatedly to cycle its letters, 0 is space); Back deletes; Menu or Up/Down finish a field; then Menu to review and Menu again to transmit.",
+        "Map: Up/Down zoom (1 to 500 km), Menu picks the next station. Without a GPS fix it centres on the selected station. Press 4 to open Send for the highlighted station when no draft is in progress.",
+        "Messages: Up/Down choose, Menu reads. The list labels incoming messages FROM a station and outgoing messages TO a station. SENT means handed to the radio; ACK or REJ appears only after that reply is heard from its recipient. Up to six messages and their reply state survive reboot when mailbox storage is available. On a message detail, Menu opens Send with that station filled in.",
+        "Send: type with the number keys (press a digit repeatedly to cycle its letters, 0 is space); Back deletes; Menu or Up/Down finish a field; then Menu to review and Menu again to transmit. A draft stays available while you move among APRS screens, until the radio reboots.",
         "Beacon (screen 5, and its own entry in the radio's menu): Up/Down choose MODE, EVERY or SYMBOL and Menu changes it. MODE SMART sends as you move (about every 300 m: every 60 s at 18 km/h and faster, up to 10 min when slow; a sharp turn sends at once; one more after 30 s stopped). MODE TIMED sends every 1, 2, 5, 10, 15 or 30 minutes (EVERY). Hold Menu to start or stop beaconing. 5 sends one position now. When armed, Back returns to the channel screen with beaconing running. Opening Toolbox pauses it. Reopen APRS BEACON to resume, or hold Menu there to stop. The first position goes out about 15 s after you start."
       ],
       "notes": [
         "Sending and beaconing are experimental. Use your own callsign (set in the radio) and keep it short. They transmit on the APRS TX channel, 2 m only; you need an amateur licence.",
         "APRS BEACON transmits while armed on the APRS TX channel, 2 m only. Background mode requires H9 Toolbox Firmware v0.1.4 or later. It waits for the original APRS transmit frequency and side to be active, and pauses while the radio is busy.",
+        "Persistent messaging uses two guarded resource sectors at 0x3FA000–0x3FBFFF and requires the matching H9 Toolbox firmware and game uploader boundary. The radio reports when the mailbox is unavailable. SENT does not confirm over-the-air delivery; only ACK does.",
         "With no GPS fix it beacons your last known position (this session's last fix, else the one the radio saved), marked \"last known\" and without course or speed. It listens to the GPS only while it runs; heard stations are not shown there.",
         "Smart-beacon scheduling by Tomasz Kuehn (github.com/tomaszkuehn/TD-H9-aprs-smartbeacon, MIT licence).",
         "Background beaconing has been tested offline. A live radio test is pending."

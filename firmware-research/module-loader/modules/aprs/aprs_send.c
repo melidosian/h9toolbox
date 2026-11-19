@@ -9,8 +9,8 @@
  * Up/Down choose; Menu: edit TO/MSG, or review, then Menu again: transmit;
  * Back: cancel / list; hold Menu: station list.
  * Typing (aprs_edit.c): digits multi-tap (2 = ABC2 … 0 = space 0,
- * 1 = .,?!-/@1), Back deletes, Menu or Up/Down finish. The draft lives in this
- * screen's stack: leaving SEND drops it.
+ * 1 = .,?!-/@1), Back deletes, Menu or Up/Down finish. The shared APRS state
+ * keeps the draft when switching screens, until the radio reboots.
  * Review switches to the APRS TX CH side (Lock and Auto alike; A+B keeps the
  * current side); leaving review returns to the APRS RX CH side. */
 #include "aprs_core.h"
@@ -21,8 +21,15 @@
 static const char STATUS[] = "H9 Toolbox test";
 static const char *const QUICK[] = { "QSL 73", "TEST, PLEASE ACK" };
 enum { I_TO, I_MSG, I_SEND, I_STATUS, I_QUICK, ITEMS = I_QUICK + 2 };
-enum { LIST_Y = BODY_Y + 22, ROW_H = 12, SHOW = 21, ADDRESSEE = 9 };
+enum { LIST_Y = BODY_Y + 22, ROW_H = 12, SHOW = 25, ADDRESSEE = 9 };
 enum { CHOOSE, EDIT, REVIEW, DONE };
+
+static void save_draft(const struct edit *to, const struct edit *msg)
+{
+    put_str(A->draft_to, to->buf);
+    put_str(A->draft_msg, msg->buf);
+    A->draft_valid = 1;
+}
 
 /* Info field for item i into out; returns why it cannot be sent, or 0. */
 static const char *info_of(unsigned i, char *out, const struct edit *to, const struct edit *msg)
@@ -59,8 +66,10 @@ static void sent(const char *to, const char *text, unsigned id)
     m->live = 1;
     m->mine = 0;
     m->acked = 0;
+    m->rejected = 0;
     m->id = (uint8_t)id;                    /* the other station's ack carries it */
     A->msg_sel = 0;
+    A->mail_dirty = 1;
 }
 
 static const char *problem(unsigned i, char *info, uint8_t *kiss, unsigned *len,
@@ -77,7 +86,7 @@ static const char *problem(unsigned i, char *info, uint8_t *kiss, unsigned *len,
 static void header(void)
 {
     char b[28];
-    aprs_title("SEND MESSAGE");
+    aprs_title("APRS SEND");
     gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, UI_BG);
     unsigned n = put_str(b, "FROM ");
     put_str(b + n, A->mycall[0] ? A->mycall : "?");
@@ -139,11 +148,18 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     const char *why = 0;
     (void)self;
     aprs_open();
-    edit_init(&to, ADDRESSEE, 1, A->count ? A->st[A->list_sel].call : 0);
-    edit_init(&msg, EDIT_MAX, 0, 0);
+    edit_init(&to, ADDRESSEE, 1, A->draft_valid ? A->draft_to :
+              A->count && A->list_sel < A->count ? A->st[A->list_sel].call : 0);
+    edit_init(&msg, EDIT_MAX, 0, A->draft_valid ? A->draft_msg : 0);
+    if (!A->draft_valid && to.len) A->send_sel = I_MSG;
     if (A->send_sel >= ITEMS) A->send_sel = I_TO;
     for (;;) {
         unsigned ev = aprs_event();
+        if (ev == EV_STORE) {
+            if (state != DONE) save_draft(&to, &msg);
+            if (aprs_store(api, state == DONE ? MAIL_PAGE_MSG : MAIL_PAGE_SEND)) return 0;
+            continue;
+        }
         if (ev == EV_HOLD) { if (aprs_go(api, APRS_LIST)) return 0; continue; }
         if (ev == EV_REDRAW) {
             if (state == REVIEW) draw_review(why, info);
@@ -160,6 +176,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
                 else if (ev == EV_UP) A->send_sel = A->send_sel ? A->send_sel - 1 : ITEMS - 1;
                 else if (ev == EV_DOWN) A->send_sel = A->send_sel + 1 < ITEMS ? A->send_sel + 1 : 0;
             }
+            save_draft(&to, &msg);
             A->dirty = 1;
             continue;
         }
@@ -168,11 +185,13 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             aprs_line(BODY_Y + 40, "TRANSMITTING...", UI_DANGER, UI_BG);
             ((void (*)(const uint8_t *, unsigned))STOCK_KISS_TX)(kiss, len);
             aprs_quiet();                           /* stock's end of TX turns the speaker on */
-            unsigned id = A->msg_id % 99 + 1;       /* the {id that info_of put in the packet */
-            A->msg_id++;
             if (A->send_sel == I_SEND) {
+                unsigned id = A->msg_id % 99 + 1;   /* the {id that info_of put in the packet */
+                A->msg_id++;
                 sent(to.buf, msg.buf, id);
                 edit_init(&msg, EDIT_MAX, 0, 0);    /* sent: start the next one empty */
+                A->draft_valid = 0;                 /* a new Send follows the current station */
+                A->send_sel = I_MSG;
             }
             header();                               /* stock may have drawn over us */
             aprs_line(BODY_Y + 30, "HANDED TO THE RADIO", UI_OK, UI_BG);
@@ -199,6 +218,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
                 state = EDIT;
             } else if (i >= I_QUICK) {
                 edit_init(&msg, EDIT_MAX, 0, QUICK[i - I_QUICK]);
+                save_draft(&to, &msg);
                 A->send_sel = I_SEND;
             } else {
                 aprs_side(aprs_tx_side());          /* the TX check reads this side */
@@ -212,6 +232,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             struct edit *e = A->send_sel == I_TO ? &to : &msg;
             if (e == &to) edit_init(&to, ADDRESSEE, 1, 0);
             edit_digit(e, ev - EV_DIGIT, TICK);
+            save_draft(&to, &msg);
             state = EDIT;
             A->dirty = 1;
         }

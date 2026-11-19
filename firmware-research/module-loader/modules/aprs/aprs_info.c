@@ -52,7 +52,8 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     aprs_open();
     for (;;) {
         unsigned ev = aprs_event();
-        if (ev == EV_REDRAW) {
+        if (ev == EV_STORE) { if (aprs_store(api, MAIL_PAGE_INFO)) return 0; }
+        else if (ev == EV_REDRAW) {
             if (A->list_sel < A->count) draw_detail();
             else { aprs_go(api, APRS_LIST); return 0; }
         }
@@ -60,6 +61,9 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         else if (ev == EV_HOLD) { if (aprs_go(api, APRS_MAP) || aprs_go(api, APRS_MSG)) return 0; }
         else if (ev == EV_MENU) {
             A->send_sel = 1;                        /* first message to this station */
+            put_str(A->draft_to, A->st[A->list_sel].call);
+            A->draft_msg[0] = 0;
+            A->draft_valid = 1;
             if (aprs_go(api, APRS_SEND)) return 0;
             aprs_line(FOOT_Y, "SEND NOT INSTALLED", UI_DANGER, UI_BG);
         }

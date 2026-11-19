@@ -28,9 +28,9 @@ import {
 
 const ERASED_CRC = 0xe03e;
 const CHECK_EVERY = 16;
-// Two candidate settings sectors, then VFO recovery and GPS fix. Never let
-// game upload or deep restore claim these four sectors.
-export const VOICE_UPLOAD_END = 0x3fc000;
+// Mailbox pair, settings pair, VFO recovery and GPS fix occupy the final six
+// sectors. Game upload and deep restore stop before them.
+export const VOICE_UPLOAD_END = 0x3fa000;
 const LEGACY_AREAS = [
   { name: 'resource', start: 0xa1f000, end: 0xd00000 },
   { name: 'font', start: 0x717000, end: 0x800000 },
@@ -58,8 +58,8 @@ export const SLOTS = {
     areas: [
       { name: 'resource', start: DIRECTORY + 0x1000, end: MODULES_DIRECTORY },
       { name: 'font', start: 0x717000, end: 0x800000 },
-      // Stops four sectors short: two proposed settings sectors, VFO recovery,
-      // and GPS fix. Legacy packs crossing this boundary require migration.
+      // Stops before mailbox, settings, VFO recovery and GPS fix. Older packs
+      // crossing this boundary require migration.
       { name: 'voice', start: 0x3a7000, end: VOICE_UPLOAD_END },
     ],
   },

@@ -28,6 +28,7 @@ EXTRA = {
                               "resident-service/modem_input.c"],
     "test_beacon_tx.c": [f"{APRS}/beacon_core.c", f"{APRS}/aprs_tx.c"],
     "test_toolbox_settings_pair.c": [f"{COMMON}/toolbox_settings_pair.c"],
+    "test_mail_pair.c": [f"{COMMON}/mail_pair.c", f"{COMMON}/toolbox_settings_pair.c"],
     "test_sattrack.c": ["modules/satpass/orbit.c"],
 }
 

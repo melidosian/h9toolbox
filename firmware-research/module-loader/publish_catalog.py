@@ -49,16 +49,19 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
         app["version"] += "-dev"
         if app["id"] == "aprs":
             app.update(
-                description="Browse APRS stations, maps and messages. Beacon Status shows the resident scheduler.",
-                summary="Stations, Map, Messages, Send and Beacon Status.",
+                description="Browse stations and map, send APRS messages, and keep a six-message inbox/outbox across power cycles. Beacon Status shows the resident scheduler.",
+                summary="Stations, Map, persistent Messages, Send and Beacon Status.",
                 modules=[name for name in app["modules"] if name != ".APRS BG"],
                 retiredModules=[".APRS BG"],
                 controls=[
                     "Open APRS → Stations and use the keypad tabs for List, Map, Messages and Send.",
+                    "In Messages, Menu reads the highlighted item; Menu again opens a reply with its station filled in. A Send draft survives APRS screen changes until reboot.",
+                    "SENT means a packet was handed to the radio. ACK or REJ appears only after that reply is heard from the recipient. The six most recent messages and their reply state survive power cycles when mailbox storage is available.",
                     "Use APRS Settings in Toolbox to arm the schedule or change the mode, interval, symbol and mute.",
                     "Beacon Status shows the configured APRS VFO and the number of packets submitted to the modem.",
                 ],
-                notes=["Automatic beacons need a fresh GPS fix and send from the normal channel screen."],
+                notes=["Automatic beacons need a fresh GPS fix and send from the normal channel screen.",
+                       "Persistent messages need the matching firmware guard and unclaimed sectors at 0x3FA000–0x3FBFFF. The radio reports when storage is unavailable."],
             )
         apps.append(app)
     apps.append({

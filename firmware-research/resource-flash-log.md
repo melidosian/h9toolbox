@@ -5014,3 +5014,45 @@ result yet.**
   Simulated USB tests confirmed that a failed install sends no restart,
   a verified install sends one report, and a missing disconnect leaves
   the verified result available with manual restart instructions.
+
+## 2026-11-19 — APRS app usability build (offline)
+
+- Rebuilt the API 5 SmartBeacon variant with APRS app v0.9. The main package
+  SHA-256 remains `e64b6a5f3d5dd17077a392bffc837486a7076e9e52c6cc2b19e34e2a0dec85e0`,
+  matching the current dev updater; only the app bundle needs updating.
+  The full module bundle SHA-256 is
+  `fac0d551cc047150124701bb34792b3ae1ab74ffbb33071e2c07fbf41171d18c`;
+  the APRS App Manager bundle is
+  `041f6db84094aa12c6cc9e16c6efbebee2333cb9aa30d88cdf63c31bb2fe2f1f`.
+- The revised APRS shared state is 1,440 bytes in a 1,456-byte reserved slot.
+  The largest APRS module is below the 6,704-byte code limit. The focused APRS
+  host test and offline firmware build passed; no radio install or RF test was
+  performed for this app revision.
+- On Windows, Git's CRLF checkout changed the byte hash of the pinned KISS
+  JSON manifest. Normalizing line endings before the SHA-256 check recovered
+  the exact repository hash; the build's audited patch checks still ran.
+
+## 2026-11-19 — Persistent APRS mailbox candidate (offline)
+
+- APRS app v1.0 saves the six most recent own inbox/outbox messages, the next
+  message ID, and each outgoing ACK/REJ state. A hidden `.APRS STORE` module reads
+  and writes a two-sector journal at `0x3FA000` and `0x3FB000`. Each write
+  checks the game directory and both entire sectors, writes the alternate
+  sector, verifies it, and programs the commit marker last. A foreign sector,
+  another callsign, or a game allocation blocks writing. The first incomplete
+  write can restart for the same callsign if its header survived.
+- Empty mailbox storage imports messages from stock's Beacon List. Messages
+  addressed to other stations remain visible as stations but no longer evict
+  the own inbox/outbox. The on-radio display distinguishes SENT (submitted to
+  the stock transmitter), ACK (acknowledged) and REJ (rejected).
+- The game uploader now stops at `0x3FA000`; the candidate firmware's S2 guard
+  denies `0x3FA000–0x3FFFFF` at the control and data write sites. This needs a
+  matching main firmware install; the existing dev updater package still has
+  the earlier `0x3FC000` boundary.
+- Offline API 5 build: main package SHA-256
+  `4cbeae13a06a8252690d1741638795326dd1c0b99aebdb8cd7bc7d71cf25ed55`,
+  full module bundle `04c207793121327e04bd0560309baa3ad004e39e88eed74d69f05eb06e431b98`,
+  dev APRS App Manager bundle `02cc0dcf4e078a5f1e3b62a12d8ee4740e6f13f5def8cafe15a57c7a88955ec8`.
+  The mailbox host tests cover ownership, game claims and interrupted writes;
+  the firmware guard disassembly test passes. No radio install or RF validation
+  was performed for this candidate.

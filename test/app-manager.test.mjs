@@ -147,6 +147,9 @@ test('dev catalog recognizes the bench apps and restores a downgraded menu in on
   const newMenu = await fetchModule(bench, bench.menu, fileFetch);
   const classicApp = id => fetchApp(classic, classic.apps.find(item => item.id === id), fileFetch);
   const expectedApps = (await Promise.all(bench.apps.map(item => fetchApp(bench, item, fileFetch)))).flat();
+  const benchAprs = bench.apps.find(item => item.id === 'aprs');
+  assert.deepEqual(partsOf(benchAprs).map(p => p.name),
+    ['APRS', '.APRS LIST', '.APRS INFO', 'APRS MAP', 'APRS MSG', 'APRS SEND', '.APRS STORE', 'APRS BEACON']);
   const beacon = expectedApps.find(m => m.name === 'APRS BEACON');
   assert.ok(beacon);
   assert.equal(selectAppCatalog(classic, bench, [newMenu]), bench);

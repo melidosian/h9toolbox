@@ -116,7 +116,13 @@ int main(int argc, char **argv)
     memset(&A->msg[0], 0, sizeof A->msg[0]);
     strcpy(A->msg[0].from, "N0CALL-7"); strcpy(A->msg[0].to, "W9ABC-9"); strcpy(A->msg[0].text, "On my way");
     A->msg[0].live = 1; A->msg[0].id = 5; A->msg[0].acked = 1;
-    A->unread = 1; A->list_sel = 1; A->msg_sel = 1; A->map_zoom = 4; A->map_sel = 1;
+    A->msgs++; for (unsigned i = A->msgs - 1; i > 0; i--) A->msg[i] = A->msg[i - 1];
+    memset(&A->msg[0], 0, sizeof A->msg[0]);
+    strcpy(A->msg[0].from, "N0CALL-7"); strcpy(A->msg[0].to, "K9XYZ"); strcpy(A->msg[0].text, "QSL 73");
+    A->msg[0].live = 1; A->msg[0].id = 6;
+    A->unread = 1; A->list_sel = 1; A->msg_sel = 2; A->map_zoom = 4; A->map_sel = 1;
+    A->mail_status = MAIL_READY; /* screenshot assumes an available mailbox */
+    A->mail_dirty = 0;
     for (unsigned i = 0; i < A->count; i++) if (!strcmp(A->st[i].call, "W9ABC-9")) A->list_sel = (uint8_t)i;
     A->map_sel = A->list_sel;
     struct h9_api fake = { .version = 3, .read = fake_read };

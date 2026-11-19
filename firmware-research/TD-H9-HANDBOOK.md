@@ -70,6 +70,7 @@ resource-service tables start at app+`0xA7E50`) [HW].
 | Range | Use |
 |---|---|
 | `0x3A7000–0x3FFFFF` | Voice partition tail: erased, never written by stock [HW]. |
+| `0x3FA000–0x3FBFFF` | Candidate two-sector APRS mailbox journal; guarded offline, pending radio validation. The game uploader now stops before it. |
 | `0x717000–0x7FFFFF` | Font partition tail: erased, never written by stock [HW]. |
 | `0x3FF000` | Last GPS fix (H9 Toolbox module loader's background recorder, `module-loader/modules/common/fix_store.h`); the game slot stops before it. |
 | `0x900000` | `rw_freq`: **stock writes here**. Never use it. |

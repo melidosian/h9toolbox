@@ -277,9 +277,9 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
     aprs = c_module("APRS MONITOR", ROOT / "modules" / "aprs_monitor" / "aprs_monitor.c")
     if len(aprs["body"]) > 0x2000 - 0x800:
         raise SystemExit("APRS MONITOR code overlaps its state in the top 2 KiB of the RAM slot")
-    # APRS screens share state at 0x2BEE0 - 0x570 (aprs_core.h APRS_ADDR); each
+    # APRS screens share state at 0x2BEE0 - 0x5B0 (aprs_core.h APRS_ADDR); each
     # screen's code must end below it. ".APRS INFO" is hidden from the menu.
-    aprs_limit = 0x2BEE0 - 0x570 - LOAD            # aprs_core.h APRS_SLOT_BYTES
+    aprs_limit = 0x2BEE0 - 0x5B0 - LOAD            # aprs_core.h APRS_SLOT_BYTES
     core = aprs_dir / "aprs_core.c"
     text = aprs_dir / "aprs_text.c"
     screens = [c_module("APRS", aprs_dir / "aprs_load.c", core, aprs_dir / "aprs_stored.c"),
@@ -288,7 +288,9 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
                c_module("APRS MAP", aprs_dir / "aprs_map.c", core),
                c_module("APRS MSG", aprs_dir / "aprs_msg.c", core, text),
                c_module("APRS SEND", aprs_dir / "aprs_send.c", aprs_dir / "aprs_core_tx.c", aprs_dir / "aprs_tx.c",
-                        aprs_dir / "aprs_edit.c", text)]
+                        aprs_dir / "aprs_edit.c", text),
+               c_module(".APRS STORE", aprs_dir / "aprs_mail.c", aprs_dir / "aprs_core_tx.c",
+                        common / "mail_pair.c", common / "toolbox_settings_pair.c")]
     if flash_shared:
         status_sources = (aprs_dir / "aprs_tx.c",) if auto_tx else ()
         screens.append(c_module("APRS BEACON", aprs_dir / "aprs_resident_status.c", *status_sources))
@@ -378,7 +380,9 @@ def apply_dev_kiss(app: bytearray, stub_end: int,
                    retired: tuple[int, int] | None = None) -> tuple[dict, set[int]]:
     """Move the pinned position-independent KISS helpers to verified free space."""
     raw = KISS_MANIFEST.read_bytes()
-    if sha256(raw).hexdigest() != KISS_MANIFEST_SHA256:
+    # Git may check this text file out with CRLF on Windows. Pin the repository
+    # content, whose SHA-256 is over LF bytes, without weakening the patch check.
+    if sha256(raw.replace(b"\r\n", b"\n")).hexdigest() != KISS_MANIFEST_SHA256:
         raise ValueError("KISS manifest differs from the release audited for relocation")
     manifest = json.loads(raw)
     helper_start, helper_limit = retired or ((stub_end + 3) & ~3, TABLES)
@@ -617,7 +621,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         "heap_end": hex(heap_end),
         "aprs_service_ram": {"start": hex(APRS_SERVICE_RAM), "end": hex(LOAD)},
         "serial_write": hex(serial_write),
-        "resource_write_protection": {"start": "0x3fc000", "end_exclusive": "0x400000"},
+        "resource_write_protection": {"start": "0x3fa000", "end_exclusive": "0x400000"},
         "morse_disabled": {"enabled": disable_morse, "menu_entry_hidden": disable_morse,
                            "code_bytes_removed": sum(end - start for start, end, _ in morse_disable.REMOVED)
                            if disable_morse else 0, "hardware_tested": False},

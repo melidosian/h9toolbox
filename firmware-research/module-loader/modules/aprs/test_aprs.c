@@ -16,8 +16,15 @@ static struct h9_request host_request;
 #define H9_REQUEST (&host_request)
 
 void gfx_fill(unsigned x, unsigned y, unsigned w, unsigned h, uint16_t c) { (void)x; (void)y; (void)w; (void)h; (void)c; }
+static char draw_lines[4][27];
+static unsigned draw_count;
 unsigned gfx_text(unsigned x, unsigned y, const char *t, unsigned max, unsigned s, uint16_t f, uint16_t b)
-{ (void)y; (void)f; (void)b; unsigned n = 0; while (n < max && t[n]) n++; return x + n * 6 * s; }
+{
+    (void)y; (void)f; (void)b;
+    unsigned n = 0; while (n < max && t[n]) n++;
+    if (draw_count < 4) { memcpy(draw_lines[draw_count], t, n); draw_lines[draw_count++][n] = 0; }
+    return x + n * 6 * s;
+}
 void gfx_wait_release(void) {}
 unsigned gfx_wait_key(void) { return 0; }
 /* Scripted keys and a simulated stock tick for aprs_event(). */
@@ -266,17 +273,16 @@ int main(void)
     CHECK(A->count == 0);
 
 
-    /* Messages: to me (green, counted), to others, acks skipped, retries merged. */
+    /* Only my inbox/outbox uses the six persistent slots; retries merge. */
     reset();
     strcpy(A->mycall, "N0CALL-7");
     SEND("W1AW", 0, "APRS", ":N0CALL-7 :Hello there{12");
     SEND("W1AW", 0, "APRS", ":N0CALL-7 :Hello there{12");      /* retry */
     SEND("K2BBB", 0, "APRS", ":W3CCC    :Not for you");
     SEND("N0CALL", 7, "APRS", ":W1AW     :ack12");
-    CHECK(A->msgs == 2 && A->unread == 1);
-    CHECK(!strcmp(A->msg[0].from, "K2BBB") && !strcmp(A->msg[0].to, "W3CCC") && !A->msg[0].mine);
-    CHECK(!strcmp(A->msg[1].text, "Hello there") && A->msg[1].mine && A->msg[1].live);
-    for (unsigned i = 0; i < MESSAGES + 2; i++) { char t[32]; sprintf(t, ":X        :m%u", i); send("Z9", 0, "APRS", t, strlen(t)); }
+    CHECK(A->msgs == 1 && A->unread == 1);
+    CHECK(!strcmp(A->msg[0].text, "Hello there") && A->msg[0].id == 12 && A->msg[0].mine && A->msg[0].live);
+    for (unsigned i = 0; i < MESSAGES + 2; i++) { char t[32]; sprintf(t, ":N0CALL-7 :m%u", i); send("Z9", 0, "APRS", t, strlen(t)); }
     CHECK(A->msgs == MESSAGES && !strcmp(A->msg[0].text, "m7"));
 
     /* Delivery: an ack from the recipient, addressed to me, with the id I sent marks the message. */
@@ -291,8 +297,10 @@ int main(void)
     CHECK(!A->msg[0].acked && A->msgs == 1);
     SEND("W1AW", 0, "APRS", ":N0CALL-7 :ack12");
     CHECK(A->msg[0].acked && A->msgs == 1 && A->dirty);
-    SEND("W1AW", 0, "APRS", ":N0CALL-7 :rej12");                  /* a reject is not an ack (and adds nothing) */
-    CHECK(A->msgs == 1);
+    SEND("W1AW", 0, "APRS", ":N0CALL-7 :rej12");                  /* recipient rejects this ID */
+    CHECK(A->msgs == 1 && A->msg[0].rejected && !A->msg[0].acked && A->mail_dirty);
+    SEND("W1AW", 0, "APRS", ":N0CALL-7 :ack12");
+    CHECK(A->msg[0].acked && !A->msg[0].rejected);
 
     /* Heard age: NOW, minutes, hours; stored stations have none. */
     reset();
@@ -308,6 +316,12 @@ int main(void)
     CHECK(!strcmp((put_age(age, &A->st[0]), age), "99H") || age[0] == 'N' || age[1] == 'M' || age[2] == 'H' || age[1] == 'H');   /* capped, or wrapped */
     A->st[0].live = 0;
     CHECK(put_age(age, &A->st[0]) == 0 && !age[0]);
+
+    /* Reading a message on a 26-character display keeps words together. */
+    draw_count = 0;
+    CHECK(aprs_wrap(20, "Meet at 3pm at the park by the lake", 60, UI_TEXT) == 40);
+    CHECK(draw_count == 2 && !strcmp(draw_lines[0], "Meet at 3pm at the park") &&
+          !strcmp(draw_lines[1], "by the lake"));
 
     /* Tab keys: a digit names a screen; the current one and missing ones do nothing. */
     reset();
@@ -344,10 +358,12 @@ int main(void)
     memset(chip, 0xFF, sizeof chip);
     SEND("K1ABC", 0, "APRS", ">hi");
     A->switching = 1; A->length = 5;
+    strcpy(A->draft_to, "W1AW"); strcpy(A->draft_msg, "Meet at 3"); A->draft_valid = 1;
     CHECK(!aprs_open());
-    CHECK(A->count == 1 && A->length == 5 && !A->switching);
+    CHECK(A->count == 1 && A->length == 5 && !A->switching &&
+          A->draft_valid && !strcmp(A->draft_to, "W1AW") && !strcmp(A->draft_msg, "Meet at 3"));
     CHECK(aprs_open());
-    CHECK(A->count == 1 && A->length == 0);
+    CHECK(A->count == 1 && A->length == 0 && !strcmp(A->draft_msg, "Meet at 3"));
     memset(&aprs_host, 0, sizeof aprs_host);                     /* not initialised */
     CHECK(aprs_open());
     CHECK(A->magic == APRS_MAGIC && A->count == 0);

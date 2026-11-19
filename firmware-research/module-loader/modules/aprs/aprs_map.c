@@ -74,7 +74,14 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     aprs_open();
     for (;;) {
         unsigned ev = aprs_event();
-        if (ev == EV_REDRAW) draw();
+        if (ev == EV_STORE) { if (aprs_store(api, MAIL_PAGE_MAP)) return 0; }
+        else if (ev == EV_REDRAW) draw();
+        /* Send from the station highlighted on the map, not an older list
+         * selection. The Send screen uses list_sel for its default recipient. */
+        else if (ev == EV_DIGIT + 4 && A->map_sel < A->count) {
+            A->list_sel = A->map_sel;
+            if (aprs_tab(api, ev, TAB_MAP)) return 0;
+        }
         else if (aprs_tab(api, ev, TAB_MAP)) return 0;
         else if (ev == EV_HOLD) { if (aprs_go(api, APRS_MSG) || aprs_go(api, APRS_LIST)) return 0; }
         else if (ev == EV_BACK) { aprs_go(api, APRS_LIST); return 0; }

@@ -103,13 +103,14 @@ class ResourceWriteProtection(unittest.TestCase):
 
         for _, target, name in build.S2_WRITE_GUARDS:
             self.assertEqual(next(instructions(name, 1))[2], f"r3 = {build.IMAGE_BASE + target}")
-        shift, branch, deny, ret, allow = instructions("ml_s2_guard", 5)
-        self.assertEqual(shift[2], "r2 = r0 >> 14")
-        match = re.fullmatch(r"if \(r2 != 255\) goto (-?\d+)", branch[2])
-        self.assertIsNotNone(match)
-        self.assertEqual(branch[0] + branch[1] + int(match[1]), allow[0])
+        shift, low, high, deny, ret, allow = instructions("ml_s2_guard", 6)
+        self.assertEqual(shift[2], "r2 = r0 >> 12")
+        for branch in (low, high):
+            match = re.fullmatch(r"if \(r2 (?:< 1018|>= 1024)\) goto (-?\d+)", branch[2])
+            self.assertIsNotNone(match, branch[2])
+            self.assertEqual(branch[0] + branch[1] + int(match[1]), allow[0])
         self.assertEqual((deny[2], ret[2], allow[2]), ("r0 = 0", "rts", "goto r3"))
-        self.assertEqual((0xff << 14, 0x100 << 14), (0x3FC000, 0x400000))
+        self.assertEqual((0x3fa << 12, 0x400 << 12), (0x3FA000, 0x400000))
 
 
 class DevKiss(unittest.TestCase):

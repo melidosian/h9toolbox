@@ -40,7 +40,7 @@ test('sector plans never leave the stock-safe areas or overwrite foreign data', 
   const blank = new Uint8Array(SECTOR).fill(0xff);
   assert.throws(() => sectorPlan(0xa1e000, blank, blank), /outside the stock-safe areas/);   // boot-logo/stock images
   assert.throws(() => sectorPlan(0x900000, blank, blank), /outside the stock-safe areas/);   // rw_freq
-  for (const address of [0x3fc000, 0x3fd000, 0x3fe000, 0x3ff000])
+  for (const address of [0x3fa000, 0x3fb000, 0x3fc000, 0x3fd000, 0x3fe000, 0x3ff000])
     assert.throws(() => sectorPlan(address, blank, blank), /outside the stock-safe areas/);
   const foreign = new Uint8Array(SECTOR).fill(7);
   assert.throws(() => sectorPlan(0xa20000, foreign, pack(SECTOR)), /did not write/);
@@ -50,6 +50,8 @@ test('sector plans never leave the stock-safe areas or overwrite foreign data', 
 test('upload writes the pack and directory, verifies, and leaves stock data alone', async () => {
   const sim = new SimulatedRadio();
   stockLikeChip(sim);
+  sim.chip.fill(0x4f, 0x3fa000, 0x3fb000);              // APRS mailbox journal
+  sim.chip.fill(0x50, 0x3fb000, 0x3fc000);
   const before = sim.chip.slice();
   const data = pack(3 * SECTOR + 100);
   const manifest = await uploadPack(sim.radio, data, { name: 'test pack' });
@@ -125,7 +127,7 @@ test('a deep restore clears the tails whatever is there', async () => {
   assert.deepEqual(sim.chip, before);
 });
 
-test('legacy game allocation crossing settings sectors requires migration', async () => {
+test('legacy game allocation crossing the reserved tail requires migration', async () => {
   const legacySlot = { ...SLOTS.game, areas: [
     ...SLOTS.game.areas.slice(0, 2),
     { name: 'voice', start: 0x3a7000, end: 0x3fe000 },

@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased: APRS app v1.0
+
+- The six-message on-radio inbox and outbox now survive power cycles in a
+  guarded two-sector resource-flash journal. Outgoing messages retain their
+  packet ID and ACK state. Other stations' messages no longer evict them.
+- Messages distinguish incoming and outgoing traffic. Outgoing messages show
+  SENT until an ACK or REJ from the recipient is heard; the detail shows
+  NO ACK YET, ACK RECEIVED or REJECTED.
+- The mailbox refuses writes when the game directory claims either sector,
+  the sector contains foreign data, or the saved callsign differs. The Messages
+  screen reports when storage is unavailable. A first interrupted write can
+  resume for the same callsign; later writes preserve the previous commit.
+- The game uploader and firmware S2 service reserve the six-sector voice tail
+  starting at 0x3FA000 for the mailbox, settings, VFO recovery and GPS fix.
+- Menu on a message detail opens Send addressed to that station. Send remembers a
+  draft while switching APRS screens, and focuses the message field when a
+  recipient is already selected. Send from Map uses its highlighted station.
+- The prepared dev App Manager catalog includes the hidden mailbox worker.
+- Station notes, messages and send previews wrap at word boundaries on the
+  radio's narrow screen.
+
 ## H9 Toolbox Firmware v0.1.5
 
 ### Firmware and installer

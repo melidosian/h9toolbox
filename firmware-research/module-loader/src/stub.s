@@ -564,7 +564,7 @@ mlcrc_done:
     r0 = r2
     {pc, r5-r4} = [sp++]
 
-/* Keep the S2 uploader out of the two settings candidates, VFO recovery,
+/* Keep the S2 uploader out of the mailbox pair, settings pair, VFO recovery
  * and last GPS fix. Check both the control request and each data block. */
     .globl ml_s2_allowed
 ml_s2_allowed:
@@ -574,8 +574,9 @@ ml_s2_allowed:
 ml_s2_program_check:
     r3 = 0x01ea558e
 ml_s2_guard:
-    r2 = r0 >> 14
-    if (r2 != 0xff) goto ml_s2_guard_pass
+    r2 = r0 >> 12
+    if (r2 < 0x3fa) goto ml_s2_guard_pass
+    if (r2 >= 0x400) goto ml_s2_guard_pass
     r0 = 0
     rts
 ml_s2_guard_pass:
