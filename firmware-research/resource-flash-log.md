@@ -4551,3 +4551,26 @@ result yet.**
 - Fixed the TNC's repeated REJ generation for one receive gap. It still answers polls, clears the reject when the missing frame arrives, and can request the next gap. The regression test exercises all three transitions and the full tncd Go test suite passed. A live trial after the H9 reappeared on Bluetooth reached KC9GMW-12 at 145.610 MHz. The gateway sent ordered greeting frames and acknowledged the 80-byte `I[0/3]` with `RR[1]` 2.149 s after AF01 handoff, then acknowledged the second 80-byte information frame with `RR[2]`. This confirms 80-byte RF delivery. The successful link had no receive gap, so it cannot attribute the earlier missed sequence zero to duplicate REJs.
 - Winlink then returned an explicit secure-login password mismatch. The isolated test used the same saved password and callsign as the regular Pat profile. Its Outbox was empty and incoming proposals were deferred. The regular Outbox snapshot matched after the trial.
 - On the next trial, Winlink's password-validation API accepted the exact saved credentials used in the isolated Pat profile. KC9GMW-12 acknowledged the 80-byte login frame with `I[3/1]` carrying `FQ` 2.149 s after Bluetooth handoff. Pat recorded a successful exchange and exited with status 0. The AX.25 disconnect command was retried. Both the isolated and regular Outboxes were empty; the regular Outbox matched its preflight snapshot.
+
+## 2026-11-18 PTT+7 staged APRS updater
+
+- The user verified the unplugged stock PTT+7 screen and Back exit, followed
+  by APRS Info `V1.0.15`. The main app opens the internal UART at 19,200
+  before that screen and switches to 115,200 after the normal modem launch
+  packet. The host-facing USB APRS serial link uses its own rate and timing.
+- The first build reserves main flash `0xF5000–0xFBFFF` (XIP
+  `0x01EF0000`) for the updater and approved KISS modem image. The stage
+  writes via the existing PTT+2 HID main-flash protocol and checks aligned
+  and shifted sector CRCs. The board checks executable and image CRC32
+  values independently. The slot overlaps the far region used by Doom,
+  so the installer requires erased or matching sectors. The 16 MB
+  resource flash has no role in the update.
+- The Menu path uses the stock update UART after 20 ms of internal RX
+  quiet. It checks actual `PY 0x0D` block replies and `PY 0x55` exit
+  before launch. The screen reports a verified boot only after a framed
+  `0x21` reply carrying the expected versions at normal UART speed.
+  A lost acknowledgment holds at the failure screen until power-off.
+- The Pi32 build, stock-derived package checks, and simulated staging,
+  block timeouts, and version validation passed offline. The new main
+  package and staged modem writer have yet to run on hardware.
+  See [on-radio APRS updater](on-radio-aprs/README.md).

@@ -1,0 +1,91 @@
+/* Private state in the last 256 bytes of the KISS app's first heap region.
+ * 0 is stock mode. 1 owns the modem write ACK. 2 waits for power-off after
+ * a partial update. 3 already sent the modem launch. 4 permits stock exit. */
+    .section .text,"ax",@progbits
+    .globl stock_screen
+stock_screen:
+    r1 = 0x29e00
+    r0 = 0
+    [r1] = r0
+    r3 = 0x01e7a052
+    goto r3
+
+    .globl stock_idle_tick
+stock_idle_tick:
+    [--sp] = {rets, r14-r4}
+    r3 = 0x01e7a004
+    call r3
+    r0 = 0x29e00
+    r1 = b[r0] (u)
+    if (r1 == 2) goto hold_failed
+    if (r1 != 0) goto idle_done
+    r0 = 0xc3af
+    r1 = b[r0] (u)
+    if (r1 != 12) goto idle_done
+
+    /* Verify the entire executable before it can run from the spare flash.
+     * The expected CRC is baked into the main application by build.py. */
+    r4 = @ENTRY@
+    r5 = @END@
+    r6 = -1
+    r7 = 0xedb88320
+crc_byte:
+    r0 = b[r4] (u)
+    r4 += 1
+    r6 = r6 ^ r0
+    r1 = 8
+crc_bit:
+    r2 = r6 & 1
+    r6 = r6 >> 1
+    if (r2 == 0) goto crc_shifted
+    r6 = r6 ^ r7
+crc_shifted:
+    r1 -= 1
+    if (r1 != 0) goto crc_bit
+    if (r4 != r5) goto crc_byte
+    r0 = @CRC_STATE@
+    if (r6 != r0) goto idle_done
+    r3 = @ENTRY@
+    call r3
+    goto idle_done
+
+hold_failed:
+    r1 = 0
+    r0 = 0xc3af
+    b[r0] = r1
+idle_done:
+    {pc, r14-r4} = [sp++]
+
+    .globl stock_ready
+stock_ready:
+    r0 = 0x29e00
+    r0 = b[r0] (u)
+    if (r0 == 2) goto not_ready
+    r0 = b[r4+98] (u)
+    rts
+not_ready:
+    r0 = 0
+    rts
+
+    .globl stock_launch
+stock_launch:
+    r0 = 0x29e00
+    r1 = b[r0] (u)
+    if (r1 == 3) goto skip_launch
+    r3 = 0x01e7a1fe
+    goto r3
+skip_launch:
+    rts
+
+    .globl block_ack
+block_ack:
+    r1 = 0x29e00
+    r2 = b[r1] (u)
+    if (r2 != 1) goto forward_ack
+    r2 = b[r1+1] (u)
+    r2 += 1
+    b[r1+1] = r2
+    rts
+forward_ack:
+    r3 = 0x01e7871e
+    goto r3

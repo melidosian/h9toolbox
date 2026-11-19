@@ -33,10 +33,10 @@ app+`0x07A0C2` the startup display path reads `0x11B32` through base
 `0x11AD0` plus `98`, enters an additional display branch when nonzero, and
 clears the byte at app+`0x07A0F6`. The read bytes are `50 EE 42 06` and
 the clear-store bytes are `52 EE 42 56`; the base-load is at
-app+`0x07A09A`. Ghidra's existing project has no analyzed function over
-this consumer, so the result comes from the independent linear decoder;
-surrounding branch interpretation remains provisional. The intervening drawing calls have not
-been reconstructed. `h9_main_aprs_session_take_ready` exposes this
+app+`0x07A09A`. The surrounding decode places this consumer in the PTT+7
+screen and identifies its “Update Success!” drawing call.
+See [update entry and normal startup](aprs-update-entry.md).
+`h9_main_aprs_session_take_ready` exposes this
 single-consumer event to a future UI loop; no UI loop calls it yet. Other valid `PY`
 control messages bypass the APRS ring. For ordinary bytes, the routine
 computes ring free space before copying. If
@@ -63,15 +63,16 @@ batch into the ring if it fits. Host tests cover wraparound, the `1024`-byte
 poll limit, frame handoff, a full-ring drop, and an end-to-end split frame
 through the read callback. Counting dropped bytes is a replacement policy;
 the stock overflow flag's behavior is still unknown. The two observed `PY`
-control effects are ported to `h9_main_aprs_session.*`; serial object
-construction, peripheral setup, and board callback remain unmapped. The
-registration routine starts at app+`0x088180`. It constructs a 32-byte serial
+control effects are ported to `h9_main_aprs_session.*`. Beginning at
+app+`0x088438`, the startup routine constructs a 32-byte serial
 open record at stack+`0x24`, with pin identifiers `0x20,0x21` at offsets `0,1`,
 RAM pointer `0x10CFC` at `+4`, sizes `2048` and `1024` at `+8,+12`, value `10`
 at `+16`, producer callback `0x01E78FFE` at `+20`, zero at `+24`, and baud
 `19200` at `+28`. It passes that record to app+`0x0C57BC` and stores the
 returned serial object at RAM `0x11CFC`. The later producer reads from that
-object's callback slot `+16`. Ghidra's seeded decompilation and the separate
+object's callback slot `+16`. This is the initial 19,200 baud open. The
+startup path calls the object's baud setter with 115,200 after sending
+the modem startup message. Ghidra's seeded decompilation and the separate
 Pi32v2 decode agree on the stack record; the semantic roles of the RAM
 pointer, two sizes, and value `10` still need board verification.
 
