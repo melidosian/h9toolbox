@@ -4670,3 +4670,20 @@ result yet.**
   The trace establishes Bluetooth handoff; RF delivery was unverified.
 - The normal Pat Outbox matched its preflight snapshot. The live bridge
   and Terminal trace remained open.
+
+## 2026-11-19 Live Winlink secure login with built-in AGWPE
+
+- Pat's saved credential was accepted by Winlink's account check and in a
+  separate direct CMS session. A retry through KC9GMW-12 used the built-in
+  AGWPE bridge and the same credential in an isolated empty mailbox with
+  inbound mail deferred.
+- The redacted capture recorded the gateway's in-order challenge and prompt,
+  Pat's 77-byte login write and 3-byte B2F turn, and the byte-identical
+  80-byte Bluetooth handoff in I[0/3]. In both captures the challenge
+  response matched an independent calculation using the saved credential.
+  The trace retained no credential or challenge-response values.
+- KC9GMW-12 replied with RR[1] 2.296 seconds after Bluetooth handoff,
+  then FQ in I[3/1]. Pat exited successfully after receiving DM in
+  response to disconnect. The normal Outbox matched its preflight
+  snapshot and the isolated mailbox stayed empty. The live terminal,
+  KISS TCP and AGWPE listeners remained open.
