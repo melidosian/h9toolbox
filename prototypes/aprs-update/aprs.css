@@ -1,4 +1,18 @@
 .card-head + .controls { margin-top: 12px; }
+.aprs-paths .button { white-space: normal; }
+.aprs-steps, .aprs-copy {
+  color: #c5dfd5;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.aprs-steps li { margin-bottom: 9px; }
+.aprs-steps a, .aprs-copy a { color: #a9e8c8; }
+.aprs-help {
+  margin-top: 14px;
+  color: #c5dfd5;
+  font-size: 14px;
+}
+.aprs-help summary { cursor: pointer; }
 .aprs-field {
   display: grid;
   gap: 8px;
@@ -37,4 +51,5 @@
 }
 @media (max-width: 520px) {
   .aprs-progress { grid-template-columns: 1fr; gap: 4px; }
+  .aprs-paths { align-items: stretch; flex-direction: column; }
 }

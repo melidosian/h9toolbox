@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Run the H9, tncd, and Pat web UI from one local terminal."""
+"""Run the H9 bridge and Pat web UI from one local terminal."""
 
 import argparse
-import configparser
 from contextlib import ExitStack
 import json
 from pathlib import Path
@@ -19,7 +18,6 @@ import webbrowser
 HERE = Path(__file__).resolve().parent
 WEB = "http://127.0.0.1:8080/"
 AGWPE = "127.0.0.1:8000"
-STATUS = "http://127.0.0.1:8002/api/status"
 CALLSIGN = re.compile(r"[A-Z0-9]{1,6}(?:-(?:[0-9]|1[0-5]))?")
 
 
@@ -34,7 +32,7 @@ def stop(child):
 
 
 def verify_ports():
-    for port in (8000, 8002, 8080, 8100):
+    for port in (8000, 8080, 8100):
         with socket.socket() as sock:
             sock.settimeout(1)
             if sock.connect_ex(("127.0.0.1", port)) == 0:
@@ -52,9 +50,8 @@ def wait_for_radio(children):
     while time.monotonic() < deadline:
         ensure_running(children)
         try:
-            with urlopen(STATUS, timeout=1) as response:
-                if any(p["port"] == 0 and p["online"] for p in json.load(response)["ports"]):
-                    return
+            with socket.create_connection(("127.0.0.1", 8000), timeout=1):
+                return
         except OSError:
             pass
         time.sleep(0.3)
@@ -79,10 +76,9 @@ def open_pat(children):
 
 def run(args):
     verify_ports()
-    tncd = shutil.which(args.tncd)
     pat = shutil.which(args.pat)
-    if not tncd or not pat:
-        raise RuntimeError("Install Pat and use --tncd to select the patched executable")
+    if not pat:
+        raise RuntimeError("Install Pat or use --pat to select its executable")
 
     config = json.loads(args.pat_config.read_text(encoding="utf-8-sig"))
     call = config.get("mycall", "").strip().upper()
@@ -102,13 +98,6 @@ def run(args):
         with profile.open("x", encoding="utf-8") as output:
             json.dump(config, output)
         profile.chmod(0o600)
-        radio_config = session / "tncd.ini"
-        ini = configparser.ConfigParser()
-        ini.read(HERE / "tncd.ini", encoding="utf-8")
-        ini["server"]["callsign"] = call
-        with radio_config.open("w", encoding="utf-8") as output:
-            ini.write(output)
-        subprocess.run([tncd, "check", "-c", str(radio_config)], check=True)
         children = {}
 
         def start(name, command):
@@ -120,7 +109,6 @@ def run(args):
         if args.allow_tx:
             radio.append("--allow-tx")
         start("Bluetooth bridge", radio)
-        start("tncd", [tncd, "-c", str(radio_config), "-v"])
         wait_for_radio(children)
         pat_cmd = [pat, "--config", str(profile), "--log", str(session / "pat.log")]
         if args.mbox:
@@ -140,7 +128,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True, help="Device identifier from bridge.py --scan")
     parser.add_argument("--pat-config", required=True, type=Path, help="PAT_CONFIG_PATH shown by pat env")
-    parser.add_argument("--tncd", default="tncd-h9", help="Patched tncd program name or path")
     parser.add_argument("--pat", default="pat", help="Pat program name or path")
     parser.add_argument("--mbox", type=Path, help="Use an alternate Pat mailbox")
     parser.add_argument("--gateway", help="Add an H9 connection alias for this callsign")

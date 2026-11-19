@@ -65,55 +65,22 @@ The modem patch can also be rebuilt with:
 python firmware-research/kiss-tnc/build_aprs_rx.py /path/to/stock/APRS-1.0.15.bin regenerated-aprs.bin
 ```
 
-## Install the host tools
+## Connect a computer
 
-Use Python 3.11 or later, Git, Go 1.25.13 or later, and [Pat](https://getpat.io/) configured with your callsign and Winlink login. Run the following from this checkout’s `firmware-research/kiss-tnc/host` directory. Use `python3` or `py -3` if that is how you invoke Python.
+Follow the [bridge README](host/README.md) for setup on macOS, Windows or Linux.
+The bridge exposes AGWPE at `127.0.0.1:8000` for Pat and Paracon, and keeps
+standard port-zero KISS TCP at `127.0.0.1:8100`. The Pat launcher uses the
+bridge's built-in AX.25 engine and the same local Pat mailbox.
 
-```text
-python -m pip install -r requirements.txt
-git init tncd-src
-git -C tncd-src fetch --depth 1 https://github.com/ben-kuhn/tncd.git c4de796ebe358234a56d1cf075a017d7d5ad850d
-git -C tncd-src checkout --detach FETCH_HEAD
-git -C tncd-src apply ../tncd-h9.patch
-cd tncd-src
-go build -o ../tncd-h9 ./cmd/tncd
-cd ..
-```
+The AX.25 engine retains the H9 profile used by the earlier host setup.
+It uses v2.0 sequencing, a one-frame window, up to 80 information bytes
+per frame, a 100 ms initial write batch, three retries and an 18-second
+idle poll. The bridge keeps the 1.60-second interval between BLE writes
+and 0.70-second receive-to-transmit guard. It fits encoded data into a single
+Bluetooth write, including when a digipeater path or escaping uses more bytes.
 
-On Windows, change the build output to `../tncd-h9.exe`. The [tncd patch](host/tncd-h9.patch) applies to the pinned upstream revision and is supplied under [GPL-3.0](host/COPYING.tncd).
-
-## Connect Pat to the radio
-
-1. Select the gateway frequency on the H9, turn Bluetooth on, and leave the radio in normal mode. The tested setup used simplex with Dual Watch off.
-2. Run `python bridge.py --scan` in the host directory. Select the H9’s identifier from that machine. macOS typically shows a UUID and Windows or Linux typically shows a Bluetooth address. Linux uses BlueZ and requires access to the local Bluetooth adapter. [Bleak platform support](https://bleak.readthedocs.io/en/latest/)
-3. Run `pat env` to find `PAT_CONFIG_PATH`. Start the launcher with your device identifier, configuration path, and gateway. Specify `./tncd-h9.exe` on Windows.
-
-```text
-python run_pat.py --device DEVICE_ID --pat-config "PATH/TO/config.json" --tncd ./tncd-h9 --gateway K9ESV-10 --allow-tx
-```
-
-4. Open [Pat](http://127.0.0.1:8080/) and choose **Connect → H9 K9ESV-10**, or the alias for your chosen gateway. To open Pat automatically once its web interface is ready, add `--open-browser` to the launcher command. The terminal shows live AX.25 RX and TX. Press Ctrl+C to stop the three local processes.
-
-The launcher keeps the Pat configuration in a temporary copy and uses the normal Pat mailbox. Use `--mbox PATH` to select a separate mailbox. A manual Connect can transmit everything queued in that mailbox. Omit `--allow-tx` for passive packet monitoring. The launcher disables automatic connections and binds its listeners to loopback.
-
-### Connect a packet terminal
-
-With the launcher running, configure [Paracon](https://paracon.readthedocs.io/en/stable/userguide/#connections) or another AGWPE client for `127.0.0.1:8000` and radio port **0**. The service advertises this port as `Port1 TD-H9 BLE`. Paracon could read the old `TD-H9 BLE` label as port 8 and show BBS replies only in Monitor. Restart the launcher and Paracon after updating an existing copy of the configuration.
-
-One verified over-the-air example is the [McHenry County RACES `PESV` packet BBS](https://mcraces.org/winlink/) on **145.610 MHz FM simplex** with no tone or offset. Enter `PESV` under **Connect To → Call** and leave **Via** blank for a direct connection.
-
-### Settings from the successful upload
-
-| Setting | Value |
-| --- | --- |
-| AX.25 | v2.0, 1200 baud, one outstanding data frame |
-| Maximum information field | 80 bytes |
-| Batch delay for adjacent Pat writes | 100 ms |
-| Minimum interval between BLE writes | 1.60 s |
-| Quiet time after a BLE receive notification | 0.70 s |
-| AX.25 retry limit and idle poll | 3 retries, 18 s idle |
-| H9 Bluetooth | AF00 service, AF01 write without response, AF02 notifications |
-
-The batch window joins Pat’s short transfer header with the start of its binary body. The tncd patch also fixes retry accounting after a missed connection acknowledgment, duplicate packets on rejects, and disconnect retries. It sends one REJ per receive gap and answers polls while the gap is open. Each complete escaped KISS frame goes into one Bluetooth write. If a platform reports a smaller write capacity, the bridge reports the limit. The 80-byte profile was tested on a direct link. Longer digipeater paths can require a smaller information field.
-
-The main image and APRS modem were verified on the radio, and the equivalent host configuration completed a real Pat send on macOS. The published firmware builds and host regression tests can be verified offline. The tncd package builds on macOS, Windows, and Linux. Bluetooth operation on Windows and Linux still needs hardware validation.
+The earlier host configuration completed a Winlink upload on macOS.
+The Pat and Paracon client libraries exchanged data through the integrated
+engine against a simulated radio. The integrated engine still needs an
+over-the-air check.
+See the [historical tncd patch](host/tncd-h9.patch) for the previous setup.

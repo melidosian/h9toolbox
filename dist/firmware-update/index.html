@@ -21,7 +21,7 @@
   <link rel="icon" href="../favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../landing.css?v=20261108c">
-  <link rel="stylesheet" href="./update.css?v=20261108f">
+  <link rel="stylesheet" href="./update.css?v=20261118aprs">
   <link rel="stylesheet" href="../boot-logo/logo.css?v=20261108c">
   <script src="../https-redirect.js"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"H9 Toolbox TD-H9 Web Flasher","url":"https://h9toolbox.com/firmware-update/","description":"Install H9 Toolbox Firmware or restore stock v1.0.38 on a TIDRADIO TD-H9 over USB-C (PTT + 2 HID mode) in Chrome or Edge.","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows, macOS, Linux, ChromeOS (desktop Chrome or Edge)","browserRequirements":"Requires Web Bluetooth or WebHID (desktop Chrome or Edge)","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Install H9 Toolbox Firmware","Restore stock v1.0.38","Quick firmware backup","Sector-by-sector verification","Resume after interruption","App Manager link for apps and boot logo"],"about":{"@type":"Product","name":"TIDRADIO TD-H9","brand":{"@type":"Brand","name":"TIDRADIO"},"category":"Handheld two-way radio"},"publisher":{"@type":"Organization","name":"H9 Toolbox","url":"https://h9toolbox.com/","sameAs":["https://github.com/melidosian/h9toolbox"]}}</script>
@@ -54,7 +54,7 @@
       <section class="card" aria-labelledby="files-title">
         <div class="card-head"><div><span class="step">02</span><h2 id="files-title">Select firmware</h2></div></div>
         <div class="file-grid">
-          <div class="hosted-package" id="optBuild"><span class="selected-badge">✓ Selected</span><strong>H9 Toolbox Firmware for v1.0.38</strong><button class="button primary-button" id="loadBuild">Load H9 Toolbox Firmware</button><small>Stock v1.0.38 with the app loader and the Bluetooth service the App Manager uses. Checked against its exact hash before any radio access; upgrades earlier H9 Toolbox builds and the original Brick Breaker directly.</small></div>
+          <div class="hosted-package" id="optBuild"><span class="selected-badge">✓ Selected</span><strong>H9 Toolbox Firmware v0.1.5</strong><button class="button primary-button" id="loadBuild">Load H9 Toolbox Firmware</button><small>Includes the app loader, Bluetooth packet support and a staged APRS modem update. You can finish the modem update from the keypad in optional step 05.</small></div>
           <div class="hosted-package" id="optStock"><span class="selected-badge">✓ Selected</span><strong>Stock Type-C v1.0.38</strong><button class="button ghost" id="loadStockGitHub">Fetch stock .fw from GitHub</button><small>Reads the pinned ZIP from the third-party TDH9 mirror and verifies both the ZIP and extracted firmware hashes.</small><label>Or select a local stock .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label></div>
           <label class="backup-file">Restore point, optional: a stock backup (.h9hid or raw .bin)<input id="backupFile" type="file" accept=".h9hid,.bin,application/octet-stream"><small id="backupState">No backup selected. You can create one after connecting.</small></label>
         </div>
@@ -63,11 +63,11 @@
       </section>
       <section class="card" aria-labelledby="write-title">
         <div class="card-head"><div><span class="step">03</span><h2 id="write-title">Write firmware</h2></div></div>
-        <p class="subtext">Back up the radio first: the backup downloads a recovery file of its current firmware in a few seconds (stock or H9 Toolbox firmware); keep it. Install then checks every sector on the radio (CRC only, no writes) and builds the exact plan; nothing is erased unless that check passes.</p>
+        <p class="subtext">Click <strong>Backup radio</strong> and keep the downloaded recovery file. Install checks the radio before it writes. For H9 Toolbox Firmware, it also copies the APRS update into spare memory if the space is available. Keep USB connected until you see the final result.</p>
         <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may damage my radio. I saved a recovery backup and have a recovery method.</span></label>
         <div class="controls write-controls"><button class="button primary-button" id="createBackup" disabled>Backup radio</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button><button class="button ghost" id="flash" disabled>Install firmware</button><button class="button ghost" id="restore" disabled>Restore backup</button></div>
         <p id="planState" class="hint plan-state" aria-live="polite">Connect the radio in step 01.</p>
-        <p class="fine">Restore writes your restore point’s firmware sectors back and checks their CRCs. Your channels and settings are never changed here; to back them up, use the Bluetooth programmer.</p>
+        <p class="fine">Restore writes the main firmware from your backup. The staged file and APRS modem stay as they are. Use the Bluetooth programmer to back up channels and settings.</p>
         <div class="progress-wrap"><div class="progress-track"><div id="progress"></div></div><span id="progressText">0%</span></div>
         <div class="result-panel" id="writeResult" role="status" hidden></div>
       </section>
@@ -78,6 +78,20 @@
         <div class="controls"><a class="button primary-button" href="../apps/">Open the App Manager</a></div>
         <p class="fine">Apps and the boot logo live on the radio’s separate resource flash, so firmware updates (including a return to stock) keep them.</p>
       </section>
+      <section class="card" id="unlock-kiss" aria-labelledby="kiss-title">
+        <div class="card-head"><div><span class="step">05</span><h2 id="kiss-title">Unlock KISS TNC</h2></div><span class="chip">Optional</span></div>
+        <p class="subtext" id="kissGate" aria-live="polite">Use this step after Install confirms that the APRS update was staged.</p>
+        <ol class="instructions">
+          <li>When the USB install finishes, unplug the cable and turn the radio off.</li>
+          <li>Hold the side <strong>PTT</strong> (talk) button and the keypad <strong>7</strong> together while turning the radio on. Let go when the screen says <strong>APRS Update</strong>.</li>
+          <li>Press <strong>Menu</strong> once and let go. At <strong>APRS STAGE READY</strong>, press <strong>Menu</strong> a second time to write the modem firmware. Leave the radio on until it shows <strong>APRS BOOT VERIFIED</strong>. Press <strong>Back</strong> from the ready screen if you want to leave without writing.</li>
+          <li>Turn the radio off and back on normally. In <strong>APRS Info</strong>, look for <strong>V1.0.15X</strong>.</li>
+          <li>Turn on Bluetooth on the radio. Download and unzip the bridge on your computer, open the README, and follow the steps to connect your packet program.</li>
+        </ol>
+        <div class="controls"><a class="button primary-button" href="./h9-kiss-bridge.zip" download>Download KISS bridge and README</a></div>
+        <p class="fine">The bridge connects the radio over Bluetooth and provides direct KISS TCP plus built-in AGWPE for Pat and Paracon. The ZIP includes setup instructions.</p>
+        <p class="fine">If APRS Info stays on <strong>Querying…</strong> after a normal restart, use the <a href="https://github.com/melidosian/h9toolbox/blob/dev/firmware-research/kiss-tnc/README.md#aprs-modem">Windows APRS recovery instructions</a>.</p>
+      </section>
       <section class="card status-card" aria-live="polite" aria-labelledby="activity-title">
         <div class="card-head"><div><h2 id="activity-title">Activity</h2></div></div>
         <div id="status" class="status">Ready. No radio write has been sent.</div>
@@ -86,6 +100,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The full browser install and restore flow has been tested on one TD-H9 from macOS.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=usb1"></script>
+  <script type="module" src="./update.js?v=20261118aprs"></script>
 </body>
 </html>
