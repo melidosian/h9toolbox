@@ -13,10 +13,11 @@
  * Packets go out like APRS SEND's: through stock's own KISS transmit routine
  * 0x01E5DBCC (it keys, sends, waits the airtime and unkeys with stock's checks),
  * on the APRS TX CH side, only on the 2 m band, with your callsign.
- * Beaconing is OFF when the screen opens and only runs while it is open.
+ * Back leaves an armed beacon running on the radio screen. Opening
+ * Toolbox pauses it. Reopen BEACON to resume, or hold Menu there to stop it.
  * Keys: Up/Down choose MODE, EVERY or SYMBOL, Menu changes it; HOLD Menu (0.6 s)
  * starts or stops beaconing (a keypad glitch is far shorter, so it cannot start
- * or stop it); 5 sends one now; Back leaves (and stops). The settings are kept
+ * or stop it); 5 sends one now; Back leaves. The settings are kept
  * for the session (A->beacon).
  * Unattended transmitting needs an amateur licence: you are responsible. */
 #include "aprs_core.h"
@@ -24,9 +25,39 @@
 #include "beacon_core.h"
 #include "fix_store.h"
 #include "third_party/smartbeacon/smartbeacon.h"
+#include <stddef.h>
 
 enum { BTAP_TICKS = 3, BHOLD_TICKS = 60, QUIET_TICKS = 50, ROW = 11, TOP = BODY_Y, ROWS = 3, GUARD_MS = 60000 };
-enum { BKEY_WAIT = 0xFE };
+enum { BKEY_WAIT = 0xFE, GPS_STALE_MS = 10000 };
+
+/* The existing loader dispatches the resident entry from the main radio loop
+ * and clears its magic before loading another Toolbox module. */
+struct resident_entry {
+    uint32_t magic, entry, lencrc, tick, reserved[3], flags;
+};
+#ifndef BEACON_RESIDENT
+#define BEACON_RESIDENT ((volatile struct resident_entry *)0x2B8B4u)
+#endif
+#ifndef BEACON_RADIO_BUSY
+/* The stock periodic beacon (app+0x08747C) uses these mode and activity
+ * flags before it starts. Also exclude a sleeping or already keyed RF chip. */
+#define BEACON_RADIO_BUSY() ((*(const volatile uint8_t *)0x11B01u) || \
+    (*(const volatile uint8_t *)0x11AB0u) > 1 || (*(const volatile uint8_t *)0x11AC6u) != 3 || \
+    (*(const volatile uint8_t *)0x11AFBu) || (*(const volatile uint8_t *)0x11AFEu) || \
+    (*(const volatile uint8_t *)0x11D28u) || \
+    (((unsigned (*)(unsigned))0x01E505FEu)(0x30) & 0x4000u))
+#endif
+#ifndef BEACON_ACTIVE_SIDE
+#define BEACON_ACTIVE_SIDE (*(const volatile uint8_t *)0x11B50u >> 7)
+#endif
+#ifndef BEACON_TX_SETTING
+#define BEACON_TX_SETTING (*(const volatile uint8_t *)0xC533u)
+#endif
+#ifndef BEACON_REDRAW_RADIO
+#define BEACON_REDRAW_RADIO() ((void (*)(unsigned))0x01E53306u)(0)
+#endif
+enum { BEACON_RESIDENT_MAGIC = 0x54525343, BEACON_STATE_BYTES = 0x180,
+       BEACON_HANDOFF_READY = 2, BEACON_RESUME = 0x80 };
 
 static const char SYMBOL[3] = { '[', 'b', '>' };
 static const char *const SYMBOL_NAME[3] = { "PERSON", "BIKE", "CAR" };
@@ -39,19 +70,55 @@ static const char COMMENT[] = "H9 Toolbox";
 
 struct screen {
     struct beacon_gps g;
-    struct beacon_feed feed;
     sb_state_t sb;
-    uint32_t t0, last_ms, armed_ms, hold_until;
+    uint32_t t0, last_ms, hold_until, gps_ms, background_freq;
     unsigned sent;
-    uint8_t armed, sel, result_ok;
+    uint16_t cursor;
+    uint8_t armed, background_side, background_setting;
+    struct beacon_feed feed;
+    uint8_t sel, result_ok;
     const char *result;          /* the last transmit's outcome */
 };
+
+#ifndef BEACON_BACKGROUND_STATE
+#define BEACON_BACKGROUND_STATE ((struct screen *)(0x2B880u - BEACON_STATE_BYTES))
+#endif
+/* The foreground has stopped parsing APRS packets when it asks for .APRS BG.
+ * Reuse the two parser scratch arrays until that module has loaded. */
+#define BEACON_HANDOFF ((volatile uint8_t *)A + offsetof(struct aprs, frame))
+#define BEACON_SNAPSHOT_BYTES offsetof(struct screen, feed)
+_Static_assert(sizeof(struct screen) <= BEACON_STATE_BYTES, "resident beacon state exceeds reserved RAM");
+_Static_assert(BEACON_SNAPSHOT_BYTES + 2 <= FRAME_MAX + NMEA_MAX, "beacon handoff exceeds parser scratch");
+
+/* Other APRS screens can reuse this scratch while the beacon is paused. */
+static int snapshot(struct screen *s, int restore)
+{
+    uint8_t *state = (uint8_t *)s;
+    uint16_t check = 0xA15A;
+    for (unsigned i = 0; i < BEACON_SNAPSHOT_BYTES; i++) {
+        if (restore) state[i] = BEACON_HANDOFF[i];
+        else BEACON_HANDOFF[i] = state[i];
+        check = (uint16_t)((check << 1 | check >> 15) ^ state[i]);
+    }
+    volatile uint8_t *end = BEACON_HANDOFF + BEACON_SNAPSHOT_BYTES;
+    if (restore) return check == (end[0] | end[1] << 8) && s->armed == 1 && TICK >= s->t0;
+    end[0] = (uint8_t)check;
+    end[1] = (uint8_t)(check >> 8);
+    return 1;
+}
 
 static uint32_t now_ms(const struct screen *s) { return (TICK - s->t0) * 10u; }
 
 /* Send one position report now. Returns why not, or 0. */
-static const char *transmit(struct screen *s)
+static const char *transmit(struct screen *s, int background)
 {
+#ifndef APRS_HOST_TEST
+#ifdef APRS_BEACON_RESIDENT
+    background = 1;
+#else
+    background = 0;
+#endif
+#endif
     char info[BEACON_INFO];
     uint8_t kiss[APRS_TX_KISS_MAX];
     if (!A->mycall[0]) return "NO CALLSIGN SET";
@@ -59,16 +126,16 @@ static const char *transmit(struct screen *s)
     struct beacon_gps g = s->g;
     if (!g.fix) g.knots10 = 0;                          /* no course or speed without a fix */
     beacon_info(info, &g, SYMBOL[B_SYMBOL], g.fix ? COMMENT : "H9 Toolbox, last known");
-    aprs_side(aprs_tx_side());                          /* the TX check reads this side */
+    if (!background) aprs_side(aprs_tx_side());         /* the TX check reads this side */
     const char *why = 0;
     unsigned len = 0;
     if (TX_FREQ < TX_LOW || TX_FREQ > TX_HIGH) why = "TX NOT ON 2M";
     else if (!(len = aprs_tx_kiss(kiss, A->mycall, APRS_TX_DEST, APRS_TX_PATH, info))) why = "BAD CALLSIGN";
     else {
         ((void (*)(const uint8_t *, unsigned))STOCK_KISS_TX)(kiss, len);
-        aprs_quiet();                                   /* stock's end of TX turns the speaker on */
+        if (!background) aprs_quiet();                 /* stock's end of TX turns the speaker on */
     }
-    aprs_side(aprs_rx_side());
+    if (!background) aprs_side(aprs_rx_side());
     if (why) return why;
     s->sent++;
     s->last_ms = now_ms(s);
@@ -77,6 +144,7 @@ static const char *transmit(struct screen *s)
     return 0;
 }
 
+#ifndef APRS_BEACON_RESIDENT
 static void note(struct screen *s, const char *why)
 {
     s->result_ok = why == 0;
@@ -100,7 +168,7 @@ static void set_armed(struct screen *s, unsigned on)
     s->result = 0;
     if (!on) return;
     s->sent = 0;
-    s->armed_ms = s->last_ms = now_ms(s);
+    s->last_ms = now_ms(s);
     s->hold_until = 0;
     start_scheduler(s);
 }
@@ -124,47 +192,44 @@ static void draw_setting(unsigned i, const struct screen *s)
     else if (i == 1) { if (B_TIMED) { n += put_uint(b + n, EVERY[B_EVERY]); put_str(b + n, " MIN"); } else put_str(b + n, "AUTO"); }
     else put_str(b + n, SYMBOL_NAME[B_SYMBOL]);
     int sel = i == s->sel;
-    gfx_fill(0, y, H9_WIDTH, 12, sel ? GFX_YELLOW : GFX_BLACK);
-    gfx_text(4, y + 2, b, 25, 1, sel ? GFX_BLACK : (i == 1 && !B_TIMED ? GFX_GREY : GFX_WHITE), sel ? GFX_YELLOW : GFX_BLACK);
+    aprs_line(y + 2, b, sel ? GFX_BLACK : GFX_WHITE, sel ? GFX_YELLOW : GFX_BLACK);
 }
 
 static void draw(const struct screen *s)
 {
     char b[28];
     unsigned n, y = TOP;
+    uint32_t frequency = TX_FREQ;
     gfx_fill(0, 0, H9_WIDTH, TITLE_H, GFX_BLUE);
     gfx_text(4, 1, "BEACON", 8, 2, GFX_WHITE, GFX_BLUE);
     gfx_text(112, 5, s->armed ? "ON AIR" : "OFF", 8, 1, s->armed ? GFX_GREEN : GFX_WHITE, GFX_BLUE);
     gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, GFX_BLACK);
     n = put_str(b, A->mycall[0] ? A->mycall : "NO CALL");
     b[n++] = ' ';
-    n += aprs_tx_mhz(b + n, TX_FREQ);
+    n += put_uint(b + n, frequency / 100000u);
+    b[n++] = '.';
+    for (unsigned digit = 10000; digit >= 10; digit /= 10) b[n++] = (char)('0' + frequency / digit % 10);
     put_str(b + n, " MHZ");
-    aprs_line(y, b, !A->mycall[0] ? GFX_RED : TX_FREQ >= TX_LOW && TX_FREQ <= TX_HIGH ? GFX_WHITE : GFX_YELLOW, GFX_BLACK); y += ROW;
+    aprs_line(y, b, !A->mycall[0] ? GFX_RED : frequency >= TX_LOW && frequency <= TX_HIGH ? GFX_WHITE : GFX_YELLOW, GFX_BLACK); y += ROW;
     if (s->g.fix) {
         n = put_str(b, "GPS "); n += put_uint(b + n, (s->g.kmh10 + 5u) / 10u);
         n += put_str(b + n, " KM/H  COURSE "); put_uint(b + n, s->g.course);
         aprs_line(y, b, GFX_GREEN, GFX_BLACK);
     } else if (!s->g.lat[0]) {
-        aprs_line(y, "NO FIX, NO POSITION YET", GFX_RED, GFX_BLACK);
+        aprs_line(y, "NO POSITION YET", GFX_RED, GFX_BLACK);
     } else {
-        aprs_line(y, "NO FIX: LAST POSITION", GFX_YELLOW, GFX_BLACK);
+        aprs_line(y, "LAST GPS POSITION", GFX_YELLOW, GFX_BLACK);
     }
     for (unsigned i = 0; i < ROWS; i++) draw_setting(i, s);
     y = TOP + 2 * ROW + 4 + ROWS * 12 + 3;
-    aprs_line(y, s->armed ? "BEACON ON  HOLD MENU:STOP" : "BEACON OFF HOLD MENU:START", s->armed ? GFX_GREEN : GFX_GREY, GFX_BLACK); y += ROW;
+    aprs_line(y, s->armed ? "HOLD MENU: STOP" : "HOLD MENU: START", GFX_GREY, GFX_BLACK); y += ROW;
     n = put_str(b, "SENT "); n += put_uint(b + n, s->sent);
     if (s->sent) { n += put_str(b + n, "  LAST "); n += put_span(b + n, (now_ms(s) - s->last_ms) / 1000u); put_str(b + n, " AGO"); }
     aprs_line(y, b, GFX_WHITE, GFX_BLACK); y += ROW;
     if (s->result) aprs_line(y, s->result, s->result_ok ? GFX_GREEN : GFX_RED, GFX_BLACK);
-    else if (s->armed) {                                /* when the next one is due at the latest */
-        uint32_t gap = !B_TIMED ? s->sb.cfg.park_s * 1000u : s->sent ? EVERY[B_EVERY] * 60000u : 15000u, since = now_ms(s) - s->last_ms;
-        n = put_str(b, B_TIMED ? "NEXT IN " : "SMART: WITHIN ");
-        put_span(b + n, since >= gap ? 0 : (gap - since) / 1000u);
-        aprs_line(y, b, GFX_GREY, GFX_BLACK);
-    }
-    aprs_line(FOOT_Y, "UP/DN ROW MENU SET 5 NOW", GFX_GREY, GFX_BLACK);
+    aprs_line(FOOT_Y, s->armed ? "5 NOW BACK: BACKGROUND" : "MENU SET 5 NOW", GFX_GREY, GFX_BLACK);
 }
+#endif
 
 /* One second of scheduling: returns 1 if a position is due. */
 static int due(struct screen *s)
@@ -174,29 +239,111 @@ static int due(struct screen *s)
     return sb_tick(&s->sb, now_ms(s), 0);
 }
 
+static int read_gps(struct screen *s)
+{
+    unsigned write = RING_WRITE & RING_MASK;
+    int changed = 0;
+    while (s->cursor != write) {
+        if (beacon_feed(&s->feed, RING[s->cursor], &s->g)) {
+            s->gps_ms = now_ms(s);
+            if (s->armed && !B_TIMED) sb_on_rmc(&s->sb, s->gps_ms, s->g.fix, s->g.kmh10, s->g.course);
+            changed = 1;
+        }
+        s->cursor = (s->cursor + 1) & RING_MASK;
+    }
+#if defined(APRS_BEACON_RESIDENT) || defined(APRS_HOST_TEST)
+    if (s->g.fix && now_ms(s) - s->gps_ms >= GPS_STALE_MS) {
+        s->g.fix = 0;
+        if (s->armed && !B_TIMED) sb_on_rmc(&s->sb, now_ms(s), 0, 0, s->g.course);
+        changed = 1;
+    }
+#endif
+    return changed;
+}
+
+#if defined(APRS_BEACON_RESIDENT) || defined(APRS_HOST_TEST)
+static void background_tick(void)
+{
+    if (BEACON_RESIDENT->magic != BEACON_RESIDENT_MAGIC) return;
+    struct screen *s = BEACON_BACKGROUND_STATE;
+    /* The stock timer starts over on reboot, even if the slot survives. */
+    if (TICK < s->t0) { BEACON_RESIDENT->magic = 0; A->beacon &= ~BEACON_RESUME; return; }
+    read_gps(s);                                      /* stock retains its own read cursor */
+    if (BEACON_ACTIVE_SIDE == s->background_side && h9_key() == H9_KEY_NONE &&
+        TX_FREQ == s->background_freq && BEACON_TX_SETTING == s->background_setting &&
+        !BEACON_RADIO_BUSY() && due(s) && transmit(s, 1)) s->hold_until = now_ms(s) + GUARD_MS;
+    snapshot(s, 0);
+}
+
+static unsigned resident_main(const struct h9_api *api, unsigned self)
+{
+    if (self == H9_RETURN_RADIO) { background_tick(); return 0; }
+    if (api->version < 2 || A->switching != BEACON_HANDOFF_READY) return 0;
+    A->switching = 0;
+    unsigned side = aprs_tx_side();
+    if (side > 1) side = A->home_side;
+    aprs_side(side);
+    uint32_t frequency = TX_FREQ;
+    aprs_side(A->home_side);
+    SPEAKER_ON(A->home_speaker);
+    if (frequency < TX_LOW || frequency > TX_HIGH) {
+        aprs_line(BODY_Y, "TX NOT ON 2M", GFX_RED, GFX_BLACK);
+        h9_delay(1200);
+        return 0;
+    }
+    struct h9_entry e;
+    api->read(&e, api->bundle + H9_BUNDLE_HEADER + H9_BUNDLE_ENTRY * self, sizeof e);
+    if (!e.size || e.size > 0x2000 || e.entry >= e.size) return 0;
+    struct screen *s = BEACON_BACKGROUND_STATE;
+    volatile uint8_t *state = (volatile uint8_t *)s;
+    for (unsigned i = 0; i < sizeof *s; i++) state[i] = 0;
+    if (!snapshot(s, 1)) return 0;
+    BEACON_BACKGROUND_STATE->background_side = (uint8_t)side;
+    BEACON_BACKGROUND_STATE->background_freq = frequency;
+    BEACON_BACKGROUND_STATE->background_setting = BEACON_TX_SETTING;
+    BEACON_RESIDENT->entry = api->load + e.entry;
+    BEACON_RESIDENT->lencrc = e.size << 16 | e.crc;
+    BEACON_RESIDENT->tick = TICK;
+    BEACON_RESIDENT->flags = 0;
+    A->beacon |= BEACON_RESUME;
+    BEACON_RESIDENT->magic = BEACON_RESIDENT_MAGIC;
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
+    BEACON_REDRAW_RADIO();
+    return H9_RETURN_RADIO;
+}
+#endif
+
+#ifdef APRS_BEACON_RESIDENT
+unsigned module_main(const struct h9_api *api, unsigned self) { return resident_main(api, self); }
+#else
+static int start_background(const struct h9_api *api, struct screen *s)
+{
+    if (api->version < 2 || !aprs_go(api, ".APRS BG")) return 0;
+    snapshot(s, 0);
+    A->length = A->nmea_len = A->escape = 0;
+    A->switching = BEACON_HANDOFF_READY;
+    return 1;
+}
+
 unsigned module_main(const struct h9_api *api, unsigned self)
 {
     struct screen s;
     unsigned key_now = BKEY_WAIT, since = 0, handled = 0, second = 0xFFFFu, quiet_until = 0;
     (void)self;
-    for (unsigned i = 0; i < sizeof s; i++) ((uint8_t *)&s)[i] = 0;
+    int resume = A->magic == APRS_MAGIC && (A->beacon & BEACON_RESUME) && snapshot(&s, 1);
+    A->beacon &= ~BEACON_RESUME;
+    for (unsigned i = resume ? BEACON_SNAPSHOT_BYTES : 0; i < sizeof s; i++) ((uint8_t *)&s)[i] = 0;
     aprs_open();
     RING_READ = RING_WRITE;                             /* start from now */
-    s.t0 = TICK;
-    {
+    s.cursor = RING_READ & RING_MASK;
+    if (!resume) {
+        s.t0 = TICK;
         int32_t lat, lon;
         if (fix_load_micro(api->read, &lat, &lon)) beacon_from_micro(&s.g, lat, lon);     /* the saved fix, until a live one arrives */
     }
     for (;;) {
-        unsigned read = RING_READ & RING_MASK, write = RING_WRITE & RING_MASK, redraw = 0;
-        while (read != write) {
-            if (beacon_feed(&s.feed, RING[read], &s.g)) {
-                if (s.armed && !B_TIMED) sb_on_rmc(&s.sb, now_ms(&s), s.g.fix, s.g.kmh10, s.g.course);
-                redraw = 1;
-            }
-            read = (read + 1) & RING_MASK;
-        }
-        RING_READ = (uint16_t)read;
+        unsigned redraw = read_gps(&s);
+        RING_READ = s.cursor;
 
         /* Keys. The keypad reads Menu for a few ms when the speaker amp starts and after a transmit, so: taps count
          * after BTAP_TICKS, starting and stopping needs a BHOLD_TICKS hold, and keys are ignored for a moment after a TX. */
@@ -215,9 +362,8 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             if (key == H9_KEY_UP) { s.sel = s.sel ? s.sel - 1 : ROWS - 1; redraw = 1; }
             else if (key == H9_KEY_DOWN) { s.sel = s.sel + 1 < ROWS ? s.sel + 1 : 0; redraw = 1; }
             else if (key == H9_KEY_5) {
-                note(&s, transmit(&s));
+                note(&s, transmit(&s, 0));
                 quiet_until = TICK + QUIET_TICKS;
-                gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, GFX_BLACK);
                 redraw = 1;
             }
         } else if (key == H9_KEY_MENU && !handled && tick - since >= BHOLD_TICKS) {   /* a hold: start or stop */
@@ -225,6 +371,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             set_armed(&s, !s.armed);
             redraw = 1;
         } else if (key == H9_KEY_BACK && !handled && tick - since >= BTAP_TICKS) {
+            if (s.armed && start_background(api, &s)) return 0;
             if (aprs_go(api, APRS_LIST)) return 0;                                   /* the list restores the radio when it leaves */
             aprs_side(A->home_side); SPEAKER_ON(A->home_speaker); return 0;
         }
@@ -233,7 +380,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         if (sec != second) {                            /* once a second */
             second = sec;
             if (due(&s)) {
-                const char *why = transmit(&s);
+                const char *why = transmit(&s, 0);
                 note(&s, why);
                 if (why) s.hold_until = now_ms(&s) + GUARD_MS;   /* a refusal retries after a minute, not every second */
                 quiet_until = TICK + QUIET_TICKS;
@@ -245,3 +392,4 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         h9_delay(2);
     }
 }
+#endif

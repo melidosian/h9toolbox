@@ -2,6 +2,8 @@
 
 Free browser tools and custom firmware for the TIDRADIO TD-H9: https://h9toolbox.com/
 
+[Read the changelog](CHANGELOG.md).
+
 ## H9 Toolbox Firmware: apps on your radio
 
 H9 Toolbox Firmware is stock v1.0.38 plus an **app loader**. Hold **Back** on
@@ -16,9 +18,10 @@ the channel screen for a menu of apps; each loads into RAM from the radio's
   While APRS runs it follows the APRS RX/TX channel settings and listens with
   squelch open and the speaker muted.
 - **Brick Breaker**, the game that started this project, now one app among others.
-- **App Manager** (https://h9toolbox.com/apps/): adds, updates and removes apps
-  over Bluetooth, shows the space left, and changes the boot logo. Everything
-  is read back to verify.
+- **App Manager** (https://h9toolbox.com/apps/) adds, updates and removes apps,
+  shows the space left, and changes the boot logo over Bluetooth or experimental
+  USB-C. Everything is read back to verify. For USB-C, use a data cable and
+  connect with the radio powered on to its normal channel screen.
 
 Install it with the web flasher (https://h9toolbox.com/firmware-update/,
 USB-C, desktop Chrome or Edge): it backs up the radio first, upgrades stock,
@@ -32,6 +35,7 @@ Firmware reverse-engineering notes, offline analysis, the Windows/Linux USB-C fl
 
 - [VFO control discovery](prototypes/vfo-control/README.md) contains the local Bluetooth remote-control experiment and its current hardware observations.
 - [Firmware research](firmware-research/README.md) contains the analysis, replacement-source work, USB flasher, and HID recovery tools.
+- [TD-H9 KISS TNC for Pat](firmware-research/kiss-tnc/README.md) includes the main and APRS updates and the local Bluetooth packet bridge.
 - `private/downloads/` holds local radio backups, probe captures, and official firmware packages. It is ignored by Git because radio data can contain private settings. `private/downloads/migration-manifest.json` records the original download paths and SHA-256 hashes.
 - `archive/sites-source/` and `archive/sites-source-history.bundle` preserve the earlier Sites source and its Git history. The active H9 Toolbox site remains in `dist/`.
 
@@ -50,6 +54,14 @@ TD-H9 owners report successful use of the Bluetooth programmer on several radios
 **Open H9 Toolbox:** https://h9toolbox.com/ · **Bluetooth programmer:** https://h9toolbox.com/programmer/ · **Firmware:** https://h9toolbox.com/firmware/ · **Install H9 Toolbox Firmware:** https://h9toolbox.com/firmware-update/ · **App Manager:** https://h9toolbox.com/apps/ · **Boot logo:** https://h9toolbox.com/boot-logo/
 
 The checked-in workflow publishes `dist/` directly to GitHub Pages on each push to `main`, or when **Deploy GitHub Pages** is run manually. GitHub Pages serves the site over HTTPS. Web Bluetooth still requires a supported browser; hosting on Pages does not add iPhone Safari support.
+
+## Development site
+
+[Open the development site](https://dev.h9toolbox.com/). Pushes to `dev` deploy automatically to the `h9toolbox-dev` Cloudflare Pages project. Preview builds for other branches are disabled.
+
+The project runs `bash scripts/build-dev-site.sh` from the repository root and publishes `dist`. The build includes `/kiss-tnc/` and the [experimental APRS modem flasher](https://dev.h9toolbox.com/aprs-update/), sends a `noindex` header, and records the deployed commit at `/dev-build.txt`.
+
+Squarespace DNS points `dev.h9toolbox.com` to `h9toolbox-dev.pages.dev` via a CNAME record. Both hostnames serve the same HTTPS site.
 
 ## Current workflow
 

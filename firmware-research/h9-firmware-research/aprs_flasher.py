@@ -3,7 +3,7 @@
 
 The offline commands need only Python's standard library. ``flash`` needs
 pyserial and an APRS controller already placed in its separate update mode.
-No hardware write has been validated with this implementation yet.
+Transfer acknowledgments are followed by a separate boot and version check.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import struct
 import sys
+from time import monotonic
 from typing import Callable, TextIO
 
 
@@ -28,6 +29,7 @@ IMAGE_BASE = 0x08002000
 FRAME_PREFIX = b"TID\x00"
 BLOCK_SIZE = 128
 EXIT_FRAME = b"TID\x00\x01\xff\x00"
+STARTUP_QUIET_SECONDS = 0.020
 
 
 class AprsFlashError(Exception):
@@ -104,15 +106,19 @@ class FlashJournal:
             raise
         return self
 
-    def block_acknowledged(self, offset: int, length: int) -> None:
+    def startup_drained(self, discarded_bytes: int) -> None:
+        self._record("startup_drained", discarded_bytes=discarded_bytes,
+                     quiet_ms=round(STARTUP_QUIET_SECONDS * 1_000))
+
+    def block_acknowledged(self, offset: int, length: int, reply: bytes) -> None:
         acknowledged_end = offset + length
         self._record("block_acknowledged", offset=offset, length=length,
-                     acknowledged_end=acknowledged_end)
+                     acknowledged_end=acknowledged_end, reply_hex=reply.hex(" "))
         self.acknowledged_end = acknowledged_end
 
-    def exit_acknowledged(self) -> None:
+    def exit_acknowledged(self, reply: bytes) -> None:
         self._record("exit_acknowledged",
-                     acknowledged_end=self.acknowledged_end)
+                     acknowledged_end=self.acknowledged_end, reply_hex=reply.hex(" "))
         self.exit_acked = True
 
     def __exit__(self, exception_type, exception, traceback) -> None:
@@ -217,10 +223,9 @@ def check_reply(reply: bytes, expected_status: int) -> None:
             f"Expected 7-byte APRS acknowledgment, got {len(reply)} bytes: "
             f"{reply.hex(' ')}"
         )
-    # Vendor Form4 checks the received length and status at byte 5. It does
-    # not validate a TID prefix, length byte, or checksum on acknowledgments;
-    # their actual device values have not been captured. Requiring those
-    # fields here would reject a reply that the supplied updater accepts.
+    # Check length and status on every reply. The vendor's write-reply check
+    # also accepts seven-byte replies with a different status. Record the raw
+    # bytes without requiring the other fields to match a particular format.
     if reply[5] != expected_status:
         raise AprsFlashError(
             f"APRS reply status 0x{reply[5]:02X}, expected "
@@ -238,9 +243,25 @@ def read_exact(port, size: int) -> bytes:
     return bytes(result)
 
 
+def drain_startup_input(port) -> int:
+    """Wait for the vendor's 20 ms of serial silence before the first block."""
+    previous_timeout = port.timeout
+    deadline = monotonic() + 3
+    discarded = 0
+    try:
+        port.timeout = STARTUP_QUIET_SECONDS
+        while port.read(1):
+            discarded += 1
+            if monotonic() >= deadline:
+                raise AprsFlashError("APRS serial input did not go quiet before the first write")
+        return discarded
+    finally:
+        port.timeout = previous_timeout
+
+
 def transfer(port, image: Image, progress=print,
-             on_block_ack: Callable[[int, int], None] | None = None,
-             on_exit_ack: Callable[[], None] | None = None) -> None:
+             on_block_ack: Callable[[int, int, bytes], None] | None = None,
+             on_exit_ack: Callable[[bytes], None] | None = None) -> None:
     """Write every block once; stop on any unexpected reply and leave IAP active."""
     for address, packet in frames(image):
         if port.write(packet) != len(packet):
@@ -253,13 +274,14 @@ def transfer(port, image: Image, progress=print,
                 f"At image offset 0x{address:X}: {error}"
             ) from error
         if on_block_ack is not None:
-            on_block_ack(address, min(BLOCK_SIZE, len(image.data) - address))
+            on_block_ack(address, min(BLOCK_SIZE, len(image.data) - address), reply)
         progress(f"Written {min(address + BLOCK_SIZE, len(image.data)):,}/{len(image.data):,} bytes")
     if port.write(EXIT_FRAME) != len(EXIT_FRAME):
         raise AprsFlashError("Short serial write while exiting APRS update mode")
-    check_reply(read_exact(port, 7), 0x10)
+    reply = read_exact(port, 7)
+    check_reply(reply, 0x10)
     if on_exit_ack is not None:
-        on_exit_ack()
+        on_exit_ack(reply)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -328,13 +350,15 @@ def main(argv: list[str] | None = None) -> int:
             journal_path = args.journal or default_journal_path(args.image)
             print(f"Transfer journal: {journal_path}")
             with FlashJournal(journal_path, image, args.port, args.baud) as journal:
-                with serial.Serial(
-                    args.port, baudrate=args.baud, bytesize=8, parity="N", stopbits=1,
+                port = serial.Serial(
+                    baudrate=args.baud, bytesize=8, parity="N", stopbits=1,
                     timeout=3, write_timeout=3, dsrdtr=False, rtscts=False,
-                ) as port:
-                    port.dtr = True
-                    port.rts = True
-                    port.reset_input_buffer()
+                )
+                port.port = args.port
+                port.dtr = True
+                port.rts = True
+                with port:
+                    journal.startup_drained(drain_startup_input(port))
                     transfer(port, image, on_block_ack=journal.block_acknowledged,
                              on_exit_ack=journal.exit_acknowledged)
             print("APRS transfer acknowledged. Power-cycle and verify module version/behavior.")
