@@ -4963,3 +4963,8 @@ result yet.**
   correct menu and matching installed apps, drops the retired
   `.APRS BG` module when replacing APRS, and preserves custom apps and
   the user's satellite data. The app files match the bench build.
+- The SmartBeacon App Manager now keeps the menu status visible before
+  connection and after readback. The dedicated bench catalog lets an
+  operator explicitly stage the matching menu when its installed CRC
+  is outside the list of known predecessors. Automatic menu updates
+  still require a recognized predecessor.

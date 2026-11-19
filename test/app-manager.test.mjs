@@ -89,7 +89,7 @@ test('the Python-built bundle parses here (when built)', { skip: !existsSync(bui
 });
 
 // ---- catalog (dist/apps/catalog.mjs, catalog/ written by publish_catalog.py)
-import { appState, fetchApp, fetchModule, loadCatalog, menuOutdated, partsOf, selectAppCatalog, withModule, withModules, withUpdatedMenu, withoutApp, withoutModule } from '../dist/apps/catalog.mjs';
+import { appState, fetchApp, fetchModule, loadCatalog, menuState, partsOf, selectAppCatalog, withModule, withModules, withUpdatedMenu, withoutApp, withoutModule } from '../dist/apps/catalog.mjs';
 
 const catalogDir = new URL('../dist/apps/catalog/', import.meta.url);
 const fileFetch = async url => {
@@ -138,10 +138,6 @@ test('catalog add/remove/update states and the menu on first add', () => {
   assert.equal(appState(item, onRadio, onRadio).status, 'outdated');
   assert.equal(appState(item, onRadio, withModule(onRadio, bb)).status, 'updating');
   assert.equal(withModule(first, bb).length, 2);                 // same name replaces
-  const menuCrc = crc16(menu.body).toString(16).padStart(4, '0');
-  assert.equal(menuOutdated({ menu: { crc16: '0000', replaces: [menuCrc] } }, first), true);
-  assert.equal(menuOutdated({ menu: { crc16: '0000' } }, first), false);
-  assert.equal(menuOutdated({ menu: { crc16: menuCrc, replaces: [menuCrc] } }, first), false);
 });
 
 test('dev catalog recognizes the bench apps and restores a downgraded menu in one staged bundle', async () => {
@@ -158,8 +154,10 @@ test('dev catalog recognizes the bench apps and restores a downgraded menu in on
   assert.equal(selectAppCatalog(classic, bench, [oldMenu]), classic);
   assert.equal(selectAppCatalog(classic, bench, [oldMenu], true), bench);
   assert.equal(selectAppCatalog(classic, null, [oldMenu], true), null);
-  assert.equal(menuOutdated(classic, [newMenu]), false);
-  assert.equal(menuOutdated(bench, [oldMenu]), true);
+  assert.deepEqual(menuState(bench, [], true), { status: 'missing', canUpdate: false });
+  assert.deepEqual(menuState(bench, [newMenu], true), { status: 'current', canUpdate: false });
+  assert.deepEqual(menuState(classic, [newMenu], true), { status: 'different', canUpdate: false });
+  assert.deepEqual(menuState(bench, [oldMenu]), { status: 'outdated', canUpdate: true });
 
   const diagnostic = { ...BB, name: 'POWER PROBE' };
   const aprs = await classicApp('aprs');
@@ -167,7 +165,7 @@ test('dev catalog recognizes the bench apps and restores a downgraded menu in on
   const satellite = await classicApp('sat_pass');
   const satData = satellite.find(m => m.name === '.SAT DATA');
   const installed = [oldMenu, diagnostic, ...aprs, ...gps, ...satellite];
-  const restored = await withUpdatedMenu(bench, installed, fileFetch);
+  const restored = await withUpdatedMenu(bench, installed, { fetcher: fileFetch });
   assert.deepEqual(restored[0], newMenu);
   assert.equal(restored[1], diagnostic);
   assert.equal(restored.find(m => m.name === '.SAT DATA'), satData);
@@ -179,7 +177,13 @@ test('dev catalog recognizes the bench apps and restores a downgraded menu in on
   assert.deepEqual(parseBundle(buildBundle(restored)).map(m => m.name), restored.map(m => m.name));
 
   const standaloneBeacon = [oldMenu, diagnostic, aprs.find(m => m.name === 'APRS BEACON')];
-  assert.deepEqual(await withUpdatedMenu(bench, standaloneBeacon, fileFetch), [newMenu, diagnostic, beacon]);
+  assert.deepEqual(await withUpdatedMenu(bench, standaloneBeacon, { fetcher: fileFetch }), [newMenu, diagnostic, beacon]);
+
+  const differentMenu = [MENU, ...installed.slice(1)];
+  assert.deepEqual(menuState(bench, differentMenu), { status: 'different', canUpdate: false });
+  assert.deepEqual(menuState(bench, differentMenu, true), { status: 'different', canUpdate: true });
+  await assert.rejects(withUpdatedMenu(bench, differentMenu, { fetcher: fileFetch }), /has no update/);
+  assert.deepEqual(await withUpdatedMenu(bench, differentMenu, { fetcher: fileFetch, restoreBench: true }), restored);
 });
 
 test('multi-module app: added, updated and removed together', () => {

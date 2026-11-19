@@ -6,7 +6,7 @@ import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=usb3';
 import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=usb1';
 import { CHIP_SLOT, buildBundle, checkModule, parseBundle, usage } from './bundle.mjs?v=am3';
 import { describeChanges } from './changes.mjs?v=am3';
-import { appState, fetchApp, loadCatalog, menuOutdated, partsOf, selectAppCatalog, withApp, withModule, withModules, withUpdatedMenu, withoutApp } from './catalog.mjs?v=am5';
+import { appState, fetchApp, loadCatalog, menuState, partsOf, selectAppCatalog, withApp, withModule, withModules, withUpdatedMenu, withoutApp } from './catalog.mjs?v=am6';
 import { mountInfo } from './info.mjs?v=am5';
 
 // No stale files: the service worker (sw.js) fetches everything uncached.
@@ -53,7 +53,8 @@ const infoDialog = mountInfo({
 
 function renderCatalog() {
   const box = $('catalog');
-  if (benchLink) benchLink.hidden = catalog?.profile === 'smartbeacon';
+  const bench = catalog?.profile === 'smartbeacon';
+  if (benchLink) benchLink.hidden = bench;
   if (!catalog) { box.replaceChildren(); return; }
   const cards = catalog.apps.map(item => {
     const state = appState(item, installed, staged);
@@ -84,28 +85,43 @@ function renderCatalog() {
     else button('Remove', async () => { staged = withoutApp(staged, item); log(`Staged: remove ${item.title}.`); });
     return card;
   });
-  if (menuOutdated(catalog, staged)) {
-    const bench = catalog.profile === 'smartbeacon';
+  const menu = menuState(catalog, staged, preferBench);
+  if (bench || menu.canUpdate) {
     const card = document.createElement('div');
     card.className = 'app';
-    card.innerHTML = '<h3><span></span><span class="tag">System</span></h3><p></p><div class="row"><span class="status outdated">Update available</span><span class="buttons"></span></div>';
+    card.innerHTML = '<h3><span></span><span class="tag">System</span></h3><p></p><div class="row"><span class="status"></span><span class="buttons"></span></div>';
     card.querySelector('h3 span').textContent = catalog.menu.title;
     card.querySelector('p').textContent = bench
       ? 'Restore the H3-style menu and refresh the matching apps already on the radio.'
       : catalog.menu.description;
+    const labels = {
+      missing: 'Connect the H9 to check for updates',
+      current: 'Up to date',
+      outdated: 'Update available',
+      different: 'Different menu installed',
+    };
+    if (session) labels.missing = 'Add an app to install the menu';
+    if (connecting) labels.missing = 'Reading the radio…';
+    if (menu.status === 'current' && menuState(catalog, installed ?? []).status !== 'current') {
+      labels.current = 'Will be installed';
+    }
+    const status = card.querySelector('.status');
+    status.classList.add(menu.status === 'current' ? 'installed' : menu.status);
+    status.textContent = labels[menu.status];
     const b = document.createElement('button');
     b.textContent = bench ? 'Restore H3-style apps' : 'Update';
-    b.className = 'primary'; b.disabled = busy;
+    b.className = 'primary';
+    b.disabled = busy || !menu.canUpdate;
     b.addEventListener('click', () => run(async () => {
-      staged = await withUpdatedMenu(catalog, staged);
+      staged = await withUpdatedMenu(catalog, staged, { restoreBench: preferBench });
       log(bench ? 'Staged the H3-style menu and matching apps.' : 'Staged the menu update.');
     }));
     card.querySelector('.buttons').append(b);
     cards.unshift(card);
   }
   box.replaceChildren(...cards);
-  $('catalogNote').textContent = catalog.profile === 'smartbeacon'
-    ? 'H3-style apps for the matching SmartBeacon bench firmware. Stage changes here, then select Write to radio.'
+  $('catalogNote').textContent = bench
+    ? 'Use these apps with the matching SmartBeacon bench firmware. Stage changes here, then select Write to radio.'
     : `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
 }
 
@@ -253,8 +269,16 @@ function reportUpdates() {
     const here = (installed ?? []).slice(1).some(m => m.name === item.name);
     return here && appState(item, installed, installed).status === 'outdated';
   }).map(item => `${item.title} ${item.version}`);
-  if (menuOutdated(catalog, installed)) outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
-  log(outdated.length ? `Updates available: ${outdated.join(', ')}. Stage the updates on the app cards, then Write to radio.` : 'Every installed catalog app is up to date.');
+  const menu = menuState(catalog, installed, preferBench);
+  if (menu.status === 'outdated') outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
+  if (outdated.length) log(`Updates available: ${outdated.join(', ')}. Stage the updates on the app cards, then Write to radio.`);
+  if (menu.status === 'different') {
+    log(menu.canUpdate
+      ? 'A different Toolbox menu is installed. Use Restore H3-style apps for the matching SmartBeacon bench firmware.'
+      : 'The installed Toolbox menu differs from this catalog.');
+  } else if (!outdated.length) {
+    log('The Toolbox menu and installed catalog apps are up to date.');
+  }
 }
 
 async function readRadio() {

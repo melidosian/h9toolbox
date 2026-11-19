@@ -107,15 +107,21 @@ export function withoutApp(staged, item) {
   return staged.filter((m, i) => i === 0 || !names.has(m.name));
 }
 
-// A release declares which menu builds it replaces. Other CRCs may belong to newer firmware.
-export function menuOutdated(catalog, staged) {
-  if (!catalog || !staged.length) return false;
-  const crc = crcOf(staged[0]);
-  return crc !== catalog.menu.crc16 && Boolean(catalog.menu.replaces?.includes(crc));
+// A release declares which menu builds it replaces. The explicitly selected
+// SmartBeacon catalog also lets the user restore its matching bench menu.
+export function menuState(catalog, modules, restoreBench = false) {
+  if (!modules.length) return { status: 'missing', canUpdate: false };
+  const menu = modules[0];
+  const crc = crcOf(menu);
+  if (crc === catalog.menu.crc16 && menu.body.length === catalog.menu.bytes) {
+    return { status: 'current', canUpdate: false };
+  }
+  if (catalog.menu.replaces?.includes(crc)) return { status: 'outdated', canUpdate: true };
+  return { status: 'different', canUpdate: restoreBench && catalog.profile === 'smartbeacon' };
 }
 
-export async function withUpdatedMenu(catalog, staged, fetcher = fetch) {
-  if (!menuOutdated(catalog, staged)) throw new Error('This catalog has no update for the installed menu.');
+export async function withUpdatedMenu(catalog, staged, { fetcher = fetch, restoreBench = false } = {}) {
+  if (!menuState(catalog, staged, restoreBench).canUpdate) throw new Error('This catalog has no update for the installed menu.');
   const menu = await fetchModule(catalog, catalog.menu, fetcher);
   let next = [menu, ...staged.slice(1)];
   if (catalog.profile === 'smartbeacon') {
