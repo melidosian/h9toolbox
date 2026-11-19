@@ -9,9 +9,6 @@ cp prototypes/kiss-tnc/{index.html,style.css,app.mjs,kiss.mjs,tnc.mjs} dist/kiss
 mkdir -p dist/aprs-update
 cp prototypes/aprs-update/{index.html,aprs.css,aprs.js,protocol.mjs} dist/aprs-update/
 cp firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.bin dist/aprs-update/
-sed 's|<!-- dev-aprs-link -->|<p><a href="/aprs-update/">Open the experimental APRS modem flasher</a></p>|' \
-  dist/firmware-update/index.html > dist/firmware-update/index.html.tmp
-mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
 
 # Offer the catalog built for the H3-style SmartBeacon bench firmware.
 test -s dist/apps/catalog/smartbeacon/catalog.json

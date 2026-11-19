@@ -38,7 +38,6 @@
         <p class="eyebrow">TIDRADIO TD-H9 · USB-C</p>
         <h1>Firmware updater</h1>
         <p>We’ll walk through installing H9 Toolbox Firmware or restoring stock v1.0.38, one step at a time.</p>
-        <!-- dev-aprs-link -->
       </header>
 
       <noscript><p class="note warning">Enable JavaScript and open this page in desktop Chrome or Edge to use the firmware updater.</p></noscript>
@@ -60,13 +59,14 @@
           <ul class="prepare-list">
             <li><strong>TD-H9 radio</strong><span>Start with a charged battery.</span></li>
             <li><strong>USB-C data cable</strong><span>Use a cable that can transfer files.</span></li>
-            <li><strong>Desktop Chrome or Edge</strong><span>Open this page over HTTPS.</span></li>
+            <li><strong>Chrome or Edge</strong><span>Open this page on a computer.</span></li>
           </ul>
-          <div id="browserCheck" class="browser-check" role="status">Checking browser compatibility…</div>
+          <div id="browserCheck" class="browser-check" role="status">Checking whether your browser supports USB updates…</div>
           <details class="guide-help">
-            <summary>Browser compatibility and recovery</summary>
-            <p>Open <a href="https://h9toolbox.com/firmware-update/">h9toolbox.com/firmware-update</a> in an up-to-date copy of Chrome or Edge on a computer. Firefox, Safari, and mobile browsers generally lack the USB access (WebHID) this updater needs.</p>
-            <p>If you’re already using Chrome or Edge, open the link directly in a browser tab. A managed computer can block USB device access. If you need another recovery method, see the <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research">desktop flashing and recovery tools</a>.</p>
+            <summary>Having trouble with your browser?</summary>
+            <p>If you’re on a phone or tablet, send this page’s link to your computer. If you’re using Safari or Firefox, switch to Chrome or Edge on your computer.</p>
+            <p>Already using Chrome or Edge? Open this page in a regular browser tab and make sure your browser is up to date. If you’re on a work or school computer, try a personal computer. Work or school settings can block USB access.</p>
+            <p>If you need to recover your radio after a failed update, see the <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research">desktop recovery tools</a>.</p>
           </details>
           <p class="fine"><strong>Experimental firmware.</strong> A failed update can leave the radio unable to boot. Have a recovery method ready before you start. The browser install and restore flow was tested on one TD-H9 from macOS.</p>
         </section>
@@ -190,6 +190,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The full browser install and restore flow has been tested on one TD-H9 from macOS.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=20261119"></script>
+  <script type="module" src="./update.js?v=20261119b"></script>
 </body>
 </html>

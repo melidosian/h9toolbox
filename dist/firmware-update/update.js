@@ -590,9 +590,9 @@ async function performWrite(direction) {
 $('flash').addEventListener('click', () => performWrite('update'));
 $('restore').addEventListener('click', () => performWrite('restore'));
 
-$('browserCheck').textContent = browserReady ? 'Browser check passed. USB access is available.'
-  : !window.isSecureContext ? 'Open the HTTPS version of this page to enable USB access.'
-    : 'This browser can’t access the radio over USB. Open this page in desktop Chrome or Edge.';
+$('browserCheck').textContent = browserReady ? 'Your browser supports USB updates. Select Start setup when you’re ready.'
+  : !window.isSecureContext ? 'Open this page using a secure link that starts with https://, then try again.'
+    : 'This browser can’t connect to the radio over USB. Open this page in Chrome or Edge on a computer.';
 $('browserCheck').classList.toggle('unavailable', !browserReady);
 if (!browserReady) slides[0].querySelector('.guide-help').open = true;
 refresh();
