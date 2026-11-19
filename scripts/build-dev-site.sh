@@ -15,7 +15,7 @@ smartbeacon_release=firmware-research/module-loader/smartbeacon-release
 (cd "$smartbeacon_release" && sha256sum -c SHA256SUMS)
 mkdir -p dist/firmware-update/smartbeacon
 cp "$smartbeacon_release"/{index.html,SHA256SUMS,h9-smartbeacon-bench.fw,h9-smartbeacon-resident.bin,h9-smartbeacon-apps.bin} dist/firmware-update/smartbeacon/
-sed 's|<!-- dev-smartbeacon-firmware -->|<p class="selection-state"><a id="smartbeaconFirmware" href="./smartbeacon/">SmartBeacon bench firmware</a> · Desktop installation with matching API 5 apps.</p>|' \
+sed 's|<!-- dev-smartbeacon-firmware -->|<p class="selection-state">Running SmartBeacon bench firmware? To keep or reinstall it, use the <a id="smartbeaconFirmware" href="./smartbeacon/">SmartBeacon bench downloads and desktop guide</a>. Installing v0.1.5 replaces the bench main firmware.</p>|' \
   dist/firmware-update/index.html > dist/firmware-update/index.html.tmp
 mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
 

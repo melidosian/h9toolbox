@@ -94,7 +94,7 @@
             <div class="hosted-package" id="optBuild">
               <strong>H9 Toolbox Firmware v0.1.5</strong><span class="selected-badge" aria-hidden="true" hidden>Selected</span>
               <small>Includes the app loader, Bluetooth packet support, and an optional APRS modem update.</small>
-              <button class="button primary-button" id="loadBuild">Load H9 Toolbox Firmware</button>
+              <button class="button primary-button" id="loadBuild">Load H9 Toolbox v0.1.5</button>
             </div>
             <div class="hosted-package" id="optStock">
               <strong>Stock Type-C v1.0.38</strong><span class="selected-badge" aria-hidden="true" hidden>Selected</span>
@@ -118,7 +118,7 @@
           <p>By default, the updater saves a recovery backup before it installs. Keep the downloaded <strong>.h9hid</strong> file. A known firmware image can take seconds to back up. An unfamiliar image can take about an hour.</p>
           <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may leave my radio unable to start.</span></label>
           <label class="confirm"><input id="skipBackup" type="checkbox" disabled><span>Skip creating a recovery backup for this install.</span></label>
-          <div class="controls"><button class="button primary-button" id="flash" disabled>Install H9 Toolbox</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button></div>
+          <div class="controls"><button class="button primary-button" id="flash" disabled>Install selected firmware</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button></div>
           <p id="backupProgress" class="transfer-progress" hidden></p>
           <details class="restore-options" id="backupHelp" hidden>
             <summary>Backup stalled or download missing</summary>
@@ -186,6 +186,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The full browser install and restore flow has been tested on one TD-H9 from macOS.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=20261119f"></script>
+  <script type="module" src="./update.js?v=20261119g"></script>
 </body>
 </html>

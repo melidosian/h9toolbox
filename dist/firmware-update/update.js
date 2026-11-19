@@ -12,6 +12,7 @@ const smartBeacon = {
   packageSha256: 'ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04',
   imageSha256: 'c230c64720957d7d8a021c9038c53399c5fd406c40577919fd1ae291cd70dd3d',
 };
+class BackupRequiredError extends Error {}
 let currentStep = 0;
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
 // stock rebuilt from the build. buildImage / previousImages: the hosted build
@@ -148,7 +149,8 @@ function refresh() {
   $('loadStockGitHub').disabled = busy;
   $('backupFile').disabled = busy;
   refreshGuide();
-  $('flash').textContent = target?.kind === 'stock' ? 'Install stock v1.0.38' : 'Install H9 Toolbox';
+  $('flash').textContent = target?.kind === 'build' ? `Install ${BUILD.label}`
+    : target?.kind === 'stock' ? 'Install stock v1.0.38' : 'Install selected firmware';
 }
 function requireH9(image) {
   if (!looksLikeH9(image)) throw new Error('This radio\'s firmware does not look like a TD-H9 application (no "TD-H9" model name). Installing is blocked.');
@@ -531,8 +533,14 @@ async function inspectRadio(reference, known) {
   try {
     changed = planUpdate(current, reference.image, target.image, resumeSector, known);
   } catch (error) {
-    if (reference.source === 'verified-firmware')
-      throw new Error(`Can’t install without a backup because the radio could not be verified. Clear the skip checkbox to create a backup, or select an existing one. ${error.message}`);
+    const mismatch = /^Radio differs from the supplied backup at (0x[\da-f]+)\./i.exec(error.message);
+    if (reference.source === 'verified-firmware' && mismatch) {
+      const benchImage = await loadSmartBeaconBackupSeed();
+      const selected = target.kind === 'stock' ? 'stock v1.0.38' : BUILD.label;
+      if (benchImage && await knownAppMatches(hid, current, benchImage))
+        throw new BackupRequiredError(`This radio matches the SmartBeacon bench main firmware. Installing ${selected} will replace it. To keep SmartBeacon, use the bench guide. To switch firmware, clear Skip backup or select a saved recovery file. Nothing was written.`);
+      throw new BackupRequiredError(`The radio’s main firmware doesn’t match the images verified for a skip-backup install. The first difference is at ${mismatch[1]}. To install ${selected}, clear Skip backup or select a saved recovery file. Nothing was written.`);
+    }
     throw error;
   }
   if (target.kind === 'build' && !reference.fullInstall && !changed.every(physical => BUILD.sectors.includes(physical)))
@@ -662,10 +670,13 @@ async function performWrite(direction) {
       status('Backup cancelled. No radio write was sent.');
     } else {
       fail(error);
+      const benchGuide = error instanceof BackupRequiredError && $('smartbeaconFirmware');
       showResult({
         failed: true,
-        title: backupRunning ? 'Recovery backup did not finish' : 'Firmware verification did not finish',
+        title: backupRunning ? 'Recovery backup did not finish'
+          : error instanceof BackupRequiredError ? 'Backup required to install this firmware' : 'Firmware verification did not finish',
         text: error?.message || String(error),
+        action: benchGuide ? { href: benchGuide.href, label: 'Open the SmartBeacon bench guide' } : null,
       });
     }
   } finally {
