@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from modem_version import IMAGE_NAME, MODEM_VERSION, patch_modem
 
 ROOT = Path(__file__).resolve().parent
 RESEARCH = ROOT.parent
@@ -84,6 +85,7 @@ def compile_stage(output: Path, image: bytes, state: int) -> bytes:
     (output / "stage-config.h").write_text(
         f"#define APRS_UPDATE_STATE {state:#x}u\n"
         f"#define APRS_STAGE_IMAGE 0x{STAGE_XIP + IMAGE_OFFSET:08x}u\n"
+        f'#define APRS_MODEM_VERSION "{MODEM_VERSION}"\n'
         f"#define APRS_STAGE_CRC32 0x{crc32(image):08x}u\n")
     objects = []
     for source in (ROOT / "update.c", ROOT / "target.c"):
@@ -150,8 +152,7 @@ def build(stock_package: Path, output: Path, base_package: Path | None = None) -
     else:
         base = checked_bytes(base_package, BENCH_PACKAGE_SHA256)
         app_hash, old_heap, version_at = BENCH_APP_SHA256, 0x29A00, 0xA7CF4
-    image = checked_bytes(KISS / "APRS-1.0.15-rx15-rxff.bin",
-                          "3a70e2f48283cfd0d06fb29a08f462fc0b8302898e09d41946d5f74205daf741")
+    image = patch_modem((KISS / "APRS-1.0.15-rx15-rxff.bin").read_bytes())
     if len(image) != IMAGE_SIZE:
         raise ValueError("Unexpected modem image size")
     baseline = parse_firmware_bytes(base).image
@@ -175,6 +176,16 @@ def build(stock_package: Path, output: Path, base_package: Path | None = None) -
     stage = (code.ljust(IMAGE_OFFSET, b"\xff") + image).ljust(STAGE_SIZE, b"\xff")
     (output / "h9-kiss-aprs-stage.fw").write_bytes(package)
     (output / "aprs-stage-0xf4000.bin").write_bytes(stage)
+    (output / IMAGE_NAME).write_bytes(image)
+    release = {
+        "kind": "aprs_release_image",
+        "flashable": True,
+        "image_sha256": digest(image),
+        "image_bytes": len(image),
+        "image_base": 0x08002000,
+        "description": f"Pinned RX15 and unsigned-byte firmware with {MODEM_VERSION} version marker",
+    }
+    (output / Path(IMAGE_NAME).with_suffix(".release.json")).write_text(json.dumps(release, indent=2) + "\n")
     manifest = {
         "firmware_version": version,
         "base_package_sha256": digest(base),
@@ -193,6 +204,7 @@ def build(stock_package: Path, output: Path, base_package: Path | None = None) -
         "stage_code_crc32": hex(crc32(code)),
         "modem_image_sha256": digest(image),
         "modem_image_offset": hex(IMAGE_OFFSET),
+        "modem_version": MODEM_VERSION,
     }
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest

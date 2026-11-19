@@ -5,14 +5,15 @@ computer stages a matching updater and the approved RX15 and unsigned-byte
 APRS 1.0.15 image in spare main flash. At a later cold boot, the radio sends
 the image over its internal UART with USB disconnected. The first build
 accepts only this specific modem image. The Toolbox **ABOUT** app reports
-`FIRMWARE V0.1.5`. The APRS modem reports its own version, `V1.0.15`.
+`FIRMWARE V0.1.5`. The modem reports `V1.0.15X` once it runs this
+staged build. The X identifies the RX15 and unsigned-byte modem image.
 
 **Hardware status.** USB readback verified the v0.1.5 main firmware and
 stage on the resident-beacon bench radio. With USB disconnected, PTT+7
 and Menu reached **APRS STAGE READY**, and Back returned to normal
-operation. The subsequent staged write displayed **APRS BOOT VERIFIED /
-V1.0.15**. After a normal power cycle, APRS Info showed `V1.0.15` and
-Toolbox ABOUT showed `FIRMWARE V0.1.5`.
+operation. The staged write of the marked image displayed
+**APRS BOOT VERIFIED / V1.0.15X**. APRS Info still showed `V1.0.15X`
+after a normal power cycle.
 
 ## Build
 
@@ -22,8 +23,8 @@ this directory, run:
 
 ```sh
 python3 build.py --stock-package "/path/to/TD-H9-V1.0.38.fw"
-cc -std=c11 -Wall -Wextra -Werror update.c test_update.c -o build/test_update
-build/test_update ../kiss-tnc/APRS-1.0.15-rx15-rxff.bin
+cc -std=c11 -I build -Wall -Wextra -Werror update.c test_update.c -o build/test_update
+build/test_update build/APRS-1.0.15X.bin
 python3 -m unittest test_stage
 ```
 
@@ -34,7 +35,8 @@ firmware version. The standard site installer still uses its own hosted build.
 
 The outputs are `build/h9-kiss-aprs-stage.fw`,
 `build/aprs-stage-0xf4000.bin`, and `build/manifest.json`. Keep the three
-files together. The main package installs the launch and integrity hooks.
+files together. The build also emits the separate `APRS-1.0.15X.bin` and its
+release manifest. The main package installs the launch and integrity hooks.
 The stage contains the updater code and the modem image at main flash
 `0xF4000–0xF9FFF`, below the resident beacon sectors at `0xFA000–0xFBFFF`.
 The host verifies device checksums, then the main firmware
@@ -79,11 +81,11 @@ up and identified.
    The radio waits for 20 ms of quiet on the internal UART and sends 136
    blocks at the stock update setting of 19,200 baud. It sends each block
    once and waits for the modem's acknowledgment before continuing.
-4. Wait for **APRS BOOT VERIFIED / V1.0.15**. After the modem acknowledges
+4. Wait for **APRS BOOT VERIFIED / V1.0.15X**. After the modem acknowledges
    exit, the radio sends the normal launch command, switches to 115,200 baud,
    and requires a framed modem version reply. Open **APRS Info** again
-   after a normal power cycle. A version reply verifies a running modem
-   application. To verify the KISS patch, also check that a short AX.25
+   after a normal power cycle. The X marks the patched modem application.
+   To check packet behavior, verify that a short AX.25
    control frame passes in both directions.
 
 If the radio reports **NO BLOCK ACK** or **NO EXIT ACK**, power off. Re-enter

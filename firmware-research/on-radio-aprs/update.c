@@ -1,4 +1,5 @@
 #include "update.h"
+#include "stage-config.h"
 
 uint32_t aprs_crc32(const uint8_t *data, size_t size)
 {
@@ -34,7 +35,7 @@ enum aprs_result aprs_program(const uint8_t *image, uint32_t checksum, aprs_tran
 
 int aprs_version_feed(struct aprs_version *parser, uint8_t byte)
 {
-    static const uint8_t reply[] = "\x21\x00" "V1.0.15\0V1.0.0";
+    static const uint8_t reply[] = "\x21\x00" APRS_MODEM_VERSION "\0V1.0.0";
     if (byte == 0xc0) {
         const int verified = parser->in_frame && parser->size == sizeof(reply);
         parser->size = 0;

@@ -4595,3 +4595,24 @@ result yet.**
   A normal power cycle confirmed APRS Info `V1.0.15` and Toolbox ABOUT
   `FIRMWARE V0.1.5`. This was a programming and boot test; no RF exchange
   was exercised.
+
+## 2026-11-18 APRS V1.0.15X version marker
+
+- The modem command `0x20` now returns the eight-character software
+  version in each applicable `0x21` reply. Selector 0 gains one byte,
+  selector 1 gains one byte, and selectors 2 and unknown retain their
+  original bytes. The stock main app locates the protocol version by
+  scanning for the end of the software string and stores up to 15
+  characters. The serial boot banner displays the same X suffix.
+- The image remains 17,304 bytes and keeps the RX15 and unsigned-byte
+  patches. ARM emulation checked all four command branches and the boot
+  banner. Modem image SHA-256 starts with `fe2872db`, stage with
+  `55be5faf`, and the installed main package with `32b2b630`.
+- PTT+2 HID wrote two staging sectors and three main sectors, then
+  verified main, stage and resident-beacon checksums. The radio flashed
+  itself over its internal UART from PTT+7 with USB unplugged and reported
+  **APRS BOOT VERIFIED / V1.0.15X**. After a normal boot APRS Info showed
+  **V1.0.15X**. The Toolbox release remains v0.1.5.
+- The dev-site APRS page now explains the staged and browser USB paths
+  separately, with Windows recovery instructions. The browser still
+  serves its existing recovery and packet images. Both display V1.0.15.

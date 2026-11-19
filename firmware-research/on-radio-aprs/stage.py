@@ -8,6 +8,7 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import sys
+from modem_version import patch_modem
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT.parent / "hid-recovery"))
@@ -38,7 +39,7 @@ def load_stage(directory: Path) -> bytes:
     if (not 0 < code_size <= IMAGE_OFFSET
             or crc32(stage[:code_size]) != int(manifest["stage_code_crc32"], 16)
             or stage[code_size:IMAGE_OFFSET] != b"\xff" * (IMAGE_OFFSET - code_size)
-            or stage[IMAGE_OFFSET:tail] != modem.read_bytes()
+            or stage[IMAGE_OFFSET:tail] != patch_modem(modem.read_bytes())
             or stage[tail:] != b"\xff" * (SIZE - tail)):
         raise ValueError("Unexpected code, modem image, or padding in the stage")
     return stage

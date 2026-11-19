@@ -39,7 +39,7 @@ static unsigned parse(struct aprs_version *parser, const uint8_t *bytes, size_t 
 
 static void check_version(void)
 {
-    static const uint8_t reply[] = {0xc0, 0x21, 0, 'V', '1', '.', '0', '.', '1', '5',
+    static const uint8_t reply[] = {0xc0, 0x21, 0, 'V', '1', '.', '0', '.', '1', '5', 'X',
                                     0, 'V', '1', '.', '0', '.', '0', 0, 0xc0};
     struct aprs_version parser = {0};
     assert(parse(&parser, reply + 1, sizeof(reply) - 1) == 0);

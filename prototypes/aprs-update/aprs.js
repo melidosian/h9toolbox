@@ -70,7 +70,7 @@ function download(filename, blob) {
 
 function progress(bytes) {
   ui.progress.value = bytes;
-  ui.progressText.textContent = `${bytes.toLocaleString()} / ${IMAGE_SIZE.toLocaleString()} bytes acknowledged`;
+  ui.progressText.textContent = `${Math.floor(bytes * 100 / IMAGE_SIZE)}% sent`;
 }
 
 ui.prepare.addEventListener('click', () => action(async () => {
@@ -81,7 +81,7 @@ ui.prepare.addEventListener('click', () => action(async () => {
   ]);
   const failed = results.find(result => result.status === 'rejected');
   if (failed) throw new Error(`${failed.reason.message} You can choose a matching local stock file if the download is unavailable.`);
-  status('Firmware verified. Save the stock image for recovery before writing.');
+  status('Firmware files verified. Save the stock recovery file, then connect the radio.');
 }));
 
 ui.stockFile.addEventListener('change', () => action(async () => {
@@ -104,7 +104,7 @@ ui.connect.addEventListener('click', () => action(async () => {
   if (!isAprsRadio(selected)) throw new Error('Select the TD-H9 USB serial port.');
   port = selected;
   ui.confirmMode.checked = false;
-  status('USB port selected. Confirm APRS Update is on the radio screen.');
+  status('Radio connected. Check that its screen says APRS Update, then continue with USB step 3.');
 }));
 
 serial?.addEventListener('disconnect', event => {
@@ -131,14 +131,14 @@ ui.flash.addEventListener('click', () => {
     journal = [];
     progress(0);
     render();
-    status('Opening USB serial and waiting for quiet input…');
+    status('Getting the radio ready. Keep the USB cable connected.');
     try {
       await flashAprs(port, images[kind], kind, { onEvent(row) {
         journal.push({ utc: new Date().toISOString(), ...row });
         if (row.event === 'startup_drained') status('Writing APRS firmware. Keep the USB cable connected.');
         if (row.event === 'block_acknowledged') progress(row.acknowledged_end);
       } });
-      status('Transfer acknowledged. Power-cycle the radio normally, then verify APRS Info and packet reception.');
+      status('Transfer finished. Turn the radio off, unplug USB, and turn it back on. Check APRS Info as shown in USB step 4.');
     } catch (error) {
       const offset = ui.progress.value.toLocaleString();
       throw new Error(`Update stopped at ${offset} acknowledged bytes. ${error.message} Re-enter APRS Update before starting over or restoring stock.`);
@@ -161,6 +161,6 @@ window.addEventListener('beforeunload', event => {
   }
 });
 
-if (macOS) status('macOS writes are disabled after a failed hardware test. Save the stock image for Windows recovery.');
+if (macOS) status('You can save the stock recovery file on this Mac. For USB writing, open this page on a Windows computer.');
 else if (!serial) status('USB-C access requires desktop Chrome or Edge over HTTPS.');
 render();

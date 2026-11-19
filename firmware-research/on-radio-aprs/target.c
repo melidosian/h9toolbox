@@ -163,7 +163,7 @@ void aprs_stage_entry(void)
     h9_run_baud();
     h9_delay(300);
     if (verify_boot())
-        status("APRS BOOT VERIFIED", "V1.0.15");
+        status("APRS BOOT VERIFIED", APRS_MODEM_VERSION);
     else
         status("APRS NOT VERIFIED", "Check APRS Info");
     h9_delay(2500);
