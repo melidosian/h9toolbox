@@ -55,6 +55,14 @@ function renderCatalog() {
   const box = $('catalog');
   const bench = catalog?.profile === 'smartbeacon';
   if (benchLink) benchLink.hidden = bench;
+  const menu = catalog && menuState(catalog, staged, preferBench);
+  $('menuUpdate').hidden = !menu?.canUpdate;
+  $('stageMenuUpdate').disabled = busy;
+  if (menu?.canUpdate) {
+    let label = bench ? 'Update menu and apps' : 'Update menu';
+    if (menu.status === 'different') label = 'Use matching menu and apps';
+    $('stageMenuUpdate').textContent = label;
+  }
   if (!catalog) { box.replaceChildren(); return; }
   const cards = catalog.apps.map(item => {
     const state = appState(item, installed, staged);
@@ -85,43 +93,9 @@ function renderCatalog() {
     else button('Remove', async () => { staged = withoutApp(staged, item); log(`Staged: remove ${item.title}.`); });
     return card;
   });
-  const menu = menuState(catalog, staged, preferBench);
-  if (bench || menu.canUpdate) {
-    const card = document.createElement('div');
-    card.className = 'app';
-    card.innerHTML = '<h3><span></span><span class="tag">System</span></h3><p></p><div class="row"><span class="status"></span><span class="buttons"></span></div>';
-    card.querySelector('h3 span').textContent = catalog.menu.title;
-    card.querySelector('p').textContent = bench
-      ? 'Restore the H3-style menu and refresh the matching apps already on the radio.'
-      : catalog.menu.description;
-    const labels = {
-      missing: 'Connect the H9 to check for updates',
-      current: 'Up to date',
-      outdated: 'Update available',
-      different: 'Different menu installed',
-    };
-    if (session) labels.missing = 'Add an app to install the menu';
-    if (connecting) labels.missing = 'Reading the radio…';
-    if (menu.status === 'current' && menuState(catalog, installed ?? []).status !== 'current') {
-      labels.current = 'Will be installed';
-    }
-    const status = card.querySelector('.status');
-    status.classList.add(menu.status === 'current' ? 'installed' : menu.status);
-    status.textContent = labels[menu.status];
-    const b = document.createElement('button');
-    b.textContent = bench ? 'Restore H3-style apps' : 'Update';
-    b.className = 'primary';
-    b.disabled = busy || !menu.canUpdate;
-    b.addEventListener('click', () => run(async () => {
-      staged = await withUpdatedMenu(catalog, staged, { restoreBench: preferBench });
-      log(bench ? 'Staged the H3-style menu and matching apps.' : 'Staged the menu update.');
-    }));
-    card.querySelector('.buttons').append(b);
-    cards.unshift(card);
-  }
   box.replaceChildren(...cards);
   $('catalogNote').textContent = bench
-    ? 'Use these apps with the matching SmartBeacon bench firmware. Stage changes here, then select Write to radio.'
+    ? 'Requires the matching SmartBeacon dev firmware.'
     : `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
 }
 
@@ -271,10 +245,10 @@ function reportUpdates() {
   }).map(item => `${item.title} ${item.version}`);
   const menu = menuState(catalog, installed, preferBench);
   if (menu.status === 'outdated') outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
-  if (outdated.length) log(`Updates available: ${outdated.join(', ')}. Stage the updates on the app cards, then Write to radio.`);
+  if (outdated.length) log(`Updates available for ${outdated.join(', ')}.`);
   if (menu.status === 'different') {
     log(menu.canUpdate
-      ? 'A different Toolbox menu is installed. Use Restore H3-style apps for the matching SmartBeacon bench firmware.'
+      ? 'A different Toolbox menu is installed. Select Use matching menu and apps to stage the version for this SmartBeacon build.'
       : 'The installed Toolbox menu differs from this catalog.');
   } else if (!outdated.length) {
     log('The Toolbox menu and installed catalog apps are up to date.');
@@ -349,6 +323,11 @@ $('disconnect').addEventListener('click', () => run(async () => {
   await opened?.disconnect();
 }));
 $('reload').addEventListener('click', () => run(readRadio));
+
+$('stageMenuUpdate').addEventListener('click', () => run(async () => {
+  staged = await withUpdatedMenu(catalog, staged, { restoreBench: preferBench });
+  log('Staged the menu update.');
+}));
 
 $('addButton').addEventListener('click', () => $('addFile').click());
 $('addFile').addEventListener('change', () => run(async () => {

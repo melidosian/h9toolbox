@@ -36,7 +36,7 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
         raise SystemExit("The SmartBeacon catalog needs the matching API 5 automatic beacon build.")
 
     menu = {
-        **meta["menu"], "title": "H3-style Toolbox menu", "version": "2.0-dev",
+        **meta["menu"], "title": "Toolbox menu", "version": "2.0-dev",
         "description": "Grouped Toolbox menu with keypad shortcuts and APRS Settings.",
         "summary": "Hold Back to open Toolbox. Type a row number to jump to it.",
         "controls": ["Up and Down move or adjust. Menu opens or saves. Back returns one level."],

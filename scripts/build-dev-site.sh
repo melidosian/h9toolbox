@@ -15,7 +15,7 @@ mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
 
 # Offer the catalog built for the H3-style SmartBeacon bench firmware.
 test -s dist/apps/catalog/smartbeacon/catalog.json
-sed 's|<!-- dev-smartbeacon-catalog -->|<p class="note" id="smartbeaconCatalogLink"><a href="?catalog=smartbeacon">H3-style SmartBeacon bench apps</a> · For the matching dev firmware.</p>|' \
+sed 's|<!-- dev-smartbeacon-catalog -->|<p class="note" id="smartbeaconCatalogLink"><a href="?catalog=smartbeacon">SmartBeacon bench apps</a> · For the matching dev firmware.</p>|' \
   dist/apps/index.html > dist/apps/index.html.tmp
 mv dist/apps/index.html.tmp dist/apps/index.html
 

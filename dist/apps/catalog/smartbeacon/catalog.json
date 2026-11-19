@@ -3,7 +3,7 @@
  "menu": {
   "id": "menu",
   "name": "MENU",
-  "title": "H3-style Toolbox menu",
+  "title": "Toolbox menu",
   "description": "Grouped Toolbox menu with keypad shortcuts and APRS Settings.",
   "version": "2.0-dev",
   "replaces": [

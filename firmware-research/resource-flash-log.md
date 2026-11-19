@@ -4968,3 +4968,6 @@ result yet.**
   operator explicitly stage the matching menu when its installed CRC
   is outside the list of known predecessors. Automatic menu updates
   still require a recognized predecessor.
+- Removed the persistent menu card and its H3 label from App Manager.
+  A menu action appears above the app list when the catalog offers a
+  replacement. Menu and app binaries are identical.
