@@ -68,7 +68,8 @@ $('reconnectStep').addEventListener('click', () => {
 function status(message, error = false) {
   $('status').hidden = false;
   $('status').textContent = message;
-  if (error) slides[currentStep].querySelector('.guide-help').open = true;
+  const help = slides[currentStep].querySelector('.guide-help:not([hidden])');
+  if (error && help) help.open = true;
   $('status').classList.toggle('error-status', error);
   const item = document.createElement('li'); item.textContent = message; $('log').prepend(item);
 }
@@ -298,9 +299,24 @@ async function validateSelectedBackup(announceWaiting = true) {
   refresh();
 }
 
-$('firmwareFile').addEventListener('change', async event => {
+function beginFirmwareSelection() {
   const selection = ++firmwareSelection;
+  $('firmwareHelp').hidden = true;
+  $('firmwareHelp').open = false;
+  $('status').hidden = true;
   ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
+  return selection;
+}
+
+function rejectFirmware(message, error) {
+  $('firmwareState').textContent = message;
+  $('firmwareHelp').hidden = false;
+  $('firmwareHelp').open = true;
+  fail(error);
+}
+
+$('firmwareFile').addEventListener('change', async event => {
+  const selection = beginFirmwareSelection();
   const file = event.target.files[0];
   if (!file) { $('firmwareState').textContent = 'No package selected'; await validateSelectedBackup(false); return; }
   try {
@@ -310,13 +326,12 @@ $('firmwareFile').addEventListener('change', async event => {
     status('Official v1.0.38 firmware package verified locally.');
   } catch (error) {
     if (selection !== firmwareSelection) return;
-    $('firmwareState').textContent = 'Package rejected'; fail(error);
+    rejectFirmware('Package rejected', error);
   }
   await validateSelectedBackup(false);
 });
 $('loadBuild').addEventListener('click', async () => {
-  const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
+  const selection = beginFirmwareSelection();
   busy = true; refresh();
   try {
     status(`Downloading the pinned ${BUILD.label} package and recovery seeds from H9 Toolbox.`);
@@ -328,12 +343,11 @@ $('loadBuild').addEventListener('click', async () => {
     status(`${BUILD.label} package, exact stock v1.0.38 seed, and earlier-build sectors verified locally. No radio write sent.`);
     await validateSelectedBackup(false);
   } catch (error) {
-    if (selection === firmwareSelection) { $('firmwareState').textContent = `${BUILD.label} package rejected`; fail(error); }
+    if (selection === firmwareSelection) rejectFirmware(`${BUILD.label} package rejected`, error);
   } finally { busy = false; refresh(); }
 });
 $('loadStockGitHub').addEventListener('click', async () => {
-  const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
+  const selection = beginFirmwareSelection();
   busy = true; refresh();
   try {
     status('Downloading the pinned Type-C v1.0.38 ZIP from the TDH9 GitHub mirror.');
@@ -347,7 +361,7 @@ $('loadStockGitHub').addEventListener('click', async () => {
     status('Stock Type-C v1.0.38 package verified locally. The hosted builds are available as fast backup seeds. No radio write sent.');
     await validateSelectedBackup(false);
   } catch (error) {
-    if (selection === firmwareSelection) { $('firmwareState').textContent = 'GitHub stock package rejected'; fail(error); }
+    if (selection === firmwareSelection) rejectFirmware('GitHub stock package rejected', error);
   } finally { busy = false; refresh(); }
 });
 $('backupFile').addEventListener('change', () => validateSelectedBackup());
