@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildBundle } from '../dist/apps/bundle.mjs';
 import { connectUsb } from '../dist/boot-logo/radio.mjs';
+import { inspectFirstBoot } from '../dist/firmware-update/maintenance.mjs';
 import { BANK_SIZE, BLOCK, LOGO_ADDRESS, LOGO_BYTES, SECTOR } from '../dist/boot-logo/resource.mjs';
 import { SLOTS, readPack, restore, uploadPack } from '../dist/doom/upload.mjs';
 import { SimulatedRadio } from './support/simulated-radio.mjs';
@@ -11,6 +12,7 @@ function usbRadio(t, { service = true, dataReadsPerSession = Infinity } = {}) {
   let dataReads = 0;
   const sim = new SimulatedRadio({ service, mtu: 7, deliver: bytes => incoming.enqueue(bytes) });
   const port = {
+    getInfo: () => ({ usbVendorId: 0x4c4a, usbProductId: 0x4155 }),
     async open(options) {
       assert.equal(options.baudRate, 115200);
       this.readable = new ReadableStream({ start: controller => { incoming = controller; } });
@@ -30,6 +32,35 @@ function usbRadio(t, { service = true, dataReadsPerSession = Infinity } = {}) {
   t.mock.getter(globalThis, 'navigator', () => ({ serial: { getPorts: async () => [], requestPort: async () => port } }));
   return { sim, port, unplug: () => incoming.error(new Error('USB unplugged')) };
 }
+
+test('first boot reads the newly appeared authorized radio and leaves its resource flash intact', async t => {
+  const { sim, port } = usbRadio(t);
+  const session = await connectUsb();
+  const bundle = buildBundle([{ name: 'MENU', body: Uint8Array.of(1, 2, 3, 4), bss: 0, entry: 0 }]);
+  await uploadPack(session.radio, bundle, { slot: SLOTS.modules, name: 'H9 modules' });
+  await session.disconnect();
+  const before = sim.chip.slice();
+  const existing = { getInfo: port.getInfo, open: () => assert.fail('Do not open a radio that was already present.') };
+  t.mock.getter(globalThis, 'navigator', () => ({ serial: {
+    getPorts: async () => [existing, port],
+    requestPort: async () => assert.fail('First boot must not open a device chooser.'),
+  } }));
+  const installed = await inspectFirstBoot([existing], { timeoutMs: 0 });
+  assert.deepEqual(installed.map(module => module.name), ['MENU']);
+  assert.deepEqual(sim.chip, before);
+});
+
+test('first boot skips an unauthorized or ambiguous reconnect without prompting', async t => {
+  const matching = () => ({ getInfo: () => ({ usbVendorId: 0x4c4a, usbProductId: 0x4155 }) });
+  let ports = [];
+  t.mock.getter(globalThis, 'navigator', () => ({ serial: {
+    getPorts: async () => ports,
+    requestPort: async () => assert.fail('First boot must not open a device chooser.'),
+  } }));
+  await assert.rejects(inspectFirstBoot([], { timeoutMs: 0 }), /authorized TD-H9 USB serial port did not appear/);
+  ports = [matching(), matching()];
+  await assert.rejects(inspectFirstBoot([], { timeoutMs: 0 }), /More than one authorized TD-H9/);
+});
 
 test('App Manager installs, reads, and removes a bundle over USB serial', async t => {
   const { sim, port } = usbRadio(t);

@@ -305,6 +305,11 @@ function u32(...values) {
 
 export class H9Hid {
   constructor(device) { this.device = device; }
+  reboot() {
+    // JieLi's updater sends this without waiting for a reply. The device may
+    // disconnect before it can acknowledge the report.
+    return this.device.sendReport(0, makePacket(0xca));
+  }
   async exchange(command, body = new Uint8Array()) {
     const device = this.device;
     let cancel;

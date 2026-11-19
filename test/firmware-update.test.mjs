@@ -2,11 +2,35 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, makePacket, parseReply, planUpdate, writeSector } from '../dist/firmware-update/firmware.mjs';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash, recoverNextSector, recoverPreviousSector } from '../dist/firmware-update/readback.mjs';
+import { rebootFromHid } from '../dist/firmware-update/maintenance.mjs';
 
 test('HID init packet matches captured vendor request', () => {
   const body = new Uint8Array(17);
   body.set(new TextEncoder().encode('app_dir_head'));
   assert.equal(Buffer.from(makePacket(0xc0, body).slice(0, 25)).toString('hex'), 'aa5513008e61dd703e3ed8693c3ed4652f05bc004e61bcb538');
+});
+
+test('HID reboot sends the empty CA report and observes the matching disconnect without a reply', async t => {
+  const usbHid = new EventTarget();
+  t.mock.getter(globalThis, 'navigator', () => ({ hid: usbHid }));
+  const unplug = device => usbHid.dispatchEvent(Object.assign(new Event('disconnect'), { device }));
+  const device = {
+    async sendReport(reportId, report) {
+      assert.equal(reportId, 0);
+      assert.equal(parseReply(report, 0xca).length, 0);
+      unplug({});
+      unplug(device);
+      throw new Error('USB disconnected before the send completed');
+    },
+  };
+  assert.equal(await rebootFromHid(new H9Hid(device), { timeoutMs: 100 }), true);
+});
+
+test('a sent reboot report alone does not confirm a restart', async t => {
+  const usbHid = new EventTarget();
+  t.mock.getter(globalThis, 'navigator', () => ({ hid: usbHid }));
+  const device = { async sendReport() {} };
+  assert.equal(await rebootFromHid(new H9Hid(device), { timeoutMs: 0 }), false);
 });
 
 test('reply checks CRC, command, and radio status', () => {

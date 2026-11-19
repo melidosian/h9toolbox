@@ -4971,3 +4971,15 @@ result yet.**
 - Removed the persistent menu card and its H3 label from App Manager.
   A menu action appears above the app list when the catalog offers a
   replacement. Menu and app binaries are identical.
+
+## 2026-11-19 HID reboot and first-boot resource check
+
+- JieLi's `fw-Bootloader` USB HID host sends an empty `0xCA` report after
+  flashing without waiting for a reply. The browser now requests the same
+  restart after verifying a Toolbox install and watches for the HID
+  interface to disconnect. TD-H9 behavior still needs a bench check.
+- The post-install page looks for a newly available, already authorized
+  Web Serial port. The HID permission does not grant Web Serial permission.
+  The prototype checks resource-service readiness and reads and verifies
+  the app bundle through the existing modules directory. The automatic
+  path does not erase or write any resource sectors.

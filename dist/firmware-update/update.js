@@ -1,7 +1,9 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261118aprs';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261119boot';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
 import { stageAprs } from './aprs-stage.mjs';
+import { grantedUsbPorts } from '../boot-logo/radio.mjs?v=usb4';
+import { inspectFirstBoot, rebootFromHid } from './maintenance.mjs';
 
 const $ = id => document.getElementById(id);
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
@@ -111,18 +113,68 @@ function setKissStep(state) {
     occupied: 'The staging area is occupied. Its contents were preserved. Skip the keypad update on this radio.',
   }[state] ?? 'Use this step after Install confirms that the APRS update was staged.';
 }
-function toolboxResult(work, duration, aprs) {
+function toolboxResult(work, duration, aprs, bootStep) {
   return {
     title: work.length ? `${BUILD.label} installed and verified` : `${BUILD.label} already installed`,
     text: aprs === 'ready'
       ? `Main firmware and staged APRS update verified (${duration}). The modem update is ready in step 05.`
       : 'Main firmware verified. The APRS staging area holds other data, so it was preserved. You can use step 04 for apps and the boot logo.',
-    steps: ['Disconnect USB before restarting the radio.',
+    steps: [bootStep,
       aprs === 'ready' ? 'Use step 04 for apps or step 05 to unlock KISS packet connections.'
-        : 'Restart normally to use the Toolbox apps.'],
+        : 'Use step 04 for apps and the boot logo.'],
     action: aprs === 'ready' ? { href: '#unlock-kiss', label: 'Go to Unlock KISS TNC' }
       : { href: '../apps/', label: 'Open the App Manager' },
   };
+}
+
+async function finishToolboxInstall(work, seconds, aprs) {
+  $('acknowledge').checked = false;
+  finish('Main firmware verified');
+  setLogoStep('build');
+  setKissStep(aprs);
+  showResult(toolboxResult(work, seconds, aprs, 'Keep USB connected while the installer requests a restart.'));
+  status('Main firmware verified. Requesting a restart over USB…');
+  let existingPorts;
+  let bootStep = 'Disconnect USB and power-cycle the radio normally before opening App Manager.';
+  try {
+    existingPorts = await grantedUsbPorts();
+  } catch (error) {
+    status(`USB serial permissions could not be checked (${error.message}).`);
+  }
+  try {
+    if (await rebootFromHid(hid)) {
+      const oldDevice = device;
+      device = null;
+      hid = null;
+      radioBackedUp = false;
+      if (oldDevice.opened) await oldDevice.close().catch(() => {});
+      $('deviceState').textContent = 'HID disconnected';
+      bootStep = 'Open App Manager once the radio is on its normal screen.';
+      $('logoGate').textContent = bootStep;
+      if (existingPorts) {
+        status('The HID interface disconnected. Waiting for the authorized USB serial interface…');
+        try {
+          const modules = await inspectFirstBoot(existingPorts, {
+            onProgress: fraction => { $('progressText').textContent = `Reading app bundle · ${Math.round(fraction * 100)}%`; },
+          });
+          bootStep = modules.length
+            ? `First-boot check read and verified the installed bundle (${modules.length} modules, including the menu). Open App Manager to update apps.`
+            : 'First-boot check found no app bundle. Open App Manager to install apps.';
+          status(bootStep);
+          $('logoGate').textContent = bootStep;
+          $('logoGate').classList.add('ready');
+        } catch (error) {
+          status(`First-boot check skipped. ${error.message}`);
+        }
+      }
+    } else {
+      status('No HID disconnect was observed after the restart request. Power-cycle the radio normally.');
+    }
+  } catch (error) {
+    status(`USB restart could not be confirmed (${error.message}). Power-cycle the radio normally.`);
+  }
+  finish('Main firmware verified');
+  showResult(toolboxResult(work, seconds, aprs, bootStep));
 }
 // [name, image] pairs of every known image, for classifyRadio.
 function namedImages() {
@@ -466,10 +518,7 @@ async function performWrite(direction) {
     $('planState').textContent = `Radio checked: ${work.length} sector(s) to ${direction === 'update' ? 'write' : 'restore'}${checked.interrupted ? ', including one interrupted sector' : ''}.`;
     if (!work.length) {
       if (toolbox) {
-        finish('Main firmware verified');
-        setLogoStep('build');
-        setKissStep(aprs);
-        showResult(toolboxResult(work, formatDuration((performance.now() - began) / 1000), aprs));
+        await finishToolboxInstall(work, formatDuration((performance.now() - began) / 1000), aprs);
         return;
       }
       finish('Radio checked; nothing to write');
@@ -500,12 +549,13 @@ async function performWrite(direction) {
     }
     $('acknowledge').checked = false;
     const seconds = formatDuration((performance.now() - began) / 1000);
+    if (toolbox) {
+      await finishToolboxInstall(work, seconds, aprs);
+      return;
+    }
     finish(`${work.length} sectors ${direction === 'update' ? 'installed' : 'restored'} and every sector CRC verified in ${seconds}`);
     setLogoStep(knownRadio(after));
-    setKissStep(aprs);
-    showResult(toolbox
-      ? toolboxResult(work, seconds, aprs)
-      : { title: direction === 'update' ? 'Firmware written and verified' : backup.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
+    showResult({ title: direction === 'update' ? 'Firmware written and verified' : backup.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
           text: `All ${work.length} changed sectors were written and every firmware sector's CRC matches ${direction === 'update' ? 'the package' : backup.source === 'hosted-stock' ? 'official stock v1.0.38' : 'your backup'} (${seconds}).`,
           steps: ['Disconnect USB and power-cycle the radio.', 'Check the version and your saved channels and settings.', 'Your boot logo is kept: it lives on the separate resource flash.'] });
     status(`${direction === 'update' ? 'Updated firmware' : 'Restored backup'} sector CRC verification passed. Disconnect USB and power-cycle the radio, then check its version and saved settings.`);
