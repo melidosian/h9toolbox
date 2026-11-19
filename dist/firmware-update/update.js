@@ -550,6 +550,30 @@ async function createBackup() {
     status('H9 Toolbox firmware backup saved. This file covers the main firmware only.');
   finish(`Backup built and verified in ${formatDuration((performance.now() - backupBegan) / 1000)}`);
 }
+async function planDevInstallWithoutBackup(current) {
+  // The Type-C TD-H9 model identifier is at physical 0xB672A. Verify its
+  // sector and the next with aligned and shifted CRCs against the pinned
+  // image. This identifies the radio even when other main sectors differ.
+  const modelSector = 0xb6000;
+  const relative = modelSector - APP_START;
+  const expectedModel = target.image.subarray(modelSector, modelSector + 2 * SECTOR_SIZE);
+  const index = relative / SECTOR_SIZE;
+  if (current[index] !== crc16(expectedModel.subarray(0, SECTOR_SIZE)) ||
+      current[index + 1] !== crc16(expectedModel.subarray(SECTOR_SIZE))) {
+    throw new BackupRequiredError('The updater could not verify the TD-H9 model data. Use a verified recovery file or clear Skip backup. Nothing was written.');
+  }
+  for (const shift of [1, 37, 1024, 2048, 3072, 4095]) {
+    const [actual] = await hid.windowCrcs(relative + shift, 1);
+    if (actual !== crc16(expectedModel.subarray(shift, shift + SECTOR_SIZE)))
+      throw new BackupRequiredError('The updater could not verify the TD-H9 model data. Use a verified recovery file or clear Skip backup. Nothing was written.');
+  }
+  const update = stockDifferences(current, target.image).reverse();
+  if (!update.length && !await knownAppMatches(hid, current, target.image))
+    throw new Error('The shifted-window check found firmware bytes that differ from the selected package. Nothing was written.');
+  status(`TD-H9 verified. ${update.length} main firmware sector(s) differ from ${release.label} and will be replaced.`);
+  return { update, restore: [], verifyShiftedWindows: true };
+}
+
 // Check the radio and plan both directions: a full sector-CRC scan, the
 // pinned sector set, the live shifted-window check, and any interrupted
 // sector. Nothing is erased or written here.
@@ -557,6 +581,8 @@ async function inspectRadio(reference, known) {
   status('Checking the radio: scanning 251 sectors (CRC only, no writes)…');
   phase('Checking the radio (CRC scan, no writes)');
   const current = await scanRadio(hid, progress);
+  if (reference.source === 'verified-firmware' && useDevBuild && target.kind === 'build' && $('skipBackup').checked)
+    return planDevInstallWithoutBackup(current);
   const marker = pending();
   const resumeSector = marker?.packageHash === target.packageHash && marker?.backupHash === reference.hash ? marker.sector : null;
   let changed;
@@ -683,6 +709,8 @@ async function performWrite(direction) {
       const index = (physical - APP_START) / SECTOR_SIZE;
       if (after[index] !== desired[index]) throw new Error(`Final CRC mismatch at 0x${physical.toString(16)}.`);
     }
+    if (checked.verifyShiftedWindows && !await knownAppMatches(hid, after, destination))
+      throw new Error('The final shifted-window check found firmware bytes that differ from the selected package.');
     $('acknowledge').checked = false;
     resetBackupOverride();
     const seconds = formatDuration((performance.now() - began) / 1000);

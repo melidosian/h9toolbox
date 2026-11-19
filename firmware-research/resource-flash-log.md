@@ -4995,3 +4995,9 @@ result yet.**
   v0.1.5 version stamp (main package SHA-256 `e64b6a5f3d5dd17077a392bffc837486a7076e9e52c6cc2b19e34e2a0dec85e0`).
   The scheduler and app hashes are unchanged. The earlier v0.1.4 bench
   main image remains a recognized input for upgrades.
+- The dev updater's Skip backup path now verifies the Type-C TD-H9 model
+  region against the pinned image and writes only differing main firmware
+  sectors. The final check includes shifted CRC windows. In Chromium with
+  simulated HID, the updater replaced only the two altered sectors
+  (`0x63000` and `0x5000`) and downloaded no backup. A model-region
+  mismatch blocked all writes.

@@ -19,6 +19,7 @@ rm -f dist/firmware-update/smartbeacon/index.html
 sed -e 's|id="optBuild"|id="optBuild" data-dev-firmware|' \
   -e 's|Includes the app loader, Bluetooth packet support, and an optional APRS modem update.|Includes the Toolbox app loader, Bluetooth packet support, SmartBeacon, timed APRS beacons, and APRS Mute.|' \
   -e 's|<!-- dev-before-install -->|<p class="fine">If you have an armed APRS schedule, disarm it on the radio before entering update mode. An armed schedule can resume on restart.</p>|' \
+  -e 's|<!-- dev-skip-backup-note -->|<p class="fine">With Skip backup selected, the updater can install H9 Toolbox on an unfamiliar build after verifying the TD-H9 model data. It writes only main firmware sectors that differ from the selected package.</p>|' \
   -e 's|H9 Toolbox Firmware also stages the optional APRS modem update if space is available.|The updater verifies the APRS scheduler before installing the main firmware.|' \
   dist/firmware-update/index.html > dist/firmware-update/index.html.tmp
 mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
