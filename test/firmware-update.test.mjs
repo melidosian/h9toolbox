@@ -17,6 +17,32 @@ test('reply checks CRC, command, and radio status', () => {
   assert.throws(() => parseReply(packet, 0xc2), /command/);
 });
 
+test('HID reboot sends command 0xCA and accepts a disconnect that races the send', async () => {
+  const events = new EventTarget();
+  const device = {
+    async sendReport(reportId, report) {
+      assert.equal(reportId, 0);
+      assert.equal(parseReply(report, 0xca).length, 0);
+      events.dispatchEvent(Object.assign(new Event('disconnect'), { device: this }));
+      throw new Error('USB closed while sending');
+    },
+  };
+  assert.equal(await new H9Hid(device).reboot({ events, timeoutMs: 100 }), true);
+});
+
+test('HID reboot waits for this radio and preserves the send failure', async () => {
+  const events = new EventTarget();
+  const device = {
+    async sendReport() {
+      events.dispatchEvent(Object.assign(new Event('disconnect'), { device: {} }));
+    },
+  };
+  const hid = new H9Hid(device);
+  assert.equal(await hid.reboot({ events, timeoutMs: 0 }), false);
+  device.sendReport = async () => { throw new Error('USB permission lost'); };
+  await assert.rejects(hid.reboot({ events, timeoutMs: 0 }), /USB permission lost/);
+});
+
 test('WebHID transport sends one report ID zero and accepts identified geometry', async () => {
   const listeners = new Set();
   const device = {

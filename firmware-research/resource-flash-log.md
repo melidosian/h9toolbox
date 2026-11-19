@@ -5009,3 +5009,8 @@ result yet.**
   count and first 16 offsets in the user's earlier report. The browser
   now stages this matching package and shows the keypad instructions
   only after verifying the stage. Simulated checks preserved occupied slots.
+- The browser updater now sends the JieLi HID restart report (`0xCA`)
+  after verification, using the command from the HID maintenance branch.
+  Simulated USB tests confirmed that a failed install sends no restart,
+  a verified install sends one report, and a missing disconnect leaves
+  the verified result available with manual restart instructions.

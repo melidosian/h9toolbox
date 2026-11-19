@@ -1,4 +1,4 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, RESIDENT_START, RESIDENT_END, BUILD, PREVIOUS, classifyRadio, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261119h';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, RESIDENT_START, RESIDENT_END, BUILD, PREVIOUS, classifyRadio, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261119m';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
 import { stageAprs, stageRegion } from './aprs-stage.mjs?v=20261119l';
@@ -626,9 +626,23 @@ async function inspectRadio(reference, known) {
     interrupted: unknown.length > 0,
   };
 }
-const stockRestart = ['Disconnect USB and power-cycle the radio.', 'Check the firmware version, channels, and settings.'];
+async function restartAfterVerification() {
+  status('Firmware verified. Requesting a radio restart…');
+  try {
+    if (await hid.reboot()) {
+      clearConnection();
+      status('The radio left USB update mode after the restart request.');
+      return 'Wait for the normal channel screen. If it stays blank, unplug USB and turn the radio off and back on.';
+    }
+    status('The radio stayed in USB update mode after the restart request.');
+  } catch (error) {
+    status(`Firmware verified. The restart request could not be completed. ${error.message}`);
+  }
+  return 'Unplug USB, then turn the radio off and back on to finish restarting.';
+}
+
+const stockRestart = ['Check the firmware version, channels, and settings.'];
 const toolboxRestart = [
-  'Disconnect USB and power-cycle the radio.',
   'From the channel screen, hold Back to open the app menu.',
   useDevBuild ? 'Open the development app catalog in App Manager and install the matching menu and apps.'
     : 'Use the App Manager over Bluetooth or experimental USB-C to add apps or a boot logo.',
@@ -691,10 +705,11 @@ async function performWrite(direction) {
       $('acknowledge').checked = false;
       resetBackupOverride();
       status('Every main firmware sector already matches.');
+      const restart = await restartAfterVerification();
       showResult({
         title: toolbox ? `${release.label} is already installed` : 'The radio already matches the selected firmware',
         text: 'Every firmware sector matched during verification.' + aprsResult(aprs),
-        steps: toolbox ? toolboxRestart : stockRestart,
+        steps: [restart, ...(toolbox ? toolboxRestart : stockRestart)],
         action: toolbox ? appManagerLink : null,
       });
       return;
@@ -724,13 +739,13 @@ async function performWrite(direction) {
     resetBackupOverride();
     const seconds = formatDuration((performance.now() - began) / 1000);
     finish(`${work.length} sectors ${direction === 'update' ? 'installed' : 'restored'} and every sector CRC verified in ${seconds}`);
-    status('Firmware verification passed. You can disconnect USB and restart the radio.');
+    const restart = await restartAfterVerification();
     showResult({
       title: toolbox ? `${release.label} installed and verified`
         : direction === 'update' ? 'Stock firmware installed and verified'
           : reference.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
       text: `Updated ${work.length} sector(s) and verified every firmware sector (${seconds}).` + aprsResult(aprs),
-      steps: toolbox ? toolboxRestart : stockRestart,
+      steps: [restart, ...(toolbox ? toolboxRestart : stockRestart)],
       action: toolbox ? appManagerLink : null,
     });
   } catch (error) {

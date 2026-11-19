@@ -307,6 +307,27 @@ function u32(...values) {
 
 export class H9Hid {
   constructor(device) { this.device = device; }
+  async reboot({ events = navigator.hid, timeoutMs = 6000 } = {}) {
+    let onDisconnect, timer, sendError;
+    const disconnected = new Promise(resolve => {
+      onDisconnect = event => {
+        if (event.device === this.device) resolve(true);
+      };
+      events.addEventListener('disconnect', onDisconnect);
+      timer = setTimeout(() => resolve(false), timeoutMs);
+    });
+    // The reboot can tear down USB before sendReport completes. Wait for the
+    // radio's disconnect event instead of expecting a reply to command 0xCA.
+    try {
+      void this.device.sendReport(0, makePacket(0xca)).catch(error => { sendError = error; });
+      if (await disconnected) return true;
+      if (sendError) throw sendError;
+      return false;
+    } finally {
+      clearTimeout(timer);
+      events.removeEventListener('disconnect', onDisconnect);
+    }
+  }
   async exchange(command, body = new Uint8Array()) {
     const device = this.device;
     let cancel;
