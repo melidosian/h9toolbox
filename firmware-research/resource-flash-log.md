@@ -5001,3 +5001,11 @@ result yet.**
   simulated HID, the updater replaced only the two altered sectors
   (`0x63000` and `0x5000`) and downloaded no backup. A model-region
   mismatch blocked all writes.
+- Rebuilt the dev v0.1.5 package with the documented on-radio APRS
+  updater using the verified live-squelch bench base. Main SHA-256
+  `32b2b6308b2e8ef71d2ef5e15d543ce9b2594fd9455041d909653324446ec51e`,
+  stage SHA-256 `55be5fafe4efae0287345a25278e9ee00171e7af164e1c502b1bcc98a37924ba`.
+  Its 19-sector difference from the standard v0.1.5 image matches the
+  count and first 16 offsets in the user's earlier report. The browser
+  now stages this matching package and shows the keypad instructions
+  only after verifying the stage. Simulated checks preserved occupied slots.

@@ -1,7 +1,7 @@
 import { APP_START, IMAGE_SIZE, SECTOR_SIZE, RESIDENT_START, RESIDENT_END, BUILD, PREVIOUS, classifyRadio, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261119h';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
-import { stageAprs, stageRegion } from './aprs-stage.mjs?v=20261119h';
+import { stageAprs, stageRegion } from './aprs-stage.mjs?v=20261119l';
 
 const $ = id => document.getElementById(id);
 const slides = [...document.querySelectorAll('.guide-slide')];
@@ -10,8 +10,10 @@ const browserReady = window.isSecureContext && Boolean(navigator.hid?.requestDev
 const devBuild = {
   label: BUILD.label,
   file: 'dev/h9-toolbox-firmware-v0.1.5.fw',
-  packageSha256: 'e64b6a5f3d5dd17077a392bffc837486a7076e9e52c6cc2b19e34e2a0dec85e0',
-  imageSha256: 'e976a10f89aea4f42757c582bb10cc828018e56bf36eb7b8ee2093748b335e92',
+  packageSha256: '32b2b6308b2e8ef71d2ef5e15d543ce9b2594fd9455041d909653324446ec51e',
+  imageSha256: '4a2b543fd2fdae8256bd0d568d286a25f66c18e8e1bf9bd9662a98921fe01c38',
+  aprsStageFile: 'dev/h9-toolbox-aprs-stage.bin',
+  aprsStageSha256: '55be5fafe4efae0287345a25278e9ee00171e7af164e1c502b1bcc98a37924ba',
   residentFile: 'dev/h9-toolbox-aprs-scheduler.bin',
   residentSha256: 'aa6f231787913d7787ba282ea0bf503733b5dfbb19b9bdb1760bded90364959e',
   sectors: [...BUILD.sectors, 0x61000, 0x63000, 0x6d000, 0x74000, 0x75000, 0x7b000, 0x80000, 0x89000, 0x8a000],
@@ -22,6 +24,13 @@ const earlierDevBuild = {
   file: 'dev/h9-toolbox-earlier-dev.fw',
   packageSha256: 'ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04',
   imageSha256: 'c230c64720957d7d8a021c9038c53399c5fd406c40577919fd1ae291cd70dd3d',
+};
+const priorDevBuild = {
+  id: 'Previous H9 Toolbox v0.1.5 development build',
+  label: 'Previous H9 Toolbox v0.1.5 development build',
+  file: 'dev/h9-toolbox-dev-before-aprs.fw',
+  packageSha256: 'e64b6a5f3d5dd17077a392bffc837486a7076e9e52c6cc2b19e34e2a0dec85e0',
+  imageSha256: 'e976a10f89aea4f42757c582bb10cc828018e56bf36eb7b8ee2093748b335e92',
 };
 const useDevBuild = $('optBuild').hasAttribute('data-dev-firmware');
 const release = useDevBuild ? devBuild : BUILD;
@@ -262,9 +271,9 @@ async function loadHostedBuild() {
     previous.push({ info, image: await loadPreviousImage(new Uint8Array(await previousResponses[index].arrayBuffer()), build.image, info) });
   let dev = null;
   if (useDevBuild) {
-    const [current, earlier] = await Promise.all([loadDevImage(devBuild), loadDevImage(earlierDevBuild)]);
+    const [current, earlier, prior] = await Promise.all([devBuild, earlierDevBuild, priorDevBuild].map(loadDevImage));
     dev = current;
-    previous.push({ info: earlierDevBuild, image: earlier });
+    previous.push({ info: earlierDevBuild, image: earlier }, { info: priorDevBuild, image: prior });
   }
   return { build, stock, previous, dev };
 }
@@ -533,7 +542,7 @@ async function createBackup() {
   if (cancelBackup) throw new Error('HID backup cancelled. No radio write was sent.');
   $('cancelBackup').disabled = true;
   const sourceName = source === 'build' || source === devBuild.label ? 'H9-Toolbox-Firmware-'
-    : source === earlierDevBuild.id ? 'H9-Toolbox-Earlier-Dev-'
+    : [earlierDevBuild.id, priorDevBuild.id].includes(source) ? 'H9-Toolbox-Earlier-Dev-'
       : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
   const sourceLabel = source === 'build' ? BUILD.label : source === devBuild.label ? devBuild.label : previousInfo(source)?.label;
   const date = new Date().toISOString().slice(0, 10);
@@ -664,20 +673,18 @@ async function performWrite(direction) {
     const toolbox = direction === 'update' && target.kind === 'build';
     let aprs = null;
     if (toolbox && useDevBuild) await stageAprsScheduler();
-    if (toolbox && !useDevBuild) {
+    if (toolbox) {
       status('Checking the APRS update file and staging area. Keep USB connected.');
-      const response = await fetch(`./${BUILD.aprsStageFile}?v=${BUILD.aprsStageSha256.slice(0, 8)}`, { cache: 'no-store' });
+      const response = await fetch(`./${release.aprsStageFile}?v=${release.aprsStageSha256.slice(0, 8)}`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Could not download the staged APRS update file.');
       phase('Staging and verifying the APRS update');
-      aprs = await stageAprs(hid, new Uint8Array(await response.arrayBuffer()), progress);
+      aprs = await stageAprs(hid, new Uint8Array(await response.arrayBuffer()), progress, release.aprsStageSha256);
       status(aprs === 'ready' ? 'Staged APRS update verified. The restart slide has the keypad instructions.'
         : 'The APRS staging area is occupied. Preserving its contents and continuing the main firmware install.');
     }
     $('planState').textContent = `Radio checked: ${work.length} sector(s) to ${direction === 'update' ? 'write' : 'restore'}${checked.interrupted ? ', including one interrupted sector' : ''}.`;
-    $('unlock-kiss').hidden = !toolbox;
+    $('unlock-kiss').hidden = aprs !== 'ready';
     $('unlock-kiss').open = false;
-    $('kissKeypad').hidden = aprs !== 'ready';
-    $('kissUsb').hidden = !toolbox || !useDevBuild;
     $('kissGate').hidden = aprs !== 'occupied';
     if (!work.length) {
       finish('Main firmware already matches');

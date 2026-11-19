@@ -6,8 +6,8 @@ const SHIFTS = [1, 37, 1024, 2048, 3072, 4095];
 const BLANK = new Uint8Array(SECTOR_SIZE).fill(0xff);
 const BLANK_CRC = crc16(BLANK);
 
-export async function loadAprsStage(bytes) {
-  if (bytes.length !== SIZE || await sha256(bytes) !== BUILD.aprsStageSha256)
+export async function loadAprsStage(bytes, expectedHash = BUILD.aprsStageSha256) {
+  if (bytes.length !== SIZE || await sha256(bytes) !== expectedHash)
     throw new Error('The staged APRS file did not match the firmware release. Reload the page and try again.');
   return bytes;
 }
@@ -57,8 +57,8 @@ async function inspectStage(hid, bytes, start, label) {
   return plan.reverse(); // The executable lives in the first sector and is written last.
 }
 
-export async function stageAprs(hid, bytes, progress = () => {}) {
-  await loadAprsStage(bytes);
+export async function stageAprs(hid, bytes, progress = () => {}, expectedHash = BUILD.aprsStageSha256) {
+  await loadAprsStage(bytes, expectedHash);
   return stageRegion(hid, bytes, APRS_STAGE_START, 'APRS staging area', hid.writeAprsStage.bind(hid), progress);
 }
 

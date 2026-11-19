@@ -148,25 +148,20 @@
           <p class="guide-count">Step 5 of 5</p>
           <h2 id="restart-title" tabindex="-1">Restart your radio</h2>
           <div class="result-panel" id="completedResult"></div>
+          <p class="fine" id="kissGate" hidden>The APRS staging area is occupied. Its contents were preserved, so the keypad update is unavailable.</p>
           <details class="guide-help" id="unlock-kiss" hidden>
-            <summary>Optional: Unlock full KISS TNC</summary>
-            <p>To use a packet app like Pat or Paracon, install the APRS modem packet fix and connect through the Bluetooth bridge. If you already installed the packet fix, go straight to the bridge setup.</p>
-            <div id="kissKeypad" hidden>
-              <p>The APRS update is ready on the radio. Finish it from the keypad.</p>
-              <ol class="instructions">
-                <li>Unplug USB and turn the radio off.</li>
-                <li>Hold the side <strong>PTT</strong> (talk) button and the keypad <strong>7</strong> together while turning the radio on. Let go when the screen says <strong>APRS Update</strong>.</li>
-                <li>Press <strong>Menu</strong> once and let go. At <strong>APRS STAGE READY</strong>, press <strong>Menu</strong> again to write the modem firmware. Leave the radio on until it shows <strong>APRS BOOT VERIFIED</strong>. To exit before writing, press <strong>Back</strong> at the ready screen.</li>
-                <li>Restart the radio normally and check that <strong>APRS Info</strong> shows <strong>V1.0.15X</strong>.</li>
-              </ol>
-              <p>If APRS Info stays on <strong>Querying…</strong> after a normal restart, follow the <a href="https://github.com/melidosian/h9toolbox/blob/dev/firmware-research/kiss-tnc/README.md#aprs-modem">Windows APRS recovery instructions</a>.</p>
-            </div>
-            <div id="kissUsb" hidden>
-              <p>Use Chrome or Edge on a Windows computer to <a href="../aprs-update/#usb-update">install the APRS modem packet fix over USB</a>. Follow the steps there to save the stock modem recovery file first.</p>
-            </div>
-            <p id="kissGate" hidden>The APRS staging area was already occupied. For a modem update, follow the <a href="https://github.com/melidosian/h9toolbox/blob/dev/firmware-research/kiss-tnc/README.md#aprs-modem">Windows APRS modem instructions</a>.</p>
-            <p>After the radio starts normally, turn on Bluetooth. Unzip the bridge on your computer and follow its README to connect your packet app.</p>
+            <summary>Optional: Unlock KISS TNC</summary>
+            <p>Use this step after Install confirms that the APRS update was staged.</p>
+            <ol class="instructions">
+              <li>When the USB install finishes, unplug the cable and turn the radio off.</li>
+              <li>Hold the side <strong>PTT</strong> (talk) button and the keypad <strong>7</strong> together while turning the radio on. Let go when the screen says <strong>APRS Update</strong>.</li>
+              <li>Press <strong>Menu</strong> once and let go. At <strong>APRS STAGE READY</strong>, press <strong>Menu</strong> a second time to write the modem firmware. Leave the radio on until it shows <strong>APRS BOOT VERIFIED</strong>. Press <strong>Back</strong> from the ready screen if you want to leave without writing.</li>
+              <li>Turn the radio off and back on normally. In <strong>APRS Info</strong>, look for <strong>V1.0.15X</strong>.</li>
+              <li>Turn on Bluetooth on the radio. Download and unzip the bridge on your computer, open the README, and follow the steps to connect your packet program.</li>
+            </ol>
             <div class="controls"><a class="button primary-button" href="./h9-kiss-bridge.zip" download>Download KISS bridge and README</a></div>
+            <p>The bridge connects the radio over Bluetooth and provides direct KISS TCP plus built-in AGWPE for Pat and Paracon. The ZIP includes setup instructions.</p>
+            <p>If APRS Info stays on <strong>Querying…</strong> after a normal restart, use the <a href="https://github.com/melidosian/h9toolbox/blob/dev/firmware-research/kiss-tnc/README.md#aprs-modem">Windows APRS recovery instructions</a>.</p>
           </details>
           <details class="guide-help">
             <summary>The radio won’t start or the app menu is missing</summary>
@@ -192,6 +187,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The full browser install and restore flow has been tested on one TD-H9 from macOS.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=20261119k"></script>
+  <script type="module" src="./update.js?v=20261119l"></script>
 </body>
 </html>
