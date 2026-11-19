@@ -257,6 +257,4 @@
 .recovery-guide .card p:last-child, .recovery-guide .card ul:last-child { margin-bottom: 0; }
 .recovery-guide .card a { color: #a6e7c5; }
 
-.guide-slide h3 { margin: 22px 0 7px; font-size: 16px; }
-.install-copy { color: #bdd2d4; font-size: 14px; line-height: 1.65; margin: 0 0 12px; }
-#overrideOptions .confirm { margin: 0 14px 14px; }
+.restore-options .controls { padding: 0 14px 14px; }

@@ -21,7 +21,7 @@
   <link rel="icon" href="../favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../landing.css?v=20261108c">
-  <link rel="stylesheet" href="./update.css?v=20261119d">
+  <link rel="stylesheet" href="./update.css?v=20261119e">
   <link rel="stylesheet" href="../boot-logo/logo.css?v=20261108c">
   <script src="../https-redirect.js"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"H9 Toolbox TD-H9 Web Flasher","url":"https://h9toolbox.com/firmware-update/","description":"Install H9 Toolbox Firmware or restore stock v1.0.38 on a TIDRADIO TD-H9 over USB-C (PTT + 2 HID mode) in Chrome or Edge.","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows, macOS, Linux, ChromeOS (desktop Chrome or Edge)","browserRequirements":"Requires WebHID in desktop Chrome or Edge over HTTPS","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Install H9 Toolbox Firmware","Restore stock v1.0.38","Quick firmware backup","Sector-by-sector verification","Resume after interruption","App Manager link for apps and boot logo"],"about":{"@type":"Product","name":"TIDRADIO TD-H9","brand":{"@type":"Brand","name":"TIDRADIO"},"category":"Handheld two-way radio"},"publisher":{"@type":"Organization","name":"H9 Toolbox","url":"https://h9toolbox.com/","sameAs":["https://github.com/melidosian/h9toolbox"]}}</script>
@@ -115,11 +115,12 @@
           <p class="guide-count">Step 4 of 5</p>
           <h2 id="write-title" tabindex="-1">Install and verify</h2>
           <p>Keep USB connected and the radio powered on until verification finishes. H9 Toolbox Firmware also stages the optional APRS modem update if space is available.</p>
-          <h3>Save a recovery backup</h3>
-          <p class="install-copy">We recommend backing up your radio first. Save the downloaded <strong>.h9hid</strong> file in case you need it later. A known firmware image can take seconds to back up. An unfamiliar image can take about an hour.</p>
-          <div class="controls"><button class="button primary-button" id="createBackup" disabled>Backup radio</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button></div>
+          <p>By default, the updater saves a recovery backup before it installs. Keep the downloaded <strong>.h9hid</strong> file. A known firmware image can take seconds to back up. An unfamiliar image can take about an hour.</p>
+          <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may leave my radio unable to start.</span></label>
+          <label class="confirm"><input id="skipBackup" type="checkbox" disabled><span>Skip creating a recovery backup for this install.</span></label>
+          <div class="controls"><button class="button primary-button" id="flash" disabled>Install H9 Toolbox</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button></div>
           <p id="backupProgress" class="transfer-progress" hidden></p>
-          <details class="restore-options" id="backupHelp">
+          <details class="restore-options" id="backupHelp" hidden>
             <summary>Backup stalled or download missing</summary>
             <p>Keep the radio powered on and connected while the backup is running. If the backup stops, check the cable and use step 2 to reconnect in update mode. Check your browser’s downloads for the <strong>.h9hid</strong> file before moving on.</p>
             <p>The recovery file covers accessible firmware. The protected boot region is outside the backup. Save your channels and settings separately with the <a href="../programmer/">Bluetooth programmer</a>.</p>
@@ -128,24 +129,17 @@
             <summary>Use a saved restore point</summary>
             <p>You can choose a compatible <strong>.h9hid</strong> or raw <strong>.bin</strong> backup to restore. Known H9 Toolbox builds use verified stock v1.0.38 as the default restore point.</p>
             <label class="backup-file">Recovery backup<input id="backupFile" type="file" accept=".h9hid,.bin,application/octet-stream"></label>
+            <p class="fine" id="backupState" aria-live="polite">No recovery backup selected.</p>
+            <p class="fine">Restore writes the main firmware from your backup. The staged file and APRS modem stay as they are.</p>
+            <div class="controls"><button class="button ghost" id="restore" disabled>Restore backup</button></div>
           </details>
-          <p class="fine" id="backupState" aria-live="polite">No backup selected. You can create one above.</p>
-
-          <details class="restore-options" id="overrideOptions">
-            <summary>Install without a new backup</summary>
-            <p>Skipping the backup means you won’t download a copy of the firmware currently on your radio. If you don’t have a saved backup, the updater can proceed only when it verifies the radio against known firmware.</p>
-            <label class="confirm"><input id="skipBackup" type="checkbox" disabled><span>Skip creating a recovery backup for this install.</span></label>
-          </details>
-          <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may leave my radio unable to start.</span></label>
-          <div class="controls"><button class="button ghost" id="flash" disabled>Install firmware</button><button class="button ghost" id="restore" disabled>Restore backup</button></div>
-          <p class="fine">Restore writes the main firmware from your backup. The staged file and APRS modem stay as they are.</p>
           <p id="planState" class="plan-state" aria-live="polite"></p>
           <div class="progress-wrap"><div class="progress-track" aria-hidden="true"><div id="progress"></div></div><span id="progressText">0%</span></div>
           <div class="result-panel" id="writeResult" hidden></div>
-          <details class="guide-help">
+          <details class="guide-help" id="writeHelp" hidden>
             <summary>The update stopped or the check failed</summary>
             <p>Keep the selected firmware and original backup. If the radio disconnected, go back to step 2 and reconnect using <strong>PTT + 2</strong>, then return here. If the preflight check says the backup does not match, use <strong>Use a saved restore point</strong> above to select the original backup from this radio.</p>
-            <p>The updater checks the radio again before writing. For an interrupted write, keep this browser session and use the same firmware and restore point. If you skipped the backup, choose <strong>Install without a new backup</strong> again to retry. If you saved a recovery file, you can select it and choose <strong>Restore backup</strong>. If the radio still won’t connect or start, see the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
+            <p>The updater checks the radio again before writing. If you reconnect after an interrupted write, select your original backup and check <strong>Skip creating a recovery backup for this install</strong> before retrying. If you skipped the backup the first time, check the same box again. To restore a saved backup instead, select it and choose <strong>Restore backup</strong>. If the radio still won’t connect or start, see the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
           </details>
         </section>
 
