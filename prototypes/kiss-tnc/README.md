@@ -1,6 +1,6 @@
 # Browser KISS TNC proof of concept
 
-Standalone, buildless transport layer for a future web APRS client. The GitHub Pages workflow copies the five web assets from this directory to `dist/kiss-tnc/` during deployment. The test page is at https://h9toolbox.com/kiss-tnc/, unlinked from the programmer and excluded from indexing with `noindex, nofollow`. It is publicly accessible to anyone with the URL. The local launcher and this README are not copied into the deployed site. Nothing here changes the existing radio programmer.
+Standalone, buildless browser KISS and AX.25 connection test. The dev-site build copies the seven web assets from this directory to `dist/kiss-tnc/`. The test page is unlinked from the programmer and excluded from indexing with `noindex, nofollow`. The local launcher and this README are not copied into the deployed site. Nothing here changes the existing radio programmer.
 
 Open the test page in desktop Chrome or Edge and connect in Demo mode to try it without a radio. No local server is required for the hosted page. Hardware connections use Bluetooth or serial on the computer running your browser.
 
@@ -28,14 +28,15 @@ Hardware browser APIs require localhost or HTTPS. A cloud machine's loopback add
 
 ## Hardware transports
 
-- **BLE GATT:** enter the TNC's service UUID, writable characteristic UUID, and notification/indication characteristic UUID. Four-digit Bluetooth UUIDs and full UUIDs are accepted. Writes use sequential 20-byte chunks; incoming notifications may contain arbitrary packet fragments.
+- **TD-H9 Bluetooth KISS:** uses AF00/AF01/AF02. Each complete port-zero KISS frame is handed to AF01 in one write without response, within the 182-byte limit. It waits at least 1.60 seconds between writes and 0.70 seconds after a received notification before a write. Use H9 Toolbox KISS firmware and its matching APRS modem update; see [the radio setup](../../firmware-research/kiss-tnc/README.md).
+- **Other BLE GATT:** enter the TNC's service UUID, writable characteristic UUID, and notification/indication characteristic UUID. Four-digit Bluetooth UUIDs and full UUIDs are accepted. This generic mode writes sequential 20-byte chunks; incoming notifications may contain arbitrary packet fragments.
 - **Serial:** select a KISS serial device using the browser chooser and set its configured baud rate. A Bluetooth Classic SPP device may be available after operating-system pairing, depending on browser/platform support. Web Bluetooth itself supports BLE GATT, not Classic SPP. No Bluetooth pairing or serial-mode negotiation is performed by this page.
 
 Use a device already exposing a **standard KISS byte stream**. Connecting only subscribes to data; it sends no KISS configuration, mode-switch, programming, or transmit commands. To send to hardware, enter your own licensed callsign, enable transmission, and click Send packet. TX means the frame was handed to the transport, not that it was transmitted over RF or acknowledged by another station. There are no automatic beacons, retries, or APRS message acknowledgements.
 
-### H9 status
+### AX.25 gateway connection
 
-The H9's internal processor/modem protocol has KISS-style framing, but its Bluetooth packet endpoint and any mode-switch procedure remain unverified. The FF00/FF01/FF02 BLE programming endpoint is **not** assumed to be a KISS endpoint. We do not send programming handshakes, probe writes, or vendor commands. Successful BLE connection does not prove KISS compatibility. A verified KISS notification capture plus the corresponding writable endpoint is the next hardware integration input.
+The gateway section starts a modulo-8 AX.25 v2.0 connected session with SABM, numbered I frames, RR/RNR/REJ supervision, timeout retry, and DISC. It reuses the packet transport above. The browser connection logic is new and has only mock-radio tests; an RF gateway test is still required. It does not yet implement Winlink's B2F mail exchange, so the page cannot send or receive email. The already-tested [local bridge and Pat launcher](../../firmware-research/kiss-tnc/host/README.md) remain the route for mail while the browser client is built.
 
 ## Reuse from a web APRS client
 
@@ -66,7 +67,7 @@ await tnc.disconnect();
 
 `kiss.mjs` exports the reusable streaming `KissDecoder`, `encodeKiss`, `encodeAprs`, and `decodeAprs`. KISS framing supports ports 0–15, escaping, fragmented/coalesced input, malformed-frame recovery, and a 4096-byte frame bound. APRS transmission supports AX.25 UI frames with printable ASCII information (1–256 bytes), SSIDs, and up to eight digipeaters. KISS packets omit the RF FCS; the TNC handles it. Other command frames and non-UI data remain visible as hex.
 
-This is a packet monitor/composer, not a complete APRS application: no map, GPS, APRS-IS, persistent station database, message retries, or decoding of individual APRS information-field formats. Packet text is rendered as text, never HTML. The monitor retains the latest 200 entries in memory. No analytics, external dependencies, uploads, or browser storage are used by the application.
+This is a packet monitor/composer and connection test. Packet text is rendered as text, never HTML. The monitor retains the latest 200 entries in memory. No analytics, external dependencies, uploads, or browser storage are used by the application.
 
 ## Verify
 

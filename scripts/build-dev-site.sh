@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Match the production site's KISS TNC route.
 mkdir -p dist/kiss-tnc
-cp prototypes/kiss-tnc/{index.html,style.css,app.mjs,kiss.mjs,tnc.mjs} dist/kiss-tnc/
+cp prototypes/kiss-tnc/{index.html,style.css,app.mjs,kiss.mjs,tnc.mjs,ax25.mjs,ax25-link.mjs} dist/kiss-tnc/
 
 # The experimental APRS flasher is published only by the dev build.
 mkdir -p dist/aprs-update

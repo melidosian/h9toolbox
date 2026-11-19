@@ -1,10 +1,11 @@
 import { KissDecoder, encodeKiss, encodeAprs, decodeAprs } from './kiss.mjs';
 
 export class KissTnc extends EventTarget {
-  constructor() { super(); this.decoder = new KissDecoder(); this.transport = null; this.queue = Promise.resolve(); this.session = 0; }
+  constructor() { super(); this.decoder = new KissDecoder(); this.transport = null; this.queue = Promise.resolve(); this.session = 0; this.bleOptions = {}; this.lastRx = this.lastTx = 0; }
   emit(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
   ensureClosed() { if (this.transport) throw new Error('Disconnect the current transport first.'); }
   receive(bytes) {
+    this.lastRx = Date.now();
     for (const frame of this.decoder.feed(bytes)) {
       let aprs = null, decodeError = null;
       if (frame.command === 0) {
@@ -23,7 +24,7 @@ export class KissTnc extends EventTarget {
     // Deliberately fragment it, as BLE/serial reads do in practice.
     for (let i = 0; i < packet.length; i += 7) this.receive(packet.slice(i, i + 7));
   }
-  async connectBle({ service, write, notify }) {
+  async connectBle({ service, write, notify, singleWrite = false, maxFrameSize = 182, txGapMs = 0, rxGuardMs = 0 }) {
     this.ensureClosed();
     if (!globalThis.navigator?.bluetooth) throw new Error('Web Bluetooth needs desktop Chrome or Edge on localhost or HTTPS.');
     this.decoder.reset();
@@ -42,7 +43,8 @@ export class KissTnc extends EventTarget {
       };
       this.notifier.addEventListener('characteristicvaluechanged', this.onNotification);
       await this.notifier.startNotifications();
-      this.transport = 'ble'; this.emit('state', `BLE connected: ${this.device.name || 'unnamed device'} — KISS stream unverified`);
+      this.bleOptions = { singleWrite, maxFrameSize, txGapMs, rxGuardMs };
+      this.transport = 'ble'; this.emit('state', `BLE connected: ${this.device.name || 'unnamed device'}`);
     } catch (error) { await this.disconnect(); throw error; }
   }
   async connectSerial(baudRate = 9600) {
@@ -74,7 +76,11 @@ export class KissTnc extends EventTarget {
   // Callers explicitly authorize RF by passing allowTransmit. Connecting never
   // sends initialization, KISS settings, programming commands, or packets.
   sendAprs(line, { port = 0, allowTransmit = false } = {}) {
-    const payload = encodeAprs(line), bytes = encodeKiss(payload, port);
+    return this.sendFrame(encodeAprs(line), { port, allowTransmit, label: line });
+  }
+  sendFrame(payload, { port = 0, allowTransmit = false, label = 'AX.25 frame' } = {}) {
+    if (!(payload instanceof Uint8Array) || !payload.length) return Promise.reject(new Error('Enter a nonempty AX.25 frame.'));
+    const bytes = encodeKiss(payload, port);
     const transport = this.transport, device = this.device, serialPort = this.serialPort, writer = this.writer;
     const session = this.session;
     if (!transport) return Promise.reject(new Error('Connect a transport first.'));
@@ -85,18 +91,33 @@ export class KissTnc extends EventTarget {
       };
       checkConnection();
       if (transport === 'ble') {
-        for (let i = 0; i < bytes.length; i += 20) {
+        const { singleWrite, maxFrameSize, txGapMs, rxGuardMs } = this.bleOptions;
+        if (singleWrite) {
+          if (!writer.properties.writeWithoutResponse) throw new Error('H9 KISS needs BLE write without response.');
+          if (bytes.length > maxFrameSize) throw new Error(`KISS frame exceeds the H9 BLE limit of ${maxFrameSize} bytes.`);
+          while (true) {
+            checkConnection();
+            const wait = Math.max(this.lastTx + txGapMs, this.lastRx + rxGuardMs) - Date.now();
+            if (wait <= 0) break;
+            await new Promise(resolve => setTimeout(resolve, wait));
+          }
           checkConnection();
-          const chunk = bytes.slice(i, i + 20);
-          if (writer.properties.write) await writer.writeValueWithResponse(chunk);
-          else await writer.writeValueWithoutResponse(chunk);
+          await writer.writeValueWithoutResponse(bytes);
+          this.lastTx = Date.now();
+        } else {
+          for (let i = 0; i < bytes.length; i += 20) {
+            checkConnection();
+            const chunk = bytes.slice(i, i + 20);
+            if (writer.properties.write) await writer.writeValueWithResponse(chunk);
+            else await writer.writeValueWithoutResponse(chunk);
+          }
         }
       } else if (transport === 'serial') {
         const output = serialPort.writable.getWriter();
         try { await output.write(bytes); } finally { output.releaseLock(); }
       }
       checkConnection();
-      this.emit('sent', { aprs: line, port, payload, demo: transport === 'demo' });
+      this.emit('sent', { aprs: label, port, payload, demo: transport === 'demo' });
     });
     this.queue = operation.catch(() => {});
     return operation;
@@ -104,6 +125,7 @@ export class KissTnc extends EventTarget {
   async disconnect() {
     this.session++;
     this.transport = null;
+    this.bleOptions = {}; this.lastRx = this.lastTx = 0;
     const device = this.device, notifier = this.notifier, reader = this.reader, task = this.readTask, serialPort = this.serialPort;
     this.device = this.writer = this.notifier = this.reader = this.readTask = this.serialPort = null;
     if (device) device.removeEventListener('gattserverdisconnected', this.onBleDisconnect);

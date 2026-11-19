@@ -129,3 +129,30 @@ test('serial reads KISS, writes only explicitly authorized packets, and closes c
     else delete globalThis.navigator;
   }
 });
+
+test('H9 mode writes each complete KISS frame once and enforces the BLE frame limit', async () => {
+  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const writes = [];
+  const tx = { properties: { writeWithoutResponse: true }, async writeValueWithoutResponse(bytes) { writes.push(bytes); } };
+  const rx = new EventTarget();
+  rx.startNotifications = rx.stopNotifications = async () => {};
+  const device = new EventTarget();
+  device.name = 'TD-H9';
+  device.gatt = { connected: false, async connect() { this.connected = true; return this; },
+    async getPrimaryService() { return { getCharacteristic: async uuid => uuid === 'af01' ? tx : rx }; },
+    disconnect() { this.connected = false; } };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { bluetooth: { requestDevice: async () => device } } });
+  const tnc = new KissTnc();
+  try {
+    await tnc.connectBle({ service: 'af00', write: 'af01', notify: 'af02', singleWrite: true, maxFrameSize: 30 });
+    const frame = Uint8Array.of(0xc0, 0xdb, 0x01);
+    await tnc.sendFrame(frame, { allowTransmit: true });
+    assert.deepEqual(writes, [encodeKiss(frame)]);
+    await assert.rejects(tnc.sendFrame(new Uint8Array(30), { allowTransmit: true }), /BLE limit/);
+    assert.equal(writes.length, 1);
+  } finally {
+    await tnc.disconnect();
+    if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator);
+    else delete globalThis.navigator;
+  }
+});

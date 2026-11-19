@@ -11,11 +11,11 @@
 <body>
   <main>
     <h1>Browser KISS TNC</h1>
-    <p>APRS packet transport proof of concept. Connect a KISS-compatible TNC, or try simulated packets in demo mode. Bluetooth and serial connections stay in your browser.</p>
-    <p class="note">The H9’s Bluetooth KISS endpoint is not yet verified. Its known FF00 programming service is not a confirmed packet interface. This page sends no programming handshake or automatic radio commands.</p>
+    <p>Packet monitor and AX.25 connection test. Connect a KISS-compatible TNC, or try simulated APRS packets in demo mode. Bluetooth and serial connections stay in your browser.</p>
+    <p class="note">TD-H9 packet mode uses the AF00 service, AF01 write and AF02 notifications. The radio needs H9 Toolbox KISS firmware and its APRS modem update. Tune to an authorized packet gateway before connecting.</p>
     <section aria-labelledby="connection-title">
       <h2 id="connection-title">Connection</h2>
-      <label>Transport<select id="transport"><option value="demo">Demo (no radio)</option><option value="ble">Bluetooth LE GATT</option><option value="serial">Serial / paired Bluetooth serial</option></select></label>
+      <label>Transport<select id="transport"><option value="demo">Demo (no radio)</option><option value="h9">TD-H9 Bluetooth KISS</option><option value="ble">Other Bluetooth LE GATT</option><option value="serial">Serial / paired Bluetooth serial</option></select></label>
       <fieldset id="bleFields" hidden><legend>BLE KISS endpoint</legend>
         <p>Enter UUIDs supplied by your TNC. TX is the characteristic the browser writes; RX is the characteristic it subscribes to.</p>
         <label>Service UUID<input id="service" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false"></label>
@@ -28,6 +28,15 @@
       </fieldset>
       <div class="actions"><button id="connect">Connect</button><button id="disconnect" disabled>Disconnect</button><button id="sample" disabled>Simulate received packet</button></div>
       <p id="state" role="status">Disconnected</p>
+    </section>
+    <section aria-labelledby="link-title">
+      <h2 id="link-title">AX.25 gateway connection</h2>
+      <p>First Winlink milestone: establish and close a connected packet session with a nearby RMS gateway. Mail exchange is not implemented on this page yet.</p>
+      <label>Your callsign<input id="localCall" autocomplete="off" spellcheck="false" placeholder="YOURCALL"></label>
+      <label>Gateway callsign<input id="gatewayCall" autocomplete="off" spellcheck="false" placeholder="GATEWAY-10"></label>
+      <label>Via digipeaters, comma separated<input id="via" autocomplete="off" spellcheck="false" placeholder="Optional"></label>
+      <div class="actions"><button id="linkConnect" disabled>Connect gateway</button><button id="linkDisconnect" disabled>Disconnect gateway</button></div>
+      <p id="linkState" role="status">No AX.25 session</p>
     </section>
     <section aria-labelledby="send-title">
       <h2 id="send-title">Send an APRS packet</h2>
