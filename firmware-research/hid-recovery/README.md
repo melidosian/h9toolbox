@@ -46,6 +46,6 @@ Once verification passes, unplug USB, switch the radio off, then switch it back 
 
 ## If USB update mode is unavailable
 
-Stock firmware and H9 Toolbox Firmware can also expose the BR23 USB loader by holding **8** at power-on. Use the [BR23 USB flasher instructions](../h9-flasher/README.md) if your computer sees `BR23 UBOOT1.00`. If neither USB mode appears after trying a different cable and port, contact TIDRADIO support with the firmware version, the error you saw, and what the radio does at power-on.
+Stock firmware and H9 Toolbox Firmware can also expose the BR23 USB loader by holding **8** at power-on. Use the [BR23 USB flasher instructions](../h9-flasher/README.md) if your computer sees `BR23 UBOOT1.00`. If neither USB mode appears after trying another data cable and USB port, stop here. USB recovery requires the computer to detect the radio.
 
 Offline tests can run without a radio. From this directory, run `python -m unittest test_restore_stock`.
