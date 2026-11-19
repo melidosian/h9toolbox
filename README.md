@@ -2,6 +2,8 @@
 
 Free browser tools and custom firmware for the TIDRADIO TD-H9: https://h9toolbox.com/
 
+[Read the changelog](CHANGELOG.md).
+
 ## H9 Toolbox Firmware: apps on your radio
 
 H9 Toolbox Firmware is stock v1.0.38 plus an **app loader**. Hold **Back** on
