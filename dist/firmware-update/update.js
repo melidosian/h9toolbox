@@ -1,17 +1,23 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261118aprs';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, RESIDENT_START, RESIDENT_END, BUILD, PREVIOUS, classifyRadio, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261119h';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
-import { stageAprs } from './aprs-stage.mjs';
+import { stageAprs, stageRegion } from './aprs-stage.mjs?v=20261119h';
 
 const $ = id => document.getElementById(id);
 const slides = [...document.querySelectorAll('.guide-slide')];
 const stepIndicators = [...document.querySelectorAll('.guide-steps li')];
 const browserReady = window.isSecureContext && Boolean(navigator.hid?.requestDevice);
 const smartBeacon = {
-  label: 'SmartBeacon bench firmware',
+  label: 'H9 Toolbox Firmware with SmartBeacon',
+  file: 'smartbeacon/h9-smartbeacon-bench.fw',
+  residentFile: 'smartbeacon/h9-smartbeacon-resident.bin',
+  residentSha256: 'aa6f231787913d7787ba282ea0bf503733b5dfbb19b9bdb1760bded90364959e',
+  sectors: [...BUILD.sectors, 0x61000, 0x63000, 0x6d000, 0x74000, 0x75000, 0x7b000, 0x80000, 0x89000, 0x8a000],
   packageSha256: 'ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04',
   imageSha256: 'c230c64720957d7d8a021c9038c53399c5fd406c40577919fd1ae291cd70dd3d',
 };
+const devSmartBeacon = $('optBuild').hasAttribute('data-smartbeacon');
+const release = devSmartBeacon ? smartBeacon : BUILD;
 class BackupRequiredError extends Error {}
 let currentStep = 0;
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
@@ -23,7 +29,7 @@ let currentStep = 0;
 let createdBackup = null;
 // True once the connected radio has been backed up on this page.
 let radioBackedUp = false;
-let target = null, stockSeed = null, buildImage = null, previousImages = [], backup = null, device = null, hid = null, busy = false;
+let target = null, stockSeed = null, buildImage = null, benchImage = null, previousImages = [], backup = null, device = null, hid = null, busy = false;
 let cancelBackup = false, backupRunning = false;
 let firmwareSelection = 0, backupSelection = 0;
 const resumeKey = 'h9-hid-pending-v1';
@@ -149,7 +155,7 @@ function refresh() {
   $('loadStockGitHub').disabled = busy;
   $('backupFile').disabled = busy;
   refreshGuide();
-  $('flash').textContent = target?.kind === 'build' ? `Install ${BUILD.label}`
+  $('flash').textContent = target?.kind === 'build' ? `Install ${release.label}`
     : target?.kind === 'stock' ? 'Install stock v1.0.38' : 'Install selected firmware';
 }
 function requireH9(image) {
@@ -164,7 +170,7 @@ function resetBackupOverride() {
 const previousInfo = kind => PREVIOUS.find(item => item.id === kind);
 // [name, image] pairs of every known image, for classifyRadio.
 function namedImages() {
-  return [['stock', stockSeed ?? target?.image], ['build', buildImage], ...previousImages.map(p => [p.info.id, p.image])]
+  return [['stock', stockSeed ?? target?.image], ['build', buildImage], [smartBeacon.label, benchImage], ...previousImages.map(p => [p.info.id, p.image])]
     .filter(([, image]) => image);
 }
 // Show write errors in place and verified outcomes on the restart slide.
@@ -195,31 +201,43 @@ function showResult(result) {
 async function ensureReferences() {
   if (buildImage && previousImages.length && (stockSeed || target?.kind === 'stock')) return;
   const hosted = await loadHostedBuild();
-  buildImage = hosted.build.image; previousImages = hosted.previous; stockSeed ??= hosted.stock;
+  buildImage = hosted.build.image; benchImage = hosted.bench; previousImages = hosted.previous; stockSeed ??= hosted.stock;
 }
 function knownImages() {
-  return target?.kind === 'build' ? previousImages.map(p => p.image) : [];
+  if (target?.kind !== 'build') return [];
+  const known = previousImages.map(item => item.image);
+  return devSmartBeacon ? [buildImage, ...known] : known;
 }
-async function loadSmartBeaconBackupSeed() {
-  const link = $('smartbeaconFirmware');
-  if (!link) return null;
-  try {
-    const url = new URL('./h9-smartbeacon-bench.fw', link.href);
-    url.searchParams.set('v', smartBeacon.packageSha256.slice(0, 8));
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('The firmware file could not be downloaded.');
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (await sha256(bytes) !== smartBeacon.packageSha256)
-      throw new Error('The firmware file did not match the published checksum.');
-    const image = decodePackage(bytes);
-    if (await sha256(image) !== smartBeacon.imageSha256)
-      throw new Error('The main image did not match the published checksum.');
-    return image;
-  } catch (error) {
-    status(`Could not load the SmartBeacon backup reference. ${error.message} Other backup options are still available.`);
-    return null;
-  }
+
+async function loadSmartBeaconFile(file, expectedHash) {
+  const response = await fetch(`./${file}?v=${expectedHash.slice(0, 8)}`);
+  if (!response.ok) throw new Error('The SmartBeacon release file could not be downloaded.');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (await sha256(bytes) !== expectedHash)
+    throw new Error('The SmartBeacon release file did not match the published checksum.');
+  return bytes;
 }
+
+async function loadSmartBeaconImage() {
+  const bytes = await loadSmartBeaconFile(smartBeacon.file, smartBeacon.packageSha256);
+  const image = decodePackage(bytes);
+  if (await sha256(image) !== smartBeacon.imageSha256)
+    throw new Error('The SmartBeacon main image did not match the published checksum.');
+  return image;
+}
+
+async function stageSmartBeaconResident() {
+  status('Checking and verifying the SmartBeacon scheduler. Keep USB connected.');
+  phase('Verifying the SmartBeacon scheduler');
+  const bytes = await loadSmartBeaconFile(smartBeacon.residentFile, smartBeacon.residentSha256);
+  const image = new Uint8Array(RESIDENT_END - RESIDENT_START).fill(0xff);
+  image.set(bytes);
+  const result = await stageRegion(hid, image, RESIDENT_START, 'SmartBeacon scheduler area',
+    hid.writeSmartBeaconResident.bind(hid), progress);
+  if (result !== 'ready')
+    throw new Error('The SmartBeacon scheduler area contains different data. The updater left it untouched and did not install the main firmware.');
+}
+
 // Fetch the hosted build, its stock seed, and the earlier builds' sectors;
 // every file is checked by SHA-256.
 async function loadHostedBuild() {
@@ -235,7 +253,8 @@ async function loadHostedBuild() {
   const previous = [];
   for (const [index, info] of PREVIOUS.entries())
     previous.push({ info, image: await loadPreviousImage(new Uint8Array(await previousResponses[index].arrayBuffer()), build.image, info) });
-  return { build, stock, previous };
+  const bench = devSmartBeacon ? await loadSmartBeaconImage() : null;
+  return { build, stock, previous, bench };
 }
 async function verifyLivePlan(current, changed, resumeSector, reference, known) {
   const targetCrcs = expectedCrcs(target.image);
@@ -332,7 +351,7 @@ function beginFirmwareSelection() {
   $('firmwareHelp').hidden = true;
   $('firmwareHelp').open = false;
   $('status').hidden = true;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
+  ++backupSelection; target = null; stockSeed = null; buildImage = null; benchImage = null; previousImages = []; backup = null; forgetPlan();
   return selection;
 }
 
@@ -362,16 +381,17 @@ $('loadBuild').addEventListener('click', async () => {
   const selection = beginFirmwareSelection();
   busy = true; refresh();
   try {
-    status(`Downloading the pinned ${BUILD.label} package and recovery seeds from H9 Toolbox.`);
+    status(`Downloading the pinned ${release.label} package and recovery seeds from H9 Toolbox.`);
     const hosted = await loadHostedBuild();
     if (selection !== firmwareSelection) return;
-    target = hosted.build; stockSeed = hosted.stock; buildImage = hosted.build.image; previousImages = hosted.previous;
+    target = devSmartBeacon ? { kind: 'build', image: hosted.bench, packageHash: smartBeacon.packageSha256 } : hosted.build;
+    stockSeed = hosted.stock; buildImage = hosted.build.image; benchImage = hosted.bench; previousImages = hosted.previous;
     $('firmwareFile').value = '';
-    $('firmwareState').textContent = `${BUILD.label} · exact .fw verified`;
-    status(`${BUILD.label} package, exact stock v1.0.38 seed, and earlier-build sectors verified locally. No radio write sent.`);
+    $('firmwareState').textContent = `${release.label} · exact .fw verified`;
+    status(`${release.label} package, exact stock v1.0.38 seed, and earlier-build sectors verified locally. No radio write sent.`);
     await validateSelectedBackup(false);
   } catch (error) {
-    if (selection === firmwareSelection) rejectFirmware(`${BUILD.label} package rejected`, error);
+    if (selection === firmwareSelection) rejectFirmware(`${release.label} package rejected`, error);
   } finally { busy = false; refresh(); }
 });
 $('loadStockGitHub').addEventListener('click', async () => {
@@ -384,7 +404,7 @@ $('loadStockGitHub').addEventListener('click', async () => {
     const stockBytes = await extractPinnedStockFirmware(new Uint8Array(await zipResponse.arrayBuffer()));
     const loaded = await loadStockPackage(stockBytes);
     if (selection !== firmwareSelection) return;
-    target = loaded; buildImage = hosted.build.image; previousImages = hosted.previous; $('firmwareFile').value = '';
+    target = loaded; buildImage = hosted.build.image; benchImage = hosted.bench; previousImages = hosted.previous; $('firmwareFile').value = '';
     $('firmwareState').textContent = 'Stock v1.0.38 · pinned GitHub ZIP and extracted .fw verified';
     status('Stock Type-C v1.0.38 package verified locally. The hosted builds are available as fast backup seeds. No radio write sent.');
     await validateSelectedBackup(false);
@@ -463,8 +483,6 @@ async function createBackup() {
   const current = await scanRadio(hid, progress);
   await ensureReferences();
   const images = namedImages();
-  const benchImage = await loadSmartBeaconBackupSeed();
-  if (benchImage) images.push([smartBeacon.label, benchImage]);
   let source = 'other';
   if (images.length > 1) {
     try { source = classifyRadio(current, images); } catch {
@@ -517,7 +535,7 @@ async function createBackup() {
   // Choose the restore point the same way as for a selected file.
   await validateSelectedBackup(false);
   if (source === smartBeacon.label)
-    status('SmartBeacon main firmware backup saved. Use the SmartBeacon bench guide to back up the scheduler and apps separately.');
+    status('SmartBeacon main firmware backup saved. This backup covers the main firmware only.');
   finish(`Backup built and verified in ${formatDuration((performance.now() - backupBegan) / 1000)}`);
 }
 // Check the radio and plan both directions: a full sector-CRC scan, the
@@ -535,16 +553,13 @@ async function inspectRadio(reference, known) {
   } catch (error) {
     const mismatch = /^Radio differs from the supplied backup at (0x[\da-f]+)\./i.exec(error.message);
     if (reference.source === 'verified-firmware' && mismatch) {
-      const benchImage = await loadSmartBeaconBackupSeed();
-      const selected = target.kind === 'stock' ? 'stock v1.0.38' : BUILD.label;
-      if (benchImage && await knownAppMatches(hid, current, benchImage))
-        throw new BackupRequiredError(`This radio matches the SmartBeacon bench main firmware. Installing ${selected} will replace it. To keep SmartBeacon, use the bench guide. To switch firmware, clear Skip backup or select a saved recovery file. Nothing was written.`);
+      const selected = target.kind === 'stock' ? 'stock v1.0.38' : release.label;
       throw new BackupRequiredError(`The radio’s main firmware doesn’t match the images verified for a skip-backup install. The first difference is at ${mismatch[1]}. To install ${selected}, clear Skip backup or select a saved recovery file. Nothing was written.`);
     }
     throw error;
   }
-  if (target.kind === 'build' && !reference.fullInstall && !changed.every(physical => BUILD.sectors.includes(physical)))
-    throw new Error(`${BUILD.label} sector plan leaves its ${BUILD.sectors.length} pinned sectors. No writes allowed.`);
+  if (target.kind === 'build' && !reference.fullInstall && !changed.every(physical => release.sectors.includes(physical)))
+    throw new Error(`${release.label} sector plan leaves its ${release.sectors.length} pinned sectors. No writes allowed.`);
   phase('Checking the radio (shifted CRC windows)');
   if (target.kind === 'build' || reference.source === 'verified-firmware')
     await verifyLivePlan(current, changed, resumeSector, reference, known);
@@ -568,9 +583,13 @@ const stockRestart = ['Disconnect USB and power-cycle the radio.', 'Check the fi
 const toolboxRestart = [
   'Disconnect USB and power-cycle the radio.',
   'From the channel screen, hold Back to open the app menu.',
-  'Use the App Manager over Bluetooth or experimental USB-C to add apps or a boot logo.',
+  devSmartBeacon ? 'Open the SmartBeacon catalog in App Manager and install the matching menu and apps.'
+    : 'Use the App Manager over Bluetooth or experimental USB-C to add apps or a boot logo.',
 ];
-const appManagerLink = { href: '../apps/', label: 'Open the App Manager' };
+const appManagerLink = {
+  href: devSmartBeacon ? '../apps/?catalog=smartbeacon' : '../apps/',
+  label: 'Open the App Manager',
+};
 
 function aprsResult(state) {
   return state === 'ready' ? ' The optional APRS update is ready. Open Unlock KISS TNC below for keypad instructions.' : '';
@@ -599,14 +618,15 @@ async function performWrite(direction) {
       await ensureReferences();
       const image = target.kind === 'stock' ? target.image : stockSeed;
       reference = { image, hash: await sha256(image), source: 'verified-firmware' };
-      if (target.kind === 'stock') known = [buildImage, ...previousImages.map(item => item.image)];
+      if (target.kind === 'stock') known = [buildImage, benchImage, ...previousImages.map(item => item.image)].filter(Boolean);
     }
     const destination = direction === 'update' ? target.image : reference.image;
     const checked = await inspectRadio(reference, known);
     const work = checked[direction];
     const toolbox = direction === 'update' && target.kind === 'build';
     let aprs = null;
-    if (toolbox) {
+    if (toolbox && devSmartBeacon) await stageSmartBeaconResident();
+    if (toolbox && !devSmartBeacon) {
       status('Checking the APRS update file and staging area. Keep USB connected.');
       const response = await fetch(`./${BUILD.aprsStageFile}?v=${BUILD.aprsStageSha256.slice(0, 8)}`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Could not download the staged APRS update file.');
@@ -620,19 +640,19 @@ async function performWrite(direction) {
     $('unlock-kiss').open = false;
     $('kissGate').hidden = aprs !== 'occupied';
     if (!work.length) {
-      finish('Radio checked; nothing to write');
+      finish('Main firmware already matches');
       $('acknowledge').checked = false;
       resetBackupOverride();
-      status('Radio checked: every firmware sector already matches.');
+      status('Every main firmware sector already matches.');
       showResult({
-        title: toolbox ? `${BUILD.label} is already installed` : 'The radio already matches the selected firmware',
+        title: toolbox ? `${release.label} is already installed` : 'The radio already matches the selected firmware',
         text: 'Every firmware sector matched during verification.' + aprsResult(aprs),
         steps: toolbox ? toolboxRestart : stockRestart,
         action: toolbox ? appManagerLink : null,
       });
       return;
     }
-    if (direction === 'update' && reference.fullInstall && work.length > BUILD.sectors.length)
+    if (direction === 'update' && reference.fullInstall && work.length > release.sectors.length)
       status(`Full firmware install: this radio is not on stock v1.0.38, so ${work.length} of ${(IMAGE_SIZE - APP_START) / SECTOR_SIZE} firmware sectors differ and are rewritten (the rest already match). This takes longer. Keep USB connected and the radio powered on; if it is interrupted, follow the recovery guidance on this step.`);
     status(`Radio checked. ${direction === 'update' ? 'Writing' : 'Restoring'} ${work.length} sectors. Keep USB connected and the radio powered on.`);
     phase((done, total) => done >= total ? `${total} sectors written and verified` : `Writing and verifying sector ${done + 1} of ${total}`);
@@ -657,7 +677,7 @@ async function performWrite(direction) {
     finish(`${work.length} sectors ${direction === 'update' ? 'installed' : 'restored'} and every sector CRC verified in ${seconds}`);
     status('Firmware verification passed. You can disconnect USB and restart the radio.');
     showResult({
-      title: toolbox ? `${BUILD.label} installed and verified`
+      title: toolbox ? `${release.label} installed and verified`
         : direction === 'update' ? 'Stock firmware installed and verified'
           : reference.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
       text: `Updated ${work.length} sector(s) and verified every firmware sector (${seconds}).` + aprsResult(aprs),
@@ -670,13 +690,11 @@ async function performWrite(direction) {
       status('Backup cancelled. No radio write was sent.');
     } else {
       fail(error);
-      const benchGuide = error instanceof BackupRequiredError && $('smartbeaconFirmware');
       showResult({
         failed: true,
         title: backupRunning ? 'Recovery backup did not finish'
           : error instanceof BackupRequiredError ? 'Backup required to install this firmware' : 'Firmware verification did not finish',
         text: error?.message || String(error),
-        action: benchGuide ? { href: benchGuide.href, label: 'Open the SmartBeacon bench guide' } : null,
       });
     }
   } finally {

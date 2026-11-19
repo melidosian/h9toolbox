@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { stageAprs } from '../dist/firmware-update/aprs-stage.mjs';
-import { APP_START, APRS_STAGE_START, APRS_STAGE_END, BUILD, SECTOR_SIZE, H9Hid, crc16 } from '../dist/firmware-update/firmware.mjs';
+import { APP_START, APRS_STAGE_START, APRS_STAGE_END, BUILD, RESIDENT_START, RESIDENT_END, SECTOR_SIZE, H9Hid, crc16 } from '../dist/firmware-update/firmware.mjs';
 
 const bundle = new Uint8Array(await readFile(new URL(`../dist/firmware-update/${BUILD.aprsStageFile}`, import.meta.url)));
 const size = APRS_STAGE_END - APRS_STAGE_START;
@@ -82,5 +82,21 @@ test('staging writes are limited to their reserved main flash sectors', async ()
   const [command, body] = sent[0];
   assert.equal(command, 0xc3);
   assert.equal(new DataView(body.buffer).getUint32(0, true), APRS_STAGE_START - APP_START + 80);
+  assert.deepEqual(body.slice(8), bytes);
+});
+
+test('SmartBeacon scheduler writes stay inside the two reserved sectors', async () => {
+  const hid = new H9Hid(null);
+  const sent = [];
+  hid.exchange = async (command, body) => sent.push([command, body]);
+  const bytes = Uint8Array.of(1, 2);
+  await assert.rejects(hid.writeSmartBeaconResident(RESIDENT_START - SECTOR_SIZE, 0, bytes), /outside SmartBeacon/);
+  await assert.rejects(hid.writeSmartBeaconResident(RESIDENT_END, 0, bytes), /outside SmartBeacon/);
+  await assert.rejects(hid.erase(RESIDENT_START), /outside firmware/);
+  await hid.writeSmartBeaconResident(RESIDENT_END - SECTOR_SIZE, 80, bytes);
+  assert.equal(sent.length, 1);
+  const [command, body] = sent[0];
+  assert.equal(command, 0xc3);
+  assert.equal(new DataView(body.buffer).getUint32(0, true), RESIDENT_END - SECTOR_SIZE + 80 - APP_START);
   assert.deepEqual(body.slice(8), bytes);
 });

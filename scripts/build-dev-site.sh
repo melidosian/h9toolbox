@@ -14,8 +14,14 @@ cp firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.bin dist/aprs-update/
 smartbeacon_release=firmware-research/module-loader/smartbeacon-release
 (cd "$smartbeacon_release" && sha256sum -c SHA256SUMS)
 mkdir -p dist/firmware-update/smartbeacon
-cp "$smartbeacon_release"/{index.html,SHA256SUMS,h9-smartbeacon-bench.fw,h9-smartbeacon-resident.bin,h9-smartbeacon-apps.bin} dist/firmware-update/smartbeacon/
-sed 's|<!-- dev-smartbeacon-firmware -->|<p class="selection-state">Running SmartBeacon bench firmware? To keep or reinstall it, use the <a id="smartbeaconFirmware" href="./smartbeacon/">SmartBeacon bench downloads and desktop guide</a>. Installing v0.1.5 replaces the bench main firmware.</p>|' \
+cp "$smartbeacon_release"/{SHA256SUMS,h9-smartbeacon-bench.fw,h9-smartbeacon-resident.bin,h9-smartbeacon-apps.bin} dist/firmware-update/smartbeacon/
+rm -f dist/firmware-update/smartbeacon/index.html
+sed -e 's|id="optBuild"|id="optBuild" data-smartbeacon|' \
+  -e 's|H9 Toolbox Firmware v0.1.5</strong>|H9 Toolbox Firmware with SmartBeacon</strong>|' \
+  -e 's|Load H9 Toolbox v0.1.5</button>|Load SmartBeacon firmware</button>|' \
+  -e 's|Includes the app loader, Bluetooth packet support, and an optional APRS modem update.|Adds Smart and Timed APRS beacons, APRS Mute, and the API 5 Toolbox menu.|' \
+  -e 's|<!-- dev-before-install -->|<p class="fine">If you have an armed APRS schedule, disarm it on the radio before entering update mode. An armed schedule can resume on restart.</p>|' \
+  -e 's|H9 Toolbox Firmware also stages the optional APRS modem update if space is available.|The updater verifies the SmartBeacon scheduler before installing the main firmware.|' \
   dist/firmware-update/index.html > dist/firmware-update/index.html.tmp
 mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
 

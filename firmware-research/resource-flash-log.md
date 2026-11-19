@@ -4984,3 +4984,9 @@ result yet.**
   CRCs. The reported 19-sector scan is consistent with a related image but
   does not identify an exact firmware build. The browser accepts this
   release as a backup reference only after the full live CRC checks.
+- The dev updater now installs the verified SmartBeacon release directly.
+  Its two resident sectors accept only the verified image or programming
+  into verified erased bytes. Simulated HID checks covered a matching bench
+  radio with zero writes, an occupied resident area with zero writes, and
+  installation from stock with the scheduler verified before the main write.
+  The production updater still selects v0.1.5.
