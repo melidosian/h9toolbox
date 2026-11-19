@@ -4836,3 +4836,19 @@ result yet.**
   mute, serial clone, APRS, menu and 134 web tests passed. The native
   satellite fixture reproduced identical results to the baseline, including
   12 existing failures. The themed images have yet to be bench-tested.
+
+### 2026-11-18 Timed Beacon due without RF
+
+- The operator reported no apparent transmission with Toolbox Schedule
+  Armed and Timed set to one minute. The installed H3-menu bench package
+  and the themed dev package both declare resident `auto_tx: false`.
+  The bench resident ELF links the GPS worker, arm and due handling. It
+  has no linked submission or TX completion callback.
+- The initial timed event becomes due after the existing 15-second
+  guard. Once due, it stays pending in this build. The configured
+  interval is used after an accepted submission.
+- The stock normal-mode timed caller remains a candidate handoff point.
+  It follows its own enable and interval fields and has a documented
+  A-side display indication under Dual Watch with CH B-LOCK. A transmit
+  adapter still needs proof of RF ownership, the selected side and the
+  working frequency before using that route for resident beacons.
