@@ -22,28 +22,28 @@ static void draw_detail(void)
     char b[28];
     unsigned y = BODY_Y + 2;
     aprs_title(s->call);
-    gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, GFX_BLACK);
+    gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, UI_BG);
     if (s->has_pos) {
         unsigned n = put_coord(b, s->lat, 2, 'N', 'S');
         b[n++] = ' ';
         put_coord(b + n, s->lon, 3, 'E', 'W');
-        aprs_line(y, b, GFX_WHITE, GFX_BLACK); y += 11;
+        aprs_line(y, b, UI_TEXT, UI_BG); y += 11;
         put_range(b, s);
-        aprs_line(y, b, GFX_GREEN, GFX_BLACK); y += 11;
+        aprs_line(y, b, UI_OK, UI_BG); y += 11;
     } else {
-        aprs_line(y, "NO POSITION", GFX_GREY, GFX_BLACK); y += 11;
+        aprs_line(y, "NO POSITION", UI_DIM, UI_BG); y += 11;
     }
     if (s->live) {
         unsigned n = put_str(b, "HEARD ");
         n += put_age(b + n, s);
         if (b[n - 1] != 'W') put_str(b + n, " AGO");
-        aprs_line(y, b, GFX_GREY, GFX_BLACK);
+        aprs_line(y, b, UI_DIM, UI_BG);
     } else {
-        aprs_line(y, "FROM STOCK BEACON LIST", GFX_GREY, GFX_BLACK);
+        aprs_line(y, "FROM STOCK BEACON LIST", UI_DIM, UI_BG);
     }
     y += 13;
-    aprs_wrap(y, s->text, FOOT_Y - 2, GFX_WHITE);
-    aprs_line(FOOT_Y, "MENU:SEND BACK:LIST 1-5", GFX_GREY, GFX_BLACK);
+    aprs_wrap(y, s->text, FOOT_Y - 2, UI_TEXT);
+    aprs_line(FOOT_Y, "MENU SEND  BACK LIST  1-5", UI_HINT, UI_BG);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)
@@ -61,7 +61,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         else if (ev == EV_MENU) {
             A->send_sel = 1;                        /* first message to this station */
             if (aprs_go(api, APRS_SEND)) return 0;
-            aprs_line(FOOT_Y, "SEND NOT INSTALLED", GFX_RED, GFX_BLACK);
+            aprs_line(FOOT_Y, "SEND NOT INSTALLED", UI_DANGER, UI_BG);
         }
         else if (ev == EV_BACK) { aprs_go(api, APRS_LIST); return 0; }
     }

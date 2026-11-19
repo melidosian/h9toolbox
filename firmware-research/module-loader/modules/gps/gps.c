@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 #include "fix_store.h"
-#include "gfx.h"
+#include "app_theme.h"
 #include "h9mod.h"
 
 #ifndef GPS_HOST_TEST   /* the host test supplies its own */
@@ -33,7 +33,7 @@
 #define RING_MASK 2047u
 
 enum { NMEA = 100, SATS = 32, PAGES = 4, CYAN = 0x07ff };
-enum { BG = GFX_BLACK, DIM = GFX_GREY };
+enum { BG = UI_BG, DIM = UI_DIM };
 
 struct sat { uint8_t id, con, elev, snr; uint16_t az; };
 
@@ -91,7 +91,7 @@ static void row(unsigned y, const char *s, uint16_t fg)
     char b[28];
     char *d = put(b, s);
     pad(d, b, 26);
-    gfx_text(0, y, b, 26, 1, fg, BG);
+    gfx_text(UI_LEFT, y, b, UI_CELLS, 1, fg, BG);
 }
 
 /* ---- NMEA --------------------------------------------------------------- */
@@ -251,9 +251,9 @@ static char *grid(char *d, int32_t lat, int32_t lon)   /* Maidenhead, 6 characte
 
 static uint16_t snr_color(unsigned snr)
 {
-    return !snr ? DIM : snr >= 30 ? GFX_GREEN : snr >= 20 ? GFX_YELLOW : GFX_RED;
+    return !snr ? DIM : snr >= 30 ? UI_OK : snr >= 20 ? UI_ACCENT : UI_DANGER;
 }
-static uint16_t con_color(unsigned con) { return con == 0 ? GFX_GREEN : con == 1 ? GFX_RED : con == 2 ? CYAN : GFX_YELLOW; }
+static uint16_t con_color(unsigned con) { return con == 0 ? UI_OK : con == 1 ? UI_DANGER : con == 2 ? CYAN : UI_ACCENT; }
 
 /* ---- pages -------------------------------------------------------------- */
 
@@ -263,41 +263,40 @@ static void header(const struct state *st, uint32_t now)
     char b[28], *d = put(b, "GPS ");
     d = num(d, st->page + 1, 1); d = put(d, "/4 "); d = put(d, NAME[st->page]);
     pad(d, b, 16);
-    gfx_text(0, 0, b, 16, 1, GFX_YELLOW, BG);
+    gfx_text(UI_LEFT, 2, b, 16, 1, UI_ACCENT, BG);
     uint32_t age = st->rmcs ? (now - st->last_rmc) / 100u : 99;
     const char *s = !st->lines ? "NO DATA" : age > 3 ? "STALE" : st->status == 'A' ? (st->quality > 1 ? "FIX DGPS" : "FIX") : "NO FIX";
-    uint16_t c = !st->lines || age > 3 ? DIM : st->status == 'A' ? GFX_GREEN : GFX_RED;
-    d = put(b, s);
-    pad(d, b, 9);
-    gfx_text(160 - 54, 0, b, 9, 1, c, BG);
-    gfx_fill(0, 10, H9_WIDTH, 1, GFX_BLUE);
+    uint16_t c = !st->lines || age > 3 ? DIM : st->status == 'A' ? UI_OK : UI_ACCENT;
+    unsigned n = (unsigned)(put(b, s) - b);
+    gfx_fill(H9_WIDTH - UI_LEFT - 54, 2, 54, 8, BG);
+    gfx_text(H9_WIDTH - UI_LEFT - n * 6, 2, b, n, 1, c, BG);
+    gfx_fill(0, 10, H9_WIDTH, 1, UI_RULE);
 }
 
 static void page_position(const struct state *st)
 {
     char b[28], *d;
-    if (!st->valid) { row(14, "NO POSITION YET", GFX_RED); row(25, "", GFX_WHITE); row(36, "", GFX_WHITE); }
+    if (!st->valid) { row(14, "NO POSITION YET", UI_ACCENT); row(25, "", UI_TEXT); row(36, "", UI_TEXT); }
     else {
         d = put(b, "LAT "); d = fixed(d, st->lat < 0 ? -st->lat : st->lat, 6); put(d, st->lat < 0 ? " S" : " N");
-        row(14, b, GFX_WHITE);
+        row(14, b, UI_TEXT);
         d = put(b, "LON "); d = fixed(d, st->lon < 0 ? -st->lon : st->lon, 6); put(d, st->lon < 0 ? " W" : " E");
-        row(25, b, GFX_WHITE);
+        row(25, b, UI_TEXT);
         d = put(b, "GRID "); grid(d, st->lat, st->lon);
-        row(36, b, GFX_YELLOW);
+        row(36, b, UI_ACCENT);
     }
     d = put(b, "ALT "); d = fixed(d, st->alt10, 1); d = put(d, " M  "); d = num(d, (uint32_t)(st->alt10 < 0 ? 0 : st->alt10) * 328u / 1000u, 1); put(d, " FT");
-    row(47, b, GFX_WHITE);
+    row(47, b, UI_TEXT);
     d = put(b, "SPD "); d = fixed(d, st->spd10 * 1852 / 1000, 1); d = put(d, " KMH  "); d = fixed(d, st->spd10 * 11508 / 10000, 1); put(d, " MPH");
-    row(58, b, GFX_WHITE);
+    row(58, b, UI_TEXT);
     static const char *const PT[16] = { "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW" };
     d = put(b, "CRS "); d = num(d, st->course, 3); d = put(d, " "); put(d, PT[((st->course * 16u + 180u) / 360u) & 15]);
-    row(69, b, GFX_WHITE);
+    row(69, b, UI_TEXT);
     d = put(b, "SATS "); d = num(d, st->used, 1); d = put(d, " USED  "); d = num(d, st->view, 1); put(d, " VIEW");
-    row(83, b, st->used >= 4 ? GFX_GREEN : GFX_YELLOW);
+    row(83, b, st->used >= 4 ? UI_OK : UI_ACCENT);
     d = put(b, "HDOP "); d = fixed(d, (int32_t)st->hdop10, 1); d = put(d, "  Q"); d = num(d, st->quality, 1);
     put(d, st->quality == 0 ? " NONE" : st->quality == 1 ? " GPS" : st->quality == 2 ? " DGPS" : " OTHER");
-    row(94, b, st->hdop10 && st->hdop10 <= 20 ? GFX_GREEN : st->hdop10 <= 50 ? GFX_YELLOW : GFX_WHITE);
-    row(112, "UP/DOWN PAGE   BACK EXIT", DIM);
+    row(94, b, st->hdop10 && st->hdop10 <= 20 ? UI_OK : st->hdop10 <= 50 ? UI_ACCENT : UI_TEXT);
 }
 
 static void page_sky(const struct state *st)
@@ -308,7 +307,7 @@ static void page_sky(const struct state *st)
             gfx_fill((unsigned)(CX + sin_deg(a) * (int)(R * ring / 3) / 1024), (unsigned)(CY - cos_deg(a) * (int)(R * ring / 3) / 1024), 1, 1, DIM);
     gfx_fill(CX, CY - R, 1, 2 * R + 1, DIM);
     gfx_fill(CX - R, CY, 2 * R + 1, 1, DIM);
-    gfx_text(CX - 2, 12, "N", 1, 1, GFX_WHITE, BG);
+    gfx_text(CX - 2, 12, "N", 1, 1, UI_TEXT, BG);
     for (unsigned i = 0; i < st->nsats; i++) {
         const struct sat *s = &st->sat[i];
         if (s->elev > 90) continue;
@@ -317,13 +316,13 @@ static void page_sky(const struct state *st)
     }
     char b[12], *d = put(b, "SATS ");
     num(d, st->nsats, 1);
-    gfx_text(108, 24, b, 10, 1, GFX_WHITE, BG);
+    gfx_text(108, 24, b, 10, 1, UI_TEXT, BG);
     d = put(b, "USED "); num(d, st->used, 1);
-    gfx_text(108, 35, b, 10, 1, GFX_WHITE, BG);
+    gfx_text(108, 35, b, 10, 1, UI_TEXT, BG);
     gfx_text(108, 52, "SIGNAL", 6, 1, DIM, BG);
-    gfx_text(108, 63, ">=30", 4, 1, GFX_GREEN, BG);
-    gfx_text(108, 74, ">=20", 4, 1, GFX_YELLOW, BG);
-    gfx_text(108, 85, "<20", 3, 1, GFX_RED, BG);
+    gfx_text(108, 63, ">=30", 4, 1, UI_OK, BG);
+    gfx_text(108, 74, ">=20", 4, 1, UI_ACCENT, BG);
+    gfx_text(108, 85, "<20", 3, 1, UI_DANGER, BG);
     gfx_text(108, 96, "NONE", 4, 1, DIM, BG);
 }
 
@@ -334,19 +333,19 @@ static void page_signals(const struct state *st)
         unsigned h = (unsigned)s->snr * 3u / 2u;
         if (h > 80) h = 80;
         unsigned x = i * 5;
-        if (h) gfx_fill(x, 108 - h, 4, h, con_color(s->con));
-        else gfx_fill(x, 106, 4, 2, DIM);
+        if (h) gfx_fill(x, 103 - h, 4, h, con_color(s->con));
+        else gfx_fill(x, 101, 4, 2, DIM);
     }
-    gfx_fill(0, 108, H9_WIDTH, 1, GFX_BLUE);
-    gfx_text(0, 112, "G", 1, 1, GFX_GREEN, BG);
-    gfx_text(8, 112, "GPS", 3, 1, DIM, BG);
-    gfx_text(34, 112, "R", 1, 1, GFX_RED, BG);
-    gfx_text(42, 112, "GLO", 3, 1, DIM, BG);
-    gfx_text(68, 112, "E", 1, 1, CYAN, BG);
-    gfx_text(76, 112, "GAL", 3, 1, DIM, BG);
-    gfx_text(102, 112, "B", 1, 1, GFX_YELLOW, BG);
-    gfx_text(110, 112, "BDS", 3, 1, DIM, BG);
-    gfx_text(0, 14, "BARS: SIGNAL 0-50 DB", 20, 1, DIM, BG);
+    gfx_fill(0, 103, H9_WIDTH, 1, UI_RULE);
+    gfx_text(3, 108, "G", 1, 1, UI_OK, BG);
+    gfx_text(11, 108, "GPS", 3, 1, DIM, BG);
+    gfx_text(37, 108, "R", 1, 1, UI_DANGER, BG);
+    gfx_text(45, 108, "GLO", 3, 1, DIM, BG);
+    gfx_text(71, 108, "E", 1, 1, CYAN, BG);
+    gfx_text(79, 108, "GAL", 3, 1, DIM, BG);
+    gfx_text(105, 108, "B", 1, 1, UI_ACCENT, BG);
+    gfx_text(113, 108, "BDS", 3, 1, DIM, BG);
+    gfx_text(UI_LEFT, 14, "SIGNAL 0-50 DB", 16, 1, DIM, BG);
 }
 
 static void page_info(const struct state *st, uint32_t now)
@@ -357,16 +356,16 @@ static void page_info(const struct state *st, uint32_t now)
         *d++ = st->time[0]; *d++ = st->time[1]; *d++ = ':'; *d++ = st->time[2]; *d++ = st->time[3]; *d++ = ':';
         *d++ = st->time[4]; *d++ = st->time[5]; put(d, " UTC");
     } else put(b, "NO TIME");
-    gfx_text(0, 14, b, 13, 2, GFX_WHITE, BG);
+    gfx_text(UI_LEFT, 14, b, 13, 2, UI_TEXT, BG);
     if (st->rmcs && st->date[0] != '-') {
         d = put(b, "DATE 20"); *d++ = st->date[4]; *d++ = st->date[5]; *d++ = '-'; *d++ = st->date[2]; *d++ = st->date[3];
         *d++ = '-'; *d++ = st->date[0]; *d++ = st->date[1]; *d = 0;
     } else put(b, "DATE -");
-    row(34, b, GFX_WHITE);
+    row(34, b, UI_TEXT);
     if (st->saved) {
         d = put(b, "SAVED "); d = fixed(d, st->saved_lat, 3); *d++ = ' '; fixed(d, st->saved_lon, 3);
     } else put(b, "SAVED FIX NONE");
-    row(48, b, st->saved ? GFX_WHITE : DIM);
+    row(48, b, st->saved ? UI_TEXT : DIM);
     {   /* local time from the radio's Time zone setting (UTC-12..+12, option index at 0xC1C6) */
         unsigned v = GPS_TZ;
         int off = v <= 24 ? (int)v - 12 : 0;
@@ -375,23 +374,23 @@ static void page_info(const struct state *st, uint32_t now)
             d = put(b, "LOCAL "); d = num(d, hh, 2); *d++ = ':'; *d++ = st->time[2]; *d++ = st->time[3];
             d = put(d, "  UTC"); *d++ = off < 0 ? '-' : '+'; num(d, (uint32_t)(off < 0 ? -off : off), 1);
         } else put(b, "");
-        row(59, b, GFX_WHITE);
+        row(59, b, UI_TEXT);
     }
     d = put(b, "RMC "); d = num(d, st->rmcs, 1); d = put(d, " GGA "); d = num(d, st->ggas, 1); d = put(d, " GSV "); num(d, st->gsvs, 1);
-    row(76, b, GFX_WHITE);
+    row(71, b, UI_TEXT);
     d = put(b, "SENTENCES "); d = num(d, st->lines, 1); d = put(d, "  LAST RMC ");
     if (st->rmcs) { d = num(d, (now - st->last_rmc) / 100u, 1); put(d, "S"); } else put(d, "-");
-    row(87, b, DIM);
+    row(81, b, DIM);
     d = put(b, "STATUS "); *d++ = st->status ? (char)st->status : '-'; d = put(d, "  FRAME "); num(d, st->maxframe, 1);
-    row(98, b, DIM);
+    row(91, b, DIM);
     d = b;
     for (unsigned t = 0; t < st->ntypes && t < 4; t++) { d = put(d, st->types[t]); *d++ = ' '; }
     *d = 0;
-    row(109, b, DIM);
+    row(101, b, DIM);
     d = b;
     for (unsigned t = 4; t < st->ntypes; t++) { d = put(d, st->types[t]); *d++ = ' '; }
     *d = 0;
-    row(120, b, DIM);
+    row(110, b, DIM);
 }
 
 static void draw(const struct state *st, uint32_t now, int full)
@@ -401,6 +400,7 @@ static void draw(const struct state *st, uint32_t now, int full)
     else if (st->page == 1) { if (full) page_sky(st); }
     else if (st->page == 2) { if (full) page_signals(st); }
     else page_info(st, now);
+    if (full) ui_footer("UP/DN PAGE  BACK TOOLBOX");
 }
 
 /* A key once two readings agree (the keypad ADC has no debounce). */

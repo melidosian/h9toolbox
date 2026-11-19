@@ -1,8 +1,41 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261111g';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, RESIDENT_START, RESIDENT_END, BUILD, PREVIOUS, classifyRadio, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261119m';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
+import { stageAprs, stageRegion } from './aprs-stage.mjs?v=20261119l';
 
 const $ = id => document.getElementById(id);
+const slides = [...document.querySelectorAll('.guide-slide')];
+const stepIndicators = [...document.querySelectorAll('.guide-steps li')];
+const browserReady = window.isSecureContext && Boolean(navigator.hid?.requestDevice);
+const devBuild = {
+  label: BUILD.label,
+  file: 'dev/h9-toolbox-firmware-v0.1.5.fw',
+  packageSha256: '32b2b6308b2e8ef71d2ef5e15d543ce9b2594fd9455041d909653324446ec51e',
+  imageSha256: '4a2b543fd2fdae8256bd0d568d286a25f66c18e8e1bf9bd9662a98921fe01c38',
+  aprsStageFile: 'dev/h9-toolbox-aprs-stage.bin',
+  aprsStageSha256: '55be5fafe4efae0287345a25278e9ee00171e7af164e1c502b1bcc98a37924ba',
+  residentFile: 'dev/h9-toolbox-aprs-scheduler.bin',
+  residentSha256: 'aa6f231787913d7787ba282ea0bf503733b5dfbb19b9bdb1760bded90364959e',
+  sectors: [...BUILD.sectors, 0x61000, 0x63000, 0x6d000, 0x74000, 0x75000, 0x7b000, 0x80000, 0x89000, 0x8a000],
+};
+const earlierDevBuild = {
+  id: 'Earlier H9 Toolbox development build',
+  label: 'Earlier H9 Toolbox development build',
+  file: 'dev/h9-toolbox-earlier-dev.fw',
+  packageSha256: 'ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04',
+  imageSha256: 'c230c64720957d7d8a021c9038c53399c5fd406c40577919fd1ae291cd70dd3d',
+};
+const priorDevBuild = {
+  id: 'Previous H9 Toolbox v0.1.5 development build',
+  label: 'Previous H9 Toolbox v0.1.5 development build',
+  file: 'dev/h9-toolbox-dev-before-aprs.fw',
+  packageSha256: 'e64b6a5f3d5dd17077a392bffc837486a7076e9e52c6cc2b19e34e2a0dec85e0',
+  imageSha256: 'e976a10f89aea4f42757c582bb10cc828018e56bf36eb7b8ee2093748b335e92',
+};
+const useDevBuild = $('optBuild').hasAttribute('data-dev-firmware');
+const release = useDevBuild ? devBuild : BUILD;
+class BackupRequiredError extends Error {}
+let currentStep = 0;
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
 // stock rebuilt from the build. buildImage / previousImages: the hosted build
 // and earlier builds ([{ info: PREVIOUS[i], image }]), known so a radio
@@ -10,15 +43,65 @@ const $ = id => document.getElementById(id);
 // createdBackup: the archive made on this page ({ archive, name, source }),
 // kept across firmware selection and used when no backup file is chosen.
 let createdBackup = null;
-// True once the connected radio has been backed up on this page. Install
-// stays disabled until then; connecting a radio resets it.
+// True once the connected radio has been backed up on this page.
 let radioBackedUp = false;
-let target = null, stockSeed = null, buildImage = null, previousImages = [], backup = null, device = null, hid = null, busy = false;
+let target = null, stockSeed = null, buildImage = null, devImage = null, previousImages = [], backup = null, device = null, hid = null, busy = false;
 let cancelBackup = false, backupRunning = false;
 let firmwareSelection = 0, backupSelection = 0;
 const resumeKey = 'h9-hid-pending-v1';
+function showStep(index) {
+  slides[currentStep].hidden = true;
+  stepIndicators[currentStep].removeAttribute('aria-current');
+  currentStep = index;
+  $('status').hidden = true;
+  slides[currentStep].hidden = false;
+  stepIndicators[currentStep].setAttribute('aria-current', 'step');
+  stepIndicators.forEach((indicator, step) => indicator.classList.toggle('past', step < currentStep));
+  refreshGuide();
+  const heading = $(slides[currentStep].getAttribute('aria-labelledby'));
+  heading.focus({ preventScroll: true });
+  heading.scrollIntoView({ block: 'nearest' });
+}
+
+function refreshGuide() {
+  const next = $('nextStep');
+  const steps = [
+    { label: 'Start setup', ready: browserReady },
+    { label: 'Choose firmware', ready: Boolean(hid) },
+    { label: 'Continue to install', ready: Boolean(hid && target) },
+  ];
+  const action = steps[currentStep];
+  $('previousStep').disabled = busy || currentStep === 0;
+  const disconnected = !hid && currentStep >= 2 && currentStep < slides.length - 1;
+  const reconnect = $('reconnectStep');
+  reconnect.hidden = !disconnected;
+  reconnect.disabled = busy;
+  next.hidden = !action || disconnected;
+  next.disabled = busy || !action?.ready;
+  if (action) next.textContent = `${action.label} →`;
+}
+
+$('previousStep').addEventListener('click', () => {
+  if (!busy && currentStep > 0) showStep(currentStep - 1);
+});
+$('nextStep').addEventListener('click', () => {
+  if (!$('nextStep').disabled) showStep(currentStep + 1);
+});
+$('reconnectStep').addEventListener('click', () => {
+  if (!busy) showStep(1);
+});
+
 function status(message, error = false) {
+  $('status').hidden = false;
   $('status').textContent = message;
+  if (error) {
+    const slide = slides[currentStep];
+    const help = backupRunning ? $('backupHelp') : slide.querySelector('#writeHelp, .guide-help:not([hidden])');
+    if (help) {
+      help.hidden = false;
+      help.open = true;
+    }
+  }
   $('status').classList.toggle('error-status', error);
   const item = document.createElement('li'); item.textContent = message; $('log').prepend(item);
 }
@@ -32,7 +115,13 @@ function formatDuration(seconds) {
   if (whole < 90) return `${whole} s`;
   return `${Math.floor(whole / 60)} min ${String(whole % 60).padStart(2, '0')} s`;
 }
-function finish(text) { $('progress').style.width = '100%'; $('progressText').textContent = `100% · ${text}`; }
+function finish(text) {
+  if (backupRunning) $('backupProgress').textContent = text;
+  else {
+    $('progress').style.width = '100%';
+    $('progressText').textContent = `100% · ${text}`;
+  }
+}
 function progress(done, total) {
   if (total !== timing.total) timing = { ...timing, started: timing.total ? performance.now() : timing.started || performance.now(), total };
   const percent = Math.round(done / total * 100);
@@ -41,47 +130,49 @@ function progress(done, total) {
   if (timing.label) parts.push(typeof timing.label === 'function' ? timing.label(done, total) : timing.label);
   if (done >= total) parts.push(`done in ${formatDuration(elapsed)}`);
   else if (done > 0 && elapsed >= 3) parts.push(`about ${formatDuration(elapsed * (total - done) / done)} left`);
-  $('progress').style.width = `${percent}%`; $('progressText').textContent = parts.join(' · ');
+  if (backupRunning) {
+    $('backupProgress').hidden = false;
+    $('backupProgress').textContent = parts.join(' · ');
+  } else {
+    $('progress').style.width = `${percent}%`;
+    $('progressText').textContent = parts.join(' · ');
+  }
 }
 let shownSelection = null;
 function refresh() {
-  $('connect').disabled = busy || !!device;
+  if (!busy && device && !device.opened) clearConnection();
+  $('connect').disabled = busy || !browserReady || !!device;
   $('disconnect').disabled = busy || !device;
-  $('createBackup').disabled = busy || !hid;
   $('cancelBackup').hidden = !backupRunning;
-  const ready = Boolean(hid && target && backup);
+  const ready = Boolean(hid && target);
+  const skipping = $('skipBackup').checked;
+  const canRestore = ready && Boolean(backup);
+  $('skipBackup').disabled = busy || !ready;
   $('acknowledge').disabled = busy || !ready;
-  $('flash').disabled = busy || !ready || !radioBackedUp || !$('acknowledge').checked;
-  $('restore').disabled = busy || !ready || !$('acknowledge').checked;
+  $('flash').disabled = busy || !ready || !$('acknowledge').checked;
+  $('restore').disabled = busy || !canRestore || !$('acknowledge').checked;
   $('restore').textContent = backup?.source === 'hosted-stock' ? 'Restore stock v1.0.38' : 'Restore backup';
-  // The next action gets the colour: Backup until it succeeds, then Install.
-  const installReady = radioBackedUp && !$('flash').disabled;
-  $('createBackup').classList.toggle('primary-button', !radioBackedUp);
-  $('createBackup').classList.toggle('ghost', radioBackedUp);
-  $('flash').classList.toggle('primary-button', installReady);
-  $('flash').classList.toggle('ghost', !installReady);
-  if (busy && backupRunning) $('planState').textContent = 'Backing up the radio. Keep USB connected.';
-  else if (!busy) $('planState').textContent = !hid ? 'Connect the radio in step 01.'
-    : !radioBackedUp ? 'Click Backup radio. Install unlocks when the backup succeeds.'
-      : !target ? 'Backup saved. Select firmware in step 02.'
-        : !backup ? 'Backup saved. This radio’s firmware is not recognised, so select a stock backup as the restore point in step 02.'
-          : !$('acknowledge').checked ? 'Backup saved. Tick the box above to enable Install.'
-            : 'Ready. Install checks the radio again before anything is written.';
+  if (!busy) $('planState').textContent = !hid ? 'Return to step 2 to connect your radio.'
+    : !target ? 'Return to step 3 to select firmware.'
+      : skipping ? 'The updater will verify the radio before writing. No new backup will be downloaded.'
+        : '';
   // Highlight the chosen firmware; the animation plays when the choice changes.
   const selected = target?.kind ?? null;
   if (selected !== shownSelection) {
     shownSelection = selected;
     $('optBuild').classList.toggle('selected', selected === 'build');
     $('optStock').classList.toggle('selected', selected === 'stock');
-    $('optBuild').closest('.file-grid').classList.toggle('has-selection', Boolean(selected));
-    $('firmwareState').classList.remove('chosen');
-    if (selected) { void $('firmwareState').offsetWidth; $('firmwareState').classList.add('chosen'); }
+    $('optBuild').querySelector('.selected-badge').hidden = selected !== 'build';
+    $('optStock').querySelector('.selected-badge').hidden = selected !== 'stock';
+    $('firmwareState').classList.toggle('chosen', Boolean(selected));
   }
   $('firmwareFile').disabled = busy;
   $('loadBuild').disabled = busy;
   $('loadStockGitHub').disabled = busy;
   $('backupFile').disabled = busy;
-  $('flash').textContent = target?.kind === 'build' ? `Install ${BUILD.label}` : target?.kind === 'stock' ? 'Install stock v1.0.38' : 'Install firmware';
+  refreshGuide();
+  $('flash').textContent = target?.kind === 'build' ? `Install ${release.label}`
+    : target?.kind === 'stock' ? 'Install stock v1.0.38' : 'Install selected firmware';
 }
 function requireH9(image) {
   if (!looksLikeH9(image)) throw new Error('This radio\'s firmware does not look like a TD-H9 application (no "TD-H9" model name). Installing is blocked.');
@@ -89,33 +180,19 @@ function requireH9(image) {
 function fail(error) { status(error?.message || String(error), true); }
 function pending() { try { return JSON.parse(localStorage.getItem(resumeKey)); } catch { return null; } }
 function forgetPlan() { $('acknowledge').checked = false; refresh(); }
-const previousInfo = kind => PREVIOUS.find(item => item.id === kind);
-// Step 04 (App Manager: apps and boot logo) needs this build: say so when the
-// page sees it on the radio, and what to do when it sees another.
-function setLogoStep(kind) {
-  const gate = $('logoGate');
-  if (kind === 'build') {
-    gate.textContent = `This radio runs ${BUILD.label}. Power-cycle it normally, then open the App Manager.`;
-    gate.classList.add('ready');
-  } else if (kind === 'stock' || kind === 'stock-like' || previousInfo(kind)) {
-    gate.textContent = `This radio runs ${kind === 'stock' || kind === 'stock-like' ? 'stock v1.0.38' : `the ${previousInfo(kind).label}`}. Install ${BUILD.label} above first, then open the App Manager.`;
-    gate.classList.remove('ready');
-  }
+function resetBackupOverride() {
+  $('skipBackup').checked = false;
 }
+const previousInfo = kind => previousImages.find(item => item.info.id === kind)?.info;
 // [name, image] pairs of every known image, for classifyRadio.
 function namedImages() {
-  return [['stock', stockSeed ?? target?.image], ['build', buildImage], ...previousImages.map(p => [p.info.id, p.image])]
+  return [['stock', stockSeed ?? target?.image], ['build', buildImage], [devBuild.label, devImage], ...previousImages.map(p => [p.info.id, p.image])]
     .filter(([, image]) => image);
 }
-// Which known image the radio holds, from a full sector-CRC scan, or null.
-function knownRadio(current) {
-  const images = namedImages();
-  try { return images.length > 1 ? classifyRadio(current, images) : null; } catch { return null; }
-}
-// The outcome of an install or restore, shown large under the progress bar.
+// Show write errors in place and verified outcomes on the restart slide.
 function showResult(result) {
-  const panel = $('writeResult');
-  panel.hidden = !result;
+  const panel = result?.failed ? $('writeResult') : $('completedResult');
+  $('writeResult').hidden = !result?.failed;
   if (!result) return;
   panel.classList.toggle('failed', Boolean(result.failed));
   panel.replaceChildren();
@@ -132,7 +209,7 @@ function showResult(result) {
     const link = document.createElement('a'); link.className = 'button primary-button'; link.href = result.action.href; link.textContent = result.action.label;
     panel.append(link);
   }
-  panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!result.failed) showStep(slides.length - 1);
 }
 // Stock, H9 Toolbox Firmware, and the earlier builds' images, from
 // the hosted files if no firmware has been selected yet. A backup needs them
@@ -140,11 +217,43 @@ function showResult(result) {
 async function ensureReferences() {
   if (buildImage && previousImages.length && (stockSeed || target?.kind === 'stock')) return;
   const hosted = await loadHostedBuild();
-  buildImage = hosted.build.image; previousImages = hosted.previous; stockSeed ??= hosted.stock;
+  buildImage = hosted.build.image; devImage = hosted.dev; previousImages = hosted.previous; stockSeed ??= hosted.stock;
 }
 function knownImages() {
-  return target?.kind === 'build' ? previousImages.map(p => p.image) : [];
+  if (target?.kind !== 'build') return [];
+  const known = previousImages.map(item => item.image);
+  return useDevBuild ? [buildImage, ...known] : known;
 }
+
+async function loadReleaseFile(file, expectedHash) {
+  const response = await fetch(`./${file}?v=${expectedHash.slice(0, 8)}`);
+  if (!response.ok) throw new Error('The H9 Toolbox release file could not be downloaded.');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (await sha256(bytes) !== expectedHash)
+    throw new Error('The H9 Toolbox release file did not match the published checksum.');
+  return bytes;
+}
+
+async function loadDevImage(info) {
+  const bytes = await loadReleaseFile(info.file, info.packageSha256);
+  const image = decodePackage(bytes);
+  if (await sha256(image) !== info.imageSha256)
+    throw new Error('The H9 Toolbox main image did not match the published checksum.');
+  return image;
+}
+
+async function stageAprsScheduler() {
+  status('Checking and verifying the APRS scheduler. Keep USB connected.');
+  phase('Verifying the APRS scheduler');
+  const bytes = await loadReleaseFile(devBuild.residentFile, devBuild.residentSha256);
+  const image = new Uint8Array(RESIDENT_END - RESIDENT_START).fill(0xff);
+  image.set(bytes);
+  const result = await stageRegion(hid, image, RESIDENT_START, 'APRS scheduler area',
+    hid.writeSmartBeaconResident.bind(hid), progress);
+  if (result !== 'ready')
+    throw new Error('The APRS scheduler area contains different data. The updater left it untouched and did not install the main firmware.');
+}
+
 // Fetch the hosted build, its stock seed, and the earlier builds' sectors;
 // every file is checked by SHA-256.
 async function loadHostedBuild() {
@@ -160,44 +269,49 @@ async function loadHostedBuild() {
   const previous = [];
   for (const [index, info] of PREVIOUS.entries())
     previous.push({ info, image: await loadPreviousImage(new Uint8Array(await previousResponses[index].arrayBuffer()), build.image, info) });
-  return { build, stock, previous };
+  let dev = null;
+  if (useDevBuild) {
+    const [current, earlier, prior] = await Promise.all([devBuild, earlierDevBuild, priorDevBuild].map(loadDevImage));
+    dev = current;
+    previous.push({ info: earlierDevBuild, image: earlier }, { info: priorDevBuild, image: prior });
+  }
+  return { build, stock, previous, dev };
 }
-async function verifyLiveGamePlan(current, changed, resumeSector) {
-  if (target.kind !== 'build') return;
+async function verifyLivePlan(current, changed, resumeSector, reference, known) {
+  const targetCrcs = expectedCrcs(target.image);
   if (resumeSector) {
     const index = (resumeSector - APP_START) / SECTOR_SIZE;
-    const backupCrc = expectedCrcs(backup.image)[index];
-    const gameCrc = expectedCrcs(target.image)[index];
-    if (current[index] !== backupCrc && current[index] !== gameCrc) return;
+    const referenceCrc = expectedCrcs(reference.image)[index];
+    if (current[index] !== referenceCrc && current[index] !== targetCrcs[index]) return;
   }
-  const live = backup.image.slice();
-  const targetCrcs = expectedCrcs(target.image);
-  const previousCrcs = previousImages.map(p => expectedCrcs(p.image));
+  const live = reference.image.slice();
+  const knownCrcs = known.map(expectedCrcs);
   for (const physical of changed) {
     const index = (physical - APP_START) / SECTOR_SIZE;
     if (current[index] === targetCrcs[index])
       live.set(target.image.subarray(physical, physical + SECTOR_SIZE), physical);
     else {
-      const match = previousImages.findIndex((p, k) => current[index] === previousCrcs[k][index]);
-      if (match >= 0) live.set(previousImages[match].image.subarray(physical, physical + SECTOR_SIZE), physical);
+      const match = knownCrcs.findIndex(crcs => current[index] === crcs[index]);
+      if (match >= 0) live.set(known[match].subarray(physical, physical + SECTOR_SIZE), physical);
     }
   }
   if (!await knownAppMatches(hid, current, live))
-    throw new Error(`Live radio bytes differ from exact stock, ${BUILD.label}, and its earlier builds. No writes allowed.`);
+    throw new Error('The radio does not match the firmware images used for verification. No writes allowed.');
 }
 
 async function validateSelectedBackup(announceWaiting = true) {
   const selection = ++backupSelection;
-  backup = null; forgetPlan();
+  backup = null;
+  if (!backupRunning) forgetPlan();
   const file = $('backupFile').files[0];
   const name = file?.name ?? createdBackup?.name;
-  if (!name) { $('backupState').textContent = 'No backup selected. You can create one after connecting.'; refresh(); return; }
+  if (!name) { $('backupState').textContent = 'No recovery backup selected.'; refresh(); return; }
   if (!target) {
     $('backupState').textContent = `${name} · ${file ? 'checked when you choose firmware' : 'saved; checked when you choose firmware'}`;
     if (announceWaiting && file) status('Backup selected. Choose firmware to check it against.');
     refresh(); return;
   }
-  if (!file && createdBackup.source !== 'stock' && createdBackup.source !== 'stock-like' && createdBackup.source !== 'other' && target.kind === 'build') {
+  if (!file && !['stock', 'stock-like', 'other', devBuild.label].includes(createdBackup.source) && target.kind === 'build') {
     // `source` is what the backup scan matched: 'build', or an earlier
     // build's PREVIOUS id (e.g. 'release1').
     if (createdBackup.source === 'build' || previousInfo(createdBackup.source)) {
@@ -252,9 +366,25 @@ async function validateSelectedBackup(announceWaiting = true) {
   refresh();
 }
 
-$('firmwareFile').addEventListener('change', async event => {
+function beginFirmwareSelection() {
   const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
+  resetBackupOverride();
+  $('firmwareHelp').hidden = true;
+  $('firmwareHelp').open = false;
+  $('status').hidden = true;
+  ++backupSelection; target = null; stockSeed = null; buildImage = null; devImage = null; previousImages = []; backup = null; forgetPlan();
+  return selection;
+}
+
+function rejectFirmware(message, error) {
+  $('firmwareState').textContent = message;
+  $('firmwareHelp').hidden = false;
+  $('firmwareHelp').open = true;
+  fail(error);
+}
+
+$('firmwareFile').addEventListener('change', async event => {
+  const selection = beginFirmwareSelection();
   const file = event.target.files[0];
   if (!file) { $('firmwareState').textContent = 'No package selected'; await validateSelectedBackup(false); return; }
   try {
@@ -264,30 +394,29 @@ $('firmwareFile').addEventListener('change', async event => {
     status('Official v1.0.38 firmware package verified locally.');
   } catch (error) {
     if (selection !== firmwareSelection) return;
-    $('firmwareState').textContent = 'Package rejected'; fail(error);
+    rejectFirmware('Package rejected', error);
   }
   await validateSelectedBackup(false);
 });
 $('loadBuild').addEventListener('click', async () => {
-  const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
+  const selection = beginFirmwareSelection();
   busy = true; refresh();
   try {
-    status(`Downloading the pinned ${BUILD.label} package and recovery seeds from H9 Toolbox.`);
+    status(`Downloading the pinned ${release.label} package and recovery seeds from H9 Toolbox.`);
     const hosted = await loadHostedBuild();
     if (selection !== firmwareSelection) return;
-    target = hosted.build; stockSeed = hosted.stock; buildImage = hosted.build.image; previousImages = hosted.previous;
+    target = useDevBuild ? { kind: 'build', image: hosted.dev, packageHash: devBuild.packageSha256 } : hosted.build;
+    stockSeed = hosted.stock; buildImage = hosted.build.image; devImage = hosted.dev; previousImages = hosted.previous;
     $('firmwareFile').value = '';
-    $('firmwareState').textContent = `${BUILD.label} · exact .fw verified`;
-    status(`${BUILD.label} package, exact stock v1.0.38 seed, and earlier-build sectors verified locally. No radio write sent.`);
+    $('firmwareState').textContent = `${release.label} · exact .fw verified`;
+    status(`${release.label} package, exact stock v1.0.38 seed, and earlier-build sectors verified locally. No radio write sent.`);
     await validateSelectedBackup(false);
   } catch (error) {
-    if (selection === firmwareSelection) { $('firmwareState').textContent = `${BUILD.label} package rejected`; fail(error); }
+    if (selection === firmwareSelection) rejectFirmware(`${release.label} package rejected`, error);
   } finally { busy = false; refresh(); }
 });
 $('loadStockGitHub').addEventListener('click', async () => {
-  const selection = ++firmwareSelection;
-  ++backupSelection; target = null; stockSeed = null; buildImage = null; previousImages = []; backup = null; forgetPlan();
+  const selection = beginFirmwareSelection();
   busy = true; refresh();
   try {
     status('Downloading the pinned Type-C v1.0.38 ZIP from the TDH9 GitHub mirror.');
@@ -296,114 +425,193 @@ $('loadStockGitHub').addEventListener('click', async () => {
     const stockBytes = await extractPinnedStockFirmware(new Uint8Array(await zipResponse.arrayBuffer()));
     const loaded = await loadStockPackage(stockBytes);
     if (selection !== firmwareSelection) return;
-    target = loaded; buildImage = hosted.build.image; previousImages = hosted.previous; $('firmwareFile').value = '';
+    target = loaded; buildImage = hosted.build.image; devImage = hosted.dev; previousImages = hosted.previous; $('firmwareFile').value = '';
     $('firmwareState').textContent = 'Stock v1.0.38 · pinned GitHub ZIP and extracted .fw verified';
     status('Stock Type-C v1.0.38 package verified locally. The hosted builds are available as fast backup seeds. No radio write sent.');
     await validateSelectedBackup(false);
   } catch (error) {
-    if (selection === firmwareSelection) { $('firmwareState').textContent = 'GitHub stock package rejected'; fail(error); }
+    if (selection === firmwareSelection) rejectFirmware('GitHub stock package rejected', error);
   } finally { busy = false; refresh(); }
 });
-$('backupFile').addEventListener('change', () => validateSelectedBackup());
+$('backupFile').addEventListener('change', async () => {
+  busy = true; refresh();
+  try { await validateSelectedBackup(); }
+  finally { busy = false; refresh(); }
+});
 $('connect').addEventListener('click', async () => {
-  if (!('hid' in navigator)) return fail(new Error('WebHID requires desktop Chrome or Edge on HTTPS.'));
+  if (!browserReady || busy || device) return;
+  let chosen;
+  busy = true;
+  refresh();
   try {
     const devices = await navigator.hid.requestDevice({ filters: [{ vendorId: 0x4c4a, productId: 0x4155, usagePage: 0xff00, usage: 1 }] });
-    if (devices.length !== 1) { if (devices.length) throw new Error('Choose exactly one JieLi vendor HID interface.'); return; }
-    const chosen = devices[0];
+    if (devices.length !== 1) {
+      throw new Error(devices.length ? 'Choose exactly one JieLi device.' : 'No radio selected. Open the picker again and choose JieLi.');
+    }
+    chosen = devices[0];
     if (!chosen.collections.some(collection => collection.usagePage === 0xff00 && collection.usage === 1 && collection.inputReports.some(report => report.reportId === 0) && collection.outputReports.some(report => report.reportId === 0))) throw new Error('Unexpected HID report layout.');
     await chosen.open();
     const candidate = new H9Hid(chosen), geometry = await candidate.initialize();
     device = chosen; hid = candidate; radioBackedUp = false;
     $('deviceState').textContent = 'Connected';
-    status(`Radio connected (app 0x${geometry.address.toString(16)}, 4 KiB sectors). Back it up next. No write sent.`);
-  } catch (error) { fail(error); }
+    $('deviceState').classList.add('connected');
+    status(`Radio connected (app 0x${geometry.address.toString(16)}, 4 KiB sectors). You can choose your firmware now.`);
+  } catch (error) {
+    if (chosen?.opened) await chosen.close().catch(() => {});
+    fail(error);
+  } finally {
+    busy = false;
+    refresh();
+  }
+});
+function clearConnection() {
+  device = null;
+  hid = null;
+  radioBackedUp = false;
+  resetBackupOverride();
+  $('acknowledge').checked = false;
+  $('deviceState').textContent = 'Disconnected';
+  $('deviceState').classList.remove('connected');
+}
+if (browserReady) navigator.hid.addEventListener('disconnect', event => {
+  if (event.device !== device || busy) return;
+  clearConnection();
+  if (currentStep !== slides.length - 1) status('The radio disconnected. Return to step 2 to reconnect it.', true);
   refresh();
 });
 $('disconnect').addEventListener('click', async () => {
-  await device?.close(); device = null; hid = null; forgetPlan();
-  $('deviceState').textContent = 'Disconnected'; status('Disconnected.'); refresh();
+  busy = true;
+  refresh();
+  try {
+    await device.close();
+    clearConnection();
+    status('Disconnected.');
+  } catch (error) { fail(error); }
+  finally { busy = false; refresh(); }
 });
 $('acknowledge').addEventListener('change', refresh);
+$('skipBackup').addEventListener('change', refresh);
 $('cancelBackup').addEventListener('click', () => { cancelBackup = true; $('cancelBackup').disabled = true; status('Stopping after the current HID reply…'); });
-$('createBackup').addEventListener('click', async () => {
-  if (!hid || busy) return;
-  busy = true; backupRunning = true; cancelBackup = false; $('cancelBackup').disabled = false; forgetPlan(); phase('Starting backup'); progress(0, 1); refresh();
+async function createBackup() {
+  backupRunning = true;
+  $('cancelBackup').disabled = false;
+  phase('Starting backup');
+  progress(0, 1);
+  refresh();
   const backupBegan = performance.now();
-  try {
-    status('Scanning accessible flash sector CRCs. No erase or write will be sent.');
-    phase('Scanning sector CRCs');
-    const current = await scanRadio(hid, progress);
-    await ensureReferences();
-    const images = namedImages();
-    let source = 'other';
-    if (images.length > 1) {
-      try { source = classifyRadio(current, images); } catch (error) {
-        // Not an exact known image: still fine if it is stock everywhere except
-        // the sectors the install rewrites (e.g. leftovers after an official update).
-        const leftovers = stockSeed ? stockCompatible(current, stockSeed) : null;
-        if (leftovers) {
-          source = 'stock-like';
-          status(`This radio is stock v1.0.38 except ${leftovers.length} sector(s) the install rewrites anyway (${leftovers.slice(0, 8).map(p => `0x${p.toString(16)}`).join(', ')}${leftovers.length > 8 ? ', …' : ''}). Backing it up in full, which takes longer.`);
-        } else {
-          // Not stock-compatible: still take the full backup (it is only a read). That
-          // backup then unlocks a full-image install of every differing sector.
-          source = 'other';
-          status(`${error.message} Taking a full backup anyway (read only, slower). Once it is saved, Install rewrites every firmware sector that differs from the package.`, true);
-        }
+  status('Scanning accessible flash sector CRCs. No erase or write will be sent.');
+  phase('Scanning sector CRCs');
+  const current = await scanRadio(hid, progress);
+  await ensureReferences();
+  const images = namedImages();
+  let source = 'other';
+  if (images.length > 1) {
+    try { source = classifyRadio(current, images); } catch {
+      // Not an exact known image: still fine if it is stock everywhere except
+      // the sectors the install rewrites (e.g. leftovers after an official update).
+      const leftovers = stockSeed ? stockCompatible(current, stockSeed) : null;
+      if (leftovers) {
+        source = 'stock-like';
+        status(`This radio is stock v1.0.38 except ${leftovers.length} sector(s) the install rewrites anyway (${leftovers.slice(0, 8).map(p => `0x${p.toString(16)}`).join(', ')}${leftovers.length > 8 ? ', …' : ''}). Backing it up in full, which takes longer.`);
+      } else {
+        // Not stock-compatible: still take the full backup (it is only a read). That
+        // backup then unlocks a full-image install of every differing sector.
+        source = 'other';
+        status('This firmware needs a full backup, which takes longer. The updater will then check which sectors need to be written.');
       }
     }
-    setLogoStep(source);
-    status('Recovering accessible flash bytes using shifted CRC windows. This may take several minutes; keep USB connected.');
-    phase('Recovering flash bytes from shifted CRC windows');
-    // Firmware area only: the settings area above 0xDA000 is never written
-    // here and takes about 10 minutes to recover. A radio with unknown
-    // firmware still gets the full recovery (there is no shortcut for it).
-    const recovered = await readAccessibleFlash(hid, current, images.map(([, image]) => image), progress, () => cancelBackup, { settings: false });
-    if (!recovered.settings) status('The radio matches a known firmware image, so the backup was quick.');
-    if (cancelBackup) throw new Error('HID backup cancelled. No radio write was sent.');
-    const archive = await createHidArchive(recovered.accessible, recovered.method);
-    // The protected boot bytes are a placeholder from a known image (they are
-    // identical in all of them) and are never written through HID.
-    const loaded = await loadHidArchive(archive, target?.image ?? stockSeed);
-    if (source === 'stock') await verifyStockBackup(loaded.image);
-    else if (source === 'stock-like') verifyStockCompatible(loaded.image, stockSeed);
-    const expected = source === 'build' ? BUILD.imageSha256 : previousInfo(source)?.imageSha256;
-    if (expected && await sha256(loaded.image) !== expected)
-      throw new Error('Recovered image differs from the pinned build it matched. No backup accepted.');
-    const sourceName = source === 'build' ? 'H9-Toolbox-Firmware-' : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
-    const sourceLabel = source === 'build' ? BUILD.label : previousInfo(source)?.label;
-    const date = new Date().toISOString().slice(0, 10);
-    const name = `TD-H9-${sourceName}HID-recovery-${date}.h9hid`;
-    const url = URL.createObjectURL(new Blob([archive], { type: 'application/octet-stream' }));
-    const link = document.createElement('a'); link.href = url; link.download = name; document.body.append(link);
-    link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
-    createdBackup = { archive, name, source };
-    radioBackedUp = true;
-    status(`${sourceLabel ? `Backup of the installed ${sourceLabel}` : 'Backup'} download started (${recovered.method === 'verified-known-image-seed' ? 'matched a known image' : 'full recovery'}). Keep that file. Protected boot bytes are not in it.`);
-    // Choose the restore point the same way as for a selected file.
-    await validateSelectedBackup(false);
-    finish(`Backup built and verified in ${formatDuration((performance.now() - backupBegan) / 1000)}`);
-  } catch (error) { fail(error); }
-  busy = false; backupRunning = false; cancelBackup = false; refresh();
-});
+  }
+  status('Recovering accessible flash bytes using shifted CRC windows. This may take several minutes; keep USB connected.');
+  phase('Recovering flash bytes from shifted CRC windows');
+  // Firmware area only: the settings area above 0xDA000 is never written
+  // here and takes about 10 minutes to recover. A radio with unknown
+  // firmware still gets the full recovery (there is no shortcut for it).
+  const recovered = await readAccessibleFlash(hid, current, images.map(([, image]) => image), progress, () => cancelBackup, { settings: false });
+  if (!recovered.settings) status('The radio matches a known firmware image, so the backup was quick.');
+  if (cancelBackup) throw new Error('HID backup cancelled. No radio write was sent.');
+  const archive = await createHidArchive(recovered.accessible, recovered.method);
+  // The protected boot bytes are a placeholder from a known image (they are
+  // identical in all of them) and are never written through HID.
+  const loaded = await loadHidArchive(archive, target?.image ?? stockSeed);
+  if (source === 'stock') await verifyStockBackup(loaded.image);
+  else if (source === 'stock-like') verifyStockCompatible(loaded.image, stockSeed);
+  const expected = source === 'build' ? BUILD.imageSha256
+      : source === devBuild.label ? devBuild.imageSha256 : previousInfo(source)?.imageSha256;
+  if (expected && await sha256(loaded.image) !== expected)
+    throw new Error('Recovered image differs from the pinned build it matched. No backup accepted.');
+  if (cancelBackup) throw new Error('HID backup cancelled. No radio write was sent.');
+  $('cancelBackup').disabled = true;
+  const sourceName = source === 'build' || source === devBuild.label ? 'H9-Toolbox-Firmware-'
+    : [earlierDevBuild.id, priorDevBuild.id].includes(source) ? 'H9-Toolbox-Earlier-Dev-'
+      : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
+  const sourceLabel = source === 'build' ? BUILD.label : source === devBuild.label ? devBuild.label : previousInfo(source)?.label;
+  const date = new Date().toISOString().slice(0, 10);
+  const name = `TD-H9-${sourceName}HID-recovery-${date}.h9hid`;
+  const url = URL.createObjectURL(new Blob([archive], { type: 'application/octet-stream' }));
+  const link = document.createElement('a'); link.href = url; link.download = name; document.body.append(link);
+  link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  createdBackup = { archive, name, source };
+  radioBackedUp = true;
+  status(`${sourceLabel ? `Backup of the installed ${sourceLabel}` : 'Backup'} download started (${recovered.method === 'verified-known-image-seed' ? 'matched a known image' : 'full recovery'}). Keep that file. Protected boot bytes are not in it.`);
+  // Choose the restore point the same way as for a selected file.
+  await validateSelectedBackup(false);
+  if (source === devBuild.label)
+    status('H9 Toolbox firmware backup saved. This file covers the main firmware only.');
+  finish(`Backup built and verified in ${formatDuration((performance.now() - backupBegan) / 1000)}`);
+}
+async function planDevInstallWithoutBackup(current) {
+  // The Type-C TD-H9 model identifier is at physical 0xB672A. Verify its
+  // sector and the next with aligned and shifted CRCs against the pinned
+  // image. This identifies the radio even when other main sectors differ.
+  const modelSector = 0xb6000;
+  const relative = modelSector - APP_START;
+  const expectedModel = target.image.subarray(modelSector, modelSector + 2 * SECTOR_SIZE);
+  const index = relative / SECTOR_SIZE;
+  if (current[index] !== crc16(expectedModel.subarray(0, SECTOR_SIZE)) ||
+      current[index + 1] !== crc16(expectedModel.subarray(SECTOR_SIZE))) {
+    throw new BackupRequiredError('The updater could not verify the TD-H9 model data. Use a verified recovery file or clear Skip backup. Nothing was written.');
+  }
+  for (const shift of [1, 37, 1024, 2048, 3072, 4095]) {
+    const [actual] = await hid.windowCrcs(relative + shift, 1);
+    if (actual !== crc16(expectedModel.subarray(shift, shift + SECTOR_SIZE)))
+      throw new BackupRequiredError('The updater could not verify the TD-H9 model data. Use a verified recovery file or clear Skip backup. Nothing was written.');
+  }
+  const update = stockDifferences(current, target.image).reverse();
+  if (!update.length && !await knownAppMatches(hid, current, target.image))
+    throw new Error('The shifted-window check found firmware bytes that differ from the selected package. Nothing was written.');
+  status(`TD-H9 verified. ${update.length} main firmware sector(s) differ from ${release.label} and will be replaced.`);
+  return { update, restore: [], verifyShiftedWindows: true };
+}
+
 // Check the radio and plan both directions: a full sector-CRC scan, the
 // pinned sector set, the live shifted-window check, and any interrupted
 // sector. Nothing is erased or written here.
-async function inspectRadio() {
+async function inspectRadio(reference, known) {
   status('Checking the radio: scanning 251 sectors (CRC only, no writes)…');
   phase('Checking the radio (CRC scan, no writes)');
   const current = await scanRadio(hid, progress);
-  setLogoStep(knownRadio(current));
+  if (reference.source === 'verified-firmware' && useDevBuild && target.kind === 'build' && $('skipBackup').checked)
+    return planDevInstallWithoutBackup(current);
   const marker = pending();
-  const resumeSector = marker?.packageHash === target.packageHash && marker?.backupHash === backup.hash ? marker.sector : null;
-  const changed = planUpdate(current, backup.image, target.image, resumeSector, knownImages());
-  if (target.kind === 'build' && !backup.fullInstall && !changed.every(physical => BUILD.sectors.includes(physical)))
-    throw new Error(`${BUILD.label} sector plan leaves its ${BUILD.sectors.length} pinned sectors. No writes allowed.`);
+  const resumeSector = marker?.packageHash === target.packageHash && marker?.backupHash === reference.hash ? marker.sector : null;
+  let changed;
+  try {
+    changed = planUpdate(current, reference.image, target.image, resumeSector, known);
+  } catch (error) {
+    const mismatch = /^Radio differs from the supplied backup at (0x[\da-f]+)\./i.exec(error.message);
+    if (reference.source === 'verified-firmware' && mismatch) {
+      const selected = target.kind === 'stock' ? 'stock v1.0.38' : release.label;
+      throw new BackupRequiredError(`The radio’s main firmware doesn’t match the images verified for a skip-backup install. The first difference is at ${mismatch[1]}. To install ${selected}, clear Skip backup or select a saved recovery file. Nothing was written.`);
+    }
+    throw error;
+  }
+  if (target.kind === 'build' && !reference.fullInstall && !changed.every(physical => release.sectors.includes(physical)))
+    throw new Error(`${release.label} sector plan leaves its ${release.sectors.length} pinned sectors. No writes allowed.`);
   phase('Checking the radio (shifted CRC windows)');
-  await verifyLiveGamePlan(current, changed, resumeSector);
-  const backupCrcs = expectedCrcs(backup.image), targetCrcs = expectedCrcs(target.image);
-  const knownCrcs = knownImages().map(expectedCrcs);
+  if (target.kind === 'build' || reference.source === 'verified-firmware')
+    await verifyLivePlan(current, changed, resumeSector, reference, known);
+  const backupCrcs = expectedCrcs(reference.image), targetCrcs = expectedCrcs(target.image);
+  const knownCrcs = known.map(expectedCrcs);
   const unknown = changed.filter(physical => {
     const index = (physical - APP_START) / SECTOR_SIZE;
     return current[index] !== backupCrcs[index] && current[index] !== targetCrcs[index] &&
@@ -418,32 +626,102 @@ async function inspectRadio() {
     interrupted: unknown.length > 0,
   };
 }
+async function restartAfterVerification() {
+  status('Firmware verified. Requesting a radio restart…');
+  try {
+    if (await hid.reboot()) {
+      clearConnection();
+      status('The radio left USB update mode after the restart request.');
+      return 'Wait for the normal channel screen. If it stays blank, unplug USB and turn the radio off and back on.';
+    }
+    status('The radio stayed in USB update mode after the restart request.');
+  } catch (error) {
+    status(`Firmware verified. The restart request could not be completed. ${error.message}`);
+  }
+  return 'Unplug USB, then turn the radio off and back on to finish restarting.';
+}
+
+const stockRestart = ['Check the firmware version, channels, and settings.'];
+const toolboxRestart = [
+  'From the channel screen, hold Back to open the app menu.',
+  useDevBuild ? 'Open the development app catalog in App Manager and install the matching menu and apps.'
+    : 'Use the App Manager over Bluetooth or experimental USB-C to add apps or a boot logo.',
+];
+const appManagerLink = {
+  href: useDevBuild ? '../apps/?catalog=smartbeacon' : '../apps/',
+  label: 'Open the App Manager',
+};
+
+function aprsResult(state) {
+  return state === 'ready' ? ' The optional APRS update is ready. Open the KISS TNC instructions below.' : '';
+}
+
 async function performWrite(direction) {
-  if (!backup || !target || !hid || !$('acknowledge').checked) return;
-  const destination = direction === 'update' ? target.image : backup.image;
-  const began = performance.now();
+  if (direction === 'update' ? $('flash').disabled : $('restore').disabled) return;
+  for (const id of ['backupHelp', 'writeHelp']) {
+    $(id).hidden = true;
+    $(id).open = false;
+  }
   showResult(null);
   busy = true; refresh();
   try {
-    const checked = await inspectRadio();
+    if (direction === 'update' && !$('skipBackup').checked && !(radioBackedUp && backup)) {
+      await createBackup();
+      if (!backup) throw new Error('The updater could not verify the recovery backup. Check the selected restore point and try again.');
+      backupRunning = false;
+      refresh();
+    }
+    const began = performance.now();
+    // Only use this connection's backup or a file explicitly selected by the user for an install.
+    let reference = direction === 'restore' || radioBackedUp || $('backupFile').files.length ? backup : null;
+    let known = knownImages();
+    if (!reference) {
+      await ensureReferences();
+      const image = target.kind === 'stock' ? target.image : stockSeed;
+      reference = { image, hash: await sha256(image), source: 'verified-firmware' };
+      if (target.kind === 'stock') known = [buildImage, devImage, ...previousImages.map(item => item.image)].filter(Boolean);
+    }
+    const destination = direction === 'update' ? target.image : reference.image;
+    const checked = await inspectRadio(reference, known);
     const work = checked[direction];
+    const toolbox = direction === 'update' && target.kind === 'build';
+    let aprs = null;
+    if (toolbox && useDevBuild) await stageAprsScheduler();
+    if (toolbox) {
+      status('Checking the APRS update file and staging area. Keep USB connected.');
+      const response = await fetch(`./${release.aprsStageFile}?v=${release.aprsStageSha256.slice(0, 8)}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Could not download the staged APRS update file.');
+      phase('Staging and verifying the APRS update');
+      aprs = await stageAprs(hid, new Uint8Array(await response.arrayBuffer()), progress, release.aprsStageSha256);
+      status(aprs === 'ready' ? 'Staged APRS update verified. The restart slide has the keypad instructions.'
+        : 'The APRS staging area is occupied. Preserving its contents and continuing the main firmware install.');
+    }
     $('planState').textContent = `Radio checked: ${work.length} sector(s) to ${direction === 'update' ? 'write' : 'restore'}${checked.interrupted ? ', including one interrupted sector' : ''}.`;
+    $('unlock-kiss').hidden = aprs !== 'ready';
+    $('unlock-kiss').open = false;
+    $('kissGate').hidden = aprs !== 'occupied';
     if (!work.length) {
-      finish('Radio checked; nothing to write');
-      showResult(direction === 'update'
-        ? { title: target.kind === 'build' ? `${BUILD.label} is already installed` : 'This firmware is already installed', text: 'Every firmware sector on the radio already matches this package exactly, so nothing needed rewriting. Your radio is up to date.' }
-        : { title: backup.source === 'hosted-stock' ? 'The radio already runs stock v1.0.38' : 'The radio already matches your backup', text: 'Every firmware sector on the radio already matches, so nothing was written.' });
-      status('Radio checked: it already matches; nothing was written.');
+      finish('Main firmware already matches');
+      $('acknowledge').checked = false;
+      resetBackupOverride();
+      status('Every main firmware sector already matches.');
+      const restart = await restartAfterVerification();
+      showResult({
+        title: toolbox ? `${release.label} is already installed` : 'The radio already matches the selected firmware',
+        text: 'Every firmware sector matched during verification.' + aprsResult(aprs),
+        steps: [restart, ...(toolbox ? toolboxRestart : stockRestart)],
+        action: toolbox ? appManagerLink : null,
+      });
       return;
     }
-    if (direction === 'update' && backup.fullInstall && work.length > BUILD.sectors.length)
-      status(`Full firmware install: this radio is not on stock v1.0.38, so ${work.length} of ${(IMAGE_SIZE - APP_START) / SECTOR_SIZE} firmware sectors differ and are rewritten (the rest already match). This takes longer. Keep USB connected and the radio powered on; if it is interrupted, reconnect in PTT + 2 HID mode and press the same button again.`);
+    if (direction === 'update' && reference.fullInstall && work.length > release.sectors.length)
+      status(`Full firmware install: this radio is not on stock v1.0.38, so ${work.length} of ${(IMAGE_SIZE - APP_START) / SECTOR_SIZE} firmware sectors differ and are rewritten (the rest already match). This takes longer. Keep USB connected and the radio powered on; if it is interrupted, follow the recovery guidance on this step.`);
     status(`Radio checked. ${direction === 'update' ? 'Writing' : 'Restoring'} ${work.length} sectors. Keep USB connected and the radio powered on.`);
     phase((done, total) => done >= total ? `${total} sectors written and verified` : `Writing and verifying sector ${done + 1} of ${total}`);
     progress(0, work.length);
     for (let index = 0; index < work.length; index++) {
       const physical = work[index];
-      localStorage.setItem(resumeKey, JSON.stringify({ packageHash: target.packageHash, backupHash: backup.hash, sector: physical, direction }));
+      localStorage.setItem(resumeKey, JSON.stringify({ packageHash: target.packageHash, backupHash: reference.hash, sector: physical, direction }));
       await writeSector(hid, physical, destination);
       localStorage.removeItem(resumeKey);
       progress(index + 1, work.length);
@@ -455,30 +733,44 @@ async function performWrite(direction) {
       const index = (physical - APP_START) / SECTOR_SIZE;
       if (after[index] !== desired[index]) throw new Error(`Final CRC mismatch at 0x${physical.toString(16)}.`);
     }
+    if (checked.verifyShiftedWindows && !await knownAppMatches(hid, after, destination))
+      throw new Error('The final shifted-window check found firmware bytes that differ from the selected package.');
     $('acknowledge').checked = false;
+    resetBackupOverride();
     const seconds = formatDuration((performance.now() - began) / 1000);
     finish(`${work.length} sectors ${direction === 'update' ? 'installed' : 'restored'} and every sector CRC verified in ${seconds}`);
-    setLogoStep(knownRadio(after));
-    showResult(direction === 'update' && target.kind === 'build'
-      ? { title: `${BUILD.label} installed and verified`,
-          text: `All ${work.length} changed sectors were written and every firmware sector's CRC matches the package (${seconds}).`,
-          steps: ['Disconnect USB and power-cycle the radio.', 'Open the App Manager, connect over Bluetooth, and install apps (APRS, Brick Breaker) and a boot logo.', 'On the radio, hold Back for the app menu.'],
-          action: { href: '../apps/', label: 'Open the App Manager' } }
-      : { title: direction === 'update' ? 'Firmware written and verified' : backup.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
-          text: `All ${work.length} changed sectors were written and every firmware sector's CRC matches ${direction === 'update' ? 'the package' : backup.source === 'hosted-stock' ? 'official stock v1.0.38' : 'your backup'} (${seconds}).`,
-          steps: ['Disconnect USB and power-cycle the radio.', 'Check the version and your saved channels and settings.', 'Your boot logo is kept: it lives on the separate resource flash.'] });
-    status(`${direction === 'update' ? 'Updated firmware' : 'Restored backup'} sector CRC verification passed. Disconnect USB and power-cycle the radio, then check its version and saved settings.`);
+    const restart = await restartAfterVerification();
+    showResult({
+      title: toolbox ? `${release.label} installed and verified`
+        : direction === 'update' ? 'Stock firmware installed and verified'
+          : reference.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
+      text: `Updated ${work.length} sector(s) and verified every firmware sector (${seconds}).` + aprsResult(aprs),
+      steps: [restart, ...(toolbox ? toolboxRestart : stockRestart)],
+      action: toolbox ? appManagerLink : null,
+    });
   } catch (error) {
-    fail(error);
-    showResult({ failed: true, title: 'Write stopped before it finished',
-      text: error?.message || String(error),
-      steps: ['Do not discard the selected firmware or backup files.', 'Reconnect in PTT + 2 HID mode and click the same button again.', 'The page checks the radio and resumes from the interrupted sector; Restore returns to your backup.'] });
+    if (backupRunning) $('backupProgress').hidden = true;
+    if (cancelBackup) {
+      status('Backup cancelled. No radio write was sent.');
+    } else {
+      fail(error);
+      showResult({
+        failed: true,
+        title: backupRunning ? 'Recovery backup did not finish'
+          : error instanceof BackupRequiredError ? 'Backup required to install this firmware' : 'Firmware verification did not finish',
+        text: error?.message || String(error),
+      });
+    }
   } finally {
-    busy = false; refresh();
+    busy = false; backupRunning = false; cancelBackup = false; refresh();
   }
 }
 $('flash').addEventListener('click', () => performWrite('update'));
 $('restore').addEventListener('click', () => performWrite('restore'));
 
-if (!('hid' in navigator)) status('WebHID is unavailable here. Use desktop Chrome or Edge over HTTPS.', true);
+$('browserCheck').textContent = browserReady ? 'Your browser supports USB updates. Select Start setup when you’re ready.'
+  : !window.isSecureContext ? 'Open this page using a secure link that starts with https://, then try again.'
+    : 'This browser can’t connect to the radio over USB. Open this page in Chrome or Edge on a computer.';
+$('browserCheck').classList.toggle('unavailable', !browserReady);
+if (!browserReady) slides[0].querySelector('.guide-help').open = true;
 refresh();

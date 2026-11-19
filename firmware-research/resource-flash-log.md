@@ -4393,3 +4393,624 @@ result yet.**
   takes the quick verified path for an exact known image). That build was rebuilt byte for byte (same package hash; the stub without `ml_fw_version`) and added as
   PREVIOUS `release6`; v0.1.4 (`cd1bfd70...`) is BUILD. node tests 133 pass. If a radio is stock except the install's own sectors, the installer still
   does the full recovery (`stock-like`): a possible improvement is to take stock as the restore point there, since those sectors are code, not user data.
+
+## 2026-11-17 H9 Toolbox development site
+
+- The public H9 Toolbox site responds over HTTPS from GitHub Pages. Its
+  workflow deploys on pushes to `main`. The `dev` branch adds a main-branch
+  check to that job for manual runs and a Cloudflare Pages build script.
+- The Cloudflare staging check found 92 assets including the main site,
+  app manager, programmer, firmware installer, and KISS TNC. The staged
+  site sends `X-Robots-Tag: noindex` and includes the build's commit SHA in
+  `/dev-build.txt`. Squarespace is authoritative for `h9toolbox.com`.
+- Cloudflare Pages deployed `9d067abb391012bc1d67e2a1f49ac86fbeb304c2`
+  from `dev`. Automatic deploys are enabled for `dev` and previews for
+  other branches are disabled. The Squarespace `dev` CNAME points at
+  `h9toolbox-dev.pages.dev`. Verified HTTPS, the deployed SHA and KISS TNC
+  JavaScript at `dev.h9toolbox.com`, and an HTTPS 200 from GitHub Pages at
+  `h9toolbox.com`. Site tests reported 120 passes and one skip.
+
+## 2026-11-17 — APRS modem firmware restore
+
+### Vendor stock APRS recovery confirmed (2026-11-17)
+
+- With the radio on `APRS Update` (PTT+7) and Windows `COM4` at 38,400 baud,
+  the user ran the bundled TIDRADIO `Upgrade.exe` with the pinned stock
+  APRS-1.0.15 image (`1dbbc104…`, 17,304 bytes). After reboot, the user
+  confirmed APRS Info shows `V1.0.15`. This demonstrates a running modem
+  and a working internal version-query round trip. Packet decode and GNSS
+  reception were not tested in this recovery check.
+- Compared the pinned vendor executable (`b96e1aa2…`) with the checked-in
+  flasher. The block order, frame encoding, checksum and exit command agree.
+  Vendor `_update.Form1.sp_Open` sets DTR and RTS before opening the Windows
+  serial port. `sp_DataReceiveClear` then reads bytes until a 20 ms read
+  timeout. The Python code sets line state on an open pyserial port and calls
+  `reset_input_buffer()` without waiting for a quiet interval. Vendor
+  `sp_DataReceive` polls for seven buffered bytes, then reads them. Both tools
+  check status `0x10` on the seven-byte exit acknowledgment and close on
+  success. The vendor does no flash readback.
+- The four earlier same-hash stock journals are macOS USB serial transfers.
+  Each logged 136 block acknowledgments and exit acknowledgment, with no
+  post-reboot version readback. The stricter Python write-ACK rule therefore
+  did not stop those recorded runs. The host and updater changed together in
+  the successful comparison. USB serial buffering, timing and initial line
+  state are candidates. No byte-level capture of the successful Windows run
+  or the earlier macOS attempts is available to isolate the cause.
+
+### Toolbox stock APRS restore confirmed on Windows (2026-11-17)
+
+- Updated `aprs_flasher.py` to configure DTR and RTS before opening the port,
+  drain input until 20 ms of serial silence as the vendor does, and save raw
+  block and exit replies in the existing journal. The startup drain stops
+  after 3 seconds of continuous input. Block order and reply checks are
+  unchanged. All 15 focused tests passed.
+- With the user's confirmation that the radio was in PTT+7 APRS Update mode,
+  flashed the pinned stock APRS-1.0.15 image (`1dbbc104…`, 17,304 bytes) on
+  Windows `COM4` at 38,400 baud. The startup drain discarded zero bytes.
+  All 136 block replies were `54 49 44 00 01 13 14`, with the last 24-byte
+  block at offset `0x4380`. Exit reply was `54 49 44 00 01 10 11`.
+  Elapsed time through exit acknowledgment was 22.705 seconds. Local journal
+  `output/aprs-1.0.15/APRS-stock-toolbox-20261117T200752Z.jsonl` has SHA-256
+  `b816d40ea0afd343e21ce7606f917a26d10ca1fdf37d14fb8d4ad05e4014868d`.
+- The user rebooted normally and confirmed APRS Info shows `V1.0.15`.
+  This verifies the Windows stock flash and internal version query. No
+  post-flash packet or GNSS check was reported. Because the host and startup
+  handling differed from the earlier macOS runs, this does not isolate the
+  cause of their failure to produce a verified boot.
+
+- Follow-up on the Mac attempts: the pinned stock main image
+  (`11a07bc0…`) translates host write `0x03` to an internal UART `JL 0x0D`
+  command (`0x01E7878E` → `0x01E786BA` → `0x01E5B4AA`). A valid modem-side
+  `PY 02 01 0D` reply triggers the host's `TID 00 01 13 14` at
+  `0x01E79066` → `0x01E7871E(1)`. The older `THD` transcription was wrong.
+  On host exit `0xFF`, `0x01E787AE` calls `0x01E7871E(2)` to send
+  `TID 00 01 10 11` before `0x01E787BA` sends `JL 0x55` to the modem. The
+  final host acknowledgment can therefore be logged before the modem has
+  processed the exit. A failed exit or boot is consistent with the journals.
+  Its cause remains unverified without an internal UART trace.
+- The captured branch's old Python source and the updated source generate
+  the same 137 messages for stock, SHA-256 of concatenated bytes
+  `b7e3b4568c03d075852cd0977639729423df57d5871fc2fa4c0c8cae20da3dbd`.
+  The four Mac journals lack raw bytes and the exact running source.
+  Median block intervals were 165.19–165.40 ms on the Mac and 166.42 ms on
+  the successful Windows run. The first block acknowledgment arrived
+  about 19 ms later on Windows and the new drain discarded zero bytes.
+  This does not show a corrupt payload, timing failure, or macOS driver bug.
+
+## 2026-11-17 — Smart Beacon on the normal radio screen
+
+- Back from an armed APRS BEACON opens hidden `.APRS BG`, which retains the existing Smart or Timed schedule and returns to the normal radio screen using loader API 2. The resident tick reads the modem ring with its own cursor so the stock reader still sees GPS and APRS data. Holding Back to open the Toolbox menu pauses the resident module before replacing its RAM slot. Reopening Beacon restores the armed session and schedule from a checked snapshot when it is still valid. Hold Menu in Beacon to stop it.
+- Background TX pins the configured APRS TX setting, side and frequency at handoff. It waits for that side and frequency on the normal radio screen, and checks the stock periodic beacon's idle conditions and keyed RF state before calling the stock KISS sender. Resident ticks leave the selected channel alone. The foreground screen uses 6,705 bytes and the resident module 4,125 bytes, within their respective RAM bounds.
+- Host screen and scheduler tests passed under ASan/UBSan, including Back, resume without a duplicate first beacon, and rejection of a damaged snapshot. The loader and App Manager tests passed. Both modules use the existing v0.1.4 loader. The single-module packages under `module-loader/build/background-beacon/modules/` are `aprs_beacon.h9mod` SHA-256 `1572935ddc6267ae1c453001059f8627b11d4ccc314927299902d988d0c2e000` and `aprs_bg.h9mod` SHA-256 `e6fa53c1093307497daa4aa6409fbb556cb875b8a8ea8637eac8267cde9cb8b3`. Live radio testing is pending.
+
+## 2026-11-18 App Manager over USB-C serial
+
+- **Static evidence:** decoded the stock v1.0.38 app (SHA-256 `11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3`).
+  The serial wrapper at app+`0x78A6A` calls the shared clone handler at app+`0x5CF18` and supplies USB send callbacks for transport 2.
+  The handler reaches the resource service patches at app+`0x5D018` (32-byte reads, including the selected bank and high data window)
+  and app+`0x5D122` (guarded writes). PTT+2 exposes `4C4A:4155` HID only on the Mac. App Manager needs the normal channel screen.
+- The App Manager offers experimental Web Serial at 115200 baud and checks for the resource service before enabling writes.
+  USB-C uses the existing 32-byte clone reads and guarded write frames. Bulk reads and link timing commands call the Bluetooth stack
+  directly, so the USB path skips them. App bundles and boot logos use their existing storage layout and read-back checks.
+- **Simulated:** fragmented serial replies, verified bundle install/read/remove, verified logo rewrite, stock firmware refusal, and unplug cleanup.
+  Desktop Chrome loaded the page and catalog and passed Connect USB-C, initial modules-slot read, and Disconnect with a simulated port.
+- **Live USB-C (macOS):** the normal firmware exposed a serial interface at `4C4A:4155`. An exclusive native serial read passed 1,500
+  consecutive app-storage blocks in 11.886 s and 260 paced reads in 4.907 s. The browser sometimes received no reply, and the old
+  retry restarted the bank and hit the same failure again. The 32-byte reader now reselects the bank and resumes at the missing block.
+  With that change alone the existing 92,195-byte bundle verified in 73 s, with repeated timeouts.
+- **Browser framing:** the first lost request was reproducible at chip `0xCC1D80`. After 75 handshake, status and directory request bytes
+  and 108 four-byte data reads, that request occupies outgoing offsets 507–510, straddling the second 255-byte browser buffer boundary.
+  Later captures also hit predicted boundaries. Chromium backs Web Serial with a ring buffer of the requested size.
+  App Manager now uses a 64 KiB buffer and drains and recreates its writer between requests before a frame would straddle the boundary.
+  The browser read the same bundle in 24 s with zero retries and a matching directory SHA-256, then parsed all 22 modules.
+  The writer rollover and interrupted reads passed in simulation. The live browser check read the installed bundle.
+
+## 2026-11-18 APRS modem `0xFF` receive fix
+
+- Five checksum-valid copies of the missing on-air `I[0/4]` frame decoded
+  from the H9 speaker. The frame never reached BLE. It carries a `0xFF`
+  byte, while the adjacent frames that reached BLE do not.
+- The queue's pop routine returns an unsigned byte or `-1` for empty.
+  The wrapper's `sxtb r0, r0` at `0x08005E20` converts `0xFF` to `-1`
+  after the byte has been consumed. The parser later rejects the frame
+  at its FCS check. Replacing the sign extension with a NOP in the
+  original RX15 image made the captured frame reach the emulated UART.
+  The same replay preserved all 256 byte values and 15-byte frames and
+  rejected a frame with a corrupt FCS.
+- The resulting image SHA-256 is
+  `3a70e2f48283cfd0d06fb29a08f462fc0b8302898e09d41946d5f74205daf741`.
+  The first Mac transfer used the old updater without the 20 ms startup
+  drain. It reported complete acknowledgments and APRS Info stayed on
+  `Querying…` after reboot. Mac restores of RX15 and stock 1.0.15 with
+  `1775b82` used the 20 ms startup drain and received all expected block
+  and exit replies. APRS Info still did not return the modem version.
+  The patched image is available for a Windows boot and packet test.
+
+## 2026-11-18 TD-H9 KISS and Pat upload
+
+- Windows APRS Update completed with the RX15 and unsigned receive-byte patch. APRS Info reported V1.0.15 after reboot. A Winlink information frame containing `0xFF` reached Bluetooth and Pat received a message. The APRS image SHA-256 is `3a70e2f48283cfd0d06fb29a08f462fc0b8302898e09d41946d5f74205daf741`.
+- The main image adds raw AX.25 through the AF00 Bluetooth service using the stock PTT and modem UART. The running app matched the published H9 Toolbox base plus six pinned patch spans. Rebuilding through the factory container produced the exact tested package, SHA-256 `0bede1c07c996d631ed7f2e584573f8fae4803e0cb3c0ccb5133bb80092c364a`. The radio backup stayed local.
+- On the Mac, the 32-byte host packet limit fragmented the login. An 80-byte limit let K9ESV-10 acknowledge it in one data frame. The first message upload then stalled after proposal acceptance on Pat’s standalone 19-byte transfer header. A 100 ms batch window let the host send that header with the beginning of the body. At 1200 baud with one outstanding frame, a 1.60 s BLE TX interval and a 0.70 s RX-to-TX guard, the gateway acknowledged the data and Pat recorded a successful upload.
+- The [KISS setup](kiss-tnc/README.md) includes the verified firmware, the portable launcher and the pinned tncd patch. macOS was used for the over-the-air host test. Linux and Windows host builds were verified offline.
+
+## 2026-11-18 APRS modem browser updater
+
+- The dev build publishes a separate [APRS modem flasher](https://dev.h9toolbox.com/aprs-update/) and links it from the main firmware flasher. It stages the existing RX15 and unsigned-byte image. Stock recovery is fetched from the pinned TDH9 mirror or supplied as a local file. Both 17,304-byte images are checked against the flash guide's SHA-256 values before writing.
+- Web Serial opens at 38,400 baud and sets DTR and RTS after opening, as required by the [browser API](https://developer.chrome.com/docs/capabilities/serial#handle_signals). The Windows script sets them before opening. The browser drains input until 20 ms of quiet and writes 128-byte blocks using image-relative offsets and the vendor checksum. It expects the exact Windows replies `54 49 44 00 01 13 14` for a write and `54 49 44 00 01 10 11` for exit. The existing TD-H9 USB serial identity is used to filter the port picker. The user confirms PTT+7 APRS Update mode on the radio screen.
+- Node and Chrome with simulated serial streams covered both image paths, fragmented acknowledgments, timeout and disconnect cleanup, the wrong-ACK stop, and the stock and journal downloads. Chrome also fetched the real pinned stock file. All 136 browser write frames for the packet fix matched the Python updater byte-for-byte. The browser updater has yet to be verified on the radio. Earlier macOS transfers showed that exit acknowledgment alone cannot verify modem boot.
+
+## 2026-11-18 macOS Chrome APRS boot failure
+
+- The user reported APRS Info stayed on `Querying…` after flashing the KISS APRS image in Mac Chrome. The open browser session showed 17,304 bytes acknowledged and the completed-transfer message, which follows the exit acknowledgment. This reproduced the post-reboot symptom from native macOS writes. The page now disables macOS writes and keeps the hash-checked stock recovery download available. The Windows serial updater remains the verified recovery path.
+
+## 2026-11-18 KC9GMW-12 login retry
+
+- Reproduced the packet login stall using the 80-byte, one-frame H9 profile and an isolated empty Pat Outbox with downloads deferred. The first diagnostic call received the challenge and prompt frames over Bluetooth while greeting sequence 0 was absent. Pat generated no login on that call. On the second call, the greeting arrived in sequence after rejects and Pat queued its 80-byte `I[0/3]`.
+- The initial `I[0/3]` and two link-layer retries each completed one 99-byte KISS write to AF01 without response. The gateway's `RR[0]` reached AF02 after the second handoff, so the gateway was still expecting sequence 0 at that point. No advancing acknowledgment was logged before the diagnostic timeout. The initial frame was queued 2.2 s before its Bluetooth write, with a queued `REJ[0]` sent in between. The effect of that timing on RF remains unverified.
+- The MacBook microphone captured the speaker during both calls. Dire Wolf decoded zero checksum-valid frames from the recordings, including frames independently logged on Bluetooth. It decoded four from a generated control recording. This leaves the RF outcome of the login transmissions and any other gateway response unobserved. The regular Pat Outbox snapshot matched before and after the diagnostic calls.
+- Fixed the TNC's repeated REJ generation for one receive gap. It still answers polls, clears the reject when the missing frame arrives, and can request the next gap. The regression test exercises all three transitions and the full tncd Go test suite passed. A live trial after the H9 reappeared on Bluetooth reached KC9GMW-12 at 145.610 MHz. The gateway sent ordered greeting frames and acknowledged the 80-byte `I[0/3]` with `RR[1]` 2.149 s after AF01 handoff, then acknowledged the second 80-byte information frame with `RR[2]`. This confirms 80-byte RF delivery. The successful link had no receive gap, so it cannot attribute the earlier missed sequence zero to duplicate REJs.
+- Winlink then returned an explicit secure-login password mismatch. The isolated test used the same saved password and callsign as the regular Pat profile. Its Outbox was empty and incoming proposals were deferred. The regular Outbox snapshot matched after the trial.
+- On the next trial, Winlink's password-validation API accepted the exact saved credentials used in the isolated Pat profile. KC9GMW-12 acknowledged the 80-byte login frame with `I[3/1]` carrying `FQ` 2.149 s after Bluetooth handoff. Pat recorded a successful exchange and exited with status 0. The AX.25 disconnect command was retried. Both the isolated and regular Outboxes were empty; the regular Outbox matched its preflight snapshot.
+
+## 2026-11-18 — APRS firmware continuation on the Mac
+
+- Reconstructed the available cloud source from chat records over pinned base
+  `25422163`. Loader API 3 reserves `0x29C00–0x29EFF` and clears it at startup.
+  Beacon keeps its session through module overlays and its one-minute retry
+  through clock rollover. The existing background tick still pauses while
+  Toolbox owns `my_app`.
+- The private November 17 readback of main flash `0xEA000–0xFBFFF` is 72 KiB,
+  SHA-256 `0fb13a7df0b151f55e8fcc13c614be4bbe755749f4fea97a5328bbd837f1c4be`.
+  The first 17 sectors contain data. `0xFB000` was entirely erased in that
+  readback. An offline Pi32v2 link at candidate address `0x01EF6000` fits the
+  service, dispatcher and settings journal in 3,308 bytes, SHA-256
+  `14e2fdf60b849bba765dcdfff068508c0fee7904eb2be30091d4dcdc71847f3a`.
+  This link is separate from the firmware build. The stock modem writer
+  drops batches if its stock reader stalls, so a second cursor alone cannot
+  supply continuous GNSS updates. Stock PTT and Bluetooth KISS share RF state.
+  The remaining execution and TX checks are in the [resident plan](module-loader/resident-service/TX-CONTEXT-PLAN.md).
+- Resource flash `0x3FC000`, `0x3FD000`, `0x980000` and the GAME directory sector
+  at `0xA1F000` were blank in the November 9 backup. Current contents are
+  unknown. Experimental loader guards S2 erase/begin at app+`0xA52A4` and
+  the per-block pre-program check at `0xA535A`. Both reject `0x3FC000–0x3FFFFF`.
+  The browser uploader also protects that range and retains read-back for
+  pre-existing overlapping packs. The journal has no hardware binding and
+  refuses to overwrite an unrecognized or torn sector. A known-good prior
+  record remains readable after an interrupted alternate-sector write.
+- The compiled normal-mode CH-B speaker gate is build-time only. Bluetooth
+  audio and decode require verification. Morse guards cover both terminal
+  entry points, the keying branch and message dispatch. The menu still shows
+  Morse and code space remains occupied. The locale label tables and stable
+  dispatch IDs are recorded in [Morse removal](module-loader/MORSE-REMOVAL.md).
+- Both experimental build options passed the exact changed-sector check.
+  Combined package SHA-256 `9cc54abd1e1c8e0728a8ec3fed5d3b8450158be1f8846e9198383024fef44c43`.
+  Beacon and background modules are 6,761 and 4,158 bytes respectively.
+  122 browser tests, 12 loader tests, two Morse tests, the assembled mute
+  gate test, nine simulated HID restore tests and the APRS/journal host
+  tests passed. The stock-base satellite tracker test reports 12 failures
+  with the generated satellite data. No radio USB updater was attached.
+  No radio write, transmission, push or release occurred.
+
+## 2026-11-18 — SmartBeacon rebuild with the `dev` packet firmware
+
+- Used `dev` at `8879e70c223ffb970cd4e262173468d4fa34b6a7`. Both standalone
+  packet images rebuilt byte-for-byte from the pinned factory packages.
+  Main KISS SHA-256 `0bede1c07c996d631ed7f2e584573f8fae4803e0cb3c0ccb5133bb80092c364a`.
+  APRS modem RX15 and unsigned `0xFF` SHA-256
+  `3a70e2f48283cfd0d06fb29a08f462fc0b8302898e09d41946d5f74205daf741`.
+- The KISS helpers' original app+`0xA7C7C` span overlaps the expanded loader.
+  `--dev-kiss` places the 248-byte block at app+`0xA7D20–0xA7E17` on this
+  build. The four external calls target the same offsets within the block.
+  The block's 20 relative branches and calls land within it. The RX helper
+  still calls the stock packet parser after forwarding to the Bluetooth queue.
+  The `dev` auto-channel receive patch is retained. The scan found the expected
+  changes only and confirmed 56 bytes of padding before the resource tables.
+- The combined app-only package validated against factory Type-C v1.0.38.
+  SHA-256 `daf623d791525d6cf3c3a6d708bce81fcf6a81f6e0f0a9aeec3c761b9bd81c7c`.
+  The 20-module bundle matches the prior build (SHA-256
+  `d1ae531ad0e404aff04446e215bfb6ba45c2f81a8edfa9af4aa3f0688e1a8964`).
+  The rebuilt bundle passed the App Manager parser test after the full site
+  suite ran with 133 passes and that test skipped. The loader, APRS updater,
+  mute, Morse and targeted C tests passed. The satellite tracker still reports
+  its 12 baseline fixture failures. The combined main image needs radio validation.
+
+### Stock Morse menu follow-up
+
+- The shared top-level menu selector 11 at app+`0x6811E` fills the list at
+  `0x68296`. The `--disable-morse` build now skips category ID 7 at
+  `0x682B6` and keeps IDs 8–10. The label table and dispatch IDs remain
+  stable across locales. Existing terminal, keying and message guards stay
+  in place. On-device navigation, RF and recovery checks are pending.
+- The combined app-only package with the menu change is
+  `a86229953723522d10526d9efeefac47d9323274aaaa9ea7d4ff6342cb5825f4`.
+  Compared with the prior experimental image, only the Morse menu
+  initializer changes inside the app. The app-only factory-package check
+  and three Morse tests pass. The 20-module bundle is identical.
+- Rechecked the exact M11 image. It reads two bytes at resource `0x980000`
+  and updates those bytes independently. The marker bytes exist in RAM.
+  The corrected call sites are recorded in [APRS mute](module-loader/APRS-MUTE.md).
+
+### Resident SmartBeacon dev bench build
+
+- With the radio in Normal mode, two independent USB reads matched on each
+  preflight sector. Resource sectors `0x3FC000` and `0x3FD000` were erased
+  (each SHA-256 `f47a8ec3e9aff2318d896942282ad4fe37d6391c82914f54a5da8a37de1300c6`).
+  The GAME directory at `0xA1F000` verified its header CRC and complete
+  marker. Its 1,056,192 bytes start at `0xA20000` and stay clear of both
+  candidates. Resource `0x980000` was occupied. The preflight wrote nothing.
+- The `TSPAIR02` settings journal adds mode, interval, symbol, arm state and
+  TX route to the mute preference. It reads the earlier mute-only V1 record.
+  The firmware reserves both sectors from S2 uploads. APRS BEACON validates
+  the GAME allocation before saving, verifies each save and updates the
+  running settings. A degraded pair restores the prior mute value with the
+  scheduler disarmed. Simulator tests cover saved start/stop, sector
+  ownership and cuts during erase or program.
+- The resident worker reads completed bytes from the UART1 DMA ring before the
+  stock screen-dependent ring. It has an independent cursor, preserves the
+  stock consumer and drops partial GPS input after a DMA gap. It polls every
+  20 ms using a stock RTOS task call and shares live status with APRS BEACON
+  through loader ABI 4. At boot the loader requires an exact resident body
+  CRC before starting the worker. Automatic transmission is disabled.
+- The Morse build removes 2,358 bytes of exclusive code in seven verified
+  ranges. It retains the original shared RF and settings handling. The dev
+  KISS helpers reuse 248 bytes starting at app+`0x84F88`. The built-in speaker
+  gate uses the boot-loaded user preference and preserves stock close calls.
+  The physical audio and on-radio Morse menu checks are still required.
+- Main package SHA-256
+  `e1b5921e0272bb0f33e732ef7b35774c1b07dc4722f9644d00348b090fa8318e`.
+  The 3,277-byte resident body in main sector `0xFB000` has SHA-256
+  `e2d34be0ca02edc58ebf1b9297d26e96d6dd438ecec47a7921b6eb025a338792`.
+  The factory app-only package check, native APRS and settings tests,
+  mute and Morse regressions, and 134 web tests passed.
+- In the authorized HID update, all 213 app sectors and six shifted CRC
+  scans matched the installed dev KISS main package. A private rollback copy
+  was saved (app SHA-256
+  `3d5b241222f7c9d4f441a36101c543c3f76bca23aefd9878e7399a618bba9d19`).
+  The updater confirmed `0xFB000` erased. An initial helper call supplied
+  a sector buffer in place of the full image and stopped before any app
+  sector changed. Corrected the input, verified the unchanged app and
+  erased far sector, then installed the resident sector and 16 differing
+  app sectors. All app CRCs and the service sector matched the bench build.
+  The H9 rebooted in Normal mode and answered the S2 service handshake.
+  The separate APRS modem build was verified offline.
+- Read back and saved the original installed module bundle before updating
+  it. Its directory SHA-256
+  `9df5449340d73576dba574123eeeabe3ad43cc8bcbdd6901c77119433f12aa05`
+  matched all 92,227 bytes from the radio. The standard bench bundle also
+  verified by readback. The final 21-entry bench bundle uses the original
+  modules with the matching new APRS BEACON screen and drops the obsolete
+  `.APRS BG` overlay. Verified 85,899 bytes after upload, SHA-256
+  `1fa3499f64cc0b3763763a1e363d885fb1962a95bb5b6e23ca5b7e3a06fc6046`.
+- The initial normal-mode read after installation found both settings
+  sectors erased. Stock APRS was enabled, RX was B and TX was B-Lock.
+  Stock Timed Beacon was on, with PTT Linkage and both relays off. Asked
+  the operator to switch off stock Timed Beacon for the receive-only bench.
+- The next read confirmed stock Timed Beacon off and two valid committed
+  `TSPAIR02` records. Generation 13 had mute on and schedule off.
+  Generation 14 had mute on and the 5-minute timed schedule armed.
+  The APRS BEACON screen requires a ready resident task to save an armed
+  state.
+- The operator reported a live GPS fix on APRS BEACON and reached the screen
+  again after the observed USB disconnect at power-cycle time. The screen
+  uses the resident task's snapshot for its GPS status. The operator
+  confirmed SCHEDULE ARMED and APRS MUTE ON after the power cycle, and
+  GPS FIX BEACON DUE after leaving the screen for the normal channel view.
+- The operator confirmed that stock Morse is gone and stock APRS opens.
+  Voice on A remained audible with APRS MUTE ON. The operator heard no
+  packet audio on B during the check and is waiting for a known packet
+  to confirm decoding with mute on.
+- The next offline build removes 1,298 more bytes of CW-only character,
+  timing and display code, for 3,656 bytes total. The shared stock packet
+  handler at app+`0x87E38–0x87E76` remains byte-identical. The resident body
+  and module bundle also match the previous bench build byte-for-byte.
+  Main package SHA-256
+  `3e575164e2f859fd197f04e268143fb2dd99f5451ed91e1448e889f40841c432`.
+  This follow-up is an offline package. The initial 2,358-byte removal
+  is the one verified on the radio. The additional removal is in main
+  flash. The module slot is 8 KiB and resident state reserves a separate
+  512 bytes from the shared heap.
+
+### Shared module routines in the retired Morse ranges
+
+- The follow-up image has 3,408 retired Morse bytes available after the
+  248-byte dev KISS helper block. The largest contiguous span starts at
+  app+`0x85080` and has 1,510 bytes. The same starting address has 1,424
+  bytes in the installed bench image.
+- In an offline Pi32v2 link test, `h9lib.o` and `gfx.o` (including the font
+  and `memcpy`/`memset`) fit at app+`0x85080` in 1,287 bytes, including a
+  52-byte table of 13 stable entry jumps. The body SHA-256 is
+  `60a3eaacd8810701ad147c93150ee3c075c832a191162add00d9dad1a88a0ed4`.
+  Each jump was decoded and checked against its linked destination.
+- Relinked the existing dev module objects at their normal RAM address.
+  The baseline links matched the archived modules byte-for-byte. The
+  experiment replaced the local library with 8- or 18-byte tail-call
+  bridges and included a 14-byte API version check at module entry.
+  Net savings across the 16 graphics-using C modules were 1,041–1,101
+  bytes per module. APRS MAP was 6,767 → 5,714 bytes, APRS LIST 6,741 →
+  5,688, GPS 6,513 → 5,456 and SAT PASS 6,433 → 5,352. The APRS launcher
+  does not link the library and measured zero savings after the entry
+  check. The experiment measures code and constant data in the existing
+  slot. It has no on-radio runtime or display timing measurements.
+
+- The `--flash-shared` dev rebuild installs this 1,287-byte library in the
+  main image and advertises loader API 5. The 17 C modules enter through the
+  compatibility check. SAT TRACKER saves that same guarded entry point for
+  its background calls. BRICK BREAKER and `.SAT DATA` are byte-identical.
+  The 19-entry app bundle shrank from 85,562 to 68,475 bytes. An offline
+  upgrade of the last H9 app snapshot preserved all 21 entries, including
+  the bytes of the ten diagnostic-only entries.
+- Main package SHA-256
+  `ca3d3eabc4eda706bfc238fa9369d0584207cf9720ef95fc3d68b3d6eccad39d`.
+  App bundle SHA-256
+  `bba23b36aef577e7aae4d134d198aefa4440113489b0998187d67b663cbb00cd`.
+  The prior bench main image differs in 12 sectors. The main KISS edits,
+  separate RX15 and unsigned-byte modem image, and far scheduler body
+  matched their baselines byte-for-byte. The earlier API 4 main package
+  also reproduced byte-for-byte with the shared helper option omitted.
+- The stock-derived package inspection, assembled API guard and
+  argument-passing checks, App Manager round trip of the new bundle,
+  Morse, mute, serial clone and targeted native APRS tests passed.
+  All 134 web tests passed. The native satellite fixture produced the
+  same 12 failures as the unmodified baseline. On-radio execution of
+  the shared routines is pending.
+
+### 2026-11-18 API 5 bench installation
+
+- Before the update, USB serial read back the radio's complete 85,899-byte
+  app bundle and verified its SHA-256 against the directory. The backup also
+  includes the directory and the two committed SmartBeacon settings sectors.
+  Generation 18 had APRS mute on and the 5-minute schedule armed. Stock APRS
+  was on for B receive, with Timed Beacon, PTT Linkage and both relays off.
+- In PTT + 2 mode, aligned and shifted CRC scans matched the prior API 4
+  image. The update wrote only the 12 main app sectors that differed, with
+  the header sector last. The same scans matched the API 5 image after
+  writing, and the existing resident scheduler sector at `0xFB000` matched
+  CRC-16 `0x72C9` before and after. The separate APRS MCU was left in place.
+- The radio returned to Normal mode and answered the USB resource service.
+  The matching 75,330-byte bundle retained all 21 installed entries. The 11
+  matching rebuilt apps, including APRS BEACON, were updated. The other ten
+  entries kept their prior code, data and entry points. Verified the full
+  installed bundle, SHA-256
+  `1a520dd5a8bff7278d563325be936655e9759575ac57b4ffbfa0a3ed72d01096`.
+  Both settings sectors matched the preflight backup byte-for-byte after
+  installation. SmartBeacon transmission is disabled in this bench build.
+- The operator confirmed ABOUT showed API VERSION 05 with a changing tick
+  and APRS MAP drew normally. These screens exercise the shared drawing,
+  font, key and delay routines. APRS BEACON displayed GPS FIX BEACON DUE
+  after the update, confirming the resident service published live status.
+- Three normal-mode USB checks with APRS mute enabled found no newly
+  stored packet in the stock Beacon List. Over-the-air decoding with mute
+  enabled still needs a positive observation.
+
+### 2026-11-18 TD-H3-style Toolbox navigation
+
+- Adapted the grouped list, row numbers, keypad jumps, editing and Back
+  behavior from Limehawk's TD-H3 menu at `73bcf2d`. The shared-flash dev
+  menu exposes the APRS settings directly. APRS BEACON now reads and shows
+  the resident snapshot. Settings use the existing journal and are
+  published after a verified save.
+- MENU is 6,086 bytes, with 442 bytes between the end of the module and
+  the shared satellite state. The compatibility build with RAM-local
+  helpers reproduced the earlier API 4 MENU and APRS BEACON bodies.
+- The new standard bundle is 70,191 bytes with SHA-256
+  `fade7613feef3c623b3536fa9252991212a83c8b87a1be60a7deb0803d857cd1`.
+  MENU and APRS BEACON are the two changed module entries. The corresponding
+  main package has SHA-256
+  `919f0039c738c4f93a9c577d3c93606687ade1bf43434f829f73fb1454be2381`.
+  The decoded main app changes two bytes for the new APRS BEACON CRC.
+  The beacon resident, flash helpers and separate APRS modem image match
+  the prior shared-flash build.
+- Host tests passed for keypad jumps, row recall, Back, settings debounce,
+  save failure, and read-only live status. Loader, mute, Morse, serial clone
+  and all 134 web tests passed. The native satellite fixture reproduced
+  its prior 12 failures.
+- With the prior API 5 main image and the SmartBeacon resident verified in
+  PTT + 2 mode, wrote the three differing sectors `0xD9000`, `0xAC000`
+  and `0x5000` in that order. The full aligned and shifted CRC scans
+  matched the H3-menu package afterward. The H9 restarted normally.
+- Read back the installed 77,046-byte H3-menu bundle with all 21 entries
+  from the bench radio. Its SHA-256 was
+  `33084b7422820add1a8aa7997e9af5c124ae8a0c732ad93e5e3a3d41dcba2968`.
+  Only MENU and APRS BEACON changed. The saved SmartBeacon and mute
+  records were byte-identical before and after the update.
+- The operator confirmed GPS FIX BEACON DUE on Beacon Status and Back
+  returning to its Toolbox row. Settings edits produced new committed
+  records. The highest generation read over USB was 20, with the
+  SmartBeacon scheduler armed in Smart mode and APRS mute saved off.
+  The operator was notified before the next muted receive check.
+
+### 2026-11-18 Shared Toolbox app theme
+
+- Applied the H3-style palette to all 16 screen-bearing entries in the
+  shared-flash dev bundle, including the Brick Breaker score. The standard
+  game image still matches its hardware-tested source hash. The app guide
+  defines the palette, layout and controls in APP-STYLE.md.
+- The grouped menu shows Stations and Beacon Status under APRS. Map,
+  Messages and Send open from the station browser tabs. Standalone APRS
+  screens remain accessible when the station list is absent. The packet
+  monitor, dumps and audio probes are grouped under Diagnostics.
+- The final dev bundle is 71,144 bytes with SHA-256
+  `a37fe53b43c2c90db7df41e3832f48ae317c2cde03d2ef57267a610ea74370d0`.
+  The matching package SHA-256 is
+  `96d9125eed703407e83574a51adbba1819703bcc4c329cb0f0befa05d3103b6b`.
+  The decoded main app changes the two bytes of the Beacon Status CRC.
+  The resident scheduler, flash helpers and RX15/rxff modem verified
+  against the prior dev build.
+- MENU uses 6,246 bytes below the 6,528-byte shared-state boundary. In
+  the legacy build SAT PASS uses 6,513 bytes below that boundary. Both
+  bundles passed the App Manager round trip. The private offline upgrade
+  retains all 21 entries from the last bench backup, including the ten
+  bench-only binaries with no source in this checkout.
+- Rendered and inspected APRS, GPS and satellite views. Loader, Morse,
+  mute, serial clone, APRS, menu and 134 web tests passed. The native
+  satellite fixture reproduced identical results to the baseline, including
+  12 existing failures. The themed images have yet to be bench-tested.
+
+### 2026-11-18 Timed Beacon due without RF
+
+- The operator reported no apparent transmission with Toolbox Schedule
+  Armed and Timed set to one minute. The installed H3-menu bench package
+  and the themed dev package both declare resident `auto_tx: false`.
+  The bench resident ELF links the GPS worker, arm and due handling. It
+  has no linked submission or TX completion callback.
+- The initial timed event becomes due after the existing 15-second
+  guard. Once due, it stays pending in this build. The configured
+  interval is used after an accepted submission.
+- The stock normal-mode timed caller remains a candidate handoff point.
+  It follows its own enable and interval fields and has a documented
+  A-side display indication under Dual Watch with CH B-LOCK. A transmit
+  adapter still needs proof of RF ownership, the selected side and the
+  working frequency before using that route for resident beacons.
+
+### 2026-11-18 Dev automatic Smart and Timed beacons
+
+- The GPS worker keeps scheduling and publishing status independently
+  of the screen. The dev TX build consumes its pending event at the
+  stock `my_app` timed-beacon call at app+`0x87494`. The nine call-site
+  changes resolve to 232 bytes of checked shims in retired Morse space.
+  Stock calls keep their original behavior when the resident API is absent.
+  The worker matches TX results to the pending event and uses the sent
+  course for future SmartBeacon turn decisions.
+- The adapter checks the working A/B frequency words and the stock shift
+  calculation before keying. The initial build used RF register `0x0C`
+  bit 0 after tracing the stock receive path at app+`0x7B206–0x7B20C`.
+  When it borrows a VFO it runs the stock RX tuner and lets it settle before
+  checking for a carrier. The native GPS-source branch at app+`0x5C2D8`
+  uses coordinate words at `0x12558` and `0x12560` via indexed word loads.
+  The adapter restores the prior route after the stock TX flag and RF
+  register `0x30` TX bit clear.
+- The H3-style UI and APRS Mute settings are preserved. Beacon Status
+  displays the stored APRS VFO, frequency, wait reason and modem submission
+  count. The mute call sites and shared flash helpers match the themed build.
+  The separate APRS RX15/rxff modem remains byte-identical.
+- Main package SHA-256
+  `38daaae6793a26ca30a13a3a81598ed0ec425747825cb925d1a362ba4fc22663`.
+  Main-flash image SHA-256
+  `94c690bbb09f017b139addbfd4bbc6a3804b5379b13cdd74acea7d83e891be1e`.
+  The eight changed main package sectors from the H3-menu bench are
+  `0x5000`, `0x61000`, `0x62000`, `0x63000`, `0x8C000`, `0xAC000`,
+  `0xAE000` and `0xD9000`. The stock app-only repack validation passed.
+- The 5,802-byte resident ABI 2 body has SHA-256
+  `7dc43e0ed4243a5499f0016b5e78c3bfc43a0470143093a2034f3586af1f614f`
+  and startup CRC `0x5F73`. It starts at physical `0xFA000`. The two
+  padded sector CRCs are `0x3D8F` and `0x5557`. The prior `0xFA000`
+  sector readback contains data, so the bench update needs both sector
+  backups and a live match before erase. The settings and factory data
+  sit outside this range.
+- The 19-entry standard app bundle is 71,796 bytes, with SHA-256
+  `ab9880c84cee3f4e5fe8aedffc44610c945ce7c2ce3692514aa4e7e80e0da541`.
+  The private matching bundle built from the last bench backup keeps
+  all 21 entries, including ten existing bodies byte for byte.
+- Scheduler, simulated RF route and busy handling, APRS, mute, Morse,
+  serial clone and UI checks passed, along with all 134 web tests. The
+  native satellite fixture reproduced its prior 12 failures. On-radio
+  RF frequency, outgoing APRS decode and incoming APRS decode with mute
+  enabled remain to be verified. This build has yet to be flashed.
+
+### 2026-11-18 Automatic TX installed on the H9
+
+- Read the live app bundle and both settings sectors over USB before
+  entering PTT + 2. The radio had a saved one-minute Timed schedule armed,
+  using B Lock at 144.390 MHz. APRS Mute was saved off.
+- The HID preflight matched all 213 app sectors to the H3-menu bench
+  firmware using aligned and shifted CRCs. Every shifted window across
+  the two resident sectors and their neighbors matched the archived
+  `0xFA000` data and installed `0xFB000` resident. Saved both sectors and
+  the verified prior main image for rollback.
+- With a dummy load attached, installed and verified the two resident
+  sectors and eight main sectors, writing `0x5000` last. The full aligned
+  and shifted checks matched the automatic TX build. The H9 returned to
+  the normal channel screen and its usual USB serial connection.
+- The live backup had 21 app entries, including a newer Power Probe.
+  Built the matching app bundle from that backup to retain its order and
+  existing diagnostics. The 79,286-byte installed app bundle read back
+  with SHA-256
+  `760af33a4770ee0028e8b7c5605b81019dd8aae94266960c5c185c5d12c18b16`.
+  Both scheduler settings sectors remained byte-identical after the
+  firmware and app update.
+
+- The on-radio Timed check reached WAITING FOR IDLE RADIO on B with a
+  dummy load. USB readback showed squelch level 1 and battery saver 1:4.
+  Beken's register list identifies `0x0C` bit 0 as the interrupt indicator
+  and bit 1 as the live squelch output. Changed the carrier guard to bit 1
+  and added a regression case with clear squelch and a pending IRQ.
+  [Beken BK4819 V3 register list](https://alfaexploit.com/files/BK4819V3Registers_List_20201218.pdf)
+- The isolated correction changes one byte in the resident body and
+  updates the CRC in the stock bench package's resident verifier. The
+  app bundle matches byte for byte. The corrected main package SHA-256
+  is `ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04`.
+  Its resident SHA-256 is
+  `aa6f231787913d7787ba282ea0bf503733b5dfbb19b9bdb1760bded90364959e`
+  and startup CRC is `0xA272`.
+- Installed the correction on the dummy-loaded H9 using PTT + 2. The
+  original TX build matched the aligned and shifted CRCs before writing.
+  Saved a rollback copy and wrote `0xFB000`, `0xD9000`, `0xAE000`, and
+  `0x5000` in that order. All 213 app sectors and both resident sectors
+  verified against the corrected image. After a normal boot, USB readback
+  confirmed the directory digest for the 21-entry app bundle and
+  byte-identical saved settings sectors.
+
+### 2026-11-18 App Manager menu rollback on dev
+
+- The dev site at merge `f12f6da` still served the checked-in Menu 1.2
+  bundle, CRC `0xAC00`. App Manager treated any different menu CRC as
+  an update, offering that binary to the H9 with the H3-style menu. The
+  code and matching app files have separate publication steps.
+- Published a dev catalog from the API 5 SmartBeacon bench bundle with
+  Menu CRC `0xCA4F` and Beacon Status CRC `0x0339`. App Manager
+  recognizes either module and uses the matching catalog. Menu updates
+  now require a recognized predecessor. The manual restore stages the
+  correct menu and matching installed apps, drops the retired
+  `.APRS BG` module when replacing APRS, and preserves custom apps and
+  the user's satellite data. The app files match the bench build.
+- The SmartBeacon App Manager now keeps the menu status visible before
+  connection and after readback. The dedicated bench catalog lets an
+  operator explicitly stage the matching menu when its installed CRC
+  is outside the list of known predecessors. Automatic menu updates
+  still require a recognized predecessor.
+- Removed the persistent menu card and its H3 label from App Manager.
+  A menu action appears above the app list when the catalog offers a
+  replacement. Menu and app binaries are identical.
+
+### 2026-11-19 SmartBeacon bench release for the dev site
+
+- Rebuilt the automatic TX bench variant with loader API 5 and the original
+  v0.1.4 version stamp. The main package SHA-256
+  `ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04`
+  matches the package verified on the bench radio after the squelch-bit fix.
+  The resident image and standard 19-entry app bundle also match their
+  previously recorded hashes. No device was written during the rebuild.
+- The released bench main image differs from v0.1.5 in 21 aligned sector
+  CRCs. The reported 19-sector scan is consistent with a related image but
+  does not identify an exact firmware build. The browser accepts this
+  release as a backup reference only after the full live CRC checks.
+- The dev updater now installs the verified SmartBeacon release directly.
+  Its two resident sectors accept only the verified image or programming
+  into verified erased bytes. Simulated HID checks covered a matching bench
+  radio with zero writes, an occupied resident area with zero writes, and
+  installation from stock with the scheduler verified before the main write.
+  The production updater still selects v0.1.5.
+- The dev updater now names the release H9 Toolbox Firmware v0.1.5
+  and lists SmartBeacon as a feature. It uses the API 5 build with the
+  v0.1.5 version stamp (main package SHA-256 `e64b6a5f3d5dd17077a392bffc837486a7076e9e52c6cc2b19e34e2a0dec85e0`).
+  The scheduler and app hashes are unchanged. The earlier v0.1.4 bench
+  main image remains a recognized input for upgrades.
+- The dev updater's Skip backup path now verifies the Type-C TD-H9 model
+  region against the pinned image and writes only differing main firmware
+  sectors. The final check includes shifted CRC windows. In Chromium with
+  simulated HID, the updater replaced only the two altered sectors
+  (`0x63000` and `0x5000`) and downloaded no backup. A model-region
+  mismatch blocked all writes.
+- Rebuilt the dev v0.1.5 package with the documented on-radio APRS
+  updater using the verified live-squelch bench base. Main SHA-256
+  `32b2b6308b2e8ef71d2ef5e15d543ce9b2594fd9455041d909653324446ec51e`,
+  stage SHA-256 `55be5fafe4efae0287345a25278e9ee00171e7af164e1c502b1bcc98a37924ba`.
+  Its 19-sector difference from the standard v0.1.5 image matches the
+  count and first 16 offsets in the user's earlier report. The browser
+  now stages this matching package and shows the keypad instructions
+  only after verifying the stage. Simulated checks preserved occupied slots.
+- The browser updater now sends the JieLi HID restart report (`0xCA`)
+  after verification, using the command from the HID maintenance branch.
+  Simulated USB tests confirmed that a failed install sends no restart,
+  a verified install sends one report, and a missing disconnect leaves
+  the verified result available with manual restart instructions.
