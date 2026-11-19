@@ -77,15 +77,15 @@ static const char *problem(unsigned i, char *info, uint8_t *kiss, unsigned *len,
 static void header(void)
 {
     char b[28];
-    aprs_title("SEND");
-    gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, GFX_BLACK);
+    aprs_title("SEND MESSAGE");
+    gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, UI_BG);
     unsigned n = put_str(b, "FROM ");
     put_str(b + n, A->mycall[0] ? A->mycall : "?");
-    aprs_line(BODY_Y, b, GFX_GREEN, GFX_BLACK);
+    aprs_line(BODY_Y, b, UI_OK, UI_BG);
     n = put_str(b, "TX ");
     n += aprs_tx_mhz(b + n, TX_FREQ);
     put_str(b + n, " MHZ");
-    aprs_line(BODY_Y + 10, b, TX_FREQ >= TX_LOW && TX_FREQ <= TX_HIGH ? GFX_WHITE : GFX_YELLOW, GFX_BLACK);
+    aprs_line(BODY_Y + 10, b, TX_FREQ >= TX_LOW && TX_FREQ <= TX_HIGH ? UI_TEXT : UI_ACCENT, UI_BG);
 }
 
 /* Row i: label and value; while editing, the value's tail and a cursor. */
@@ -95,7 +95,7 @@ static void draw_row(unsigned i, int editing, const struct edit *to, const struc
     char b[32];
     unsigned y = LIST_Y + i * ROW_H;
     int sel = i == A->send_sel;
-    uint16_t bg = editing ? GFX_GREEN : sel ? GFX_YELLOW : GFX_BLACK;
+    uint16_t bg = editing ? UI_EDIT : sel ? UI_ACCENT : UI_BG;
     unsigned n = put_str(b, LABEL[i]);
     const char *v = i == I_TO ? to->buf : i == I_MSG ? msg->buf : i == I_STATUS ? STATUS
                   : i >= I_QUICK ? QUICK[i - I_QUICK] : "";
@@ -107,26 +107,26 @@ static void draw_row(unsigned i, int editing, const struct edit *to, const struc
     if (editing) b[n++] = '_', b[n] = 0;
     else if ((i == I_TO || i == I_MSG) && !vlen) put_str(b + n, "-");
     gfx_fill(0, y, H9_WIDTH, ROW_H, bg);
-    gfx_text(4, y + 2, b, 25, 1, sel || editing ? GFX_BLACK : GFX_WHITE, bg);
+    gfx_text(4, y + 2, b, 25, 1, sel || editing ? UI_BG : UI_TEXT, bg);
 }
 
 static void draw_choose(int editing, const struct edit *to, const struct edit *msg)
 {
     header();
     for (unsigned i = 0; i < ITEMS; i++) draw_row(i, editing && i == A->send_sel, to, msg);
-    aprs_line(FOOT_Y, editing ? "0-9 TYPE BACK DEL MENU OK" : "MENU: SELECT  HOLD: LIST", GFX_GREY, GFX_BLACK);
+    aprs_line(FOOT_Y, editing ? "0-9 TYPE BACK DEL MENU OK" : "MENU PICK  BACK LIST", UI_HINT, UI_BG);
 }
 
 static void draw_review(const char *why, const char *info)
 {
     header();
-    aprs_line(BODY_Y + 20, "TO " APRS_TX_DEST " VIA " APRS_TX_PATH, GFX_GREY, GFX_BLACK);
-    aprs_wrap(BODY_Y + 34, info, FOOT_Y - 14, GFX_WHITE);
+    aprs_line(BODY_Y + 20, "TO " APRS_TX_DEST " VIA " APRS_TX_PATH, UI_DIM, UI_BG);
+    aprs_wrap(BODY_Y + 34, info, FOOT_Y - 14, UI_TEXT);
     if (why) {
-        aprs_line(FOOT_Y - 12, why, GFX_RED, GFX_BLACK);
-        aprs_line(FOOT_Y, "BACK: CHANGE", GFX_GREY, GFX_BLACK);
+        aprs_line(FOOT_Y - 12, why, UI_DANGER, UI_BG);
+        aprs_line(FOOT_Y, "BACK CHANGE", UI_HINT, UI_BG);
     } else {
-        aprs_line(FOOT_Y, "MENU: TRANSMIT  BACK: NO", GFX_YELLOW, GFX_BLACK);
+        aprs_line(FOOT_Y, "MENU TRANSMIT  BACK CANCEL", UI_ACCENT, UI_BG);
     }
 }
 
@@ -165,7 +165,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         }
         if (state == REVIEW && ev == EV_MENU && !why) {
             header();
-            aprs_line(BODY_Y + 40, "TRANSMITTING...", GFX_RED, GFX_BLACK);
+            aprs_line(BODY_Y + 40, "TRANSMITTING...", UI_DANGER, UI_BG);
             ((void (*)(const uint8_t *, unsigned))STOCK_KISS_TX)(kiss, len);
             aprs_quiet();                           /* stock's end of TX turns the speaker on */
             unsigned id = A->msg_id % 99 + 1;       /* the {id that info_of put in the packet */
@@ -175,9 +175,9 @@ unsigned module_main(const struct h9_api *api, unsigned self)
                 edit_init(&msg, EDIT_MAX, 0, 0);    /* sent: start the next one empty */
             }
             header();                               /* stock may have drawn over us */
-            aprs_line(BODY_Y + 30, "HANDED TO THE RADIO", GFX_GREEN, GFX_BLACK);
-            aprs_wrap(BODY_Y + 44, info, FOOT_Y - 2, GFX_WHITE);
-            aprs_line(FOOT_Y, "ANY KEY: BACK", GFX_GREY, GFX_BLACK);
+            aprs_line(BODY_Y + 30, "HANDED TO THE RADIO", UI_OK, UI_BG);
+            aprs_wrap(BODY_Y + 44, info, FOOT_Y - 2, UI_TEXT);
+            aprs_line(FOOT_Y, "ANY KEY BACK", UI_HINT, UI_BG);
             A->last_key = h9_key();
             state = DONE;
             continue;

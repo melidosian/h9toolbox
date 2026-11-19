@@ -16,7 +16,7 @@
  * pass; Up / Down step through the passes there), Back leaves. */
 #include <stdint.h>
 
-#include "gfx.h"
+#include "app_theme.h"
 #include "h9mod.h"
 #include "fix_store.h"           /* the last fix across power-off */
 #include "orbit.h"
@@ -32,7 +32,7 @@
 #define RING_MASK 2047u
 
 enum { WANT = 5, HOURS = 36, NMEA = 80 };
-enum { BG = GFX_BLACK, DIM = GFX_GREY };
+enum { BG = UI_BG, DIM = UI_DIM };
 
 struct state {
     uint32_t base_unix, base_tick;    /* UTC at a tick */
@@ -176,24 +176,24 @@ static void header(const struct state *st, uint32_t now)
 {
     char b[32], *d = b;
     gfx_fill(0, 0, H9_WIDTH, 22, BG);
-    gfx_text(0, 0, "SAT PASS", 8, 1, GFX_YELLOW, BG);
-    if (st->have_time) { d = hhmm(b, now, 1); *d++ = sat_zone_letter(); *d = 0; gfx_text(106, 0, b, 9, 1, GFX_WHITE, BG); }
+    gfx_text(UI_LEFT, 2, "SAT PASS", 8, 1, UI_ACCENT, BG);
+    if (st->have_time) { d = hhmm(b, now, 1); *d++ = sat_zone_letter(); *d = 0; gfx_text(103, 2, b, 9, 1, UI_TEXT, BG); }
     const char *gps = st->gps_fix ? "GPS OK" : st->have_pos ? "LAST FIX" : "NO FIX";
-    gfx_text(0, 11, gps, 8, 1, st->gps_fix ? GFX_GREEN : GFX_RED, BG);
+    gfx_text(UI_LEFT, 12, gps, 8, 1, st->gps_fix ? UI_OK : UI_ACCENT, BG);
     /* the elements' date; red once they are over two weeks old */
     d = put(b, "TLE "); put(d, st->data.head.date);
-    gfx_text(160 - 6 * 14, 11, b, 14, 1, now > st->data.head.newest + 14 * 86400u ? GFX_RED : DIM, BG);
+    gfx_text(H9_WIDTH - UI_LEFT - 6 * 14, 12, b, 14, 1, now > st->data.head.newest + 14 * 86400u ? UI_DANGER : DIM, BG);
 }
 
 static void list(const struct state *st, uint32_t now, int full)
 {
     if (full) gfx_fill(0, 22, H9_WIDTH, H9_HEIGHT - 22, BG);
     if (!st->have_time || !st->have_pos) {
-        gfx_text(0, 44, "WAITING FOR GPS", 15, 1, GFX_WHITE, BG);
+        gfx_text(UI_LEFT, 44, "WAITING FOR GPS", 15, 1, UI_ACCENT, BG);
         return;
     }
-    if (st->computing) { gfx_text(0, 50, "CALCULATING...", 14, 1, GFX_WHITE, BG); return; }
-    gfx_text(0, 24, "SAT    AOS  MAX  DUR IN", 23, 1, DIM, BG);
+    if (st->computing) { gfx_text(UI_LEFT, 50, "CALCULATING...", 14, 1, DIM, BG); return; }
+    gfx_text(UI_LEFT, 24, "SAT    AOS  MAX  DUR IN", 23, 1, DIM, BG);
     for (unsigned i = 0; i < st->found; i++) {
         const struct pass *p = &st->p[i];
         char b[40], *d = b;
@@ -212,12 +212,14 @@ static void list(const struct state *st, uint32_t now, int full)
         else d = span(d, p->aos - now);
         while (d < b + 26) *d++ = ' ';   /* fixed width: the refresh overwrites in place */
         *d = 0;
-        uint16_t fg = now >= p->aos ? GFX_GREEN : p->max_el >= 30 ? GFX_YELLOW : GFX_WHITE;
+        int selected = i == st->sel;
+        uint16_t bg = selected ? UI_ACCENT : BG;
+        uint16_t fg = selected ? BG : now >= p->aos ? UI_OK : UI_TEXT;
         unsigned y = 36 + i * 13;
-        if (i == st->sel) gfx_fill(0, y - 2, H9_WIDTH, 12, GFX_BLUE);
-        gfx_text(0, y, b, 26, 1, fg, i == st->sel ? GFX_BLUE : BG);
+        gfx_fill(0, y - 2, H9_WIDTH, 12, bg);
+        gfx_text(UI_LEFT, y, b, UI_CELLS, 1, fg, bg);
     }
-    if (!st->found) gfx_text(0, 50, "NO PASSES IN 36H", 16, 1, GFX_WHITE, BG);
+    if (!st->found) gfx_text(UI_LEFT, 50, "NO PASSES IN 36H", 16, 1, DIM, BG);
 }
 
 /* A key once two readings agree (the keypad ADC has no debounce). */
@@ -245,8 +247,8 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     st.key = st.key_seen = h9_key();
     if (!satdata_open(api, &st.data)) {   /* no satellite table in the bundle (install the SAT PASS app again) */
         gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, BG);
-        gfx_text(0, 40, "NO SATELLITE DATA", 17, 1, GFX_RED, BG);
-        gfx_text(0, 54, "REINSTALL SAT PASS", 18, 1, GFX_WHITE, BG);
+        gfx_text(0, 40, "NO SATELLITE DATA", 17, 1, UI_DANGER, BG);
+        gfx_text(0, 54, "REINSTALL SAT PASS", 18, 1, UI_TEXT, BG);
         gfx_wait_release();
         gfx_wait_key();
         return 0;
@@ -305,6 +307,8 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             header(&st, now);
             list(&st, now, (int)dirty);
             if (st.found) sat_tabs(0);
+            gfx_text(st.found ? 96 : UI_LEFT, UI_FOOT_Y, st.found ? "MENU PLOT" : "BACK TOOLBOX",
+                     12, 1, UI_HINT, UI_BG);
             st.last_draw = TICK;
             dirty = 0;
         }

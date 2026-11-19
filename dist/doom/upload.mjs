@@ -10,7 +10,7 @@
 //     directory lists it; anything else is refused;
 //   - everything written is read back and compared;
 //   - restore erases exactly what the directory lists (or, deep, every
-//     non-erased sector of the three tails), returning them to 0xFF.
+//     non-erased sector of the permitted tails), returning them to 0xFF.
 // Layout: game slot: a 4 KiB directory sector at 0xA1F000, the pack from
 // 0xA20000 to 0xCC0000, continuing into the font and then the voice tail if it
 // is larger. Modules slot: directory 0xCC0000, data 0xCC1000-0xCE0000. Music
@@ -28,12 +28,20 @@ import {
 
 const ERASED_CRC = 0xe03e;
 const CHECK_EVERY = 16;
+// Two candidate settings sectors, then VFO recovery and GPS fix. Never let
+// game upload or deep restore claim these four sectors.
+export const VOICE_UPLOAD_END = 0x3fc000;
+const LEGACY_AREAS = [
+  { name: 'resource', start: 0xa1f000, end: 0xd00000 },
+  { name: 'font', start: 0x717000, end: 0x800000 },
+  { name: 'voice', start: 0x3a7000, end: 0x400000 },
+];
 
 // Erased in the full-chip dump (SHA-256 b6d60e2e...), never written by stock.
 export const AREAS = [
   { name: 'resource', start: 0xa1f000, end: 0xd00000 },
   { name: 'font', start: 0x717000, end: 0x800000 },
-  { name: 'voice', start: 0x3a7000, end: 0x400000 },
+  { name: 'voice', start: 0x3a7000, end: VOICE_UPLOAD_END },
 ];
 export const DIRECTORY = 0xa1f000;
 // Upload slots, each with its own directory sector. The game pack fills the
@@ -50,10 +58,9 @@ export const SLOTS = {
     areas: [
       { name: 'resource', start: DIRECTORY + 0x1000, end: MODULES_DIRECTORY },
       { name: 'font', start: 0x717000, end: 0x800000 },
-      // Stops two sectors short: 0x3FF000 holds the last GPS fix (the loader stub and
-      // SAT PASS write it) and 0x3FE000 the user's own VFO frequencies while SAT PASS's
-      // VFO tracker has changed them (module-loader/modules/common/vfo_backup.h).
-      { name: 'voice', start: 0x3a7000, end: 0x3fe000 },
+      // Stops four sectors short: two proposed settings sectors, VFO recovery,
+      // and GPS fix. Legacy packs crossing this boundary require migration.
+      { name: 'voice', start: 0x3a7000, end: VOICE_UPLOAD_END },
     ],
   },
   modules: { name: 'modules', directory: MODULES_DIRECTORY, areas: [{ name: 'modules', start: MODULES_DIRECTORY + 0x1000, end: MUSIC_DIRECTORY }] },
@@ -68,8 +75,8 @@ const hex = value => `0x${value.toString(16)}`;
 const isErased = bytes => bytes.every(byte => byte === 0xff);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-export function inAreas(start, end) {
-  return AREAS.some(area => start >= area.start && end <= area.end);
+export function inAreas(start, end, areas = AREAS) {
+  return areas.some(area => start >= area.start && end <= area.end);
 }
 
 // Chip ranges for a pack of `length` bytes in a slot's areas, in order (for
@@ -116,20 +123,31 @@ export async function buildDirectory(pack, name, slot = SLOTS.game) {
   return { sector, segments };
 }
 
-export function parseDirectory(sector) {
+export function parseDirectory(sector, areas = AREAS) {
   if (new TextDecoder().decode(sector.subarray(0, 8)) !== MAGIC) return null;
   const view = new DataView(sector.buffer, sector.byteOffset, sector.byteLength);
   const count = view.getUint32(80, true);
-  if (count < 1 || count > AREAS.length) return null;
+  if (count < 1 || count > areas.length) return null;
   const end = 84 + 8 * count;
   if (view.getUint16(end, true) !== crc16(sector.subarray(0, end))) return null;
   const segments = Array.from({ length: count }, (_, i) => ({
     address: view.getUint32(84 + 8 * i, true), length: view.getUint32(88 + 8 * i, true),
   }));
-  if (!segments.every(s => inAreas(s.address, s.address + s.length))) return null;
+  if (!segments.every(s => inAreas(s.address, s.address + s.length, areas))) return null;
   const name = new TextDecoder().decode(sector.subarray(48, 80)).replace(/\0+$/, '');
   const complete = new TextDecoder().decode(sector.subarray(COMPLETE_OFFSET, COMPLETE_OFFSET + COMPLETE.length)) === COMPLETE;
   return { length: view.getUint32(12, true), sha256: sector.slice(16, 48), name, segments, complete };
+}
+
+function writableDirectory(sector) {
+  const dir = parseDirectory(sector);
+  if (dir) return dir;
+  const legacy = parseDirectory(sector, LEGACY_AREAS);
+  if (legacy?.segments.some(({ address, length }) =>
+    address < 0x400000 && address + Math.ceil(length / SECTOR) * SECTOR > VOICE_UPLOAD_END)) {
+    throw new Error('A legacy game upload claims protected sectors. Back it up and migrate it before writing.');
+  }
+  return null;
 }
 
 // Sector actions to turn `current` into `next` at chip `address` (whole
@@ -252,7 +270,8 @@ export async function readDirectory(radio, slot) {
 // directory; `pack` is null unless the upload is complete and its bytes read
 // back with the directory's SHA-256.
 export async function readPack(radio, slot, onProgress = () => {}) {
-  const dir = parseDirectory(await readDirectory(radio, slot));
+  const sector = await readDirectory(radio, slot);
+  const dir = parseDirectory(sector, slot.directory === DIRECTORY ? LEGACY_AREAS : AREAS);
   if (!dir?.complete) return { dir, pack: null };
   const parts = await readRanges(radio, dir.segments.map(s => ({ address: s.address, length: Math.ceil(s.length / BLOCK) * BLOCK })),
     onProgress);
@@ -310,7 +329,7 @@ export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game
   // Already there? The directory alone says so: COMPLETE is written only after
   // the whole upload read back correctly. One sector instead of the whole
   // target (about 17 minutes for the 1 MB game pack at upload mode's rate).
-  const already = parseDirectory(await readDirectory(radio, slot));
+  const already = writableDirectory(await readDirectory(radio, slot));
   if (already?.complete && already.length === pack.length && sameBytes(already.sha256, digest)) {
     radio.log(`"${already.name}" is already on the radio and complete; nothing to upload.`);
     onProgress(1, 'Already on the radio');
@@ -324,7 +343,7 @@ export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game
   }
   radio.log(`Reading ${regions.reduce((s, r) => s + r.length, 0).toLocaleString()} bytes to check the target sectors.`);
   let current = await readRanges(radio, regions, f => onProgress(0.2 * f, 'Checking target sectors'));
-  const previous = parseDirectory(current[0]);
+  const previous = writableDirectory(current[0]);
   const same = previous && previous.length === pack.length && sameBytes(previous.sha256, digest);
   if (previous && !same) {
     radio.log(`Replacing the previous upload "${previous.name}": erasing its ${previous.segments.length} range(s) first.`);
@@ -385,7 +404,7 @@ export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game
 // the three tails), then confirm 0xFF by read-back.
 export async function restore(radio, { deep = false, slot = SLOTS.game, onProgress = () => {} } = {}) {
   const [dirSector] = await readRanges(radio, [{ address: slot.directory, length: SECTOR }], () => {});
-  const dir = parseDirectory(dirSector);
+  const dir = writableDirectory(dirSector);
   let ranges;
   if (deep) {
     ranges = AREAS.map(a => ({ address: a.start, length: a.end - a.start }));

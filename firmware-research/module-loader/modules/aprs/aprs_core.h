@@ -14,7 +14,7 @@
 #define APRS_CORE_H
 
 #include "h9mod.h"
-#include "gfx.h"
+#include "app_theme.h"
 
 /* Stock RAM the screens share. Each can be overridden (the host test does). */
 #ifndef RING

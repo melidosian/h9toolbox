@@ -16,7 +16,11 @@ enum { TX_LOW = 14400000, TX_HIGH = 14800000 };
 /* Destination for packets from H9 Toolbox Firmware (APZxxx: experimental). */
 #define APRS_TX_DEST "APZH9T"
 #define APRS_TX_PATH "WIDE1-1"
-enum { APRS_TX_INFO_MAX = 67, APRS_TX_KISS_MAX = 2 * (7 * 3 + 2 + APRS_TX_INFO_MAX) + 3 };
+enum { APRS_TX_INFO_MAX = 67, APRS_TX_FRAME_MAX = 7 * 3 + 2 + APRS_TX_INFO_MAX,
+       APRS_TX_KISS_MAX = 2 * APRS_TX_FRAME_MAX + 3 };
+
+/* The same AX.25 UI frame before KISS escaping. No FCS. */
+unsigned aprs_tx_frame(uint8_t *out, const char *src, const char *dest, const char *digi, const char *info);
 
 /* AX.25 UI frame src>dest,digi:info (no FCS) as one KISS data frame
  * (C0 00 ... C0, C0/DB escaped) into out. Returns its length, or 0 if a

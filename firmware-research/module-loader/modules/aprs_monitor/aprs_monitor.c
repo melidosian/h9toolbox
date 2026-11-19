@@ -19,7 +19,7 @@
  * Command 0x00 = received AX.25 frame (FCS removed), 0x10 = GPS NMEA bytes.
  * Read-only apart from the read index. Back returns to the menu. */
 #include "h9mod.h"
-#include "gfx.h"
+#include "app_theme.h"
 
 #define RING ((volatile uint8_t *)0x16634)
 #define RING_WRITE (*(volatile uint16_t *)0x16E34)
@@ -122,31 +122,31 @@ static void draw(const struct state *s, unsigned write, unsigned read)
 {
     char a[8], b[8];
     number(a, write, 4); number(b, read, 4);
-    unsigned x = gfx_text(4, 26, "WRITE ", 6, 1, GFX_GREY, GFX_BLACK);
-    x = gfx_text(x, 26, a, 4, 1, GFX_WHITE, GFX_BLACK);
-    x = gfx_text(x, 26, "  READ ", 7, 1, GFX_GREY, GFX_BLACK);
-    gfx_text(x, 26, b, 4, 1, GFX_WHITE, GFX_BLACK);
+    unsigned x = gfx_text(UI_LEFT, 20, "WRITE ", 6, 1, UI_DIM, UI_BG);
+    x = gfx_text(x, 20, a, 4, 1, UI_TEXT, UI_BG);
+    x = gfx_text(x, 20, "  READ ", 7, 1, UI_DIM, UI_BG);
+    gfx_text(x, 20, b, 4, 1, UI_TEXT, UI_BG);
 
     number(a, s->frames, 3); number(b, s->gps, 4);
-    x = gfx_text(4, 36, "PKT ", 4, 1, GFX_GREY, GFX_BLACK);
-    x = gfx_text(x, 36, a, 3, 1, GFX_GREEN, GFX_BLACK);
-    x = gfx_text(x, 36, " GPS ", 5, 1, GFX_GREY, GFX_BLACK);
-    x = gfx_text(x, 36, b, 4, 1, GFX_WHITE, GFX_BLACK);
+    x = gfx_text(UI_LEFT, 31, "PKT ", 4, 1, UI_DIM, UI_BG);
+    x = gfx_text(x, 31, a, 3, 1, UI_OK, UI_BG);
+    x = gfx_text(x, 31, " GPS ", 5, 1, UI_DIM, UI_BG);
+    x = gfx_text(x, 31, b, 4, 1, UI_TEXT, UI_BG);
     number(a, s->other + s->bad, 3);
-    x = gfx_text(x, 36, " ?", 2, 1, GFX_GREY, GFX_BLACK);
-    gfx_text(x, 36, a, 3, 1, GFX_WHITE, GFX_BLACK);
+    x = gfx_text(x, 31, " ?", 2, 1, UI_DIM, UI_BG);
+    gfx_text(x, 31, a, 3, 1, UI_TEXT, UI_BG);
 
-    gfx_fill(0, 47, H9_WIDTH, 1, GFX_GREY);
+    gfx_fill(0, 42, H9_WIDTH, 1, UI_RULE);
     for (unsigned i = 0; i < HEARD; i++) {
         const struct heard *h = &s->heard[(s->next + HEARD - 1 - i) % HEARD];
-        unsigned y = 50 + i * 16;
-        unsigned e = gfx_text(4, y, h->call, 10, 1, GFX_YELLOW, GFX_BLACK);
-        gfx_fill(e, y, H9_WIDTH - e, 8, GFX_BLACK);
-        e = gfx_text(4, y + 8, h->info, LINE, 1, GFX_WHITE, GFX_BLACK);
-        gfx_fill(e, y + 8, H9_WIDTH - e, 8, GFX_BLACK);
+        unsigned y = 46 + i * 16;
+        unsigned e = gfx_text(UI_LEFT, y, h->call, 10, 1, UI_ACCENT, UI_BG);
+        gfx_fill(e, y, H9_WIDTH - e, 8, UI_BG);
+        e = gfx_text(UI_LEFT, y + 8, h->info, LINE, 1, UI_TEXT, UI_BG);
+        gfx_fill(e, y + 8, H9_WIDTH - e, 8, UI_BG);
     }
-    x = gfx_text(4, 116, s->nmea, LINE, 1, GFX_GREY, GFX_BLACK);
-    gfx_fill(x, 116, H9_WIDTH - x, 8, GFX_BLACK);
+    x = gfx_text(UI_LEFT, 110, s->nmea, LINE, 1, UI_DIM, UI_BG);
+    gfx_fill(x, 110, H9_WIDTH - x, 8, UI_BG);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)
@@ -159,9 +159,9 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     for (unsigned i = 0; i < sizeof *ps; i++) raw[i] = 0;
 #define s (*ps)
 
-    gfx_fill(0, 0, H9_WIDTH, 22, GFX_BLUE);
-    gfx_text(8, 3, "APRS MONITOR", 12, 2, GFX_WHITE, GFX_BLUE);
-    gfx_fill(0, 22, H9_WIDTH, H9_HEIGHT - 22, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
+    ui_title("APRS MONITOR");
+    ui_footer("BACK  TOOLBOX");
     gfx_wait_release();
 
     unsigned last_key = H9_KEY_NONE, last_write = 0xFFFF, tick = 0;
