@@ -89,7 +89,7 @@ test('the Python-built bundle parses here (when built)', { skip: !existsSync(bui
 });
 
 // ---- catalog (dist/apps/catalog.mjs, catalog/ written by publish_catalog.py)
-import { appState, fetchApp, fetchModule, loadCatalog, menuOutdated, partsOf, withModule, withModules, withoutApp, withoutModule } from '../dist/apps/catalog.mjs';
+import { appState, fetchApp, fetchModule, loadCatalog, menuOutdated, partsOf, selectAppCatalog, withModule, withModules, withUpdatedMenu, withoutApp, withoutModule } from '../dist/apps/catalog.mjs';
 
 const catalogDir = new URL('../dist/apps/catalog/', import.meta.url);
 const fileFetch = async url => {
@@ -138,8 +138,48 @@ test('catalog add/remove/update states and the menu on first add', () => {
   assert.equal(appState(item, onRadio, onRadio).status, 'outdated');
   assert.equal(appState(item, onRadio, withModule(onRadio, bb)).status, 'updating');
   assert.equal(withModule(first, bb).length, 2);                 // same name replaces
-  assert.equal(menuOutdated({ menu: { crc16: '0000' } }, first), true);
-  assert.equal(menuOutdated({ menu: { crc16: crc16(menu.body).toString(16).padStart(4, '0') } }, first), false);
+  const menuCrc = crc16(menu.body).toString(16).padStart(4, '0');
+  assert.equal(menuOutdated({ menu: { crc16: '0000', replaces: [menuCrc] } }, first), true);
+  assert.equal(menuOutdated({ menu: { crc16: '0000' } }, first), false);
+  assert.equal(menuOutdated({ menu: { crc16: menuCrc, replaces: [menuCrc] } }, first), false);
+});
+
+test('dev catalog recognizes the bench apps and restores a downgraded menu in one staged bundle', async () => {
+  const classic = await loadCatalog(catalogDir, fileFetch);
+  const bench = await loadCatalog(new URL('smartbeacon/', catalogDir), fileFetch);
+  const oldMenu = await fetchModule(classic, classic.menu, fileFetch);
+  const newMenu = await fetchModule(bench, bench.menu, fileFetch);
+  const classicApp = id => fetchApp(classic, classic.apps.find(item => item.id === id), fileFetch);
+  const expectedApps = (await Promise.all(bench.apps.map(item => fetchApp(bench, item, fileFetch)))).flat();
+  const beacon = expectedApps.find(m => m.name === 'APRS BEACON');
+  assert.ok(beacon);
+  assert.equal(selectAppCatalog(classic, bench, [newMenu]), bench);
+  assert.equal(selectAppCatalog(classic, bench, [oldMenu, beacon]), bench);
+  assert.equal(selectAppCatalog(classic, bench, [oldMenu]), classic);
+  assert.equal(selectAppCatalog(classic, bench, [oldMenu], true), bench);
+  assert.equal(selectAppCatalog(classic, null, [oldMenu], true), null);
+  assert.equal(menuOutdated(classic, [newMenu]), false);
+  assert.equal(menuOutdated(bench, [oldMenu]), true);
+
+  const diagnostic = { ...BB, name: 'POWER PROBE' };
+  const aprs = await classicApp('aprs');
+  const gps = await classicApp('gps');
+  const satellite = await classicApp('sat_pass');
+  const satData = satellite.find(m => m.name === '.SAT DATA');
+  const installed = [oldMenu, diagnostic, ...aprs, ...gps, ...satellite];
+  const restored = await withUpdatedMenu(bench, installed, fileFetch);
+  assert.deepEqual(restored[0], newMenu);
+  assert.equal(restored[1], diagnostic);
+  assert.equal(restored.find(m => m.name === '.SAT DATA'), satData);
+  assert.ok(!restored.some(m => m.name === '.APRS BG'));
+  assert.ok(!restored.some(m => m.name === 'BRICK BREAKER'));
+  for (const name of ['APRS', 'APRS BEACON', 'GPS', '.SAT TRACKER']) {
+    assert.deepEqual(restored.find(m => m.name === name), expectedApps.find(m => m.name === name));
+  }
+  assert.deepEqual(parseBundle(buildBundle(restored)).map(m => m.name), restored.map(m => m.name));
+
+  const standaloneBeacon = [oldMenu, diagnostic, aprs.find(m => m.name === 'APRS BEACON')];
+  assert.deepEqual(await withUpdatedMenu(bench, standaloneBeacon, fileFetch), [newMenu, diagnostic, beacon]);
 });
 
 test('multi-module app: added, updated and removed together', () => {

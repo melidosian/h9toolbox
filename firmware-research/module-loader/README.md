@@ -109,6 +109,20 @@ bench build. This variant has a matching `h9_modules.bin` and a separate
 Use the [resident SmartBeacon bench instructions](resident-service/README.md)
 for the transmit settings, backups and hardware checks.
 
+Publish the matching app files for dev App Manager after rebuilding this
+variant.
+
+```sh
+python3 -I publish_catalog.py --smartbeacon --bundle build/<dev-build>/h9_modules.bin
+```
+
+Dev App Manager recognizes the matching menu or Beacon Status module in
+an installed bundle. For a radio already running the matching firmware
+whose apps were replaced by the classic catalog, choose **H3-style
+SmartBeacon bench apps**, then **Restore H3-style apps**. The restore
+updates the installed catalog apps, keeps custom modules and satellite
+data, and stages the bundle for **Write to radio**.
+
 See the [app styling guide](APP-STYLE.md) for the color palette, layout and
 APRS navigation used by the dev bundle.
 

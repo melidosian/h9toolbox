@@ -6,7 +6,7 @@ import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=usb3';
 import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=usb1';
 import { CHIP_SLOT, buildBundle, checkModule, parseBundle, usage } from './bundle.mjs?v=am3';
 import { describeChanges } from './changes.mjs?v=am3';
-import { appState, fetchApp, fetchModule, loadCatalog, menuOutdated, partsOf, withApp, withModule, withModules, withoutApp } from './catalog.mjs?v=am4';
+import { appState, fetchApp, loadCatalog, menuOutdated, partsOf, selectAppCatalog, withApp, withModule, withModules, withUpdatedMenu, withoutApp } from './catalog.mjs?v=am5';
 import { mountInfo } from './info.mjs?v=am5';
 
 // No stale files: the service worker (sw.js) fetches everything uncached.
@@ -18,11 +18,14 @@ let logoTool = null;    // the Boot logo section (boot-logo/logo-tool.mjs) on th
 let installed = null;   // modules on the radio (null: not read / none)
 let staged = [];        // the list "Write to radio" will install
 let catalog = null;     // catalog/catalog.json
-const downloaded = new Map();  // catalog id -> module
+const catalogs = { classic: null, bench: null };
+const benchLink = $('smartbeaconCatalogLink');
+const preferBench = Boolean(benchLink && new URLSearchParams(location.search).get('catalog') === 'smartbeacon');
+const downloaded = new Map();  // catalog SHA-256 -> modules
 
 async function catalogApp(item) {
-  if (!downloaded.has(item.id)) downloaded.set(item.id, await fetchApp(catalog, item));
-  return downloaded.get(item.id);
+  if (!downloaded.has(item.sha256)) downloaded.set(item.sha256, await fetchApp(catalog, item));
+  return downloaded.get(item.sha256);
 }
 const catalogModule = async item => (await catalogApp(item))[0];
 
@@ -50,6 +53,7 @@ const infoDialog = mountInfo({
 
 function renderCatalog() {
   const box = $('catalog');
+  if (benchLink) benchLink.hidden = catalog?.profile === 'smartbeacon';
   if (!catalog) { box.replaceChildren(); return; }
   const cards = catalog.apps.map(item => {
     const state = appState(item, installed, staged);
@@ -81,19 +85,28 @@ function renderCatalog() {
     return card;
   });
   if (menuOutdated(catalog, staged)) {
+    const bench = catalog.profile === 'smartbeacon';
     const card = document.createElement('div');
     card.className = 'app';
     card.innerHTML = '<h3><span></span><span class="tag">System</span></h3><p></p><div class="row"><span class="status outdated">Update available</span><span class="buttons"></span></div>';
     card.querySelector('h3 span').textContent = catalog.menu.title;
-    card.querySelector('p').textContent = `${catalog.menu.description} The radio has a different version (v${catalog.menu.version} is available).`;
+    card.querySelector('p').textContent = bench
+      ? 'Restore the H3-style menu and refresh the matching apps already on the radio.'
+      : catalog.menu.description;
     const b = document.createElement('button');
-    b.textContent = 'Update'; b.className = 'primary'; b.disabled = busy;
-    b.addEventListener('click', () => run(async () => { staged = [await catalogModule(catalog.menu), ...staged.slice(1)]; log('Staged: update the menu.'); }));
+    b.textContent = bench ? 'Restore H3-style apps' : 'Update';
+    b.className = 'primary'; b.disabled = busy;
+    b.addEventListener('click', () => run(async () => {
+      staged = await withUpdatedMenu(catalog, staged);
+      log(bench ? 'Staged the H3-style menu and matching apps.' : 'Staged the menu update.');
+    }));
     card.querySelector('.buttons').append(b);
-    cards.push(card);
+    cards.unshift(card);
   }
   box.replaceChildren(...cards);
-  $('catalogNote').textContent = `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
+  $('catalogNote').textContent = catalog.profile === 'smartbeacon'
+    ? 'H3-style apps for the matching SmartBeacon bench firmware. Stage changes here, then select Write to radio.'
+    : `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
 }
 
 function log(message, level = 'info') {
@@ -219,15 +232,19 @@ function progress(began) {
 }
 
 // Fetch the app catalog again (uncached) so every read of the radio compares it with the newest apps.
+function pickCatalog() {
+  catalog = selectAppCatalog(catalogs.classic, catalogs.bench, session ? (installed ?? []) : staged, preferBench);
+}
+
 async function refreshCatalog() {
-  try {
-    const fresh = await loadCatalog();
-    const key = value => JSON.stringify([value.menu?.version, ...value.apps.map(a => [a.id, a.version, a.sha256])]);
-    if (catalog && key(fresh) !== key(catalog)) downloaded.clear();   // changed downloads: fetch them again when staged
-    catalog = fresh;
-  } catch (error) {
-    log(`Could not refresh the app catalog (${error.message}); using the one already loaded.`, 'error');
-  }
+  const sources = [['classic', undefined]];
+  if (benchLink) sources.push(['bench', new URL('catalog/smartbeacon/', import.meta.url)]);
+  await Promise.all(sources.map(async ([key, base]) => {
+    try { catalogs[key] = await loadCatalog(base); }
+    catch (error) { log(error.message, 'error'); }
+  }));
+  pickCatalog();
+  if (!catalog) $('catalogNote').textContent = preferBench ? 'The SmartBeacon bench catalog did not load.' : 'The app catalog did not load.';
 }
 // After reading the radio: which installed apps have a newer version in the catalog.
 function reportUpdates() {
@@ -237,7 +254,7 @@ function reportUpdates() {
     return here && appState(item, installed, installed).status === 'outdated';
   }).map(item => `${item.title} ${item.version}`);
   if (menuOutdated(catalog, installed)) outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
-  log(outdated.length ? `Updates available: ${outdated.join(', ')}. Use Update on the app cards, then Write to radio.` : 'Every installed app is up to date.');
+  log(outdated.length ? `Updates available: ${outdated.join(', ')}. Stage the updates on the app cards, then Write to radio.` : 'Every installed catalog app is up to date.');
 }
 
 async function readRadio() {
@@ -247,6 +264,7 @@ async function readRadio() {
   const { dir, pack } = await readPack(opened.radio, SLOTS.modules, progress(performance.now()));
   if (!pack) {
     installed = null;
+    pickCatalog();
     if (dir) log(`The modules slot holds an unfinished upload ("${dir.name}"); writing will replace it.`, 'error');
     else log('The modules slot is empty.');
     $('progressText').textContent = 'Idle.';
@@ -254,6 +272,7 @@ async function readRadio() {
   }
   installed = parseBundle(pack);
   staged = installed.map(m => ({ ...m }));
+  pickCatalog();
   log(`Read ${installed.length} module(s), ${pack.length.toLocaleString()} bytes: ${installed.map(m => m.name).join(', ')}.`);
   reportUpdates();
   $('progressText').textContent = 'Idle.';
@@ -309,6 +328,7 @@ $('reload').addEventListener('click', () => run(readRadio));
 
 $('addButton').addEventListener('click', () => $('addFile').click());
 $('addFile').addEventListener('change', () => run(async () => {
+  if (!staged.length && !catalog) throw new Error('Load a whole bundle or choose an available catalog first.');
   for (const file of $('addFile').files) {
     const modules = await readFile(file);
     if (modules.length !== 1) throw new Error(`${file.name} holds ${modules.length} modules; use Load whole bundle for bundles.`);
@@ -325,6 +345,7 @@ $('bundleFile').addEventListener('change', () => run(async () => {
   const file = $('bundleFile').files[0];
   if (!file) return;
   staged = await readFile(file);
+  pickCatalog();
   log(`Staged: whole bundle from ${file.name}: ${staged.map(m => m.name).join(', ')}.`);
   $('bundleFile').value = '';
 }));
@@ -335,7 +356,7 @@ $('exportBundle').addEventListener('click', () => {
   document.body.append(link); link.click(); link.remove();
 });
 
-$('discard').addEventListener('click', () => { staged = installed ? installed.map(m => ({ ...m })) : []; log('Changes discarded.'); render(); });
+$('discard').addEventListener('click', () => { staged = installed ? installed.map(m => ({ ...m })) : []; pickCatalog(); log('Changes discarded.'); render(); });
 $('apply').addEventListener('click', () => run(async () => {
   const bundle = buildBundle(staged);
   if (bundle.length > CHIP_SLOT) throw new Error('The bundle does not fit the modules slot.');
@@ -351,11 +372,11 @@ $('removeAll').addEventListener('click', () => run(async () => {
   log($('result').textContent);
   installed = null;
   staged = [];
+  pickCatalog();
 }));
 
 render();
-loadCatalog().then(c => { catalog = c; render(); })
-  .catch(error => { $('catalogNote').textContent = error.message; log(error.message, 'error'); });
+refreshCatalog().then(render);
 
 // Boot logo: the shared logo tool on this page's radio connection. While it
 // writes, the module controls are busy, and it waits while they are.

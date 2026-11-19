@@ -39,6 +39,14 @@ export async function fetchModule(catalog, item, fetcher = fetch) {
 
 function crcOf(m) { return crc16(m.body).toString(16).padStart(4, '0'); }
 
+export function selectAppCatalog(classic, bench, modules, preferBench = false) {
+  if (preferBench) return bench;
+  if (!bench || !modules.length) return classic;
+  const match = part => part && modules.some(m => m.name === part.name && m.body.length === part.bytes && crcOf(m) === part.crc16);
+  const beacon = bench.apps.flatMap(partsOf).find(part => part.name === 'APRS BEACON');
+  return match(bench.menu) || match(beacon) ? bench : classic;
+}
+
 // Where a catalog app stands, comparing the radio (installed), the staged
 // list and the catalog version. Present = its main module is listed;
 // current = every one of its modules is there with the catalog CRC.
@@ -50,7 +58,11 @@ const dataNames = item => new Set(item.data ?? []);
 export function appState(item, installed, staged) {
   const data = dataNames(item);
   const has = list => (list ?? []).slice(1).some(m => m.name === item.name);
-  const current = list => partsOf(item).every(p => (list ?? []).slice(1).some(m => m.name === p.name && (data.has(p.name) || crcOf(m) === p.crc16)));
+  const current = list => {
+    const modules = (list ?? []).slice(1);
+    return partsOf(item).every(p => modules.some(m => m.name === p.name && (data.has(p.name) || crcOf(m) === p.crc16))) &&
+      !modules.some(m => item.retiredModules?.includes(m.name));
+  };
   const onRadio = has(installed), inStaged = has(staged);
   if (inStaged) {
     if (!onRadio) return { status: 'adding', label: 'Will be added', action: 'remove' };
@@ -86,7 +98,8 @@ export function withModules(staged, modules, menu) {
 export function withApp(staged, modules, menu, item) {
   const keep = dataNames(item);
   const mine = new Map((staged ?? []).slice(1).filter(m => keep.has(m.name)).map(m => [m.name, m]));
-  return modules.reduce((list, m) => withModule(list, mine.get(m.name) ?? m, menu), staged);
+  const existing = staged.filter((m, i) => i === 0 || !item.retiredModules?.includes(m.name));
+  return modules.reduce((list, m) => withModule(list, mine.get(m.name) ?? m, menu), existing);
 }
 
 export function withoutApp(staged, item) {
@@ -94,5 +107,24 @@ export function withoutApp(staged, item) {
   return staged.filter((m, i) => i === 0 || !names.has(m.name));
 }
 
-// The staged menu is older than (differs from) the catalog's.
-export const menuOutdated = (catalog, staged) => Boolean(staged.length && catalog && crcOf(staged[0]) !== catalog.menu.crc16);
+// A release declares which menu builds it replaces. Other CRCs may belong to newer firmware.
+export function menuOutdated(catalog, staged) {
+  if (!catalog || !staged.length) return false;
+  const crc = crcOf(staged[0]);
+  return crc !== catalog.menu.crc16 && Boolean(catalog.menu.replaces?.includes(crc));
+}
+
+export async function withUpdatedMenu(catalog, staged, fetcher = fetch) {
+  if (!menuOutdated(catalog, staged)) throw new Error('This catalog has no update for the installed menu.');
+  const menu = await fetchModule(catalog, catalog.menu, fetcher);
+  let next = [menu, ...staged.slice(1)];
+  if (catalog.profile === 'smartbeacon') {
+    const names = new Set(staged.slice(1).map(m => m.name));
+    for (const item of catalog.apps) {
+      if (!partsOf(item).some(part => names.has(part.name))) continue;
+      const modules = await fetchApp(catalog, item, fetcher);
+      next = withApp(next, names.has(item.name) ? modules : modules.filter(m => names.has(m.name)), null, item);
+    }
+  }
+  return next;
+}

@@ -6,6 +6,7 @@
   "title": "Module menu",
   "description": "The on-radio list that opens when you hold Back. Installed automatically with the first app.",
   "version": "1.2",
+  "replaces": ["f1a7", "522b", "f31f"],
   "summary": "The on-radio list that opens when you hold Back; Back returns to the radio.",
   "controls": [
    "Hold Back for about half a second to open it. Up/Down move, Menu runs the selection.",

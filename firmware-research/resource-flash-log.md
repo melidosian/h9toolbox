@@ -4949,3 +4949,17 @@ result yet.**
   verified against the corrected image. After a normal boot, USB readback
   confirmed the directory digest for the 21-entry app bundle and
   byte-identical saved settings sectors.
+
+### 2026-11-18 App Manager menu rollback on dev
+
+- The dev site at merge `f12f6da` still served the checked-in Menu 1.2
+  bundle, CRC `0xAC00`. App Manager treated any different menu CRC as
+  an update, offering that binary to the H9 with the H3-style menu. The
+  code and matching app files have separate publication steps.
+- Published a dev catalog from the API 5 SmartBeacon bench bundle with
+  Menu CRC `0xCA4F` and Beacon Status CRC `0x0339`. App Manager
+  recognizes either module and uses the matching catalog. Menu updates
+  now require a recognized predecessor. The manual restore stages the
+  correct menu and matching installed apps, drops the retired
+  `.APRS BG` module when replacing APRS, and preserves custom apps and
+  the user's satellite data. The app files match the bench build.
