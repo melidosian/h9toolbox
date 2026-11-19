@@ -1,8 +1,8 @@
 diff --git a/ax25/l2/conn.go b/ax25/l2/conn.go
-index 9402cc0..d063cae 100644
+index 9402cc0..8f53d7a 100644
 --- a/ax25/l2/conn.go
 +++ b/ax25/l2/conn.go
-@@ -55,13 +55,15 @@ type Conn struct {
+@@ -55,16 +55,19 @@ type Conn struct {
  	retransmitBuf map[uint8][]byte
  
  	// Timers
@@ -23,7 +23,11 @@ index 9402cc0..d063cae 100644
  
  	// RNR/flow control
  	remoteBusy bool
-@@ -130,9 +132,11 @@ func (c *Conn) resetSeqs() {
++	rejectSent bool // REJ already sent for the current receive sequence
+ 
+ 	// T2 delayed-ACK state: the peer a deferred RR F=1 is owed.
+ 	t2Src string
+@@ -130,10 +133,13 @@ func (c *Conn) resetSeqs() {
  	c.recvSeq = 0
  	c.unacked = 0
  	c.lastAcked = 0
@@ -33,14 +37,16 @@ index 9402cc0..d063cae 100644
  	c.outQueue = c.outQueue[:0]
 +	c.txBatch = cancelTimer(c.txBatch)
  	c.remoteBusy = false
++	c.rejectSent = false
  	c.xidPending = false
  	c.srejEnabled = false
+ 	c.rxBuf = make(map[uint8]rxEntry)
 diff --git a/ax25/l2/h9_retry_test.go b/ax25/l2/h9_retry_test.go
 new file mode 100644
-index 0000000..5bf7512
+index 0000000..1e26c88
 --- /dev/null
 +++ b/ax25/l2/h9_retry_test.go
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,229 @@
 +package l2
 +
 +import (
@@ -50,6 +56,32 @@ index 0000000..5bf7512
 +
 +	"github.com/ben-kuhn/tncd/v2/ax25"
 +)
++
++func TestH9OneRejectUntilMissingFrameArrives(t *testing.T) {
++	tbl, rec, _ := newHarness(1200)
++	tbl.params[0].MaxWindow = 1
++	c := connect(t, tbl, rec)
++	inbound := func(sequence uint8, poll bool) {
++		frame := mkFrame(ax25.I, "N0CALL-2", "KU0HN-10", ns(sequence), info([]byte("greeting")))
++		frame.Command, frame.PF = true, poll
++		tbl.OnFrame(0, frame)
++	}
++	inbound(1, false)
++	inbound(2, false)
++	inbound(1, false)
++	if len(rec.sent) != 1 || rec.sent[0].Type != ax25.REJ || rec.sent[0].NR != 0 {
++		t.Fatalf("repeated gap yielded %+v, want one REJ[0]", rec.sent)
++	}
++	inbound(2, true)
++	if len(rec.sent) != 2 || rec.sent[1].Type != ax25.RR || rec.sent[1].NR != 0 || !rec.sent[1].PF {
++		t.Fatal("receiver did not answer a poll while the gap was open")
++	}
++	inbound(0, false)
++	inbound(2, false)
++	if len(rec.sent) != 3 || rec.sent[2].Type != ax25.REJ || rec.sent[2].NR != 1 || c.recvSeq != 1 {
++		t.Fatal("receiver did not request the next gap after accepting frame zero")
++	}
++}
 +
 +func TestH9IdlePollDoesNotDelayDataRetry(t *testing.T) {
 +	tbl, rec, clock := newHarness(1200)
@@ -286,7 +318,7 @@ index 0000000..a7db658
 +	}
 +}
 diff --git a/ax25/l2/l2.go b/ax25/l2/l2.go
-index 44907fa..489c88f 100644
+index 44907fa..01d8806 100644
 --- a/ax25/l2/l2.go
 +++ b/ax25/l2/l2.go
 @@ -19,13 +19,15 @@ const ax25Overhead = 20
@@ -594,18 +626,45 @@ index 44907fa..489c88f 100644
  
  	pp := t.portParams(port)
  	expectedNS := c.recvSeq
-@@ -1179,7 +1240,9 @@ func (t *Table) dispatchI(port int, f *ax25.Frame, src, dst string) {
+@@ -1175,17 +1236,22 @@ func (t *Table) dispatchI(port int, f *ax25.Frame, src, dst string) {
+ 		return
+ 	}
+ 
+-	// --- SREJ not enabled: existing phase-3 REJ / go-back-N path (unchanged) ---
++	// SREJ not enabled: use one REJ for each receive gap.
  	if f.NS != expectedNS {
  		// Out-of-sequence or duplicate frame.
  		gap := (f.NS - expectedNS) % c.modulo
 -		if gap > 0 && int(gap) <= pp.MaxWindow {
+-			// Gap within window: send REJ with V(R) = expected, echoing P/F.
+-			// Mirrors tncd.py:1791-1805.
 +		// The bench sends one frame at a time. The gateway can still transmit
 +		// a burst, so request retransmission when up to three frames are missing.
 +		if gap > 0 && int(gap) <= max(pp.MaxWindow, 3) {
- 			// Gap within window: send REJ with V(R) = expected, echoing P/F.
- 			// Mirrors tncd.py:1791-1805.
  			cancelT2(c)
-@@ -1258,8 +1321,9 @@ func (t *Table) dispatchS(port int, f *ax25.Frame, src, dst string) {
+-			rej := respFrame(src, dst, c.Via, ax25.REJ, f.PF)
+-			rej.NR = expectedNS
+-			t.sendFrame(port, rej)
++			if !c.rejectSent {
++				rej := respFrame(src, dst, c.Via, ax25.REJ, f.PF)
++				rej.NR = expectedNS
++				c.rejectSent = true
++				t.sendFrame(port, rej)
++			} else if f.PF && f.Command {
++				t.sendRRResponse(c, src, dst)
++			}
+ 		} else {
+ 			// True duplicate (or gap > window): discard data.
+ 			// Mirrors tncd.py:1806-1815.
+@@ -1198,6 +1264,7 @@ func (t *Table) dispatchI(port int, f *ax25.Frame, src, dst string) {
+ 		}
+ 		return
+ 	}
++	c.rejectSent = false
+ 	c.recvSeq = (f.NS + 1) % c.modulo
+ 	if f.PF {
+ 		cancelT2(c)
+@@ -1258,8 +1325,9 @@ func (t *Table) dispatchS(port int, f *ax25.Frame, src, dst string) {
  		return
  	}
  
@@ -617,7 +676,7 @@ index 44907fa..489c88f 100644
  
  	// Single-SREJ (v2.2): ackFrames above already acked <= N(R)-1 and left
  	// frame N(R) in the retransmit buffer. Retransmit ONLY that frame — not
-@@ -1297,10 +1361,22 @@ func (t *Table) dispatchS(port int, f *ax25.Frame, src, dst string) {
+@@ -1297,10 +1365,22 @@ func (t *Table) dispatchS(port int, f *ax25.Frame, src, dst string) {
  		}
  	}
  
@@ -641,7 +700,7 @@ index 44907fa..489c88f 100644
  	}
  
  	// Poll-response side: if P=1, respond with RR F=1.
-@@ -1310,7 +1386,7 @@ func (t *Table) dispatchS(port int, f *ax25.Frame, src, dst string) {
+@@ -1310,7 +1390,7 @@ func (t *Table) dispatchS(port int, f *ax25.Frame, src, dst string) {
  	// Exception: REJ P=1 responds immediately — a deferred call_soon would
  	// invoke _retransmit_from a second time, flooding the TNC with duplicates.
  	// Mirrors tncd.py:2098-2116 (_dispatch_s poll-response block).
