@@ -46,7 +46,8 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
     apps = []
     for classic in meta["apps"]:
         app = {key: value for key, value in classic.items() if key != "screenshots"}
-        app["version"] += "-dev"
+        if app["id"] != "aprs":
+            app["version"] += "-dev"
         if app["id"] == "aprs":
             app.update(
                 description="Browse stations and map, send APRS messages, and keep a six-message inbox/outbox across power cycles. Beacon Status shows the resident scheduler.",

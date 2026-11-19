@@ -5056,3 +5056,16 @@ result yet.**
   The mailbox host tests cover ownership, game claims and interrupted writes;
   the firmware guard disassembly test passes. No radio install or RF validation
   was performed for this candidate.
+
+## 2026-11-19 — APRS v1.0 app install on the radio
+
+- The Codex App Manager staged only the APRS app from the SmartBeacon catalog.
+  It replaced APRS, .APRS LIST, .APRS INFO, APRS MAP, APRS MSG and APRS SEND,
+  and added .APRS STORE. The other installed modules were preserved.
+- Bluetooth resource upload wrote and verified a 110,055-byte bundle over 28
+  sectors in 224 seconds. A fresh read returned 29 modules and 110,055 bytes;
+  the App Manager then marked APRS installed and the catalog up to date.
+- No main firmware was written in this operation. The radio's APRS screens,
+  message journal across a power cycle, and RF send/receive remain untested.
+  The dev updater still needs the matching mailbox guard before other uploader
+  clients can safely share the reserved sectors.
