@@ -4620,3 +4620,59 @@ result yet.**
 - Rechecked the exact M11 image. It reads two bytes at resource `0x980000`
   and updates those bytes independently. The marker bytes exist in RAM.
   The corrected call sites are recorded in [APRS mute](module-loader/APRS-MUTE.md).
+
+### Resident SmartBeacon dev bench build
+
+- With the radio in Normal mode, two independent USB reads matched on each
+  preflight sector. Resource sectors `0x3FC000` and `0x3FD000` were erased
+  (each SHA-256 `f47a8ec3e9aff2318d896942282ad4fe37d6391c82914f54a5da8a37de1300c6`).
+  The GAME directory at `0xA1F000` verified its header CRC and complete
+  marker. Its 1,056,192 bytes start at `0xA20000` and stay clear of both
+  candidates. Resource `0x980000` was occupied. The preflight wrote nothing.
+- The `TSPAIR02` settings journal adds mode, interval, symbol, arm state and
+  TX route to the mute preference. It reads the earlier mute-only V1 record.
+  The firmware reserves both sectors from S2 uploads. APRS BEACON validates
+  the GAME allocation before saving, verifies each save and updates the
+  running settings. A degraded pair restores the prior mute value with the
+  scheduler disarmed. Simulator tests cover saved start/stop, sector
+  ownership and cuts during erase or program.
+- The resident worker reads completed bytes from the UART1 DMA ring before the
+  stock screen-dependent ring. It has an independent cursor, preserves the
+  stock consumer and drops partial GPS input after a DMA gap. It polls every
+  20 ms using a stock RTOS task call and shares live status with APRS BEACON
+  through loader ABI 4. At boot the loader requires an exact resident body
+  CRC before starting the worker. Automatic transmission is disabled.
+- The Morse build removes 2,358 bytes of exclusive code in seven verified
+  ranges. It retains the original shared RF and settings handling. The dev
+  KISS helpers reuse 248 bytes starting at app+`0x84F88`. The built-in speaker
+  gate uses the boot-loaded user preference and preserves stock close calls.
+  The physical audio and on-radio Morse menu checks are still required.
+- Main package SHA-256
+  `e1b5921e0272bb0f33e732ef7b35774c1b07dc4722f9644d00348b090fa8318e`.
+  The 3,277-byte resident body in main sector `0xFB000` has SHA-256
+  `e2d34be0ca02edc58ebf1b9297d26e96d6dd438ecec47a7921b6eb025a338792`.
+  The factory app-only package check, native APRS and settings tests,
+  mute and Morse regressions, and 134 web tests passed.
+- In the authorized HID update, all 213 app sectors and six shifted CRC
+  scans matched the installed dev KISS main package. A private rollback copy
+  was saved (app SHA-256
+  `3d5b241222f7c9d4f441a36101c543c3f76bca23aefd9878e7399a618bba9d19`).
+  The updater confirmed `0xFB000` erased. An initial helper call supplied
+  a sector buffer in place of the full image and stopped before any app
+  sector changed. Corrected the input, verified the unchanged app and
+  erased far sector, then installed the resident sector and 16 differing
+  app sectors. All app CRCs and the service sector matched the bench build.
+  The H9 rebooted in Normal mode and answered the S2 service handshake.
+  The separate APRS modem build was verified offline.
+- Read back and saved the original installed module bundle before updating
+  it. Its directory SHA-256
+  `9df5449340d73576dba574123eeeabe3ad43cc8bcbdd6901c77119433f12aa05`
+  matched all 92,227 bytes from the radio. The standard bench bundle also
+  verified by readback. The final 21-entry bench bundle uses the original
+  modules with the matching new APRS BEACON screen and drops the obsolete
+  `.APRS BG` overlay. Verified 85,899 bytes after upload, SHA-256
+  `1fa3499f64cc0b3763763a1e363d885fb1962a95bb5b6e23ca5b7e3a06fc6046`.
+- The initial normal-mode read after installation found both settings
+  sectors erased. Stock APRS was enabled, RX was B and TX was B-Lock.
+  Stock Timed Beacon was on, with PTT Linkage and both relays off. Asked
+  the operator to switch off stock Timed Beacon for the receive-only bench.

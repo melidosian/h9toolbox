@@ -24,7 +24,8 @@ BEACON = [f"{APRS}/beacon_core.c", f"{APRS}/third_party/smartbeacon/smartbeacon.
 EXTRA = {
     "test_beacon.c": [*BEACON, f"{APRS}/aprs_tx.c"],
     "test_beacon_screen.c": BEACON,
-    "test_beacon_service.c": [*BEACON, "resident-service/beacon_service.c", "resident-service/dispatch.c"],
+    "test_beacon_service.c": [*BEACON, "resident-service/beacon_service.c", "resident-service/dispatch.c",
+                              "resident-service/modem_input.c"],
     "test_toolbox_settings_pair.c": [f"{COMMON}/toolbox_settings_pair.c"],
     "test_sattrack.c": ["modules/satpass/orbit.c"],
 }

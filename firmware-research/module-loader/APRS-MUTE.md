@@ -1,15 +1,10 @@
 # Normal-mode APRS mute prototype
 
-This opt-in firmware patch is based on `origin/dev` at the start of this
-work. It is **not hardware tested** and is not in the published installer.
-It does not fix beacon state, GPS status, or the GNSS popup.
-
-Build with the normal module-loader prerequisites and add `--aprs-mute`.
-Omitting the flag preserves the existing speaker routing; the combined build
-still includes ABI 3 and protected beacon state. The selection persists
-across reboot because it is compiled into the firmware. There is **no runtime
-menu toggle or saved user preference yet**; changing it requires rebuilding.
-Do not describe this as full parity with M11.
+The resident dev bench build exposes APRS MUTE in the Toolbox APRS BEACON
+screen. Menu toggles the selection and saves it before updating the live
+speaker gate. The normal radio restores it from the same settings journal
+at boot. The ABI 3 prototype built with `--aprs-mute` alone uses a fixed
+speaker gate. The published installer leaves the speaker routing in stock form.
 
 The patch intercepts stock speaker-opening calls at app+`0x7B7A0` (squelch)
 and app+`0x706A2` (volume). When stock APRS is enabled, its RX side is B, and
@@ -21,9 +16,9 @@ The mute gate adds no modem, RF register, settings, or resource flash writes.
 The instructions are newly authored; the decision tree was established by
 static comparison with the exact user-supplied M11 app. M11's temporary state
 at RAM `0x2BE80` overlaps Toolbox's module space, so its state and persistence
-code cannot safely be copied. This prototype uses no additional RAM. A later
-runtime toggle needs an explicitly allocated settings record and validated
-boot initialization, not an arbitrary unused-looking address.
+code cannot safely be copied. The resident bench build reserves its own
+startup-cleared RAM and reads its settings after the stock resource chip
+initializer reports ready.
 
 ## Persistence evidence
 
@@ -35,12 +30,13 @@ and offsets `0x80000` and `0x80001`. The resource addresses are `0x980000` and
 two runtime markers around those setting bytes.
 
 Toolbox has a power-cut-tested two-sector journal in
-`modules/common/toolbox_settings_pair.c`. The candidates at `0x3FC000` and
-`0x3FD000` were erased in the November 9 private resource backup. Confirm
-both current sectors and the GAME directory at `0xA1F000` before enrollment.
+`modules/common/toolbox_settings_pair.c`. Both candidate sectors at `0x3FC000`
+and `0x3FD000` were verified erased on November 18. The installed GAME
+directory at `0xA1F000` describes a separate allocation. The settings screen
+checks that relationship before it writes and verifies each committed record.
 The experimental loader blocks uploader writes to the two candidates and
-the adjacent VFO and GPS sectors. The runtime UI and flash binding are pending.
-The Bluetooth output gate still needs a verified audio trace.
+the adjacent VFO and GPS sectors. The Bluetooth output gate still needs a
+verified audio trace.
 
 ## Offline checks
 

@@ -25,17 +25,15 @@ class MorseTests(unittest.TestCase):
             self.assertEqual(patched[site:site+len(new)], new)
         # Both enable states now take the same existing off path; no register writes.
         decoder = m.objdump.decoder_for(m.table.load(), mcpu='r3')
-        for site, _ in m.ENTRY_GATES:
+        for site, _, _, target in m.ENTRY_GATES:
             insn = decoder.decode(patched, site)
             self.assertEqual(insn[2], 2)
-            self.assertEqual(site+2+int(insn[3][5:]), m.DISABLED_TARGET)
+            self.assertEqual(site+2+int(insn[3][5:]), target)
             self.assertEqual(patched[site+2:site+6], b'\0'*4)
-        site, _, target = m.KEY_GATE
-        insn = decoder.decode(patched, site)
-        self.assertEqual(insn[2], 2)
-        self.assertEqual(site+2+int(insn[3][5:]), target)
-        self.assertEqual(patched[site+2:site+6], b'\0'*4)
         self.assertEqual(m.MENU_TABLE+2*int.from_bytes(patched[m.MENU_ENTRY:m.MENU_ENTRY+2], 'little'), m.MENU_EXIT)
+        for start, end, _ in m.REMOVED:
+            self.assertEqual(patched[start:end], bytes(end-start))
+            self.assertEqual(patched[end:end+2], self.stock[end:end+2])
 
     def test_top_level_menu_keeps_category_ids_for_every_locale(self):
         patched = m.apply(self.stock, self.stock)

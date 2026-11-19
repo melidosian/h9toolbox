@@ -31,6 +31,11 @@ mute_done:
     pc = [sp++]
 /* r2=result; r3 scratch; r0/r1 intact for the stock tail call. */
 mute_block:
+    .ifdef ML_RUNTIME_BOOT
+    r3 = 0x29a00
+    r2 = b[r3+4] (u)
+    if (r2 == 0) goto mute_allow
+    .endif
     r3 = 0x0000c0f0
     r2 = 944
     r2 = b[r3+r2] (u)

@@ -1,8 +1,8 @@
 # Stock Morse/CW removal
 
-`--disable-morse` removes the Morse category from the stock menu and blocks
-the traced terminal-entry, keying and transmit-message paths. Stock code and
-saved settings remain in place for compatibility with the factory firmware.
+`--disable-morse` removes the Morse category and 2,358 bytes of code exclusive
+to the stock CW allocator, terminal entry, message transmit and key handling
+paths. Shared RF, audio and settings routines keep their stock layout.
 Hardware validation is pending.
 
 Pinned stock 1.0.38 findings:
@@ -67,31 +67,36 @@ The runtime settings word is now identified at RAM `0xB860` (47200):
   calls cleanup +`0x72CC2` on off. Cleanup frees context and clears +408,
   +412, +416 and keying state after shared RF/audio cleanup.
 
-These are useful candidate disable boundaries, not a complete incoming-reference
-proof. Do not simply remove allocator/cleanup or reuse the code range: the
-menu, drawing, keying and shared-radio callers must be considered together.
-No EEPROM write is introduced. The entry-disable prototype below uses these
-existing guards rather than changing persisted user settings.
+The settings decoder and shared cleanup remain in place. The patch uses stock
+disabled paths and leaves the saved fields available to the factory firmware.
 
-## Opt-in offline prototype
+## Code removal
 
 `morse_disable.py` requires the exact pinned stock SHA and verifies all patch
 sites before changing an image. At +0x6F96E/+0x6FB30 it replaces the six-byte
 conditional enable tests with a short unconditional branch plus two NOPs to
 the same stock Off path, +0x6F5CC. It changes the +0x76990 dispatch halfword
 from 0x0092 to 0x0316, landing at the existing matching-frame epilogue +0x76FAE.
-The keying check at +0x876B2 now branches to its existing inactive path at
-+0x87E38. All five sites require exact stock signatures before applying.
-No RF/audio helper, context allocator/cleanup or saved setting is altered.
+The earlier keying branch at +0x8769A now always takes its stock inactive path
+at +0x87E38, before loading the CW context or reaching the old test at +0x876B2.
 
-Independent review confirmed both decoded branch destinations, matching
-stack restore, two direct allocator callers behind these gates, and no direct
-transfers into the patched instruction interiors. This static scan cannot
-exclude computed indirect entry points. Tests verify exact changed-byte
-bounds, target decoding, wrong-base refusal and conflict refusal. Combined
-build/package changed-sector verification passes with `--aprs-mute --disable-morse`.
+| Removed range, end exclusive | Entry and boundaries |
+| --- | --- |
+| 0x6F000–0x6F03C | Only direct calls at +0x6F97C and +0x6FB3E, inside the retired entry prefixes. +0x6F03C starts a shared routine. |
+| 0x6F974–0x6F9A6, 0x6FB36–0x6FB4C | Fallthrough behind the two disabled terminal gates. The following shared instructions remain. |
+| 0x76AA6–0x76B52, 0x76BCE–0x76CDC | CW transmit setup and character loop. Index 7 was the only jump-table entry into the setup. Indices 8 and 10 still point to +0x76B52 and +0x76B56. Branches into the transmit loop originate in the removed code. |
+| 0x84F88–0x85610 | The dedicated key/decoder routine and its out-of-line branches following its early return. Its only direct call is +0x876B8. The preceding helper and the next function at +0x85610 remain. |
+| 0x876A0–0x87710 | Fallthrough below +0x8769A, including the call to +0x84F88. Other entries to the shared key routine bypass this block. |
+
+The static scan checked aligned direct transfers, instruction boundaries,
+embedded literal pointers and the local switch tables. Apparent incoming
+transfers from +0x70A68, +0x76B3A, +0x84930, +0x85636, +0x8563A, +0x85710
+and +0x86398 decode inside longer instructions. The apparent odd pointers
+at +0xA9BD and +0x42BEF span adjacent instructions. Each removed range has
+a pinned SHA-256. Regression checks verify the saved branch targets, range
+bounds and rejection of modifications to the expected input. The resident
+build reuses the first 248 bytes at +0x84F88 for the relocated dev KISS helpers.
 
 Before release, bench-check startup with the stock CW preference enabled
 and disabled. Exercise menu scrolling, GNSS and APRS entry, ordinary voice,
-keypad tones, PTT and recovery. Reclaiming code space requires a separate
-proof that the instructions have no callers outside CW.
+keypad tones, PTT and recovery.

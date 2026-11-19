@@ -42,6 +42,10 @@
     .globl ml_hotkey
 ml_hotkey:
     [--sp] = {rets, r4}
+    .ifdef ML_RUNTIME_BOOT
+    r3 = ML_RUNTIME_BOOT
+    call r3
+    .endif
     r3 = 0x0000c3af
     r0 = b[r3+0] (u)
     if (r0 != 15) goto ml_back_released
@@ -448,6 +452,27 @@ mll_index_ok:
     r0 = sp + 0
     r2 = 32
     call ml_read
+    .ifdef ML_RUNTIME_BOOT
+    /* APRS BEACON must match the resident status/settings screen built with
+     * this firmware. Never run the old foreground or background scheduler. */
+    r0 = [sp+0]
+    r1 = 0x53525041
+    if (r0 != r1) goto mll_check_bg
+    r2 = [sp+4]
+    r1 = 0x41454220
+    if (r2 != r1) goto mll_check_bg
+    r1 = sp + 0
+    r2 = h[r1+30] (u)
+    r1 = ML_RESIDENT_SCREEN_CRC
+    if (r2 != r1) goto mll_fail
+mll_check_bg:
+    r1 = 0x5250412e
+    if (r0 != r1) goto mll_entry
+    r2 = [sp+4]
+    r1 = 0x47422053
+    if (r2 == r1) goto mll_fail
+mll_entry:
+    .endif
     r5 = [sp+16]
     r6 = [sp+20]
     r7 = [sp+24]
@@ -587,7 +612,11 @@ mlsw_stock:
  * Finish with the original stock delay, preserving its argument in r0. */
     .globl ml_aprs_boot
 ml_aprs_boot:
+    .ifdef ML_RUNTIME_BOOT
+    r1 = 0x29a00
+    .else
     r1 = 0x29c00
+    .endif
     r2 = 0
     r3 = 0x29f00
 ml_aprs_clear:
@@ -601,7 +630,11 @@ ml_aprs_clear:
     .balign 4
 ml_api:
     .long 0x50413948        /* "H9AP" */
+    .ifdef ML_RUNTIME_BOOT
+    .long 4                 /* API 4 adds the verified resident APRS prefix */
+    .else
     .long 3                 /* API 3 reserves 0x29C00–0x29EFF and retains H9_RETURN_RADIO */
+    .endif
     .long 0x00cc1000        /* bundle chip address */
     .long 0x00029f00        /* load address */
     .long 0x2000            /* slot bytes */
@@ -609,3 +642,6 @@ ml_api:
     .globl ml_fw_version
 ml_fw_version:
     .long 0                 /* H9 Toolbox Firmware version 0x00MMmmpp (0x000104 = v0.1.4): build.py writes it from VERSION */
+    .ifdef ML_RUNTIME_BOOT
+    .long 0x29a00
+    .endif

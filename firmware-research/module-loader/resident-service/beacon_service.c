@@ -72,14 +72,19 @@ int h9_bs_feed_byte(struct h9_bs *s, uint8_t byte, uint32_t now_ms)
                   s->status.gps.kmh10, s->status.gps.course);
     return 1;
 }
+void h9_bs_input_gap(struct h9_bs *s, uint32_t now_ms)
+{
+    s->feed.started = s->feed.len = s->feed.esc = 0;
+    if (!s->status.gps.fix) return;
+    s->status.gps.fix = 0;
+    if (s->status.armed && !s->status.timed)
+        sb_on_rmc(&s->smart, now_ms, 0, 0, s->status.gps.course);
+}
 void h9_bs_poll(struct h9_bs *s, uint32_t now_ms)
 {
     if (!valid(s)) return;
     struct h9_bs_status *st = &s->status;
-    if (st->gps.fix && now_ms - s->gps_ms >= GPS_STALE_MS) {
-        st->gps.fix = 0;
-        if (st->armed && !st->timed) sb_on_rmc(&s->smart, now_ms, 0, 0, st->gps.course);
-    }
+    if (st->gps.fix && now_ms - s->gps_ms >= GPS_STALE_MS) h9_bs_input_gap(s, now_ms);
     if (!st->armed) return;
     if (s->retry_active) {
         if (now_ms - s->retry_ms < RETRY_MS) {

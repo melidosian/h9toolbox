@@ -36,6 +36,7 @@ int h9_bs_arm(struct h9_bs *s, uint8_t timed, uint8_t minutes,
 void h9_bs_stop(struct h9_bs *s);
 /* Feed copies of bytes from the modem ring with an independent cursor. */
 int h9_bs_feed_byte(struct h9_bs *s, uint8_t byte, uint32_t now_ms);
+void h9_bs_input_gap(struct h9_bs *s, uint32_t now_ms);
 /* May update pending/status only; never calls TX or other board operations. */
 void h9_bs_poll(struct h9_bs *s, uint32_t now_ms);
 /* A pending identifier must match. accepted means a TX routine returned after

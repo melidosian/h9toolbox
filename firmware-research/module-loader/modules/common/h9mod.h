@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 
+struct h9_runtime_prefix;
 struct h9_api {
     uint32_t magic;      /* "H9AP" */
     uint32_t version;    /* 1; 2 = the loader returns to the radio (menu returns 0, module returns H9_RETURN_RADIO) */
@@ -22,6 +23,7 @@ struct h9_api {
     void (*read)(void *dst, uint32_t chip_address, uint32_t length);
     uint32_t firmware;   /* API version 2 and later only (older loaders have nothing here): H9 Toolbox Firmware version
                           * 0x00MMmmpp, 0x000104 = v0.1.4 (module-loader/VERSION) */
+    const struct h9_runtime_prefix *resident; /* API version 4 and later only */
 };
 
 /* Bundle layout on the resource chip (little-endian). */

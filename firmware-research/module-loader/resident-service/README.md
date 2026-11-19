@@ -1,8 +1,30 @@
-# Resident dispatch foundation (offline only)
+# Resident SmartBeacon bench build
 
-This directory is deliberately not linked into the firmware or module bundle.
-It implements a testable single-task cooperative dispatch/ownership contract,
-not an RTOS service, stock RF lock, or authorization to transmit.
+The `--resident-beacon --aprs-mute --disable-morse --dev-kiss` build adds an
+ABI 4 APRS BEACON screen and a scheduler task independent of the stock radio
+and Toolbox screens. It produces a separate body for main flash sector
+`0xFB000`. Startup verifies its CRC before entering it. ABI 3 builds continue
+to use the legacy modules. The ABI 4 loader requires the CRC of its matching
+APRS BEACON screen and rejects the old background module.
+
+The worker polls the UART1 DMA descriptor every two 100 Hz ticks. It takes
+bounded copies of published bytes with its own cursor, leaves the stock
+consumer unchanged and clears partial GPS input after a buffer gap. Live
+status and settings are shared with the screen through versioned snapshots.
+The worker restores arm, mode, interval and symbol from the committed
+settings record. It records due events with live GPS input. Automatic
+transmit is disabled in this bench build.
+
+The screen saves settings to the two guarded resource sectors after checking
+the GAME directory. The journal retains a prior committed record across an
+interrupted save. A degraded journal restores the verified mute preference
+with automatic scheduling disarmed. The stock speaker gate uses the
+verified preference. See [normal-mode APRS mute](../APRS-MUTE.md).
+
+## Cooperative dispatch reference
+
+`dispatch.c` remains a host-tested single-task ownership model. The dedicated
+worker does not link it or access RF state.
 
 `dispatch.c` provides:
 - exact ABI/descriptor-size checks, magic checks and required caller/provider
@@ -23,7 +45,7 @@ A callback must return normally; no longjmp, exceptions, or asynchronous use.
 All calls must execute in the SAME task, outside ISR/critical sections. No atomics
 are supplied; this cannot serialize stock tasks that do not participate.
 
-## Integration plan
+## Earlier cooperative integration plan
 
 1. Link scheduler and this dispatcher into permanent far-code, not the 8 KiB
    module overlay. Verify package/version/CRC before publishing its binding.
@@ -56,7 +78,7 @@ python3 -I resident-service/build_probe.py --far-backup <private-far-backup> --t
 ```
 
 The host tests exercise shared status, pending IDs, GPS expiry, retry, clock
-rollover and two-sector settings power cuts. The placement probe links the
-scheduler and settings engine for Pi32v2 and checks the budget of the erased
-sector reported by the backup. It creates an offline-only ELF and JSON report
-in `build/resident-probe`.
+and DMA wrap, input gaps and two-sector settings power cuts. The placement
+probe links the scheduler and settings engine for Pi32v2 and checks the budget
+of the erased sector reported by the backup. It creates an offline-only ELF
+and JSON report in `build/resident-probe`.
