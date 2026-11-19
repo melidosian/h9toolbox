@@ -15,8 +15,7 @@ let currentStep = 0;
 // createdBackup: the archive made on this page ({ archive, name, source }),
 // kept across firmware selection and used when no backup file is chosen.
 let createdBackup = null;
-// True once the connected radio has been backed up on this page. Install
-// stays disabled until then; connecting a radio resets it.
+// True once the connected radio has been backed up on this page.
 let radioBackedUp = false;
 let target = null, stockSeed = null, buildImage = null, previousImages = [], backup = null, device = null, hid = null, busy = false;
 let cancelBackup = false, backupRunning = false;
@@ -41,12 +40,11 @@ function refreshGuide() {
   const steps = [
     { label: 'Start setup', ready: browserReady },
     { label: 'Choose firmware', ready: Boolean(hid) },
-    { label: 'Back up radio', ready: Boolean(hid && target) },
-    { label: 'Review and install', ready: Boolean(hid && target && backup) },
+    { label: 'Continue to install', ready: Boolean(hid && target) },
   ];
   const action = steps[currentStep];
   $('previousStep').disabled = busy || currentStep === 0;
-  const disconnected = !hid && currentStep >= 2 && currentStep <= 4;
+  const disconnected = !hid && currentStep >= 2 && currentStep < slides.length - 1;
   const reconnect = $('reconnectStep');
   reconnect.hidden = !disconnected;
   reconnect.disabled = busy;
@@ -68,7 +66,7 @@ $('reconnectStep').addEventListener('click', () => {
 function status(message, error = false) {
   $('status').hidden = false;
   $('status').textContent = message;
-  const help = slides[currentStep].querySelector('.guide-help:not([hidden])');
+  const help = backupRunning ? $('backupHelp') : slides[currentStep].querySelector('.guide-help:not([hidden])');
   if (error && help) help.open = true;
   $('status').classList.toggle('error-status', error);
   const item = document.createElement('li'); item.textContent = message; $('log').prepend(item);
@@ -113,22 +111,24 @@ function refresh() {
   $('disconnect').disabled = busy || !device;
   $('createBackup').disabled = busy || !hid;
   $('cancelBackup').hidden = !backupRunning;
-  const ready = Boolean(hid && target && backup);
-  $('acknowledge').disabled = busy || !ready;
-  $('flash').disabled = busy || !ready || !radioBackedUp || !$('acknowledge').checked;
-  $('restore').disabled = busy || !ready || !$('acknowledge').checked;
+  const ready = Boolean(hid && target);
+  const skipping = $('skipBackup').checked;
+  const canInstall = ready && (skipping || (radioBackedUp && Boolean(backup)));
+  const canRestore = ready && Boolean(backup);
+  $('skipBackup').disabled = busy || !ready;
+  $('acknowledge').disabled = busy || !(canInstall || canRestore);
+  $('flash').disabled = busy || !canInstall || !$('acknowledge').checked;
+  $('restore').disabled = busy || !canRestore || !$('acknowledge').checked;
   $('restore').textContent = backup?.source === 'hosted-stock' ? 'Restore stock v1.0.38' : 'Restore backup';
-  // The next action gets the colour: Backup until it succeeds, then Install.
-  const installReady = radioBackedUp && !$('flash').disabled;
-  $('createBackup').classList.toggle('primary-button', !radioBackedUp);
-  $('createBackup').classList.toggle('ghost', radioBackedUp);
-  $('flash').classList.toggle('primary-button', installReady);
-  $('flash').classList.toggle('ghost', !installReady);
+  $('createBackup').classList.toggle('primary-button', !canInstall);
+  $('createBackup').classList.toggle('ghost', canInstall);
+  $('flash').classList.toggle('primary-button', canInstall);
+  $('flash').classList.toggle('ghost', !canInstall);
   if (!busy) $('planState').textContent = !hid ? 'Return to step 2 to connect your radio.'
     : !target ? 'Return to step 3 to select firmware.'
-      : !backup ? 'Return to step 4 to create or select a recovery backup.'
-        : !radioBackedUp ? 'You can restore the selected backup. To install, first back up the connected radio in step 4.'
-          : !$('acknowledge').checked ? 'Read and tick the confirmation to enable writing.'
+      : !(canInstall || canRestore) ? 'Back up the radio first or choose to install without a new backup.'
+        : !$('acknowledge').checked ? 'Read and tick the confirmation to enable writing.'
+          : skipping ? 'The updater will verify the radio before writing. No backup will be downloaded.'
             : 'Ready to check the radio and verify the firmware.';
   // Highlight the chosen firmware; the animation plays when the choice changes.
   const selected = target?.kind ?? null;
@@ -153,6 +153,10 @@ function requireH9(image) {
 function fail(error) { status(error?.message || String(error), true); }
 function pending() { try { return JSON.parse(localStorage.getItem(resumeKey)); } catch { return null; } }
 function forgetPlan() { $('acknowledge').checked = false; refresh(); }
+function resetBackupOverride() {
+  $('skipBackup').checked = false;
+  $('overrideOptions').open = false;
+}
 const previousInfo = kind => PREVIOUS.find(item => item.id === kind);
 // [name, image] pairs of every known image, for classifyRadio.
 function namedImages() {
@@ -209,28 +213,26 @@ async function loadHostedBuild() {
     previous.push({ info, image: await loadPreviousImage(new Uint8Array(await previousResponses[index].arrayBuffer()), build.image, info) });
   return { build, stock, previous };
 }
-async function verifyLiveGamePlan(current, changed, resumeSector) {
-  if (target.kind !== 'build') return;
+async function verifyLivePlan(current, changed, resumeSector, reference, known) {
+  const targetCrcs = expectedCrcs(target.image);
   if (resumeSector) {
     const index = (resumeSector - APP_START) / SECTOR_SIZE;
-    const backupCrc = expectedCrcs(backup.image)[index];
-    const gameCrc = expectedCrcs(target.image)[index];
-    if (current[index] !== backupCrc && current[index] !== gameCrc) return;
+    const referenceCrc = expectedCrcs(reference.image)[index];
+    if (current[index] !== referenceCrc && current[index] !== targetCrcs[index]) return;
   }
-  const live = backup.image.slice();
-  const targetCrcs = expectedCrcs(target.image);
-  const previousCrcs = previousImages.map(p => expectedCrcs(p.image));
+  const live = reference.image.slice();
+  const knownCrcs = known.map(expectedCrcs);
   for (const physical of changed) {
     const index = (physical - APP_START) / SECTOR_SIZE;
     if (current[index] === targetCrcs[index])
       live.set(target.image.subarray(physical, physical + SECTOR_SIZE), physical);
     else {
-      const match = previousImages.findIndex((p, k) => current[index] === previousCrcs[k][index]);
-      if (match >= 0) live.set(previousImages[match].image.subarray(physical, physical + SECTOR_SIZE), physical);
+      const match = knownCrcs.findIndex(crcs => current[index] === crcs[index]);
+      if (match >= 0) live.set(known[match].subarray(physical, physical + SECTOR_SIZE), physical);
     }
   }
   if (!await knownAppMatches(hid, current, live))
-    throw new Error(`Live radio bytes differ from exact stock, ${BUILD.label}, and its earlier builds. No writes allowed.`);
+    throw new Error('The radio does not match the firmware images used for verification. No writes allowed.');
 }
 
 async function validateSelectedBackup(announceWaiting = true) {
@@ -301,6 +303,7 @@ async function validateSelectedBackup(announceWaiting = true) {
 
 function beginFirmwareSelection() {
   const selection = ++firmwareSelection;
+  resetBackupOverride();
   $('firmwareHelp').hidden = true;
   $('firmwareHelp').open = false;
   $('status').hidden = true;
@@ -395,6 +398,7 @@ function clearConnection() {
   device = null;
   hid = null;
   radioBackedUp = false;
+  resetBackupOverride();
   $('acknowledge').checked = false;
   $('deviceState').textContent = 'Disconnected';
   $('deviceState').classList.remove('connected');
@@ -416,9 +420,11 @@ $('disconnect').addEventListener('click', async () => {
   finally { busy = false; refresh(); }
 });
 $('acknowledge').addEventListener('change', refresh);
+$('skipBackup').addEventListener('change', forgetPlan);
 $('cancelBackup').addEventListener('click', () => { cancelBackup = true; $('cancelBackup').disabled = true; status('Stopping after the current HID reply…'); });
 $('createBackup').addEventListener('click', async () => {
   if (!hid || busy) return;
+  resetBackupOverride();
   busy = true; backupRunning = true; cancelBackup = false; $('cancelBackup').disabled = false; forgetPlan(); phase('Starting backup'); progress(0, 1); refresh();
   const backupBegan = performance.now();
   try {
@@ -484,19 +490,27 @@ $('createBackup').addEventListener('click', async () => {
 // Check the radio and plan both directions: a full sector-CRC scan, the
 // pinned sector set, the live shifted-window check, and any interrupted
 // sector. Nothing is erased or written here.
-async function inspectRadio() {
+async function inspectRadio(reference, known) {
   status('Checking the radio: scanning 251 sectors (CRC only, no writes)…');
   phase('Checking the radio (CRC scan, no writes)');
   const current = await scanRadio(hid, progress);
   const marker = pending();
-  const resumeSector = marker?.packageHash === target.packageHash && marker?.backupHash === backup.hash ? marker.sector : null;
-  const changed = planUpdate(current, backup.image, target.image, resumeSector, knownImages());
-  if (target.kind === 'build' && !backup.fullInstall && !changed.every(physical => BUILD.sectors.includes(physical)))
+  const resumeSector = marker?.packageHash === target.packageHash && marker?.backupHash === reference.hash ? marker.sector : null;
+  let changed;
+  try {
+    changed = planUpdate(current, reference.image, target.image, resumeSector, known);
+  } catch (error) {
+    if (reference.source === 'verified-firmware')
+      throw new Error(`Can’t install without a backup because the radio could not be verified. Create a recovery backup or select an existing one. ${error.message}`);
+    throw error;
+  }
+  if (target.kind === 'build' && !reference.fullInstall && !changed.every(physical => BUILD.sectors.includes(physical)))
     throw new Error(`${BUILD.label} sector plan leaves its ${BUILD.sectors.length} pinned sectors. No writes allowed.`);
   phase('Checking the radio (shifted CRC windows)');
-  await verifyLiveGamePlan(current, changed, resumeSector);
-  const backupCrcs = expectedCrcs(backup.image), targetCrcs = expectedCrcs(target.image);
-  const knownCrcs = knownImages().map(expectedCrcs);
+  if (target.kind === 'build' || reference.source === 'verified-firmware')
+    await verifyLivePlan(current, changed, resumeSector, reference, known);
+  const backupCrcs = expectedCrcs(reference.image), targetCrcs = expectedCrcs(target.image);
+  const knownCrcs = known.map(expectedCrcs);
   const unknown = changed.filter(physical => {
     const index = (physical - APP_START) / SECTOR_SIZE;
     return current[index] !== backupCrcs[index] && current[index] !== targetCrcs[index] &&
@@ -525,12 +539,22 @@ function aprsResult(state) {
 
 async function performWrite(direction) {
   if (direction === 'update' ? $('flash').disabled : $('restore').disabled) return;
-  const destination = direction === 'update' ? target.image : backup.image;
+  // An install can use this connection's backup or a file explicitly selected
+  // by the user. Prior sessions' automatic backups are only restore points.
+  let reference = direction === 'restore' || radioBackedUp || $('backupFile').files.length ? backup : null;
   const began = performance.now();
   showResult(null);
   busy = true; refresh();
   try {
-    const checked = await inspectRadio();
+    let known = knownImages();
+    if (!reference) {
+      await ensureReferences();
+      const image = target.kind === 'stock' ? target.image : stockSeed;
+      reference = { image, hash: await sha256(image), source: 'verified-firmware' };
+      if (target.kind === 'stock') known = [buildImage, ...previousImages.map(item => item.image)];
+    }
+    const destination = direction === 'update' ? target.image : reference.image;
+    const checked = await inspectRadio(reference, known);
     const work = checked[direction];
     const toolbox = direction === 'update' && target.kind === 'build';
     let aprs = null;
@@ -550,6 +574,7 @@ async function performWrite(direction) {
     if (!work.length) {
       finish('Radio checked; nothing to write');
       $('acknowledge').checked = false;
+      resetBackupOverride();
       status('Radio checked: every firmware sector already matches.');
       showResult({
         title: toolbox ? `${BUILD.label} is already installed` : 'The radio already matches the selected firmware',
@@ -559,14 +584,14 @@ async function performWrite(direction) {
       });
       return;
     }
-    if (direction === 'update' && backup.fullInstall && work.length > BUILD.sectors.length)
+    if (direction === 'update' && reference.fullInstall && work.length > BUILD.sectors.length)
       status(`Full firmware install: this radio is not on stock v1.0.38, so ${work.length} of ${(IMAGE_SIZE - APP_START) / SECTOR_SIZE} firmware sectors differ and are rewritten (the rest already match). This takes longer. Keep USB connected and the radio powered on; if it is interrupted, follow the recovery guidance on this step.`);
     status(`Radio checked. ${direction === 'update' ? 'Writing' : 'Restoring'} ${work.length} sectors. Keep USB connected and the radio powered on.`);
     phase((done, total) => done >= total ? `${total} sectors written and verified` : `Writing and verifying sector ${done + 1} of ${total}`);
     progress(0, work.length);
     for (let index = 0; index < work.length; index++) {
       const physical = work[index];
-      localStorage.setItem(resumeKey, JSON.stringify({ packageHash: target.packageHash, backupHash: backup.hash, sector: physical, direction }));
+      localStorage.setItem(resumeKey, JSON.stringify({ packageHash: target.packageHash, backupHash: reference.hash, sector: physical, direction }));
       await writeSector(hid, physical, destination);
       localStorage.removeItem(resumeKey);
       progress(index + 1, work.length);
@@ -579,13 +604,14 @@ async function performWrite(direction) {
       if (after[index] !== desired[index]) throw new Error(`Final CRC mismatch at 0x${physical.toString(16)}.`);
     }
     $('acknowledge').checked = false;
+    resetBackupOverride();
     const seconds = formatDuration((performance.now() - began) / 1000);
     finish(`${work.length} sectors ${direction === 'update' ? 'installed' : 'restored'} and every sector CRC verified in ${seconds}`);
     status('Firmware verification passed. You can disconnect USB and restart the radio.');
     showResult({
       title: toolbox ? `${BUILD.label} installed and verified`
         : direction === 'update' ? 'Stock firmware installed and verified'
-          : backup.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
+          : reference.source === 'hosted-stock' ? 'Stock v1.0.38 restored and verified' : 'Backup restored and verified',
       text: `Updated ${work.length} sector(s) and verified every firmware sector (${seconds}).` + aprsResult(aprs),
       steps: toolbox ? toolboxRestart : stockRestart,
       action: toolbox ? appManagerLink : null,
