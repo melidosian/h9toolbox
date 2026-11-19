@@ -4933,3 +4933,10 @@ result yet.**
   Its resident SHA-256 is
   `aa6f231787913d7787ba282ea0bf503733b5dfbb19b9bdb1760bded90364959e`
   and startup CRC is `0xA272`.
+- Installed the correction on the dummy-loaded H9 using PTT + 2. The
+  original TX build matched the aligned and shifted CRCs before writing.
+  Saved a rollback copy and wrote `0xFB000`, `0xD9000`, `0xAE000`, and
+  `0x5000` in that order. All 213 app sectors and both resident sectors
+  verified against the corrected image. After a normal boot, USB readback
+  confirmed the directory digest for the 21-entry app bundle and
+  byte-identical saved settings sectors.
