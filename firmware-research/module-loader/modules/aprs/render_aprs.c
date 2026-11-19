@@ -56,6 +56,8 @@ static uint32_t host_tx_freq = 14439000;   /* 144.3900 MHz in 10 Hz units */
 #include "aprs_core.c"
 #include "aprs_text.c"
 struct aprs aprs_host;
+static uint8_t beacon_handoff[384];
+#define BEACON_HANDOFF beacon_handoff
 #define module_main screen_main
 #include SCREEN
 #undef module_main
@@ -117,7 +119,7 @@ int main(int argc, char **argv)
     A->unread = 1; A->list_sel = 1; A->msg_sel = 1; A->map_zoom = 4; A->map_sel = 1;
     for (unsigned i = 0; i < A->count; i++) if (!strcmp(A->st[i].call, "W9ABC-9")) A->list_sel = (uint8_t)i;
     A->map_sel = A->list_sel;
-    struct h9_api fake = { .read = fake_read };
+    struct h9_api fake = { .version = 3, .read = fake_read };
     if (!setjmp(done)) screen_main(&fake, 0);
     FILE *f = fopen(argc > 1 ? argv[1] : "out.ppm", "wb");
     fprintf(f, "P6\n160 128\n255\n");

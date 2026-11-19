@@ -6,7 +6,7 @@ sources), fed made-up data (stations around Chicago, NMEA from a sample fix, sat
 TLE snapshot), and written as a 3x PNG to dist/apps/catalog/shots/. They are simulations of the screen, not
 photographs of a radio.
 
-    python3 -I make_screenshots.py          (needs cc; run build.py first for build/satdata.bin)
+    python3 -I make_screenshots.py          (needs a host C compiler)
 """
 from __future__ import annotations
 
@@ -91,19 +91,20 @@ def main() -> int:
         save("maze-chase-2", tmp / "mz.5.ppm")
         # SAT PASS: the pass list, the sky plot and the live track page, for passes over Chicago
         sat = MODULES / "satpass"
-        satdata = ROOT / "build" / "satdata.bin"
-        if not satdata.exists():
-            raise SystemExit("run build.py first (build/satdata.bin)")
-        passes = ["1:1794302584:1794302983", "0:1794304648:1794305119", "4:1794309009:1794309606"]
+        satdata = tmp / "satdata.bin"
+        subprocess.run([sys.executable, "-I", str(ROOT / "satpack.py"),
+                        str(sat / "default.tle"), "-o", str(satdata)], check=True, stdout=subprocess.DEVNULL)
+        # Predicted passes over Chicago for the bundled TLE snapshot (Nov. 11, 2026).
+        passes = ["3:1794409391:1794410050", "4:1794409632:1794410423", "0:1794410248:1794411054"]
         env = {"SATDATA": str(satdata)}
         exe = cc(tmp, "render_satlist", [sat / "render_satlist.c", sat / "orbit.c"], [sat])
         run(exe, tmp / "satlist.ppm", 7, env=env)
         save("sat-list", tmp / "satlist.ppm")
         exe = cc(tmp, "render_plot", [sat / "render_plot.c", sat / "orbit.c"], [sat])
-        run(exe, 41878000, -87630000, tmp / "plot.ppm", 7, "", *passes, env=env)
+        run(exe, 41878000, -87630000, tmp / "plot.ppm", 7, "dd", *passes, env=env)
         save("sat-plot", tmp / "plot.ppm")
         exe = cc(tmp, "render_track", [sat / "render_track.c", sat / "orbit.c"], [sat])
-        run(exe, 41878000, -87630000, tmp / "track.ppm", 7, 400, "4:1794309009:1794309606", "0:1794304648:1794305119", env=env)
+        run(exe, 41878000, -87630000, tmp / "track.ppm", 7, 300, passes[2], env=env)
         save("sat-track", tmp / "track.ppm")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
