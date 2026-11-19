@@ -159,7 +159,7 @@
   line-height: 1.6;
 }
 
-.guide-help a, .guide-slide p a { color: #a6e7c5; }
+.guide-help a:not(.button), .guide-slide p a:not(.button) { color: #a6e7c5; }
 
 .file-grid {
   display: grid;
