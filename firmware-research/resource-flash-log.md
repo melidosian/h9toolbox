@@ -4809,3 +4809,30 @@ result yet.**
   records. The highest generation read over USB was 20, with the
   SmartBeacon scheduler armed in Smart mode and APRS mute saved off.
   The operator was notified before the next muted receive check.
+
+### 2026-11-18 Shared Toolbox app theme
+
+- Applied the H3-style palette to all 16 screen-bearing entries in the
+  shared-flash dev bundle, including the Brick Breaker score. The standard
+  game image still matches its hardware-tested source hash. The app guide
+  defines the palette, layout and controls in APP-STYLE.md.
+- The grouped menu shows Stations and Beacon Status under APRS. Map,
+  Messages and Send open from the station browser tabs. Standalone APRS
+  screens remain accessible when the station list is absent. The packet
+  monitor, dumps and audio probes are grouped under Diagnostics.
+- The final dev bundle is 71,144 bytes with SHA-256
+  `a37fe53b43c2c90db7df41e3832f48ae317c2cde03d2ef57267a610ea74370d0`.
+  The matching package SHA-256 is
+  `96d9125eed703407e83574a51adbba1819703bcc4c329cb0f0befa05d3103b6b`.
+  The decoded main app changes the two bytes of the Beacon Status CRC.
+  The resident scheduler, flash helpers and RX15/rxff modem verified
+  against the prior dev build.
+- MENU uses 6,246 bytes below the 6,528-byte shared-state boundary. In
+  the legacy build SAT PASS uses 6,513 bytes below that boundary. Both
+  bundles passed the App Manager round trip. The private offline upgrade
+  retains all 21 entries from the last bench backup, including the ten
+  bench-only binaries with no source in this checkout.
+- Rendered and inspected APRS, GPS and satellite views. Loader, Morse,
+  mute, serial clone, APRS, menu and 134 web tests passed. The native
+  satellite fixture reproduced identical results to the baseline, including
+  12 existing failures. The themed images have yet to be bench-tested.
