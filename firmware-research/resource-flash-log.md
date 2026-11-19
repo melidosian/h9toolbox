@@ -4574,3 +4574,24 @@ result yet.**
   block timeouts, and version validation passed offline. The new main
   package and staged modem writer have yet to run on hardware.
   See [on-radio APRS updater](on-radio-aprs/README.md).
+
+## 2026-11-18 v0.1.5 installed and verified on the radio
+
+- The live H9 held the automatic-TX and live-squelch KISS bench image. Its
+  resident beacon occupies main flash `0xFA000–0xFBFFF` and starts at RAM
+  `0x29A00`. The v0.1.5 build kept that main image as its pinned base,
+  placed updater state at `0x29900`, and moved the stage to
+  `0xF4000–0xF9FFF` (XIP `0x01EEF000`).
+- The user authorized reuse of the inactive Doom sectors. All 4,095
+  shifted CRC checks across the six staging sectors and their aligned
+  CRCs matched the saved readback. The previous main image and slot were
+  backed up. PTT+2 HID then wrote and verified six staging and seven main
+  sectors. The two active beacon sectors still matched their original
+  checksums. The exact installed main package starts with SHA-256
+  `8b2c3128` and the stage with `17e14ff1`.
+- With USB unplugged, the user reached **APRS STAGE READY** and returned
+  to normal operation with Back. A second PTT+7 boot accepted Menu twice,
+  programmed the modem, and displayed **APRS BOOT VERIFIED / V1.0.15**.
+  A normal power cycle confirmed APRS Info `V1.0.15` and Toolbox ABOUT
+  `FIRMWARE V0.1.5`. This was a programming and boot test; no RF exchange
+  was exercised.

@@ -14,16 +14,19 @@ sys.path.insert(0, str(ROOT.parent / "hid-recovery"))
 import restore_stock as hid  # noqa: E402
 from probe_hid_recovery import fetch_crcs  # noqa: E402
 
-ADDRESS = 0xF5000
-SIZE = 0x7000
-IMAGE_OFFSET = 0x2000
+ADDRESS = 0xF4000
+SIZE = 0x6000
+IMAGE_OFFSET = 0x1000
 IMAGE_SIZE = 17304
 SHIFTS = (1, 37, 1024, 2048, 3072, 4095)
 
 
 def load_stage(directory: Path) -> bytes:
     manifest = json.loads((directory / "manifest.json").read_text())
-    stage = (directory / "aprs-stage-0xf5000.bin").read_bytes()
+    if (int(manifest["stage_address"], 16) != ADDRESS or manifest["stage_size"] != SIZE
+            or int(manifest["modem_image_offset"], 16) != IMAGE_OFFSET):
+        raise ValueError("Stage layout differs from the installer")
+    stage = (directory / "aprs-stage-0xf4000.bin").read_bytes()
     if len(stage) != SIZE or sha256(stage).hexdigest() != manifest["stage_sha256"]:
         raise ValueError("Stage bundle differs from the build manifest")
     package = (directory / "h9-kiss-aprs-stage.fw").read_bytes()

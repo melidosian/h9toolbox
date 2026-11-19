@@ -15,10 +15,10 @@ RESEARCH = ROOT.parent
 TOOLS = RESEARCH / "brick-breaker" / "tools"
 KISS = RESEARCH / "kiss-tnc"
 APP_BASE = 0x01E00100
-STAGE_ADDRESS = 0xF5000
-STAGE_SIZE = 0x7000
-STAGE_XIP = 0x01EF0000
-IMAGE_OFFSET = 0x2000
+STAGE_ADDRESS = 0xF4000
+STAGE_SIZE = 0x6000
+STAGE_XIP = 0x01EEF000
+IMAGE_OFFSET = 0x1000
 IMAGE_SIZE = 17304
 CAVE_OFFSET = 0xA7D74
 CAVE_END = 0xA7E50
@@ -30,6 +30,8 @@ HOOKS = (
     (0x078F6E, "ffea56fb", "goto", "block_ack"),
 )
 HEAP_OFFSET = 0x05FA9E
+BENCH_PACKAGE_SHA256 = "ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04"
+BENCH_APP_SHA256 = "c011b13a35d04d5c817e8cdff1fea17b08940e38a48b108441e45101fd976fcf"
 C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as",
            "-ffreestanding", "-fno-builtin", "-fno-common", "-Wall", "-Werror"]
 
@@ -77,9 +79,10 @@ def inline(source: str) -> bytes:
     return bytes(text_section(elf.read(asm.assemble_source(source + "\n"))).data)
 
 
-def compile_stage(output: Path, image: bytes) -> bytes:
+def compile_stage(output: Path, image: bytes, state: int) -> bytes:
     relative = output.relative_to(ROOT)
     (output / "stage-config.h").write_text(
+        f"#define APRS_UPDATE_STATE {state:#x}u\n"
         f"#define APRS_STAGE_IMAGE 0x{STAGE_XIP + IMAGE_OFFSET:08x}u\n"
         f"#define APRS_STAGE_CRC32 0x{crc32(image):08x}u\n")
     objects = []
@@ -99,12 +102,14 @@ def compile_stage(output: Path, image: bytes) -> bytes:
     return bytes(code.data)
 
 
-def patch_app(original: bytes, code: bytes, output: Path) -> tuple[bytes, int, list[dict]]:
+def patch_app(original: bytes, code: bytes, output: Path, old_heap: int,
+              version_at: int, version_word: int) -> tuple[bytes, int, list[dict]]:
     stub_base = APP_BASE + CAVE_OFFSET
     source = (ROOT / "stub.s.in").read_text()
     source = (source.replace("@ENTRY@", hex(STAGE_XIP))
               .replace("@END@", hex(STAGE_XIP + len(code)))
-              .replace("@CRC_STATE@", hex(crc32(code) ^ 0xFFFFFFFF)))
+              .replace("@CRC_STATE@", hex(crc32(code) ^ 0xFFFFFFFF))
+              .replace("@STATE@", hex(old_heap - 0x100)))
     obj = assemble(source, output / "stub.o")
     script = output / "stub.ld"
     script.write_text(f"ENTRY(stock_screen)\nSECTIONS {{ .text {stub_base:#x} : {{ *(.text) }} }}\n")
@@ -128,35 +133,51 @@ def patch_app(original: bytes, code: bytes, output: Path) -> tuple[bytes, int, l
     for offset, old, operation, name in HOOKS:
         displacement = symbols[name] - (APP_BASE + offset + 4)
         replace(offset, bytes.fromhex(old), inline(f"{operation} {displacement}"))
-    replace(HEAP_OFFSET, bytes.fromhex("c5ff009f0200"), inline("r5 = 0x29e00"))
+    replace(HEAP_OFFSET, inline(f"r5 = {old_heap:#x}"), inline(f"r5 = {old_heap - 0x100:#x}"))
+    if original[version_at - 24:version_at - 20] != b"H9AP":
+        raise ValueError("Missing H9 Toolbox version table")
+    replace(version_at, bytes.fromhex("04010000"), version_word.to_bytes(4, "little"))
     replace(CAVE_OFFSET, b"\xff" * len(cave), cave)
     return bytes(patched), len(cave), changes
 
 
-def build(stock_package: Path, output: Path) -> dict:
+def build(stock_package: Path, output: Path, base_package: Path | None = None) -> dict:
     kiss_manifest = json.loads((KISS / "main_kiss_patch.json").read_text())
     stock = checked_bytes(stock_package, kiss_manifest["stock_package_sha256"])
-    kiss = checked_bytes(KISS / "TD-H9-v1.0.38-KISS.fw", kiss_manifest["package_sha256"])
+    if base_package is None:
+        base = checked_bytes(KISS / "TD-H9-v1.0.38-KISS.fw", kiss_manifest["package_sha256"])
+        app_hash, old_heap, version_at = kiss_manifest["app_sha256"], 0x29F00, 0xA7C78
+    else:
+        base = checked_bytes(base_package, BENCH_PACKAGE_SHA256)
+        app_hash, old_heap, version_at = BENCH_APP_SHA256, 0x29A00, 0xA7CF4
     image = checked_bytes(KISS / "APRS-1.0.15-rx15-rxff.bin",
                           "3a70e2f48283cfd0d06fb29a08f462fc0b8302898e09d41946d5f74205daf741")
     if len(image) != IMAGE_SIZE:
         raise ValueError("Unexpected modem image size")
-    baseline = parse_firmware_bytes(kiss).image
+    baseline = parse_firmware_bytes(base).image
     original = app_bytes(baseline)
-    if digest(original) != kiss_manifest["app_sha256"]:
+    if digest(original) != app_hash:
         raise ValueError("Unexpected KISS application contents")
+    version = (ROOT / "VERSION").read_text().strip()
+    components = tuple(map(int, version.split(".")))
+    if len(components) != 3 or any(not 0 <= part <= 255 for part in components):
+        raise ValueError("Expected a three-part firmware version, with each part below 256")
+    major, minor, patch = components
+    version_word = (major << 16) | (minor << 8) | patch
     output.relative_to(ROOT)
     output.mkdir(parents=True, exist_ok=True)
-    code = compile_stage(output, image)
-    patched, stub_size, changes = patch_app(original, code, output)
+    code = compile_stage(output, image, old_heap - 0x100)
+    patched, stub_size, changes = patch_app(original, code, output, old_heap, version_at, version_word)
     package = rebuild(stock, patched)
     flash = parse_firmware_bytes(package).image
     if app_bytes(flash) != patched or flash[:0x5000] != baseline[:0x5000] or len(flash) != 0xDA000:
         raise ValueError("Repacked application or boot area failed verification")
     stage = (code.ljust(IMAGE_OFFSET, b"\xff") + image).ljust(STAGE_SIZE, b"\xff")
     (output / "h9-kiss-aprs-stage.fw").write_bytes(package)
-    (output / "aprs-stage-0xf5000.bin").write_bytes(stage)
+    (output / "aprs-stage-0xf4000.bin").write_bytes(stage)
     manifest = {
+        "firmware_version": version,
+        "base_package_sha256": digest(base),
         "main_package_sha256": digest(package),
         "main_flash_sha256": digest(flash),
         "main_changed_sectors_vs_kiss": [
@@ -180,9 +201,10 @@ def build(stock_package: Path, output: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stock-package", metavar="TD-H9-V1.0.38.fw", type=Path, required=True)
+    parser.add_argument("--base-package", type=Path, help="Pinned live-squelch KISS and resident-beacon bench build")
     parser.add_argument("--output", type=Path, default=ROOT / "build")
     args = parser.parse_args()
-    manifest = build(args.stock_package, args.output.resolve())
+    manifest = build(args.stock_package, args.output.resolve(), args.base_package)
     print(f"Built {manifest['main_stub_size']}-byte main stub and {manifest['stage_code_size']}-byte updater")
     print(f"Main package SHA-256 {manifest['main_package_sha256']}")
     print(f"Stage SHA-256 {manifest['stage_sha256']}")

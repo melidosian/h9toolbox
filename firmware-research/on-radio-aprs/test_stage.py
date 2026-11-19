@@ -63,7 +63,7 @@ class StageTests(unittest.TestCase):
         self.assertEqual(self.writes, [])
 
     def test_refuses_failed_shifted_check(self):
-        with patch.object(stage, "fetch_crcs", return_value=[0] * 6):
+        with patch.object(stage, "fetch_crcs", return_value=[0] * (stage.SIZE // stage.hid.BLOCK_SIZE - 1)):
             with self.assertRaisesRegex(RuntimeError, "Staging window differs"):
                 stage.write_stage(self.device, self.bundle, write=True)
         self.assertEqual(self.writes, [])

@@ -1,15 +1,18 @@
 # TD-H9 on-radio APRS updater
 
-Bench build for the Type-C TD-H9 and the v1.0.38 KISS main firmware. The
+H9 Toolbox Firmware v0.1.5 bench build for the Type-C TD-H9. The
 computer stages a matching updater and the approved RX15 and unsigned-byte
 APRS 1.0.15 image in spare main flash. At a later cold boot, the radio sends
 the image over its internal UART with USB disconnected. The first build
-accepts only this specific modem image.
+accepts only this specific modem image. The Toolbox **ABOUT** app reports
+`FIRMWARE V0.1.5`. The APRS modem reports its own version, `V1.0.15`.
 
-**Hardware status.** The stock PTT+7 screen and Back exit have been tested
-with USB disconnected. The staged updater has been built and tested with
-simulated flash and acknowledgments. The staged write and modem boot check
-still need their first run on the radio.
+**Hardware status.** USB readback verified the v0.1.5 main firmware and
+stage on the resident-beacon bench radio. With USB disconnected, PTT+7
+and Menu reached **APRS STAGE READY**, and Back returned to normal
+operation. The subsequent staged write displayed **APRS BOOT VERIFIED /
+V1.0.15**. After a normal power cycle, APRS Info showed `V1.0.15` and
+Toolbox ABOUT showed `FIRMWARE V0.1.5`.
 
 ## Build
 
@@ -24,11 +27,17 @@ build/test_update ../kiss-tnc/APRS-1.0.15-rx15-rxff.bin
 python3 -m unittest test_stage
 ```
 
+The default base is the pinned KISS package. To preserve the separately built
+resident-beacon and live-squelch changes on a bench radio, pass that exact
+package with `--base-package`. The manifest identifies the base and the
+firmware version. The standard site installer still uses its own hosted build.
+
 The outputs are `build/h9-kiss-aprs-stage.fw`,
-`build/aprs-stage-0xf5000.bin`, and `build/manifest.json`. Keep the three
+`build/aprs-stage-0xf4000.bin`, and `build/manifest.json`. Keep the three
 files together. The main package installs the launch and integrity hooks.
 The stage contains the updater code and the modem image at main flash
-`0xF5000–0xFBFFF`. The host verifies device checksums, then the main firmware
+`0xF4000–0xF9FFF`, below the resident beacon sectors at `0xFA000–0xFBFFF`.
+The host verifies device checksums, then the main firmware
 checks the updater code before executing it and the updater checks the
 modem image before sending it.
 

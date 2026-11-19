@@ -4,7 +4,7 @@
     .section .text,"ax",@progbits
     .globl stock_screen
 stock_screen:
-    r1 = 0x29e00
+    r1 = @STATE@
     r0 = 0
     [r1] = r0
     r3 = 0x01e7a052
@@ -15,7 +15,7 @@ stock_idle_tick:
     [--sp] = {rets, r14-r4}
     r3 = 0x01e7a004
     call r3
-    r0 = 0x29e00
+    r0 = @STATE@
     r1 = b[r0] (u)
     if (r1 == 2) goto hold_failed
     if (r1 != 0) goto idle_done
@@ -58,7 +58,7 @@ idle_done:
 
     .globl stock_ready
 stock_ready:
-    r0 = 0x29e00
+    r0 = @STATE@
     r0 = b[r0] (u)
     if (r0 == 2) goto not_ready
     r0 = b[r4+98] (u)
@@ -69,7 +69,7 @@ not_ready:
 
     .globl stock_launch
 stock_launch:
-    r0 = 0x29e00
+    r0 = @STATE@
     r1 = b[r0] (u)
     if (r1 == 3) goto skip_launch
     r3 = 0x01e7a1fe
@@ -79,7 +79,7 @@ skip_launch:
 
     .globl block_ack
 block_ack:
-    r1 = 0x29e00
+    r1 = @STATE@
     r2 = b[r1] (u)
     if (r2 != 1) goto forward_ack
     r2 = b[r1+1] (u)
