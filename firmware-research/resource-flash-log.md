@@ -4687,3 +4687,18 @@ result yet.**
   response to disconnect. The normal Outbox matched its preflight
   snapshot and the isolated mailbox stayed empty. The live terminal,
   KISS TCP and AGWPE listeners remained open.
+
+## 2026-11-19 Pat upload through the built-in bridge
+
+- One synthetic message for Winlink's documented TEST loopback used an
+  isolated Outbox. The first KC9GMW-12 call acknowledged all proposal
+  frames at AX.25 but disconnected before a Winlink proposal decision.
+- The retry offered the same message ID. KC9GMW-12 returned FS Y,
+  acknowledged the binary transfer across sequence wrap, and proceeded
+  to the next Winlink turn. Pat completed the exchange and recorded
+  one successful send. The exact message moved to the isolated Sent
+  folder. The regular Outbox matched its original snapshot.
+- An RF inbox check and later direct CMS checks returned FQ with no
+  loopback copy offered as of 00:40:37 local time, about four and a
+  half minutes after completion. Delivery to the Inbox remains
+  pending. The live RX/TX view stayed open.
