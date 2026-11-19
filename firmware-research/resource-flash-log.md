@@ -4971,3 +4971,46 @@ result yet.**
 - Removed the persistent menu card and its H3 label from App Manager.
   A menu action appears above the app list when the catalog offers a
   replacement. Menu and app binaries are identical.
+
+### 2026-11-19 SmartBeacon bench release for the dev site
+
+- Rebuilt the automatic TX bench variant with loader API 5 and the original
+  v0.1.4 version stamp. The main package SHA-256
+  `ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04`
+  matches the package verified on the bench radio after the squelch-bit fix.
+  The resident image and standard 19-entry app bundle also match their
+  previously recorded hashes. No device was written during the rebuild.
+- The released bench main image differs from v0.1.5 in 21 aligned sector
+  CRCs. The reported 19-sector scan is consistent with a related image but
+  does not identify an exact firmware build. The browser accepts this
+  release as a backup reference only after the full live CRC checks.
+- The dev updater now installs the verified SmartBeacon release directly.
+  Its two resident sectors accept only the verified image or programming
+  into verified erased bytes. Simulated HID checks covered a matching bench
+  radio with zero writes, an occupied resident area with zero writes, and
+  installation from stock with the scheduler verified before the main write.
+  The production updater still selects v0.1.5.
+- The dev updater now names the release H9 Toolbox Firmware v0.1.5
+  and lists SmartBeacon as a feature. It uses the API 5 build with the
+  v0.1.5 version stamp (main package SHA-256 `e64b6a5f3d5dd17077a392bffc837486a7076e9e52c6cc2b19e34e2a0dec85e0`).
+  The scheduler and app hashes are unchanged. The earlier v0.1.4 bench
+  main image remains a recognized input for upgrades.
+- The dev updater's Skip backup path now verifies the Type-C TD-H9 model
+  region against the pinned image and writes only differing main firmware
+  sectors. The final check includes shifted CRC windows. In Chromium with
+  simulated HID, the updater replaced only the two altered sectors
+  (`0x63000` and `0x5000`) and downloaded no backup. A model-region
+  mismatch blocked all writes.
+- Rebuilt the dev v0.1.5 package with the documented on-radio APRS
+  updater using the verified live-squelch bench base. Main SHA-256
+  `32b2b6308b2e8ef71d2ef5e15d543ce9b2594fd9455041d909653324446ec51e`,
+  stage SHA-256 `55be5fafe4efae0287345a25278e9ee00171e7af164e1c502b1bcc98a37924ba`.
+  Its 19-sector difference from the standard v0.1.5 image matches the
+  count and first 16 offsets in the user's earlier report. The browser
+  now stages this matching package and shows the keypad instructions
+  only after verifying the stage. Simulated checks preserved occupied slots.
+- The browser updater now sends the JieLi HID restart report (`0xCA`)
+  after verification, using the command from the HID maintenance branch.
+  Simulated USB tests confirmed that a failed install sends no restart,
+  a verified install sends one report, and a missing disconnect leaves
+  the verified result available with manual restart instructions.

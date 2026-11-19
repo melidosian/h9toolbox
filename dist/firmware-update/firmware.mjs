@@ -5,6 +5,8 @@ export const FLASH_SIZE = 0x100000;
 export const SECTOR_SIZE = 4096;
 export const APRS_STAGE_START = 0xf4000;
 export const APRS_STAGE_END = 0xfa000;
+export const RESIDENT_START = 0xfa000;
+export const RESIDENT_END = 0xfc000;
 export const STOCK_PACKAGE_SHA256 = 'c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6';
 export const STOCK_IMAGE_SHA256 = '74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f214d322894d26ce4e648';
 // Hosted release combines the Toolbox app loader, the Bluetooth KISS hooks,
@@ -305,6 +307,27 @@ function u32(...values) {
 
 export class H9Hid {
   constructor(device) { this.device = device; }
+  async reboot({ events = navigator.hid, timeoutMs = 6000 } = {}) {
+    let onDisconnect, timer, sendError;
+    const disconnected = new Promise(resolve => {
+      onDisconnect = event => {
+        if (event.device === this.device) resolve(true);
+      };
+      events.addEventListener('disconnect', onDisconnect);
+      timer = setTimeout(() => resolve(false), timeoutMs);
+    });
+    // The reboot can tear down USB before sendReport completes. Wait for the
+    // radio's disconnect event instead of expecting a reply to command 0xCA.
+    try {
+      void this.device.sendReport(0, makePacket(0xca)).catch(error => { sendError = error; });
+      if (await disconnected) return true;
+      if (sendError) throw sendError;
+      return false;
+    } finally {
+      clearTimeout(timer);
+      events.removeEventListener('disconnect', onDisconnect);
+    }
+  }
   async exchange(command, body = new Uint8Array()) {
     const device = this.device;
     let cancel;
@@ -364,6 +387,10 @@ export class H9Hid {
   }
   async writeAprsStage(physical, offset, bytes) {
     requireValue(physical >= APRS_STAGE_START && physical < APRS_STAGE_END, 'Write outside APRS staging area.');
+    await this.#writeChunk(physical, offset, bytes);
+  }
+  async writeSmartBeaconResident(physical, offset, bytes) {
+    requireValue(physical >= RESIDENT_START && physical < RESIDENT_END, 'Write outside SmartBeacon resident area.');
     await this.#writeChunk(physical, offset, bytes);
   }
   async #writeChunk(physical, offset, bytes) {

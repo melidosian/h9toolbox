@@ -40,7 +40,7 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
         "description": "Grouped Toolbox menu with keypad shortcuts and APRS Settings.",
         "summary": "Hold Back to open Toolbox. Type a row number to jump to it.",
         "controls": ["Up and Down move or adjust. Menu opens or saves. Back returns one level."],
-        "notes": ["Use the matching SmartBeacon bench firmware."],
+        "notes": ["Use the dev build of H9 Toolbox Firmware v0.1.5."],
         "replaces": ["ac00", *meta["menu"].get("replaces", [])],
     }
     apps = []

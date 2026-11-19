@@ -95,7 +95,7 @@ function renderCatalog() {
   });
   box.replaceChildren(...cards);
   $('catalogNote').textContent = bench
-    ? 'Requires the matching SmartBeacon dev firmware.'
+    ? 'Requires the dev build of H9 Toolbox Firmware v0.1.5.'
     : `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
 }
 
@@ -234,7 +234,7 @@ async function refreshCatalog() {
     catch (error) { log(error.message, 'error'); }
   }));
   pickCatalog();
-  if (!catalog) $('catalogNote').textContent = preferBench ? 'The SmartBeacon bench catalog did not load.' : 'The app catalog did not load.';
+  if (!catalog) $('catalogNote').textContent = preferBench ? 'The development app catalog did not load.' : 'The app catalog did not load.';
 }
 // After reading the radio: which installed apps have a newer version in the catalog.
 function reportUpdates() {
@@ -248,7 +248,7 @@ function reportUpdates() {
   if (outdated.length) log(`Updates available for ${outdated.join(', ')}.`);
   if (menu.status === 'different') {
     log(menu.canUpdate
-      ? 'A different Toolbox menu is installed. Select Use matching menu and apps to stage the version for this SmartBeacon build.'
+      ? 'A different Toolbox menu is installed. Select Use matching menu and apps to stage the version for the dev firmware.'
       : 'The installed Toolbox menu differs from this catalog.');
   } else if (!outdated.length) {
     log('The Toolbox menu and installed catalog apps are up to date.');
