@@ -1,9 +1,11 @@
 # Stock Morse/CW removal
 
-`--disable-morse` removes the Morse category and 2,358 bytes of code exclusive
+`--disable-morse` removes the Morse category and 3,656 bytes of code exclusive
 to the stock CW allocator, terminal entry, message transmit and key handling
 paths. Shared RF, audio and settings routines keep their stock layout.
-Hardware validation is pending.
+The November 18 bench check confirmed that Morse is absent and stock APRS
+still opens on the first build. The additional cleanup of the decoder
+tails and private helpers has been checked offline.
 
 Pinned stock 1.0.38 findings:
 
@@ -85,13 +87,16 @@ at +0x87E38, before loading the CW context or reaching the old test at +0x876B2.
 | 0x6F000–0x6F03C | Only direct calls at +0x6F97C and +0x6FB3E, inside the retired entry prefixes. +0x6F03C starts a shared routine. |
 | 0x6F974–0x6F9A6, 0x6FB36–0x6FB4C | Fallthrough behind the two disabled terminal gates. The following shared instructions remain. |
 | 0x76AA6–0x76B52, 0x76BCE–0x76CDC | CW transmit setup and character loop. Index 7 was the only jump-table entry into the setup. Indices 8 and 10 still point to +0x76B52 and +0x76B56. Branches into the transmit loop originate in the removed code. |
-| 0x84F88–0x85610 | The dedicated key/decoder routine and its out-of-line branches following its early return. Its only direct call is +0x876B8. The preceding helper and the next function at +0x85610 remain. |
+| 0x84A82–0x84AB4 | Dot/dash lookup used by the Morse decoder. The display routine starting at +0x84AB4 remains. |
+| 0x84E98–0x85666 | Tone and text helpers, the dedicated key handler entered by +0x876B8, and the character decoder entered by +0x87CE8 and +0x87E9E. The next complete function starts at +0x85666. |
 | 0x876A0–0x87710 | Fallthrough below +0x8769A, including the call to +0x84F88. Other entries to the shared key routine bypass this block. |
+| 0x87B8C–0x87E38, 0x87E76–0x87F64 | CW threshold, tone handling and display updates reached from the removed key prefix. The intervening stock packet handling and register restore at +0x87E38–0x87E76 remain. |
 
 The static scan checked aligned direct transfers, instruction boundaries,
 embedded literal pointers and the local switch tables. Apparent incoming
-transfers from +0x70A68, +0x76B3A, +0x84930, +0x85636, +0x8563A, +0x85710
-and +0x86398 decode inside longer instructions. The apparent odd pointers
+transfers from +0x70A68, +0x76B3A, +0x84930, +0x85710, +0x86398, +0x867A4,
++0x867C6, +0x87E70, +0x8810A and +0x88522 decode inside longer instructions.
+The apparent odd pointers
 at +0xA9BD and +0x42BEF span adjacent instructions. Each removed range has
 a pinned SHA-256. Regression checks verify the saved branch targets, range
 bounds and rejection of modifications to the expected input. The resident

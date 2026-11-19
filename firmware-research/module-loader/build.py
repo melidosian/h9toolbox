@@ -63,6 +63,7 @@ S2_WRITE_GUARDS = ((0xA52A4, 0xA542C, "ml_s2_allowed"),
 KISS_MANIFEST = RESEARCH / "kiss-tnc" / "main_kiss_patch.json"
 KISS_MANIFEST_SHA256 = "2f9b8b2f155f762c2e4a5f13a8892429fcc0ab09dd755f2aa941e1abe1e58c74"
 KISS_HELPER = 0xA7C7C
+KISS_RESIDENT_HELPER = 0x84F88
 KISS_CALLS = {0x5DB40: 0xA7CAA, 0x5DB6A: 0xA7CB6, 0x5DB86: 0xA7CE8, 0x870E0: 0xA7CF8}
 SLOT_DIRECTORY, SLOT_DATA, SLOT_LIMIT = 0xCC0000, 0xCC1000, 0xCE0000
 
@@ -444,7 +445,8 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         import morse_disable
         patched = morse_disable.apply(stock, patched)
         if resident:
-            retired = next((start, end) for start, end, _ in morse_disable.REMOVED if start == 0x84F88)
+            retired = next((KISS_RESIDENT_HELPER, end) for start, end, _ in morse_disable.REMOVED
+                           if start <= KISS_RESIDENT_HELPER < end)
     kiss, kiss_sectors = apply_dev_kiss(patched, CAVE + len(stub), retired) if dev_kiss else (None, set())
     raw = out / "h9_toolbox_modules_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)

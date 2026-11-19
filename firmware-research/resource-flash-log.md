@@ -4676,3 +4676,27 @@ result yet.**
   sectors erased. Stock APRS was enabled, RX was B and TX was B-Lock.
   Stock Timed Beacon was on, with PTT Linkage and both relays off. Asked
   the operator to switch off stock Timed Beacon for the receive-only bench.
+- The next read confirmed stock Timed Beacon off and two valid committed
+  `TSPAIR02` records. Generation 13 had mute on and schedule off.
+  Generation 14 had mute on and the 5-minute timed schedule armed.
+  The APRS BEACON screen requires a ready resident task to save an armed
+  state.
+- The operator reported a live GPS fix on APRS BEACON and reached the screen
+  again after the observed USB disconnect at power-cycle time. The screen
+  uses the resident task's snapshot for its GPS status. The operator
+  confirmed SCHEDULE ARMED and APRS MUTE ON after the power cycle, and
+  GPS FIX BEACON DUE after leaving the screen for the normal channel view.
+- The operator confirmed that stock Morse is gone and stock APRS opens.
+  Voice on A remained audible with APRS MUTE ON. The operator heard no
+  packet audio on B during the check and is waiting for a known packet
+  to confirm decoding with mute on.
+- The next offline build removes 1,298 more bytes of CW-only character,
+  timing and display code, for 3,656 bytes total. The shared stock packet
+  handler at app+`0x87E38–0x87E76` remains byte-identical. The resident body
+  and module bundle also match the previous bench build byte-for-byte.
+  Main package SHA-256
+  `3e575164e2f859fd197f04e268143fb2dd99f5451ed91e1448e889f40841c432`.
+  This follow-up is an offline package. The initial 2,358-byte removal
+  is the one verified on the radio. The additional removal is in main
+  flash. The module slot is 8 KiB and resident state reserves a separate
+  512 bytes from the shared heap.

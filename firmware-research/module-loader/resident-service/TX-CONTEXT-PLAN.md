@@ -1,5 +1,9 @@
 # TX context evidence and non-transmitting observation plan
 
+The resident bench build runs GPS and scheduler work in a dedicated task.
+Its pending event can be read by Toolbox while the stock radio and other
+screens continue. The stock RF paths retain their current call sites.
+
 ## Evidence, not inferred mutual exclusion
 
 Stock CPU addresses, v1.0.38:
@@ -25,6 +29,13 @@ There is no demonstrated mutex/queue contract covering KISS, stock beacon,
 physical PTT, dual watch and other module RF operations. A busy check followed
 by a call is not atomic exclusion. Reusing a task context does not prove that
 other tasks/interrupts cannot modify RF state during the blocking call.
+
+The stock timed caller at app+`0x87494` is reached by `my_app`. It calls
+app+`0x82EB2` under the stock mode and activity checks. This is a possible
+consumer of the resident pending event. A direct scan also found the
+manufacturer command handlers reaching the PTT wrapper at app+`0x5DD0A`
+and app+`0x5E1BC`. The exact concurrency of those handlers still needs
+validation before a pending event can enter the stock transmit path.
 
 ## Concrete safe integration boundary
 
