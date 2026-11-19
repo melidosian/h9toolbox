@@ -630,7 +630,7 @@ const appManagerLink = {
 };
 
 function aprsResult(state) {
-  return state === 'ready' ? ' The optional APRS update is ready. Open Unlock KISS TNC below for keypad instructions.' : '';
+  return state === 'ready' ? ' The optional APRS update is ready. Open the KISS TNC instructions below.' : '';
 }
 
 async function performWrite(direction) {
@@ -674,8 +674,10 @@ async function performWrite(direction) {
         : 'The APRS staging area is occupied. Preserving its contents and continuing the main firmware install.');
     }
     $('planState').textContent = `Radio checked: ${work.length} sector(s) to ${direction === 'update' ? 'write' : 'restore'}${checked.interrupted ? ', including one interrupted sector' : ''}.`;
-    $('unlock-kiss').hidden = aprs !== 'ready';
+    $('unlock-kiss').hidden = !toolbox;
     $('unlock-kiss').open = false;
+    $('kissKeypad').hidden = aprs !== 'ready';
+    $('kissUsb').hidden = !toolbox || !useDevBuild;
     $('kissGate').hidden = aprs !== 'occupied';
     if (!work.length) {
       finish('Main firmware already matches');
