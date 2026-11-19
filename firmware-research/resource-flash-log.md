@@ -4795,3 +4795,17 @@ result yet.**
   save failure, and read-only live status. Loader, mute, Morse, serial clone
   and all 134 web tests passed. The native satellite fixture reproduced
   its prior 12 failures.
+- With the prior API 5 main image and the SmartBeacon resident verified in
+  PTT + 2 mode, wrote the three differing sectors `0xD9000`, `0xAC000`
+  and `0x5000` in that order. The full aligned and shifted CRC scans
+  matched the H3-menu package afterward. The H9 restarted normally.
+- Read back the installed 77,046-byte H3-menu bundle with all 21 entries
+  from the bench radio. Its SHA-256 was
+  `33084b7422820add1a8aa7997e9af5c124ae8a0c732ad93e5e3a3d41dcba2968`.
+  Only MENU and APRS BEACON changed. The saved SmartBeacon and mute
+  records were byte-identical before and after the update.
+- The operator confirmed GPS FIX BEACON DUE on Beacon Status and Back
+  returning to its Toolbox row. Settings edits produced new committed
+  records. The highest generation read over USB was 20, with the
+  SmartBeacon scheduler armed in Smart mode and APRS mute saved off.
+  The operator was notified before the next muted receive check.
