@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111f2c">
+  <meta name="description" content="Recover a TIDRADIO TD-H9 after an interrupted firmware update or a failure to start.">
+  <title>Recover your TD-H9 after a firmware update | H9 Toolbox</title>
+  <link rel="icon" href="../../favicon.ico">
+  <link rel="stylesheet" href="../../styles.css">
+  <link rel="stylesheet" href="../../landing.css">
+  <link rel="stylesheet" href="../update.css?v=20261119c">
+  <script src="../../https-redirect.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand brand-link" href="../../" aria-label="H9 Toolbox home"><span class="mark">H9</span><span><strong>H9 Toolbox</strong><small>TD-H9 RECOVERY</small></span></a>
+    </header>
+    <main class="firmware-main recovery-guide">
+      <header class="intro">
+        <h1>Recover your TD-H9</h1>
+        <p>If an update stopped or your radio won’t start, use the steps below to check whether it can still enter USB update mode.</p>
+      </header>
+
+      <section class="card" aria-labelledby="reconnect-title">
+        <h2 id="reconnect-title">1. Reconnect in USB update mode</h2>
+        <p>If the updater is still writing or verifying, leave the radio on and connected until it finishes or reports an error. If it stopped, keep the original updater tab open and keep the firmware and recovery files you used.</p>
+        <ol>
+          <li>Turn the radio off and plug it directly into your computer with a data-capable USB-C cable.</li>
+          <li>Hold the side <strong>PTT</strong> (talk) button and the keypad <strong>2</strong> while turning the radio on. A blank screen and a green top light are normal in this mode.</li>
+          <li>In the updater, go to <strong>Connect in update mode</strong>, select <strong>Connect radio</strong>, and choose <strong>JieLi</strong> from the device list. Use Chrome or Edge on a computer.</li>
+        </ol>
+        <p>If JieLi doesn’t appear, try another data cable or USB port and repeat the steps. Close any other updater tabs or tools that may have claimed the radio. If you still can’t connect, go to <a href="#other-options">Other recovery options</a>.</p>
+      </section>
+
+      <section class="card" aria-labelledby="restore-title">
+        <h2 id="restore-title">2. Retry or restore your backup</h2>
+        <ul>
+          <li><strong>To retry the update</strong>, use the same firmware and restore point in your original updater tab. If <strong>Install firmware</strong> is available, retry it. The updater checks the radio before it writes.</li>
+          <li><strong>To return to your backup</strong>, load the firmware package you originally chose, then select your saved <strong>.h9hid</strong> or compatible <strong>.bin</strong> under <strong>Use a saved restore point</strong> on step 4. Continue to step 5, read the confirmation, and select <strong>Restore backup</strong> or <strong>Restore stock v1.0.38</strong>, whichever the updater shows. A Bluetooth channel backup won’t work for firmware recovery.</li>
+        </ul>
+        <p>If the updater rejects your backup or you can’t find it, keep the error message and go to <a href="#other-options">Other recovery options</a>. Use the original recovery file from this radio whenever possible.</p>
+      </section>
+
+      <section class="card" aria-labelledby="restart-title">
+        <h2 id="restart-title">3. Restart after verification</h2>
+        <p>Wait for the updater to confirm verification. Unplug the USB cable, turn the radio off, then turn it back on without holding any buttons. Check that the channel screen opens and that your saved channels and settings look right.</p>
+      </section>
+
+      <section class="card" id="other-options" aria-labelledby="other-options-title">
+        <h2 id="other-options-title">Other recovery options</h2>
+        <ul>
+          <li><strong>PTT + 2 works, but browser recovery won’t finish.</strong> The command-line tool can restore the main firmware to stock v1.0.38 if you have the verified raw stock restore point. See the <a href="https://github.com/melidosian/h9toolbox/blob/dev/firmware-research/hid-recovery/README.md">desktop stock recovery instructions</a>.</li>
+          <li><strong>PTT + 2 won’t open update mode.</strong> On stock or H9 Toolbox Firmware, try holding <strong>8</strong> while turning on the radio with USB connected. If your computer detects <strong>BR23 UBOOT1.00</strong>, see the <a href="https://github.com/melidosian/h9toolbox/blob/dev/firmware-research/h9-flasher/README.md">desktop BR23 USB flasher instructions</a> for that mode.</li>
+          <li><strong>Neither USB mode appears.</strong> Contact TIDRADIO support. Include the TD-H9 model, the firmware you were installing, the updater error, and what the screen and top light do when you power on.</li>
+        </ul>
+      </section>
+      <p><a class="button ghost" href="../">Open the firmware updater</a></p>
+    </main>
+    <footer><a href="../../">H9 Toolbox</a></footer>
+  </div>
+</body>
+</html>

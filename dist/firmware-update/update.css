@@ -249,3 +249,10 @@
 
 #unlock-kiss .instructions { margin: 0 14px 12px; }
 #unlock-kiss .controls { padding: 0 14px 12px; }
+
+.recovery-guide .card { margin-bottom: 14px; }
+.recovery-guide .card :is(p, ol, ul) { color: #bdd2d4; font-size: 14px; line-height: 1.65; }
+.recovery-guide .card :is(ol, ul) { padding-left: 22px; }
+.recovery-guide .card li + li { margin-top: 8px; }
+.recovery-guide .card p:last-child, .recovery-guide .card ul:last-child { margin-bottom: 0; }
+.recovery-guide .card a { color: #a6e7c5; }

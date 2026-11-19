@@ -21,7 +21,7 @@
   <link rel="icon" href="../favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../landing.css?v=20261108c">
-  <link rel="stylesheet" href="./update.css?v=20261119">
+  <link rel="stylesheet" href="./update.css?v=20261119c">
   <link rel="stylesheet" href="../boot-logo/logo.css?v=20261108c">
   <script src="../https-redirect.js"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"H9 Toolbox TD-H9 Web Flasher","url":"https://h9toolbox.com/firmware-update/","description":"Install H9 Toolbox Firmware or restore stock v1.0.38 on a TIDRADIO TD-H9 over USB-C (PTT + 2 HID mode) in Chrome or Edge.","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows, macOS, Linux, ChromeOS (desktop Chrome or Edge)","browserRequirements":"Requires WebHID in desktop Chrome or Edge over HTTPS","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Install H9 Toolbox Firmware","Restore stock v1.0.38","Quick firmware backup","Sector-by-sector verification","Resume after interruption","App Manager link for apps and boot logo"],"about":{"@type":"Product","name":"TIDRADIO TD-H9","brand":{"@type":"Brand","name":"TIDRADIO"},"category":"Handheld two-way radio"},"publisher":{"@type":"Organization","name":"H9 Toolbox","url":"https://h9toolbox.com/","sameAs":["https://github.com/melidosian/h9toolbox"]}}</script>
@@ -66,7 +66,7 @@
             <summary>Having trouble with your browser?</summary>
             <p>If you’re on a phone or tablet, send this page’s link to your computer. If you’re using Safari or Firefox, switch to Chrome or Edge on your computer.</p>
             <p>Already using Chrome or Edge? Open this page in a regular browser tab and make sure your browser is up to date. If you’re on a work or school computer, try a personal computer. Work or school settings can block USB access.</p>
-            <p>If you need to recover your radio after a failed update, see the <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research">desktop recovery tools</a>.</p>
+            <p>If you need to recover your radio after a failed update, see the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
           </details>
           <p class="fine"><strong>Experimental firmware.</strong> A failed update can leave the radio unable to boot. Have a recovery method ready before you start. The browser install and restore flow was tested on one TD-H9 from macOS.</p>
         </section>
@@ -143,7 +143,7 @@
           <details class="guide-help">
             <summary>The update stopped or the check failed</summary>
             <p>Keep the selected firmware and original backup. If the radio disconnected, go back to step 2 and reconnect using <strong>PTT + 2</strong>, then return here. If the preflight check says the backup does not match, use step 4 to select the original backup from this radio.</p>
-            <p>The updater checks the radio again before writing. For an interrupted write, keep this browser session and use the same firmware and restore point. If Install is disabled after reconnecting, use the original recovery file and choose Restore backup. If the radio cannot enter update mode, see the <a href="https://github.com/melidosian/h9toolbox/tree/main/firmware-research">desktop recovery tools</a>.</p>
+            <p>The updater checks the radio again before writing. For an interrupted write, keep this browser session and use the same firmware and restore point. If Install is disabled after reconnecting, use the original recovery file and choose Restore backup. If the radio still won’t connect or start, see the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
           </details>
         </section>
 
@@ -168,7 +168,7 @@
           </details>
           <details class="guide-help">
             <summary>The radio won’t start or the app menu is missing</summary>
-            <p>Unplug USB, then switch the radio off and back on without holding any buttons. If the radio still won’t start, re-enter update mode with <strong>PTT + 2</strong> and use your saved recovery file.</p>
+            <p>Unplug USB, then switch the radio off and back on without holding any buttons. If the radio still won’t start, follow the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
             <p>After installing H9 Toolbox Firmware, wait for the channel screen and hold <strong>Back</strong> to open the app menu. If the App Manager can’t connect, enable Bluetooth on the computer and disconnect the radio from other apps.</p>
           </details>
         </section>
