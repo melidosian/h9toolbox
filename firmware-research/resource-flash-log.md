@@ -4655,3 +4655,18 @@ result yet.**
   An over-the-air check of the integrated engine remains pending.
 - The website ZIP now contains the Python bridge, its AGWPE and
   AX.25 modules, the Pat helper and their setup README.
+
+## 2026-11-19 First RF check of the built-in AGWPE bridge
+
+- The user confirmed 145.610 MHz FM simplex with Bluetooth and antenna.
+  Pat 1.0.0 dialed K9ESV-10 using a temporary empty mailbox and
+  inbound deliveries deferred. The installed Paracon client then
+  dialed PESV on AGWPE radio port 0.
+- The trace logged four SABM Bluetooth handoffs per station, spaced
+  about 5.7 seconds apart. Both attempts timed out without any
+  decoded RX frame. The connection never reached a Winlink login
+  or BBS prompt. A separate local comparison found byte-identical
+  SABM frames from the built-in engine and the earlier tncd encoder.
+  The trace establishes Bluetooth handoff; RF delivery was unverified.
+- The normal Pat Outbox matched its preflight snapshot. The live bridge
+  and Terminal trace remained open.
