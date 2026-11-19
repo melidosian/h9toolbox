@@ -28,26 +28,23 @@ def ack(status: int) -> bytes:
 
 
 class FakePort:
-    def __init__(self, replies, startup=b""):
+    def __init__(self, replies):
         self.replies = bytearray().join(replies)
-        self.startup = bytearray(startup)
         self.writes = []
-        self.timeout = 3
-        self.port = None
-        self.dtr = self.rts = False
 
     def write(self, packet):
         self.writes.append(packet)
         return len(packet)
 
     def read(self, size):
-        source = self.startup if self.timeout == aprs.STARTUP_QUIET_SECONDS else self.replies
-        chunk = bytes(source[:size])
-        del source[:size]
+        chunk = bytes(self.replies[:size])
+        del self.replies[:size]
         return chunk
 
+    def reset_input_buffer(self):
+        pass
+
     def __enter__(self):
-        self.settings_at_open = (self.port, self.dtr, self.rts)
         return self
 
     def __exit__(self, *_):
@@ -122,14 +119,6 @@ class AprsFlasherTests(unittest.TestCase):
         self.assertEqual(port.writes[-2][4], 29)  # final 24-byte payload + 5
         self.assertEqual(port.writes[-2][6:10], (135 * 128).to_bytes(4, "big"))
 
-    def test_noisy_startup_restores_timeout_before_failure(self):
-        port = FakePort([], startup=b"x")
-        with patch.object(aprs, "monotonic", side_effect=[0, 3]):
-            with self.assertRaisesRegex(aprs.AprsFlashError, "did not go quiet"):
-                aprs.drain_startup_input(port)
-        self.assertEqual(port.timeout, 3)
-        self.assertEqual(port.writes, [])
-
     def test_failed_block_does_not_send_exit(self):
         image = aprs.Image(b"A" * 129, "", 0, 0)
         port = FakePort([ack(0x13), ack(0x10)])
@@ -154,9 +143,7 @@ class AprsFlasherTests(unittest.TestCase):
                 "attempt_started", "block_acknowledged", "attempt_failed"
             ])
             self.assertEqual(rows[1]["acknowledged_end"], 128)
-            self.assertEqual(rows[1]["reply_hex"], ack(0x13).hex(" "))
             self.assertEqual(rows[2]["acknowledged_end"], 128)
-            self.assertIn(ack(0x10).hex(" "), rows[2]["error"])
             self.assertEqual(rows[0]["image_sha256"], "test-digest")
             self.assertNotIn(aprs.EXIT_FRAME, port.writes)
             with self.assertRaises(FileExistsError):
@@ -178,14 +165,13 @@ class AprsFlasherTests(unittest.TestCase):
                 "exit_acknowledged", "transfer_acknowledged"
             ])
             self.assertEqual(rows[-1]["acknowledged_end"], 129)
-            self.assertEqual(rows[-2]["reply_hex"], ack(0x10).hex(" "))
 
     def test_journal_close_without_exit_ack_is_incomplete(self):
         image = aprs.Image(b"A" * 128, "test-digest", 0, 0)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "attempt.jsonl"
             with aprs.FlashJournal(path, image, "COM7", 38400) as journal:
-                journal.block_acknowledged(0, 128, ack(0x13))
+                journal.block_acknowledged(0, 128)
             rows = [json.loads(line) for line in path.read_text().splitlines()]
             self.assertEqual(rows[-1]["event"], "attempt_incomplete")
             self.assertEqual(rows[-1]["acknowledged_end"], 128)
@@ -194,7 +180,7 @@ class AprsFlasherTests(unittest.TestCase):
         data = bytearray(aprs.STOCK_IMAGE_SIZE - 128)
         struct.pack_into("<II", data, 0, 0x20001A50, 0x080020D5)
         block_count = (len(data) + aprs.BLOCK_SIZE - 1) // aprs.BLOCK_SIZE
-        port = FakePort([ack(0x13)] * block_count + [ack(0x10)], startup=b"startup")
+        port = FakePort([ack(0x13)] * block_count + [ack(0x10)])
         with tempfile.TemporaryDirectory() as directory:
             image_path = Path(directory) / "test.bin"
             manifest_path = Path(directory) / "release.json"
@@ -222,14 +208,9 @@ class AprsFlasherTests(unittest.TestCase):
                     ])
             self.assertEqual(result, 0)
             self.assertIn(str(journal_path), output.getvalue())
-            self.assertEqual(port.settings_at_open, ("COM7", True, True))
-            self.assertEqual(port.timeout, 3)
             self.assertEqual(port.writes[-1], aprs.EXIT_FRAME)
             rows = [json.loads(line) for line in journal_path.read_text().splitlines()]
-            self.assertEqual(len(rows), block_count + 4)
-            self.assertEqual(rows[1]["event"], "startup_drained")
-            self.assertEqual(rows[1]["discarded_bytes"], 7)
-            self.assertEqual(rows[1]["quiet_ms"], 20)
+            self.assertEqual(len(rows), block_count + 3)
             self.assertEqual(rows[-1]["event"], "transfer_acknowledged")
             self.assertEqual(rows[-1]["acknowledged_end"], len(data))
 

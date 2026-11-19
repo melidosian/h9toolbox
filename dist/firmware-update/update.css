@@ -31,8 +31,6 @@
 .logo-step[open] summary{margin-bottom:6px}
 .logo-step summary:hover{border-color:#93dfbe}
 #logoGate.ready{color:#a9e8c8}
-#kissGate.ready{color:#a9e8c8}
-#unlock-kiss{scroll-margin-top:18px}
 .hosted-package{position:relative;transition:border-color .25s,box-shadow .25s,opacity .25s,transform .25s}
 .hosted-package .selected-badge{position:absolute;top:12px;right:12px;padding:3px 9px;border-radius:999px;background:#8bdcb6;color:#11302b;font-size:11px;font-weight:700;opacity:0;transform:scale(.6);transition:opacity .2s,transform .25s cubic-bezier(.3,1.6,.5,1)}
 .hosted-package.selected{border-color:#8bdcb6;background:#173a30;box-shadow:0 0 0 1px #8bdcb6;animation:package-picked .7s ease-out}

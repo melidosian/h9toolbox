@@ -8,16 +8,6 @@ the file and the installer in step. Bump `VERSION` for every build that is relea
 
 The version describes the loader firmware on top of stock v1.0.38. App versions (App Manager catalog) are separate.
 
-## v0.1.5 (2026-11-18)
-
-- The web installer uses the KISS main build from `on-radio-aprs/build.py`
-  and stages the matching APRS V1.0.15X bundle over the main USB interface.
-- Optional Step 05 completes the modem update from PTT+7 with USB unplugged.
-  It also links to the Bluetooth-to-TCP bridge and its README.
-- Main package `b1c26380caaf2e80e1c41835a1c7a5e839cc6d6957facf8c1c6b1e16128c3d01`.
-  Stage `a180b40cd9903046c67b8e5495e77d20e0e871562a24fb64086c5de2d62f3282`.
-  The unversioned v0.1.4 package remains available for the pinned Doom and KISS builders.
-
 ## v0.1.4 (2026-11-12)
 
 - Back in the menu returns to the radio without a restart (the loader keeps the radio's task frame); the menu has no RADIO / RESTART items (menu 1.2).

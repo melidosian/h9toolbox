@@ -50,11 +50,6 @@ static uint8_t host_spk = 1;
 #define SPEAKER(on) ((void)(on))
 #define RF_WRITE(r, v) ((void)(r), (void)(v))
 static uint8_t host_asleep;
-static unsigned host_busy;
-#define BEACON_RADIO_BUSY() (host_busy || host_asleep)
-#define BEACON_ACTIVE_SIDE (host_side >> 7)
-#define BEACON_TX_SETTING host_tx_ch
-#define BEACON_REDRAW_RADIO() ((void)0)
 #define RF_ASLEEP host_asleep
 #define RF_WAKE() (host_asleep = 0)
 #define SPEAKER_STATE host_spk
@@ -93,26 +88,11 @@ void fix_save(fix_read_fn read, int32_t lat, int32_t lon) { (void)read; (void)la
 #include "aprs_core.c"
 #include "aprs_tx.c"
 struct aprs aprs_host;
-static struct screen background_state;
-static struct resident_entry resident;
-#define BEACON_BACKGROUND_STATE (&background_state)
-#define BEACON_RESIDENT (&resident)
-#undef SPEAKER_ON
-#define SPEAKER_ON(on) ((void)(on))
 #include "aprs_beacon.c"
 
 static int failures;
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); failures++; } } while (0)
-static void fake_read(void *d, uint32_t a, uint32_t n)
-{
-    struct h9_entry entry = { .size = 1024, .entry = 2, .crc = 0x1234 };
-    memset(d, 0, n);
-    if (!a && n == H9_BUNDLE_HEADER) ((uint8_t *)d)[10] = 2;
-    if (a != H9_BUNDLE_HEADER + H9_BUNDLE_ENTRY) return;
-    if (n == sizeof entry) memcpy(d, &entry, n);
-    if (n == H9_NAME_BYTES) memcpy(d, ".APRS BG", sizeof ".APRS BG");
-}
-static unsigned api_version, result;
+static void fake_read(void *d, uint32_t a, uint32_t n) { (void)a; memset(d, 0xFF, n); }
 
 static void rmc(void)   /* one GPS frame: 12.4 kn at 275 degrees */
 {
@@ -127,20 +107,14 @@ static void on_tick(void)
     if (feed_every && host_tick - open_tick >= 20 && host_tick - last_feed >= feed_every) { last_feed = host_tick; rmc(); }
 }
 
-static void run_at(const struct press *keys, unsigned ticks, unsigned gps_every, int saved, uint32_t start)
+static void run(const struct press *keys, unsigned ticks, unsigned gps_every, int saved)
 {
-    host_tick = start; open_tick = host_tick; script = keys; limit_ticks = ticks;
+    host_tick = 100000; open_tick = host_tick; script = keys; limit_ticks = ticks;
     feed_every = gps_every; last_feed = 0;
     have_saved = saved; saved_lat = 41878000; saved_lon = -87630000;
     tx_count = 0; tx_info[0] = 0; on_air[0] = 0;
-    struct h9_api api = { .version = api_version, .load = 0x29F00, .read = fake_read };
-    result = 0;
-    if (!setjmp(done)) result = module_main(&api, 0);
-}
-
-static void run(const struct press *keys, unsigned ticks, unsigned gps_every, int saved)
-{
-    run_at(keys, ticks, gps_every, saved, 100000);
+    struct h9_api api = { .read = fake_read };
+    if (!setjmp(done)) module_main(&api, 0);
 }
 
 #define HOLD_MENU(from) { (from), (from) + 80, H9_KEY_MENU }
@@ -210,60 +184,6 @@ int main(void)
     host_request.magic = 0;
     run(back_glitch, 600, 0, 0);
     CHECK(host_request.magic == 0);                                              /* still running when the script ended */
-
-    /* 9. Keep the scheduler after returning to stock, and let stock read the same NMEA. */
-    static const struct press background[] = { HOLD_MENU(100), { 300, 320, H9_KEY_BACK }, { 0, 0, 0 } };
-    run(background, 600, 100, 0);
-    CHECK(!result && !resident.magic);                                          /* loader API 1 cannot return resident */
-    api_version = 2;
-    run(background, 600, 100, 0);
-    CHECK(!result && A->switching == BEACON_HANDOFF_READY && host_request.magic == H9_REQUEST_MAGIC);
-    struct h9_api api = { .version = 2, .load = 0x29F00, .read = fake_read };
-    CHECK(resident_main(&api, 1) == H9_RETURN_RADIO && resident.magic == BEACON_RESIDENT_MAGIC);
-    CHECK(resident.entry == 0x29F02 && resident.lencrc == 0x04001234 && !resident.flags);
-    CHECK(!tx_count);
-    host_tick = open_tick + 1800;
-    rmc();
-    uint16_t stock_read = host_read;
-    host_busy = 1;
-    resident_main(NULL, H9_RETURN_RADIO);
-    CHECK(!tx_count && host_read == stock_read);
-    host_busy = 0;
-    host_tx_freq++;
-    resident_main(NULL, H9_RETURN_RADIO);
-    CHECK(!tx_count);
-    host_tx_freq--;
-    host_side = 0x80;
-    resident_main(NULL, H9_RETURN_RADIO);
-    CHECK(!tx_count);
-    host_side = 0;
-    host_tx_ch = 1;
-    resident_main(NULL, H9_RETURN_RADIO);
-    CHECK(!tx_count);
-    host_tx_ch = 0;
-    resident_main(NULL, H9_RETURN_RADIO);
-    CHECK(tx_count == 1 && host_read == stock_read);
-    CHECK(!strcmp(tx_info, "!4152.68N/08737.80W[275/012 H9 Toolbox"));
-    resident.magic = 0;                                                        /* the loader pauses before opening the menu */
-    host_tick += 500;
-    resident_main(NULL, H9_RETURN_RADIO);
-    CHECK(tx_count == 1);
-    run_at(NULL, 600, 100, 0, host_tick);
-    CHECK(!strcmp(on_air, "ON AIR") && !tx_count);                              /* no duplicate first beacon */
-    CHECK(!(A->beacon & BEACON_RESUME));
-
-    run(background, 600, 100, 0);
-    CHECK(resident_main(&api, 1) == H9_RETURN_RADIO);
-    resident.magic = 0;
-    A->frame[0] ^= 1;                                                          /* another screen reused the scratch */
-    run_at(NULL, 200, 100, 0, host_tick);
-    CHECK(!strcmp(on_air, "OFF") && !tx_count);
-
-    run(background, 600, 100, 0);
-    CHECK(resident_main(&api, 1) == H9_RETURN_RADIO);
-    host_tick = 100;
-    resident_main(NULL, H9_RETURN_RADIO);
-    CHECK(!resident.magic && !(A->beacon & BEACON_RESUME) && !tx_count);
     if (failures) { printf("%d failure(s)\n", failures); return 1; }
     puts("beacon screen ok");
     return 0;

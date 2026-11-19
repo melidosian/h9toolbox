@@ -211,14 +211,9 @@ def build_modules(out: Path, toolchain: Path) -> list[dict]:
                c_module("APRS MSG", aprs_dir / "aprs_msg.c", core, text),
                c_module("APRS SEND", aprs_dir / "aprs_send.c", aprs_dir / "aprs_core_tx.c", aprs_dir / "aprs_tx.c",
                         aprs_dir / "aprs_edit.c", text)]
-    beacon_common = (aprs_dir / "aprs_tx.c", aprs_dir / "beacon_core.c",
-                     aprs_dir / "third_party" / "smartbeacon" / "smartbeacon.c")
-    beacon = c_module("APRS BEACON", aprs_dir / "aprs_beacon.c", aprs_dir / "aprs_core_tx.c", *beacon_common,
-                      ROOT / "modules" / "common" / "fix_store.c")
-    beacon_background = c_module(".APRS BG", aprs_dir / "aprs_beacon_resident.c", aprs_dir / "aprs_core_tx.c", *beacon_common)
-    if len(beacon_background["body"]) > 0x2B700 - LOAD:
-        raise SystemExit(".APRS BG code overlaps its resident beacon state")
-    screens.extend((beacon, beacon_background))
+    screens.append(c_module("APRS BEACON", aprs_dir / "aprs_beacon.c", aprs_dir / "aprs_core_tx.c", aprs_dir / "aprs_tx.c",
+                            aprs_dir / "beacon_core.c", aprs_dir / "third_party" / "smartbeacon" / "smartbeacon.c",
+                            ROOT / "modules" / "common" / "fix_store.c"))
     for m in screens:
         if len(m["body"]) > aprs_limit:
             raise SystemExit(f"{m['name']} code ({len(m['body'])} B) overlaps the shared APRS state ({aprs_limit} B max)")

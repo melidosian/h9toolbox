@@ -2,7 +2,7 @@
 // research prototype in prototypes/data-upload).
 //
 // Writes a data pack (for example the Freedoom E1M1 pack for the Doom
-// firmware) through the H9 Toolbox write service (S2), under
+// firmware) over Bluetooth through the H9 Toolbox write service (S2), under
 // the rules in firmware-research/doom-firmware/README.md:
 //   - only sectors that were erased in the 2026-11-09 full-chip dump, in
 //     partitions stock never writes (the `resource`, `font` and `voice` tails);
@@ -22,7 +22,7 @@
 // without erasing the sector). Readers must ignore packs not marked complete.
 
 import {
-  BANK_SIZE, BLOCK, LINK_FIXED_ADDRESS, LINK_STOCK_ADDRESS, OP, SECTOR,
+  BLOCK, LINK_FIXED_ADDRESS, LINK_STOCK_ADDRESS, OP, SECTOR,
   controlFrame, crc16, dataFrame, parseBulkReply,
 } from '../boot-logo/resource.mjs';
 
@@ -202,7 +202,7 @@ async function withWriteLink(radio, work) {
   let linkRequested = false;
   await radio.enterProgramming();
   try {
-    const link = radio.transport === 'serial' ? null : parseBulkReply(await radio.readBlock(LINK_FIXED_ADDRESS));
+    const link = parseBulkReply(await radio.readBlock(LINK_FIXED_ADDRESS));
     if (link) {
       linkRequested = link.status === 0;
       radio.log(`Requested a fixed 15 ms link for writing: ${link.statusText}.`, link.status === 0 ? 'info' : 'warn');
@@ -217,15 +217,14 @@ async function withWriteLink(radio, work) {
 
 // Read the chip ranges [{address, length}] (whole sectors). Fast (bulk)
 // reads need a 32 KiB-aligned start, so each read starts at the bank
-// boundary below and the extra bytes are dropped. Serial reads can start
-// at the requested address.
+// boundary below and the extra bytes are dropped.
+const BANK = 0x8000;
 async function readRanges(radio, ranges, onProgress) {
-  const leadBytes = address => radio.transport === 'serial' ? 0 : address % BANK_SIZE;
-  const total = ranges.reduce((sum, r) => sum + r.length + leadBytes(r.address), 0);
+  const total = ranges.reduce((sum, r) => sum + r.length + r.address % BANK, 0);
   let done = 0;
   const out = [];
   for (const range of ranges) {
-    const lead = leadBytes(range.address);
+    const lead = range.address % BANK;
     const { bytes } = await radio.readRange(range.address - lead, range.length + lead,
       fraction => onProgress((done + fraction * (range.length + lead)) / total));
     done += range.length + lead;
@@ -269,7 +268,7 @@ export function completeBlock() {
   return block;
 }
 
-// One line per sector: how long sending requests and receiving ACKs took.
+// One line per sector: how long the GATT writes and the radio's ACKs took.
 function logWriteTimes(radio, address) {
   const times = radio.writeTimes;
   if (!times?.length) return;
@@ -278,7 +277,7 @@ function logWriteTimes(radio, address) {
     const v = times.map(t => t[k]).sort((a, b) => a - b);
     return `median ${v[v.length >> 1].toFixed(0)} ms, max ${v[v.length - 1].toFixed(0)} ms`;
   };
-  radio.log(`${hex(address)}: ${times.length} writes; send ${stat(0)}; ACK wait ${stat(1)}.`);
+  radio.log(`${hex(address)}: ${times.length} writes; GATT write ${stat(0)}; ACK wait ${stat(1)}.`);
 }
 
 const sameBytes = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
