@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, follow">
+  <meta name="theme-color" content="#111f2c">
+  <title>SmartBeacon bench firmware for the TD-H9 | H9 Toolbox</title>
+  <link rel="icon" href="../../favicon.ico">
+  <link rel="stylesheet" href="../../styles.css">
+  <link rel="stylesheet" href="../../landing.css">
+  <link rel="stylesheet" href="../update.css?v=20261119d">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand brand-link" href="../../" aria-label="H9 Toolbox home"><span class="mark">H9</span><span><strong>H9 Toolbox</strong><small>DEVELOPMENT FIRMWARE</small></span></a>
+    </header>
+    <main class="firmware-main recovery-guide">
+      <header class="intro">
+        <h1>SmartBeacon bench firmware</h1>
+        <p>The development build adds automatic Smart and Timed APRS beacons, APRS Mute, and the grouped Toolbox menu with keypad shortcuts. It runs on the TD-H9 and uses loader API 5. The radio may report v0.1.4.</p>
+      </header>
+
+      <section class="card" aria-labelledby="downloads-title">
+        <h2 id="downloads-title">Download the matched files</h2>
+        <ul>
+          <li><a href="./h9-smartbeacon-bench.fw" download>Main firmware (.fw)</a></li>
+          <li><a href="./h9-smartbeacon-resident.bin" download>SmartBeacon scheduler image (.bin)</a></li>
+          <li><a href="./h9-smartbeacon-apps.bin" download>API 5 app bundle (.bin)</a></li>
+          <li><a href="./SHA256SUMS" download>SHA-256 checksums</a></li>
+        </ul>
+        <p>The firmware and scheduler must match for automatic beaconing to run. Use the desktop USB flasher for these two files and the App Manager for the matching apps.</p>
+      </section>
+
+      <section class="card" aria-labelledby="install-title">
+        <h2 id="install-title">Install on a bench radio</h2>
+        <ol>
+          <li>Before updating, disarm the Toolbox beacon schedule if one is set. In the App Manager, read the radio and save its app bundle. Keep that file and your firmware backups.</li>
+          <li>Follow the <a href="https://github.com/melidosian/h9toolbox/blob/dev/firmware-research/h9-flasher/README.md">desktop USB flasher setup</a> to identify your radio in the BR23 USB loader. You’ll need the exact stock Type-C v1.0.38 package for the tool’s <code>--stock-base</code> check.</li>
+          <li>Run the desktop flasher’s <code>backup</code> command with the downloaded main firmware, <code>--stock-base</code>, and a new <code>--backup</code> filename. Keep the resulting main-flash backup and its adjacent JSON manifest. Re-enter the USB loader and verify the device path again.</li>
+          <li>Use <code>write-far</code> with the downloaded scheduler image and <code>--address 0xFA000</code>. Use a separate new <code>--backup</code> filename. The flasher saves and verifies the affected two sectors. Keep this backup for rollback. Re-enter the USB loader and verify the device path again before the next command.</li>
+          <li>Run <code>flash</code> with the downloaded main firmware, the same <code>--stock-base</code>, and the main-flash backup from step 3. Wait for readback verification, then boot the radio normally with a dummy load or attenuated test setup connected.</li>
+          <li>In the <a href="../../apps/?catalog=smartbeacon">SmartBeacon App Manager</a>, connect, open <strong>Advanced</strong>, select <strong>Load whole bundle</strong>, and choose the API 5 app bundle. <strong>Write to radio</strong> replaces the installed apps with the contents of that bundle. Keep your previous app backup if you want to restore it later.</li>
+        </ol>
+        <p>Before arming a schedule, check the APRS modem and follow the <a href="https://github.com/melidosian/h9toolbox/blob/dev/firmware-research/module-loader/resident-service/README.md#automatic-tx-dev-build">SmartBeacon bench checks</a>. An armed schedule can resume after reboot.</p>
+      </section>
+
+      <section class="card" aria-labelledby="rollback-title">
+        <h2 id="rollback-title">Return to the previous build</h2>
+        <p>Re-enter the BR23 USB loader. Use the desktop flasher’s <code>restore</code> command with the bench <code>.fw</code>, the same <code>--stock-base</code>, and the main backup from step 3. Re-enter the loader and verify the device path again. Then use <code>write-far</code> at <code>0xFA000</code> with the scheduler backup from step 4 and a fresh backup filename. Wait for both verifications before rebooting. Use the App Manager to restore your saved app bundle if you replaced it.</p>
+        <p>If you can’t reach the desktop loader, see the <a href="../recovery/">TD-H9 recovery guide</a>.</p>
+      </section>
+      <p><a class="button ghost" href="../">Back to the firmware updater</a></p>
+    </main>
+    <footer><a href="../../">H9 Toolbox</a></footer>
+  </div>
+</body>
+</html>

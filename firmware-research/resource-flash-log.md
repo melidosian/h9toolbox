@@ -4971,3 +4971,16 @@ result yet.**
 - Removed the persistent menu card and its H3 label from App Manager.
   A menu action appears above the app list when the catalog offers a
   replacement. Menu and app binaries are identical.
+
+### 2026-11-19 SmartBeacon bench release for the dev site
+
+- Rebuilt the automatic TX bench variant with loader API 5 and the original
+  v0.1.4 version stamp. The main package SHA-256
+  `ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04`
+  matches the package verified on the bench radio after the squelch-bit fix.
+  The resident image and standard 19-entry app bundle also match their
+  previously recorded hashes. No device was written during the rebuild.
+- The released bench main image differs from v0.1.5 in 21 aligned sector
+  CRCs. The reported 19-sector scan is consistent with a related image but
+  does not identify an exact firmware build. The browser accepts this
+  release as a backup reference only after the full live CRC checks.

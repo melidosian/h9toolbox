@@ -1,4 +1,4 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261118aprs';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, BUILD, PREVIOUS, classifyRadio, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261118aprs';
 import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261110a';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
 import { stageAprs } from './aprs-stage.mjs';
@@ -7,6 +7,11 @@ const $ = id => document.getElementById(id);
 const slides = [...document.querySelectorAll('.guide-slide')];
 const stepIndicators = [...document.querySelectorAll('.guide-steps li')];
 const browserReady = window.isSecureContext && Boolean(navigator.hid?.requestDevice);
+const smartBeacon = {
+  label: 'SmartBeacon bench firmware',
+  packageSha256: 'ee06b1f2ac4d224341ce25048b00ea2db999c16b2fe076251ff30a102ae7fc04',
+  imageSha256: 'c230c64720957d7d8a021c9038c53399c5fd406c40577919fd1ae291cd70dd3d',
+};
 let currentStep = 0;
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
 // stock rebuilt from the build. buildImage / previousImages: the hosted build
@@ -196,6 +201,26 @@ async function ensureReferences() {
 function knownImages() {
   return target?.kind === 'build' ? previousImages.map(p => p.image) : [];
 }
+async function loadSmartBeaconBackupSeed() {
+  const link = $('smartbeaconFirmware');
+  if (!link) return null;
+  try {
+    const url = new URL('./h9-smartbeacon-bench.fw', link.href);
+    url.searchParams.set('v', smartBeacon.packageSha256.slice(0, 8));
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('The firmware file could not be downloaded.');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (await sha256(bytes) !== smartBeacon.packageSha256)
+      throw new Error('The firmware file did not match the published checksum.');
+    const image = decodePackage(bytes);
+    if (await sha256(image) !== smartBeacon.imageSha256)
+      throw new Error('The main image did not match the published checksum.');
+    return image;
+  } catch (error) {
+    status(`Could not load the SmartBeacon backup reference. ${error.message} Other backup options are still available.`);
+    return null;
+  }
+}
 // Fetch the hosted build, its stock seed, and the earlier builds' sectors;
 // every file is checked by SHA-256.
 async function loadHostedBuild() {
@@ -246,7 +271,7 @@ async function validateSelectedBackup(announceWaiting = true) {
     if (announceWaiting && file) status('Backup selected. Choose firmware to check it against.');
     refresh(); return;
   }
-  if (!file && createdBackup.source !== 'stock' && createdBackup.source !== 'stock-like' && createdBackup.source !== 'other' && target.kind === 'build') {
+  if (!file && !['stock', 'stock-like', 'other', smartBeacon.label].includes(createdBackup.source) && target.kind === 'build') {
     // `source` is what the backup scan matched: 'build', or an earlier
     // build's PREVIOUS id (e.g. 'release1').
     if (createdBackup.source === 'build' || previousInfo(createdBackup.source)) {
@@ -433,6 +458,8 @@ $('createBackup').addEventListener('click', async () => {
     const current = await scanRadio(hid, progress);
     await ensureReferences();
     const images = namedImages();
+    const benchImage = await loadSmartBeaconBackupSeed();
+    if (benchImage) images.push([smartBeacon.label, benchImage]);
     let source = 'other';
     if (images.length > 1) {
       try { source = classifyRadio(current, images); } catch (error) {
@@ -464,11 +491,14 @@ $('createBackup').addEventListener('click', async () => {
     const loaded = await loadHidArchive(archive, target?.image ?? stockSeed);
     if (source === 'stock') await verifyStockBackup(loaded.image);
     else if (source === 'stock-like') verifyStockCompatible(loaded.image, stockSeed);
-    const expected = source === 'build' ? BUILD.imageSha256 : previousInfo(source)?.imageSha256;
+    const expected = source === 'build' ? BUILD.imageSha256
+      : source === smartBeacon.label ? smartBeacon.imageSha256 : previousInfo(source)?.imageSha256;
     if (expected && await sha256(loaded.image) !== expected)
       throw new Error('Recovered image differs from the pinned build it matched. No backup accepted.');
-    const sourceName = source === 'build' ? 'H9-Toolbox-Firmware-' : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
-    const sourceLabel = source === 'build' ? BUILD.label : previousInfo(source)?.label;
+    const sourceName = source === 'build' ? 'H9-Toolbox-Firmware-'
+      : source === smartBeacon.label ? 'SmartBeacon-Bench-'
+        : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
+    const sourceLabel = source === 'build' ? BUILD.label : source === smartBeacon.label ? smartBeacon.label : previousInfo(source)?.label;
     const date = new Date().toISOString().slice(0, 10);
     const name = `TD-H9-${sourceName}HID-recovery-${date}.h9hid`;
     const url = URL.createObjectURL(new Blob([archive], { type: 'application/octet-stream' }));
@@ -479,6 +509,8 @@ $('createBackup').addEventListener('click', async () => {
     status(`${sourceLabel ? `Backup of the installed ${sourceLabel}` : 'Backup'} download started (${recovered.method === 'verified-known-image-seed' ? 'matched a known image' : 'full recovery'}). Keep that file. Protected boot bytes are not in it.`);
     // Choose the restore point the same way as for a selected file.
     await validateSelectedBackup(false);
+    if (source === smartBeacon.label)
+      status('SmartBeacon main firmware backup saved. Use the SmartBeacon bench guide to back up the scheduler and apps separately.');
     finish(`Backup built and verified in ${formatDuration((performance.now() - backupBegan) / 1000)}`);
   } catch (error) {
     $('backupProgress').hidden = true;
