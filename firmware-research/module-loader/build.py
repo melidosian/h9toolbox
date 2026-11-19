@@ -57,6 +57,21 @@ APRS_BOOT_SITE = 0x88186
 APRS_SERVICE_RAM = 0x29C00
 RESIDENT_RAM = 0x29A00
 RESIDENT_FLASH, RESIDENT_CPU = 0xFB000, 0x01EF6000
+RESIDENT_TX_FLASH, RESIDENT_TX_CPU = 0xFA000, 0x01EF5000
+RESIDENT_TX_HOOKS = 0x87B8C   # retired Morse code after the other dev helpers
+# Normal my_app timer, native APRS key/payload/airtime, and asynchronous
+# stock AF01 / external PTT entries to the same transmitter.
+RESIDENT_TX_CALLS = (
+    (0x87494, 0x82EB2, "ml_auto_timed"),
+    (0x5C39C, 0x5AC68, "ml_auto_prepare"),
+    (0x5C3A6, 0x5BE2C, "ml_auto_emit"),
+    (0x5C3AC, 0x5C26C, "ml_auto_airtime"),
+    (0x5DCDE, 0x5DACC, "ml_guarded_kiss"),
+    (0x5DD0A, 0x5C44C, "ml_guarded_ptt"),
+    (0x5E1BC, 0x5C44C, "ml_guarded_ptt"),
+    (0x5DD10, 0x5CDF8, "ml_guarded_end"),
+    (0x5E1C2, 0x5CDF8, "ml_guarded_end"),
+)
 # S2 control allowlist and pre-program erased-block check in the pinned bb-s2 base.
 S2_WRITE_GUARDS = ((0xA52A4, 0xA542C, "ml_s2_allowed"),
                    (0xA535A, 0xA548E, "ml_s2_program_check"))
@@ -229,18 +244,18 @@ def build_flash_helpers(lib: list[Path], out: Path) -> tuple[bytes, Path]:
 
 
 def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
-                  flash_shared: bool = False) -> tuple[list[dict], bytes | None]:
+                  flash_shared: bool = False, auto_tx: bool = False) -> tuple[list[dict], bytes | None]:
     common = ROOT / "modules" / "common"
     run([sys.executable, "-I", str(common / "font5x7.py")])
     lib = [assemble(common / "h9lib.s", out), compile_c(common / "gfx.c", out, toolchain)]
     entry = "module_main"
     flash = None
-    flags = ()
+    flags = ("-DH9_RESIDENT_TX",) if auto_tx else ()
     if flash_shared:
         flash, calls = build_flash_helpers(lib, out)
         lib = [calls]
         entry = "module_flash_entry"
-        flags = ("-DH9_FLASH_HELPERS",)
+        flags += ("-DH9_FLASH_HELPERS",)
 
     def c_module(name: str, source: Path, *extra: Path, extra_flags: tuple[str, ...] = ()) -> dict:
         objs = [compile_c(src, out, toolchain, flags=flags + extra_flags) for src in (source, *extra)]
@@ -275,7 +290,8 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
                c_module("APRS SEND", aprs_dir / "aprs_send.c", aprs_dir / "aprs_core_tx.c", aprs_dir / "aprs_tx.c",
                         aprs_dir / "aprs_edit.c", text)]
     if flash_shared:
-        screens.append(c_module("APRS BEACON", aprs_dir / "aprs_resident_status.c"))
+        status_sources = (aprs_dir / "aprs_tx.c",) if auto_tx else ()
+        screens.append(c_module("APRS BEACON", aprs_dir / "aprs_resident_status.c", *status_sources))
     elif resident:
         screens.append(c_module("APRS BEACON", aprs_dir / "aprs_resident_config.c",
                                 common / "toolbox_settings_pair.c"))
@@ -396,33 +412,66 @@ def apply_dev_kiss(app: bytearray, stub_end: int,
             "helper_app_offset": hex(helper_start), "helper_bytes": helper_bytes}, sectors
 
 
-def build_resident(out: Path, toolchain: Path) -> bytes:
+def build_resident(out: Path, toolchain: Path, *, auto_tx: bool = False) -> bytes:
     service = ROOT / "resident-service"
     aprs = ROOT / "modules" / "aprs"
     common = ROOT / "modules" / "common"
     sources = (service / "runtime.c", service / "modem_input.c", service / "beacon_service.c",
                aprs / "beacon_core.c", aprs / "third_party" / "smartbeacon" / "smartbeacon.c",
                common / "toolbox_settings_pair.c", common / "gfx.c")  # compiler's freestanding memcpy
+    flags = ()
+    if auto_tx:
+        sources += (service / "beacon_tx.c", aprs / "aprs_tx.c")
+        flags = ("-DH9_RESIDENT_TX",)
     objects = [assemble(service / "entry.s", out)]
-    objects += [compile_c(src, out, toolchain) for src in sources]
-    program = link(objects, RESIDENT_CPU, "resident_entry", out, "resident_beacon")
-    body = text_of(program, RESIDENT_CPU)
+    objects += [compile_c(src, out, toolchain, flags=flags) for src in sources]
+    origin = RESIDENT_TX_CPU if auto_tx else RESIDENT_CPU
+    limit = 0x2000 if auto_tx else 0x1000
+    program = link(objects, origin, "resident_entry", out, "resident_beacon")
+    body = text_of(program, origin)
     extra = [s.name for s in program.sections if s.flags & 2 and s.length and s.name != ".text"]
-    if program.entry != RESIDENT_CPU or len(body) > 0x1000 or extra:
-        raise ValueError(f"Resident service must fit its one-sector executable window ({len(body)} B, {extra})")
+    if program.entry != origin or len(body) > limit or extra:
+        raise ValueError(f"Resident service must fit its {limit}-byte executable window ({len(body)} B, {extra})")
     return body
+
+
+def apply_resident_tx(app: bytearray, stock: bytes, resident: bytes, out: Path, retired_end: int) -> dict:
+    program = elf.read((out / "resident_beacon.elf").read_bytes())
+    api = symbol(program, "api")
+    if not RESIDENT_TX_CPU <= api <= RESIDENT_TX_CPU + len(resident) - 32:
+        raise ValueError("TX API is outside the verified resident body")
+    if struct.unpack_from("<I", resident, api - RESIDENT_TX_CPU) != (2,):
+        raise ValueError("Main-flash TX hooks require resident ABI 2")
+    source = out / "resident_tx_hooks.s"
+    source.write_text(f".equ RESIDENT_TX_API, {api:#x}\n" + (ROOT / "src/resident_tx_hooks.s").read_text())
+    origin = IMAGE_BASE + RESIDENT_TX_HOOKS
+    shim = link([assemble(source, out)], origin, "ml_auto_timed", out, "resident_tx_hooks")
+    code = text_of(shim, origin)
+    end = RESIDENT_TX_HOOKS + len(code)
+    if end > retired_end or app[RESIDENT_TX_HOOKS:end] != bytes(len(code)):
+        raise ValueError("TX shims overlap existing instructions")
+    for site, original, name in RESIDENT_TX_CALLS:
+        expected = call_bytes(original, site)
+        if app[site:site + 4] != expected or stock[site:site + 4] != expected:
+            raise ValueError(f"Stock TX hook at {site:#x} differs from the pinned call")
+        app[site:site + 4] = call_bytes(symbol(shim, name) - IMAGE_BASE, site)
+    app[RESIDENT_TX_HOOKS:end] = code
+    return {"api": hex(api), "shims_app_offset": hex(RESIDENT_TX_HOOKS),
+            "shims_bytes": len(code), "call_sites": [hex(site) for site, _, _ in RESIDENT_TX_CALLS]}
 
 
 def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool = False,
                    disable_morse: bool = False, dev_kiss: bool = False,
                    resident: bytes | None = None, resident_screen_crc: int | None = None, *,
-                   flash: bytes | None = None) -> dict:
+                   flash: bytes | None = None, auto_tx: bool = False) -> dict:
     if resident and not (aprs_mute and disable_morse and dev_kiss):
         raise ValueError("Resident APRS requires --aprs-mute, --disable-morse and --dev-kiss")
     if resident and resident_screen_crc is None:
         raise ValueError("Resident APRS requires the CRC of its matching screen")
     if flash is not None and not resident:
         raise ValueError("Flash helpers require the resident dev build")
+    if auto_tx and (not resident or flash is None):
+        raise ValueError("Resident TX requires the shared-flash dev build")
     api_version = FLASH_HELPERS_API if flash is not None else 4 if resident else 3
     if not H9TB_RAW.is_file():
         raise SystemExit(f"Build H9 Toolbox Firmware first: resource-service/build.py --stage bb-s2 ({H9TB_RAW})")
@@ -468,11 +517,14 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
     patched = bytearray(base)
     patched[CAVE:TABLES] = stock[CAVE:TABLES]                 # remove the game
     patched[OLD_LAUNCHER:SVC] = stock[OLD_LAUNCHER:SVC]       # remove its launcher
+    resident_flash = RESIDENT_TX_FLASH if auto_tx else RESIDENT_FLASH
+    resident_cpu = RESIDENT_TX_CPU if auto_tx else RESIDENT_CPU
+    resident_file = f"resident_0x{resident_flash:X}_OFFLINE.bin"
     if resident:
-        if len(resident) > 0x1000:
-            raise ValueError("Resident blob exceeds its sector")
+        if len(resident) > (0x2000 if auto_tx else 0x1000):
+            raise ValueError("Resident blob exceeds its flash window")
         boot = out / "runtime_boot.s"
-        boot.write_text(f".equ RUNTIME_ENTRY, {RESIDENT_CPU:#x}\n"
+        boot.write_text(f".equ RUNTIME_ENTRY, {resident_cpu:#x}\n"
                         f".equ RUNTIME_LENGTH, {len(resident)}\n"
                         f".equ RUNTIME_CRC, {crc16(resident)}\n"
                         f".equ LOADER_CRC, {symbol(stub_prog, 'ml_crc'):#x}\n"
@@ -482,7 +534,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         if len(verifier) > SVC - OLD_LAUNCHER:
             raise ValueError("Resident verifier would overlap the S2 service")
         patched[OLD_LAUNCHER:OLD_LAUNCHER + len(verifier)] = verifier
-        (out / "resident_0xFB000_OFFLINE.bin").write_bytes(resident)
+        (out / resident_file).write_bytes(resident)
     patched[CAVE:CAVE + len(stub)] = stub
     api_at = symbol(stub_prog, "ml_api") - IMAGE_BASE
     if (struct.unpack_from("<4sI", patched, api_at) != (b"H9AP", api_version)
@@ -524,6 +576,10 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         if patched[FLASH_HELPERS:end] != bytes(len(flash)):
             raise ValueError("Flash helpers overlap existing instructions")
         patched[FLASH_HELPERS:end] = flash
+    tx_hooks = None
+    if auto_tx:
+        tx_limit = next(end for start, end, _ in morse_disable.REMOVED if start == RESIDENT_TX_HOOKS)
+        tx_hooks = apply_resident_tx(patched, stock, resident, out, tx_limit)
     raw = out / "h9_toolbox_modules_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)
 
@@ -545,6 +601,8 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
             first = (site + 0x5100) & ~0xFFF
             last = (site + 0x5100 + len(old) - 1) & ~0xFFF
             expected.update(range(first, last + 0x1000, 0x1000))
+    if auto_tx:
+        expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in RESIDENT_TX_CALLS}
     if changed != expected:
         raise ValueError(f"changed sectors {sorted(map(hex, changed))}, expected {sorted(map(hex, expected))}")
     return {
@@ -565,11 +623,12 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
                            if disable_morse else 0, "hardware_tested": False},
         "aprs_mute": {"enabled": aprs_mute,
                       "setting": "journal" if resident else "build-time", "hardware_tested": False},
-        "resident_beacon": {"flash_offset": hex(RESIDENT_FLASH), "start_ram": hex(RESIDENT_RAM),
+        "resident_beacon": {"flash_offset": hex(resident_flash), "start_ram": hex(RESIDENT_RAM),
                             "body_bytes": len(resident), "crc16": f"{crc16(resident):04x}",
                             "sha256": sha256(resident).hexdigest(),
-                            "screen_crc16": f"{resident_screen_crc:04x}", "auto_tx": False}
+                            "screen_crc16": f"{resident_screen_crc:04x}", "auto_tx": auto_tx}
                            if resident else None,
+        "resident_tx_hooks": tx_hooks,
         "dev_kiss": kiss,
         "flash_helpers": {"app_offset": hex(FLASH_HELPERS), "bytes": len(flash),
                           "sha256": sha256(flash).hexdigest(), "exports": [name for name, _ in FLASH_EXPORTS]}
@@ -579,7 +638,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
 
 def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
           aprs_mute: bool = False, disable_morse: bool = False, dev_kiss: bool = False,
-          resident_beacon: bool = False, *, flash_shared: bool = False) -> dict:
+          resident_beacon: bool = False, *, flash_shared: bool = False, auto_tx: bool = False) -> dict:
     stock = stock_image.read_bytes()
     if sha256(stock).hexdigest() != STOCK_SHA256:
         raise ValueError("Expected the exact official v1.0.38 main application")
@@ -587,12 +646,14 @@ def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
         raise ValueError("Expected the exact official v1.0.38 .fw package")
     if flash_shared and not resident_beacon:
         raise ValueError("--flash-shared needs --resident-beacon")
+    if auto_tx and not (resident_beacon and flash_shared and aprs_mute and disable_morse and dev_kiss):
+        raise ValueError("--resident-tx needs the full shared-flash dev build")
     out.mkdir(parents=True, exist_ok=True)
-    resident = build_resident(out, toolchain) if resident_beacon else None
-    modules, flash = build_modules(out, toolchain, resident_beacon, flash_shared=flash_shared)
+    resident = build_resident(out, toolchain, auto_tx=auto_tx) if resident_beacon else None
+    modules, flash = build_modules(out, toolchain, resident_beacon, flash_shared=flash_shared, auto_tx=auto_tx)
     screen_crc = crc16(next(m["body"] for m in modules if m["name"] == "APRS BEACON")) if resident else None
     firmware = build_firmware(stock, stock_package, out, aprs_mute, disable_morse, dev_kiss, resident, screen_crc,
-                              flash=flash)
+                              flash=flash, auto_tx=auto_tx)
     data = bundle(modules)
     parse_bundle(data)
     (out / "h9_modules.bin").write_bytes(data)
@@ -625,21 +686,26 @@ def main() -> int:
     parser.add_argument("--disable-morse", action="store_true", help="Hide stock CW and block its keying and message paths")
     parser.add_argument("--dev-kiss", action="store_true", help="Include the KISS main firmware changes from dev")
     parser.add_argument("--resident-beacon", action="store_true",
-                        help="Include the passive reboot-persistent resident scheduler and mute setting")
+                        help="Include the reboot-persistent resident scheduler and mute setting")
     parser.add_argument("--flash-shared", action="store_true",
                         help="Put common app routines in the retired Morse space and build the matching API 5 bundle")
+    parser.add_argument("--resident-tx", action="store_true",
+                        help="Enable resident beacon TX at the stock timed-beacon boundary")
     args = parser.parse_args()
     if args.resident_beacon and not (args.aprs_mute and args.disable_morse and args.dev_kiss):
         parser.error("--resident-beacon needs --aprs-mute, --disable-morse and --dev-kiss")
     if args.flash_shared and not args.resident_beacon:
         parser.error("--flash-shared needs --resident-beacon")
+    if args.resident_tx and not (args.resident_beacon and args.flash_shared):
+        parser.error("--resident-tx needs --resident-beacon and --flash-shared")
     bundled = RESEARCH / "toolchain" / "jieli" / "jieli-linux-toolchains-20260730.1"
     toolchain = Path(os.environ.get("JIELI_TOOLCHAIN", bundled)).expanduser().resolve()
     if not (toolchain / "pi32v2").is_dir():
         raise SystemExit(f"No JieLi toolchain at {toolchain}: run sh firmware-research/toolchain/jieli/setup.sh")
     print(json.dumps(build(args.stock_image.resolve(), args.stock_package.resolve(), toolchain,
                            args.output.resolve(), args.aprs_mute, args.disable_morse,
-                           args.dev_kiss, args.resident_beacon, flash_shared=args.flash_shared), indent=1))
+                           args.dev_kiss, args.resident_beacon, flash_shared=args.flash_shared,
+                           auto_tx=args.resident_tx), indent=1))
     print("Offline build only; not hardware tested")
     return 0
 

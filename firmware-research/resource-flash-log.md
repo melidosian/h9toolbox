@@ -4852,3 +4852,48 @@ result yet.**
   A-side display indication under Dual Watch with CH B-LOCK. A transmit
   adapter still needs proof of RF ownership, the selected side and the
   working frequency before using that route for resident beacons.
+
+### 2026-11-18 Dev automatic Smart and Timed beacons
+
+- The GPS worker keeps scheduling and publishing status independently
+  of the screen. The dev TX build consumes its pending event at the
+  stock `my_app` timed-beacon call at app+`0x87494`. The nine call-site
+  changes resolve to 232 bytes of checked shims in retired Morse space.
+  Stock calls keep their original behavior when the resident API is absent.
+  The worker matches TX results to the pending event and uses the sent
+  course for future SmartBeacon turn decisions.
+- The adapter checks the working A/B frequency words and the stock shift
+  calculation before keying. The raw carrier check comes from stock
+  app+`0x7B206–0x7B20C`, which reads RF register `0x0C` and checks bit 0.
+  When it borrows a VFO it runs the stock RX tuner and lets it settle before
+  checking for a carrier. The native GPS-source branch at app+`0x5C2D8`
+  uses coordinate words at `0x12558` and `0x12560` via indexed word loads.
+  The adapter restores the prior route after the stock TX flag and RF
+  register `0x30` TX bit clear.
+- The H3-style UI and APRS Mute settings are preserved. Beacon Status
+  displays the stored APRS VFO, frequency, wait reason and modem submission
+  count. The mute call sites and shared flash helpers match the themed build.
+  The separate APRS RX15/rxff modem remains byte-identical.
+- Main package SHA-256
+  `38daaae6793a26ca30a13a3a81598ed0ec425747825cb925d1a362ba4fc22663`.
+  Main-flash image SHA-256
+  `94c690bbb09f017b139addbfd4bbc6a3804b5379b13cdd74acea7d83e891be1e`.
+  The eight changed main package sectors from the H3-menu bench are
+  `0x5000`, `0x61000`, `0x62000`, `0x63000`, `0x8C000`, `0xAC000`,
+  `0xAE000` and `0xD9000`. The stock app-only repack validation passed.
+- The 5,802-byte resident ABI 2 body has SHA-256
+  `7dc43e0ed4243a5499f0016b5e78c3bfc43a0470143093a2034f3586af1f614f`
+  and startup CRC `0x5F73`. It starts at physical `0xFA000`. The two
+  padded sector CRCs are `0x3D8F` and `0x5557`. The prior `0xFA000`
+  sector readback contains data, so the bench update needs both sector
+  backups and a live match before erase. The settings and factory data
+  sit outside this range.
+- The 19-entry standard app bundle is 71,796 bytes, with SHA-256
+  `ab9880c84cee3f4e5fe8aedffc44610c945ce7c2ce3692514aa4e7e80e0da541`.
+  The private matching bundle built from the last bench backup keeps
+  all 21 entries, including ten existing bodies byte for byte.
+- Scheduler, simulated RF route and busy handling, APRS, mute, Morse,
+  serial clone and UI checks passed, along with all 134 web tests. The
+  native satellite fixture reproduced its prior 12 failures. On-radio
+  RF frequency, outgoing APRS decode and incoming APRS decode with mute
+  enabled remain to be verified. This build has yet to be flashed.

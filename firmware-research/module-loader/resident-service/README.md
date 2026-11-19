@@ -21,6 +21,55 @@ interrupted save. A degraded journal restores the verified mute preference
 with automatic scheduling disarmed. The stock speaker gate uses the
 verified preference. See [normal-mode APRS mute](../APRS-MUTE.md).
 
+## Automatic TX dev build
+
+Build with `--aprs-mute --disable-morse --dev-kiss --resident-beacon
+--flash-shared --resident-tx`. Use the resulting main package, its matching
+`h9_modules.bin` and the verified resident ABI 2 body
+`resident_0xFA000_OFFLINE.bin`. Reserve main-flash sectors `0xFA000` and
+`0xFB000` for that body. Back up both sectors before installation and verify
+the updater can restore them. Earlier experiments may have left data in them.
+The main package leaves that area out of its write range. The startup CRC
+must match the separate body before automatic TX can run. The loader stays
+on API 5, and the APRS modem and settings journal use their existing formats.
+
+In the stock APRS menu, set APRS Switch on, choose the TX channel and set
+the call sign and SSID. Leave the stock timed beacon, PTT Linkage, DIGI1
+and DIGI2 off when using the Toolbox schedule. In **Toolbox → APRS SETTINGS**,
+choose Smart or Timed and arm the schedule. The saved schedule includes its
+APRS selector and frequency. Disarm and rearm after changing either. The
+existing APRS beacon setup accepts 2 m frequencies.
+
+The GPS worker follows the schedule across screens and restores it on
+reboot. The radio sends pending beacons from its normal channel screen.
+The first beacon becomes eligible after the 15-second guard and a fresh
+GPS fix. Timed mode measures the next interval from the completed send.
+Smart mode uses the existing speed, turn and stop rules. A Lock selection
+waits for its VFO to be selected. Auto can briefly borrow the APRS VFO,
+check for a carrier and restore the previous receive route after TX.
+When a packet is handed to the modem and TX ends, **APRS → BEACON STATUS**
+increments **TX SUBMITTED**. Use an independent decoder to confirm reception.
+
+### H9 bench checks
+
+1. Save the main firmware identity, both resident sectors, the installed
+   app bundle and the SmartBeacon settings. Use PTT + 2 recovery for main
+   flash, keep the supported APRS modem, and confirm the installed files
+   against the build manifest.
+2. Connect a dummy load or an attenuated test setup before the first normal
+   boot. An already-armed schedule resumes on boot. Use different A and B
+   frequencies to distinguish which side transmits.
+3. With B Auto and A selected, confirm a timed beacon on B and another
+   after the chosen interval. Decode the AX.25 frame with an independent
+   receiver. Repeat in Smart mode after arming and getting GPS, then check
+   that the saved schedule sends again after a reboot.
+4. Confirm the radio returns to the selected voice channel. Exercise busy
+   stock receive, a carrier on the borrowed APRS VFO and Lock with the
+   other VFO selected. Check that a blocked beacon stays pending and can
+   send once the route is available.
+5. With APRS Mute on, verify audible voice on the voice VFO and receive a
+   known APRS packet in the stock Beacon List without hearing the burst.
+
 ## Cooperative dispatch reference
 
 `dispatch.c` remains a host-tested single-task ownership model. The dedicated
@@ -78,7 +127,9 @@ python3 -I resident-service/build_probe.py --far-backup <private-far-backup> --t
 ```
 
 The host tests exercise shared status, pending IDs, GPS expiry, retry, clock
-and DMA wrap, input gaps and two-sector settings power cuts. The placement
+and DMA wrap, input gaps and two-sector settings power cuts. The simulated
+radio also covers A/B selection, carrier checks, frame production,
+asynchronous stock I/O and restoring receive after transmit. The placement
 probe links the scheduler and settings engine for Pi32v2 and checks the budget
 of the erased sector reported by the backup. It creates an offline-only ELF
 and JSON report in `build/resident-probe`.

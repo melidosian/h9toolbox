@@ -89,16 +89,21 @@ int main(void)
     assert(!h9_bs_wait_for(&service, generation - 1, pending_id, H9_BS_BUSY));
     assert(h9_bs_wait_for(&service, generation, pending_id, H9_BS_BUSY));
     assert(h9_bs_status(&service, &live) && live.wait == H9_BS_BUSY);
-    assert(!h9_bs_submitted(&service, generation, pending_id + 1, 1, 20000));
-    assert(h9_bs_submitted(&service, generation, pending_id, 0, 20000));
-    assert(!h9_bs_submitted(&service, generation, pending_id, 1, 20001));
+    assert(!h9_bs_submitted(&service, generation, pending_id + 1, 1, 20000, 275));
+    assert(h9_bs_submitted(&service, generation, pending_id, 0, 20000, 275));
+    assert(!h9_bs_submitted(&service, generation, pending_id, 1, 20001, 275));
     tick(79999);
     assert(h9_bs_status(&service, &live) && live.pending &&
            live.wait == H9_BS_RETRY && !live.submitted);
     tick(80000);
+    assert(h9_bs_status(&service, &live) && live.pending && live.wait == H9_BS_POSITION);
+    rmc(80000);
+    tick(80000);
     assert(h9_bs_status(&service, &live) && live.pending &&
            live.wait == H9_BS_READY);
-    assert(h9_bs_submitted(&service, generation, pending_id, 1, 80000));
+    h9_bs_input_gap(&service, 80000);
+    assert(h9_bs_submitted(&service, generation, pending_id, 1, 80000, 310));
+    assert(service.smart.tx_course == 310);
     assert(h9_bs_status(&service, &live) && !live.pending &&
            live.submitted == 1 && live.last_submit_ms == 80000);
 
@@ -112,7 +117,7 @@ int main(void)
     assert(h9_bs_status(&service, &live) && live.pending && live.submitted == 1);
     h9_bs_stop(&service);
     assert(h9_bs_status(&service, &live) && !live.armed && !live.pending);
-    assert(!h9_bs_submitted(&service, generation, live.pending_id, 1, 140000));
+    assert(!h9_bs_submitted(&service, generation, live.pending_id, 1, 140000, 275));
 
     /* Re-arm near 32-bit clock rollover; a stale token from the prior arm
      * cannot acknowledge the new event, and retry uses unsigned elapsed. */
@@ -122,12 +127,13 @@ int main(void)
     tick(start + 15000u);
     assert(h9_bs_status(&service, &live) && live.pending &&
            live.generation != generation);
-    assert(!h9_bs_submitted(&service, generation, live.pending_id, 1, 0));
+    assert(!h9_bs_submitted(&service, generation, live.pending_id, 1, 0, 275));
     generation = live.generation;
     pending_id = live.pending_id;
-    assert(h9_bs_submitted(&service, generation, pending_id, 0, UINT32_MAX));
+    assert(h9_bs_submitted(&service, generation, pending_id, 0, UINT32_MAX, 275));
     tick(59998);
     assert(h9_bs_status(&service, &live) && live.wait == H9_BS_RETRY);
+    rmc(59999);
     tick(59999);
     assert(h9_bs_status(&service, &live) && live.wait == H9_BS_READY);
     service.status.magic ^= 1;

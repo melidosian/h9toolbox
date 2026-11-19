@@ -102,16 +102,17 @@ void h9_bs_poll(struct h9_bs *s, uint32_t now_ms)
             if (++st->pending_id == 0) ++st->pending_id;
         }
     }
-    if (st->pending) st->wait = st->gps.lat[0] ? H9_BS_READY : H9_BS_POSITION;
-    else st->wait = H9_BS_INTERVAL;
+    if (!st->pending) st->wait = H9_BS_INTERVAL;
+    else if (!st->gps.fix || !st->gps.lat[0]) st->wait = H9_BS_POSITION;
+    else if (st->wait < H9_BS_BUSY) st->wait = H9_BS_READY;
 }
 int h9_bs_submitted(struct h9_bs *s, uint32_t generation, uint32_t pending_id,
-                    int accepted, uint32_t now_ms)
+                    int accepted, uint32_t now_ms, uint16_t sent_course)
 {
     if (!valid(s) || !s->status.armed || !s->status.pending ||
         generation != s->status.generation || !pending_id ||
         pending_id != s->status.pending_id) return 0;
-    if (s->retry_active || (accepted && !s->status.gps.lat[0])) return 0;
+    if (s->retry_active) return 0;
     if (!accepted) {
         s->retry_ms = now_ms;
         s->retry_active = 1;
@@ -124,7 +125,7 @@ int h9_bs_submitted(struct h9_bs *s, uint32_t generation, uint32_t pending_id,
     ++s->status.submitted;
     s->status.last_submit_ms = now_ms;
     s->smart.last_tx_ms = now_ms;
-    s->smart.tx_course = s->status.gps.course;
+    s->smart.tx_course = sent_course;
     return 1;
 }
 int h9_bs_wait_for(struct h9_bs *s, uint32_t generation, uint32_t pending_id,
@@ -132,8 +133,8 @@ int h9_bs_wait_for(struct h9_bs *s, uint32_t generation, uint32_t pending_id,
 {
     if (!valid(s) || !s->status.armed || !s->status.pending ||
         generation != s->status.generation || !pending_id ||
-        pending_id != s->status.pending_id || why < H9_BS_BUSY ||
-        why > H9_BS_TX_ERROR) return 0;
+        pending_id != s->status.pending_id || why < H9_BS_POSITION ||
+        why > H9_BS_TX_FAULT) return 0;
     s->status.wait = (uint8_t)why;
     return 1;
 }

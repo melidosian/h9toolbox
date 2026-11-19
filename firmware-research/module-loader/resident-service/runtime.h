@@ -5,7 +5,11 @@
 
 #define H9_RUNTIME_RAM 0x29A00u
 #define H9_RUNTIME_BYTES 0x200u
+#ifdef H9_RESIDENT_TX
+#define H9_RUNTIME_ABI 2u
+#else
 #define H9_RUNTIME_ABI 1u
+#endif
 
 struct h9_runtime_status {
     struct h9_bs_status beacon;
@@ -28,6 +32,13 @@ struct h9_runtime_api {
     unsigned (*read_status)(struct h9_runtime_status *);
     /* Called from the Toolbox UI in my_app, after a verified journal write. */
     void (*publish_settings)(const struct ts_settings *);
+#ifdef H9_RESIDENT_TX
+    void (*normal_tx)(void);
+    unsigned (*prepare_tx)(const void *);
+    unsigned (*emit_frame)(void);
+    unsigned (*airtime)(void);
+    void (*stock_tx)(const void *, unsigned, void (*)(const void *, unsigned));
+#endif
 };
 
 #endif

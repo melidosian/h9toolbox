@@ -1,7 +1,22 @@
-/* Permanent passive scheduler on the pinned stock 1.0.38 application. */
+/* Permanent scheduler on the pinned stock 1.0.38 application. */
 #include "runtime.h"
 #include "modem_input.h"
 #include <stddef.h>
+
+#ifdef H9_RESIDENT_TX
+#include "beacon_tx.h"
+struct tx_feedback {
+    uint32_t generation, pending_id, completed_ms;
+    uint16_t course;
+    uint8_t result;
+    volatile uint8_t ready;
+};
+_Static_assert(offsetof(struct h9_runtime_api, normal_tx) == 12 &&
+               offsetof(struct h9_runtime_api, prepare_tx) == 16 &&
+               offsetof(struct h9_runtime_api, emit_frame) == 20 &&
+               offsetof(struct h9_runtime_api, airtime) == 24 &&
+               offsetof(struct h9_runtime_api, stock_tx) == 28, "Main-flash TX hook ABI");
+#endif
 
 struct resident_state {
     struct h9_runtime_prefix prefix;
@@ -10,6 +25,12 @@ struct resident_state {
     struct ts_settings requested;
     struct h9_runtime_status live;
     volatile uint32_t request_version, status_version;
+#ifdef H9_RESIDENT_TX
+    volatile uint32_t applied_version;
+    uint32_t last_probe_ms;
+    struct h9_beacon_tx tx;
+    struct tx_feedback feedback;
+#endif
 };
 _Static_assert(sizeof(struct resident_state) <= H9_RUNTIME_BYTES, "Resident APRS exceeds its RAM reservation");
 _Static_assert(offsetof(struct resident_state, prefix.mute) == 4, "Mute hook offset");
@@ -54,7 +75,51 @@ static void publish_settings(const struct ts_settings *settings)
     }
 }
 
-static const struct h9_runtime_api api = { H9_RUNTIME_ABI, read_status, publish_settings };
+#ifdef H9_RESIDENT_TX
+/* The worker is the sole writer of scheduler state. my_app submits at most
+ * one attempt while the worker hasn't consumed and published its result. */
+static void normal_tx(void)
+{
+    struct resident_state *s = STATE;
+    struct h9_runtime_status status;
+    /* Let the next awake window through even if the battery saver and
+     * route probe interval happen to repeat at the same cadence. */
+    if (*(const volatile uint8_t *)H9_RF_SLEEP_FLAG || NOW_MS - s->last_probe_ms < 2000u ||
+        s->feedback.ready || s->applied_version != s->request_version ||
+        !read_status(&status) || !status.worker_ready || !status.uart_online ||
+        status.store_result != TSP_OK || !status.settings.armed ||
+        !status.beacon.pending || !status.beacon.gps.fix ||
+        status.beacon.wait == H9_BS_RETRY)
+        return;
+    unsigned result = h9_beacon_tx_try(&s->tx, &status);
+    /* In particular, avoid borrowing the other VFO on every loop while it
+     * keeps reporting a carrier. The pending event can be retried later. */
+    s->last_probe_ms = NOW_MS;
+    if (result == status.beacon.wait && result != H9_BS_TX_ERROR) return;
+    s->feedback.generation = status.beacon.generation;
+    s->feedback.pending_id = status.beacon.pending_id;
+    s->feedback.completed_ms = s->last_probe_ms;
+    s->feedback.course = status.beacon.gps.course;
+    s->feedback.result = (uint8_t)result;
+    FENCE();
+    s->feedback.ready = 1;
+}
+
+static unsigned prepare_tx(const void *frequency) { return h9_beacon_tx_prepare(&STATE->tx, frequency); }
+static unsigned emit_frame(void) { return h9_beacon_tx_emit(&STATE->tx); }
+static unsigned airtime(void) { return h9_beacon_tx_airtime(&STATE->tx); }
+static void stock_tx(const void *arg, unsigned size, h9_stock_action stock)
+{
+    h9_beacon_tx_stock(&STATE->tx, arg, size, stock);
+}
+#endif
+
+static const struct h9_runtime_api api = {
+    H9_RUNTIME_ABI, read_status, publish_settings,
+#ifdef H9_RESIDENT_TX
+    normal_tx, prepare_tx, emit_frame, airtime, stock_tx,
+#endif
+};
 
 static void worker(void *context)
 {
@@ -80,7 +145,23 @@ static void worker(void *context)
             *prior = next;
             s->live.store_result = TSP_OK;
             applied = requested;
+#ifdef H9_RESIDENT_TX
+            s->applied_version = applied;
+#endif
         }
+#ifdef H9_RESIDENT_TX
+        unsigned acknowledged = s->feedback.ready;
+        if (acknowledged) {
+            FENCE();
+            const struct tx_feedback *f = &s->feedback;
+            if (f->result == H9_TX_SUBMITTED || f->result == H9_BS_TX_ERROR)
+                h9_bs_submitted(&s->beacon, f->generation, f->pending_id,
+                                f->result == H9_TX_SUBMITTED, f->completed_ms, f->course);
+            else
+                h9_bs_wait_for(&s->beacon, f->generation, f->pending_id, f->result);
+        }
+        now = NOW_MS;
+#endif
         unsigned online = UART1 && DMA_STATE[0] == 0x10CFCu && DMA_STATE[1] == H9_MODEM_DMA_CAPACITY;
         h9_modem_poll(&s->modem, &s->beacon, online ? (const volatile uint8_t *)0x10CFCu : NULL,
                       DMA_STATE + 2, now);
@@ -90,6 +171,12 @@ static void worker(void *context)
         ++s->live.polls;
         FENCE();
         ++s->status_version;
+#ifdef H9_RESIDENT_TX
+        if (acknowledged) {
+            FENCE();
+            s->feedback.ready = 0;
+        }
+#endif
         delay(2);
     }
 }

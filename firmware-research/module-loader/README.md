@@ -103,6 +103,12 @@ until reboot and returns to the radio after 20 seconds of inactivity.
 **APRS SETTINGS** contains Schedule, Beacon Mode, Interval, Symbol and APRS
 Mute. **APRS → BEACON STATUS** shows the live resident scheduler status.
 
+Add `--resident-tx` to those build flags for automatic transmit in the dev
+bench build. This variant has a matching `h9_modules.bin` and a separate
+`resident_0xFA000_OFFLINE.bin` body that spans two main-flash sectors.
+Use the [resident SmartBeacon bench instructions](resident-service/README.md)
+for the transmit settings, backups and hardware checks.
+
 See the [app styling guide](APP-STYLE.md) for the color palette, layout and
 APRS navigation used by the dev bundle.
 

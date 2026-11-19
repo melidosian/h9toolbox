@@ -10,7 +10,8 @@
 enum h9_bs_wait {
     H9_BS_OFF, H9_BS_INTERVAL, H9_BS_READY, H9_BS_RETRY,
     H9_BS_POSITION, H9_BS_BUSY, H9_BS_SIDE, H9_BS_FREQUENCY,
-    H9_BS_SETTING, H9_BS_CALLSIGN, H9_BS_TX_ERROR
+    H9_BS_SETTING, H9_BS_CALLSIGN, H9_BS_TX_ERROR, H9_BS_STOCK_CONTROL, H9_BS_STOCK_POSITION,
+    H9_BS_TX_FAULT
 };
 struct h9_bs_status {
     uint32_t magic, generation, pending_id, submitted, last_submit_ms;
@@ -39,10 +40,10 @@ int h9_bs_feed_byte(struct h9_bs *s, uint8_t byte, uint32_t now_ms);
 void h9_bs_input_gap(struct h9_bs *s, uint32_t now_ms);
 /* May update pending/status only; never calls TX or other board operations. */
 void h9_bs_poll(struct h9_bs *s, uint32_t now_ms);
-/* A pending identifier must match. accepted means a TX routine returned after
- * submission, not proof of on-air emission or iGate reception. */
+/* A pending identifier must match. On acceptance use the course in the sent
+ * snapshot, even if GPS has moved or gone stale while the radio was keyed. */
 int h9_bs_submitted(struct h9_bs *s, uint32_t generation, uint32_t pending_id,
-                    int accepted, uint32_t now_ms);
+                    int accepted, uint32_t now_ms, uint16_t sent_course);
 /* Transient refusal keeps the pending event without starting retry timeout. */
 int h9_bs_wait_for(struct h9_bs *s, uint32_t generation, uint32_t pending_id,
                    enum h9_bs_wait why);

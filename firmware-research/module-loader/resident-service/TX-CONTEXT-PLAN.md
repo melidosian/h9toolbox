@@ -1,10 +1,32 @@
-# TX context evidence and non-transmitting observation plan
+# Stock TX context and dev integration
 
-The resident bench build runs GPS and scheduler work in a dedicated task.
-Its pending event can be read by Toolbox while the stock radio and other
-screens continue. The stock RF paths retain their current call sites.
+The resident build runs GPS and scheduler work in a dedicated task. The dev
+variant with `--resident-tx` connects pending events to the stock transmitter
+from the normal-radio loop. The original passive build and investigation
+are recorded below.
 
-## Evidence, not inferred mutual exclusion
+## Active dev integration
+
+The stock timed-beacon call at app+`0x87494` runs the resident TX callback
+before its original timer. The native selector, setup, modem dwell and
+end-TX functions run synchronously on that same task. Before keying, the
+adapter checks the configured APRS selector, both working frequency words,
+the stock TX shift transform and the RF carrier bit used by stock receive
+at app+`0x7B206`. For a borrowed VFO it selects and tunes receive first.
+The adapter restores the previous selectors and receive tuning after the
+stock TX flag and RF TX-link bit clear. Failed cleanup stops further
+automatic TX until reboot.
+
+The AF01 KISS and remote PTT call sites use a shared short critical section
+with the resident adapter. Automatic TX yields to an in-flight stock call,
+and these entry points defer to the resident owner during its attempt.
+An AF01 frame arriving during this window needs another submission by its
+host. Other stock autonomous transmit features retain their code and
+prevent resident attempts when enabled. A fake-radio test verifies the
+recorded conditions and call order. The full board behavior, carrier
+response and outgoing packet reception still require the H9 bench check.
+
+## Stock evidence
 
 Stock CPU addresses, v1.0.38:
 
@@ -31,13 +53,12 @@ by a call is not atomic exclusion. Reusing a task context does not prove that
 other tasks/interrupts cannot modify RF state during the blocking call.
 
 The stock timed caller at app+`0x87494` is reached by `my_app`. It calls
-app+`0x82EB2` under the stock mode and activity checks. This is a possible
-consumer of the resident pending event. A direct scan also found the
-manufacturer command handlers reaching the PTT wrapper at app+`0x5DD0A`
-and app+`0x5E1BC`. The exact concurrency of those handlers still needs
-validation before a pending event can enter the stock transmit path.
+app+`0x82EB2` under the stock mode and activity checks. A direct scan also
+found the manufacturer command handlers reaching the PTT wrapper at
+app+`0x5DD0A` and app+`0x5E1BC`. Their concurrency can be checked on the
+radio using the dev adapter and external packet source.
 
-## Concrete safe integration boundary
+## Earlier cooperative integration boundary
 
 A permanent scheduler-only callback at audited module `h9_key`/`h9_delay`
 call sites, on the existing my_app task, is suitable for parsing snapshots,
@@ -47,7 +68,7 @@ nested wrappers to return without rescheduling. Each RF-using module must
 participate in suppression/ownership before any future transmit callback is
 considered. Existing modules that do not cooperate remain unsupported.
 
-## Non-destructive bench plan (not performed)
+## Passive observation plan
 
 1. Record exact firmware/module hashes and settings backup; verify USB recovery
    remains available. This task does not authorize flashing diagnostic changes.
