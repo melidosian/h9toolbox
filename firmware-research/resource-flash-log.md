@@ -4635,3 +4635,23 @@ result yet.**
   Chrome WebHID session exercised backup, staging before main writes,
   Step 05, main restore, and an occupied slot. The new web installer
   has not yet been run against the physical H9.
+
+## 2026-11-19 Built-in AGWPE for the H9 bridge
+
+- The Python bridge adds a loopback AGWPE endpoint on TCP 8000 (radio
+  port 0). Direct KISS TCP remains on 8100. Both share the same
+  single-write, paced BLE transport. RF transmission remains opt-in.
+- The bridge owns one AX.25 v2.0 connection with a one-frame window.
+  Packetization keeps the 80-byte and 100 ms batching profile, fits
+  escaped bytes to the live BLE limit, and reports queued bytes to
+  Pat as outstanding packets. The engine handles ACKs, retries,
+  busy polling, receive gaps, disconnect, and the initial I frame
+  when the connection UA was missed.
+- The actual wl2k-go AGWPE client used by Pat and the Paracon
+  Packet Engine client both connected, exchanged data, and disconnected
+  through the bridge with simulated BLE and RF. Pat's binary writes
+  arrived in one batched frame. Paracon found radio port 0 and decoded
+  Monitor data. Direct KISS and the other host regressions passed.
+  An over-the-air check of the integrated engine remains pending.
+- The website ZIP now contains the Python bridge, its AGWPE and
+  AX.25 modules, the Pat helper and their setup README.

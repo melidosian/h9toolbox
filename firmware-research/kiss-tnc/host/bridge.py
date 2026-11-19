@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Bridge the TD-H9 AF00 packet service to a loopback KISS TCP socket."""
+"""Bridge the TD-H9 AF00 packet service to local KISS TCP and AGWPE."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
 import contextlib
+import errno
 import logging
 import math
 import re
 from uuid import UUID
+
+from agwpe import Agwpe
+from ax25 import kiss_frame
 
 LOG = logging.getLogger("h9-kiss-bridge")
 MIN_TX_GAP = 1.60
@@ -31,7 +35,7 @@ def bluetooth_uuid(value: str) -> str:
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Forward a verified BLE KISS stream to a loopback TCP KISS client."
+        description="Connect or monitor the H9 through local KISS TCP or AGWPE."
     )
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--scan", action="store_true", help="List nearby Bluetooth LE device identifiers")
@@ -45,6 +49,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument(
         "--port", type=int, default=8100, help="Loopback KISS TCP port (default: 8100)"
     )
+    parser.add_argument("--agwpe-port", type=int,
+                        help="Loopback Pat and Paracon port (default 8000; 0 disables AGWPE)")
     parser.add_argument("--max-frame-size", type=int, default=182,
                         help="Maximum complete encoded BLE frame size (default 182)")
     parser.add_argument("--tx-gap", type=float, default=MIN_TX_GAP,
@@ -59,6 +65,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
+    if args.agwpe_port is None:
+        args.agwpe_port = 0 if args.port == 8000 else 8000
+    if not 0 <= args.agwpe_port <= 65535 or args.agwpe_port == args.port:
+        parser.error("--agwpe-port must be zero or an unused port distinct from --port")
     if not 3 <= args.max_frame_size <= 512:
         parser.error("--max-frame-size must be between 3 and 512")
     if any(not math.isfinite(delay) or delay < 0 for delay in (args.tx_gap, args.rx_guard)):
@@ -117,18 +127,27 @@ class KissTcpBridge:
         self.radio_queue: asyncio.Queue[bytes] | None = None
         self.client_active = False
         self.last_tx = self.last_rx = -math.inf
+        self.tx_lock = asyncio.Lock()
+        self.rx_frames = KissFrames()
+        self.agw = None
 
     def on_radio_bytes(self, _characteristic: object, data: bytearray) -> None:
         """Queue BLE notifications as-is; KISS frames can span notifications."""
         self.last_rx = asyncio.get_running_loop().time()
         LOG.debug("BLE RX notification, %d bytes", len(data))
         queue = self.radio_queue
-        if queue is None:
-            return
-        try:
-            queue.put_nowait(bytes(data))
-        except asyncio.QueueFull:
-            LOG.error("RX queue full; dropping a BLE notification")
+        if queue is not None:
+            try:
+                queue.put_nowait(bytes(data))
+            except asyncio.QueueFull:
+                LOG.error("RX queue full; dropping a BLE notification")
+        if self.agw is not None:
+            for frame in self.rx_frames.feed(data):
+                try:
+                    raw = kiss_payload(frame)
+                except ValueError:
+                    continue
+                self.agw.receive(raw)
 
     async def forward_radio_to_client(
         self, queue: asyncio.Queue[bytes], writer: asyncio.StreamWriter
@@ -138,36 +157,46 @@ class KissTcpBridge:
             writer.write(data)
             await writer.drain()
 
-    async def write_client_bytes_to_radio(self, frame: bytes) -> None:
+    def capacity(self):
+        return min(self.args.max_frame_size,
+                   self.write_characteristic.max_write_without_response_size)
+
+    async def send_ax25(self, raw, valid):
+        return await self.write_client_bytes_to_radio(kiss_frame(raw), valid=valid)
+
+    async def write_client_bytes_to_radio(self, frame: bytes, *, valid=lambda: True) -> bool:
         try:
             kiss_payload(frame)
         except ValueError as exc:
             LOG.warning("Dropped KISS frame: %s", exc)
-            return
+            return False
         if not self.args.allow_tx:
             LOG.warning("TX blocked; dropped %d-byte complete KISS frame", len(frame))
-            return
+            return False
         if self.ble is None or self.write_characteristic is None:
             raise ConnectionError("BLE radio is not connected")
-        capacity = min(self.args.max_frame_size,
-                       self.write_characteristic.max_write_without_response_size)
+        capacity = self.capacity()
         if len(frame) > capacity:
             raise ConnectionError(
                 f"Complete KISS frame is {len(frame)} bytes; BLE limit is {capacity}. "
                 "Frame rejected; H9 writes cannot be split. Reduce AX.25 packet length.")
-        loop = asyncio.get_running_loop()
-        while (remaining := max(self.last_tx + self.args.tx_gap,
-                                self.last_rx + self.args.rx_guard) - loop.time()) > 0:
-            await asyncio.sleep(remaining)
-        await self.ble.write_gatt_char(self.write_characteristic, frame, response=False)
-        self.last_tx = loop.time()
+        async with self.tx_lock:
+            loop = asyncio.get_running_loop()
+            while valid() and (remaining := max(self.last_tx + self.args.tx_gap,
+                                                self.last_rx + self.args.rx_guard) - loop.time()) > 0:
+                await asyncio.sleep(remaining)
+            if not valid():
+                return False
+            await self.ble.write_gatt_char(self.write_characteristic, frame, response=False)
+            self.last_tx = loop.time()
         LOG.debug("BLE TX handed off %d encoded bytes in one write", len(frame))
+        return True
 
     async def handle_tcp_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
-        if self.client_active:
-            LOG.warning("Rejected a second TCP client; only one KISS client is supported")
+        if self.client_active or (self.agw is not None and self.agw.link is not None):
+            LOG.warning("KISS TCP client rejected: another client is using the radio")
             writer.close()
             await writer.wait_closed()
             return
@@ -228,19 +257,41 @@ class KissTcpBridge:
                      ble.mtu_size, write_char.max_write_without_response_size,
                      self.args.max_frame_size)
             self.write_characteristic = write_char
+            if self.args.agwpe_port:
+                self.agw = Agwpe(send_raw=self.send_ax25, capacity=self.capacity,
+                                 raw_in_use=lambda: self.client_active, allow_tx=self.args.allow_tx)
             await ble.start_notify(notify_char, self.on_radio_bytes)
             mode = "TX ENABLED" if self.args.allow_tx else "receive-only (default)"
             LOG.info("BLE connected on AF00; %s", mode)
             LOG.info("TX spacing %.2f s, RX-to-TX guard %.2f s", self.args.tx_gap, self.args.rx_guard)
-            LOG.info("Listening only on 127.0.0.1:%d", self.args.port)
+            LOG.info("KISS TCP on 127.0.0.1:%d", self.args.port)
             LOG.info("No KISS mode switch or radio configuration command will be sent")
 
             server = await asyncio.start_server(
                 self.handle_tcp_client, host="127.0.0.1", port=self.args.port
             )
             async with server:
-                await disconnected.wait()
-                raise ConnectionError("Radio disconnected; stopped TCP listener")
+                if self.agw is None:
+                    await disconnected.wait()
+                else:
+                    try:
+                        agw_server = await asyncio.start_server(
+                            self.agw.handle, host="127.0.0.1", port=self.args.agwpe_port)
+                        async with agw_server:
+                            LOG.info("AGWPE on 127.0.0.1:%d, radio port 0", self.args.agwpe_port)
+                            await disconnected.wait()
+                    except OSError as error:
+                        if error.errno != errno.EADDRINUSE:
+                            raise
+                        LOG.warning("AGWPE port %d is busy. KISS TCP is still available.",
+                                    self.args.agwpe_port)
+                        await self.agw.close()
+                        self.agw = None
+                        await disconnected.wait()
+                    finally:
+                        if self.agw is not None:
+                            await self.agw.close()
+            raise ConnectionError("Radio disconnected; stopped local listeners")
 
 
 async def scan() -> None:
