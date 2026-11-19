@@ -644,7 +644,7 @@ async function restartAfterVerification() {
 const stockRestart = ['Check the firmware version, channels, and settings.'];
 const toolboxRestart = [
   'From the channel screen, hold Back to open the app menu.',
-  useDevBuild ? 'Open the development app catalog in App Manager and install the matching menu and apps.'
+  useDevBuild ? 'Open the H9 Toolbox v0.1.5 catalog in App Manager and install the matching menu and apps.'
     : 'Use the App Manager over Bluetooth or experimental USB-C to add apps or a boot logo.',
 ];
 const appManagerLink = {

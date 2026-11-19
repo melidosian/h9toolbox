@@ -30,7 +30,7 @@ channel screen to open Toolbox, then choose **RADIO** to return.
 
 1. Open the firmware updater in Chrome or Edge on a computer. Connect a
    data-capable USB-C cable and hold **PTT + 2** while powering on the
-   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [v0.1.5 on the dev site](https://dev.h9toolbox.com/firmware-update/)
+   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/)
 2. Choose your firmware, save the recommended `.h9hid` recovery backup,
    and keep USB connected through verification. The current updater on
    `dev` requests a reboot after verification and gives manual restart
@@ -45,7 +45,7 @@ channel screen to open Toolbox, then choose **RADIO** to return.
 Keep the `.h9hid` file to recover the main firmware. The Bluetooth
 programmer’s `.img` backup is for channels and settings. To return to the
 factory main firmware, choose **Stock Type-C v1.0.38** in the updater. The
-APRS modem uses its own recovery procedure. [TD-H9 recovery guide](https://dev.h9toolbox.com/firmware-update/recovery/) · [APRS modem recovery](firmware-research/kiss-tnc/README.md#aprs-modem)
+APRS modem uses its own recovery procedure. [TD-H9 recovery guide](https://h9toolbox.com/firmware-update/recovery/) · [APRS modem recovery](firmware-research/kiss-tnc/README.md#aprs-modem)
 
 ## Project files
 
@@ -60,10 +60,10 @@ The `htcommander` repository is a separate project with its own TD-H9 integratio
 ## Hosting
 
 GitHub Pages publishes `dist/` from `main` to [h9toolbox.com](https://h9toolbox.com/).
+The release build stages H9 Toolbox Firmware v0.1.5, its APRS scheduler and
+modem update, and the matching App Manager catalog.
 Cloudflare Pages builds `dev` with `scripts/build-dev-site.sh` for
-[dev.h9toolbox.com](https://dev.h9toolbox.com/). The dev build serves H9
-Toolbox Firmware v0.1.5 with its matching APRS scheduler, modem stage, and
-App Manager catalog. It records the deployed commit at
+[dev.h9toolbox.com](https://dev.h9toolbox.com/). The dev site records the deployed commit at
 [`/dev-build.txt`](https://dev.h9toolbox.com/dev-build.txt).
 
 The production site uses Google Analytics 4 for page views and automatic

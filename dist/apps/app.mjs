@@ -95,7 +95,7 @@ function renderCatalog() {
   });
   box.replaceChildren(...cards);
   $('catalogNote').textContent = bench
-    ? 'Requires the dev build of H9 Toolbox Firmware v0.1.5.'
+    ? 'Requires the current H9 Toolbox Firmware v0.1.5.'
     : `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
 }
 
@@ -234,7 +234,7 @@ async function refreshCatalog() {
     catch (error) { log(error.message, 'error'); }
   }));
   pickCatalog();
-  if (!catalog) $('catalogNote').textContent = preferBench ? 'The development app catalog did not load.' : 'The app catalog did not load.';
+  if (!catalog) $('catalogNote').textContent = preferBench ? 'The H9 Toolbox v0.1.5 app catalog did not load.' : 'The app catalog did not load.';
 }
 // After reading the radio: which installed apps have a newer version in the catalog.
 function reportUpdates() {

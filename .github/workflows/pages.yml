@@ -29,6 +29,8 @@ jobs:
         run: |
           mkdir -p dist/kiss-tnc
           cp prototypes/kiss-tnc/{index.html,style.css,app.mjs,kiss.mjs,tnc.mjs} dist/kiss-tnc/
+      - name: Stage H9 Toolbox firmware release
+        run: bash scripts/stage-firmware-release.sh
       - name: Upload site
         uses: actions/upload-pages-artifact@v4
         with:
