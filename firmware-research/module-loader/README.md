@@ -94,6 +94,15 @@ slot stay the same. Install the API 5 main firmware before loading its
 matching `h9_modules.bin`. The resident scheduler body is the separate
 `resident_0xFB000_OFFLINE.bin` recorded in the manifest.
 
+The API 5 Toolbox menu follows the [TD-H3 menu controls](https://github.com/limehawk/td-h3-fw/blob/73bcf2d60fb4417b4e4d18d524b5f459fc793fb1/docs/manual/Menu.md).
+Use Up and Down to move between rows, type a row number to jump, and press
+Menu to open a tool or edit a value. In edit mode, Up and Down change the
+value. Menu or Back ends the edit. Settings save after two seconds without
+an adjustment or as soon as you leave the edit. The menu remembers its row
+until reboot and returns to the radio after 20 seconds of inactivity.
+**APRS SETTINGS** contains Schedule, Beacon Mode, Interval, Symbol and APRS
+Mute. **APRS → BEACON STATUS** shows the live resident scheduler status.
+
 The pinned KISS helpers occupy the preceding flash range. The RX15 and
 unsigned-byte fixes run on the separate APRS processor. Rebuild that image
 with the [KISS build instructions](../kiss-tnc/README.md).

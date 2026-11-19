@@ -4772,3 +4772,26 @@ result yet.**
 - Three normal-mode USB checks with APRS mute enabled found no newly
   stored packet in the stock Beacon List. Over-the-air decoding with mute
   enabled still needs a positive observation.
+
+### 2026-11-18 TD-H3-style Toolbox navigation
+
+- Adapted the grouped list, row numbers, keypad jumps, editing and Back
+  behavior from Limehawk's TD-H3 menu at `73bcf2d`. The shared-flash dev
+  menu exposes the APRS settings directly. APRS BEACON now reads and shows
+  the resident snapshot. Settings use the existing journal and are
+  published after a verified save.
+- MENU is 6,086 bytes, with 442 bytes between the end of the module and
+  the shared satellite state. The compatibility build with RAM-local
+  helpers reproduced the earlier API 4 MENU and APRS BEACON bodies.
+- The new standard bundle is 70,191 bytes with SHA-256
+  `fade7613feef3c623b3536fa9252991212a83c8b87a1be60a7deb0803d857cd1`.
+  MENU and APRS BEACON are the two changed module entries. The corresponding
+  main package has SHA-256
+  `919f0039c738c4f93a9c577d3c93606687ade1bf43434f829f73fb1454be2381`.
+  The decoded main app changes two bytes for the new APRS BEACON CRC.
+  The beacon resident, flash helpers and separate APRS modem image match
+  the prior shared-flash build.
+- Host tests passed for keypad jumps, row recall, Back, settings debounce,
+  save failure, and read-only live status. Loader, mute, Morse, serial clone
+  and all 134 web tests passed. The native satellite fixture reproduced
+  its prior 12 failures.

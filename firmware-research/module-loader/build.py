@@ -242,12 +242,21 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
         entry = "module_flash_entry"
         flags = ("-DH9_FLASH_HELPERS",)
 
-    def c_module(name: str, source: Path, *extra: Path) -> dict:
-        objs = [compile_c(src, out, toolchain, flags=flags) for src in (source, *extra)]
+    def c_module(name: str, source: Path, *extra: Path, extra_flags: tuple[str, ...] = ()) -> dict:
+        objs = [compile_c(src, out, toolchain, flags=flags + extra_flags) for src in (source, *extra)]
         prog = link([*objs, *lib], LOAD, entry, out, "mod_" + source.stem)
         return {"name": name, "body": text_of(prog, LOAD), "bss": 0, "entry": prog.entry - LOAD}
 
-    menu = c_module("MENU", ROOT / "modules" / "menu" / "menu.c", ROOT / "modules" / "common" / "vfo_backup.c")
+    menu_dir = ROOT / "modules" / "menu"
+    aprs_dir = ROOT / "modules" / "aprs"
+    menu_sources = (common / "vfo_backup.c",)
+    if flash_shared:
+        menu_sources += (menu_dir / "toolbox_menu.c", aprs_dir / "aprs_resident_config.c",
+                         common / "toolbox_settings_pair.c")
+    menu = c_module("MENU", menu_dir / "menu.c", *menu_sources,
+                    extra_flags=("-DH9_GROUPED_MENU",) if flash_shared else ())
+    if len(menu["body"]) > 0x2B880 - LOAD:
+        raise SystemExit("MENU code overlaps the shared satellite state")
     about = c_module("ABOUT", ROOT / "modules" / "about" / "about.c")
     maze = c_module("MAZE CHASE", ROOT / "modules" / "maze" / "maze.c", ROOT / "modules" / "common" / "snd.c")
     aprs = c_module("APRS MONITOR", ROOT / "modules" / "aprs_monitor" / "aprs_monitor.c")
@@ -255,7 +264,6 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
         raise SystemExit("APRS MONITOR code overlaps its state in the top 2 KiB of the RAM slot")
     # APRS screens share state at 0x2BEE0 - 0x570 (aprs_core.h APRS_ADDR); each
     # screen's code must end below it. ".APRS INFO" is hidden from the menu.
-    aprs_dir = ROOT / "modules" / "aprs"
     aprs_limit = 0x2BEE0 - 0x570 - LOAD            # aprs_core.h APRS_SLOT_BYTES
     core = aprs_dir / "aprs_core.c"
     text = aprs_dir / "aprs_text.c"
@@ -266,7 +274,9 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
                c_module("APRS MSG", aprs_dir / "aprs_msg.c", core, text),
                c_module("APRS SEND", aprs_dir / "aprs_send.c", aprs_dir / "aprs_core_tx.c", aprs_dir / "aprs_tx.c",
                         aprs_dir / "aprs_edit.c", text)]
-    if resident:
+    if flash_shared:
+        screens.append(c_module("APRS BEACON", aprs_dir / "aprs_resident_status.c"))
+    elif resident:
         screens.append(c_module("APRS BEACON", aprs_dir / "aprs_resident_config.c",
                                 common / "toolbox_settings_pair.c"))
     else:

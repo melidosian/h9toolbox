@@ -1,13 +1,10 @@
+#include "aprs_resident_config.h"
 #include "gfx.h"
-#include "h9mod.h"
-#include "../../resident-service/runtime.h"
 
 enum { SET_A = 0x3FC000, SET_B = 0x3FD000, GAME_DIRECTORY = 0xA1F000 };
-enum { RUN, MODE, EVERY, SYMBOL, MUTE, ROW_COUNT };
 #define NOR_READY (*(const volatile uint16_t *)0x12234u == 0x5AA5u)
 #define TX_SETTING (*(const volatile uint8_t *)0xC533u)
 #define ACTIVE_SIDE (*(const volatile uint8_t *)0x11B50u >> 7)
-#define TICK (*(const volatile uint32_t *)0x1D8B0u)
 
 static int read_nor(void *context, uint32_t address, void *dst, unsigned size)
 {
@@ -60,6 +57,79 @@ static int select_tx(struct ts_settings *s)
 
 static const uint8_t intervals[] = { 1, 2, 5, 10, 15, 30 };
 static const char *const symbols[] = { "PERSON", "BIKE", "CAR" };
+
+#ifdef H9_GROUPED_MENU
+const char *aprs_setting_value(enum aprs_setting setting, const struct ts_settings *cfg, char minutes[8])
+{
+    if (!cfg) return "--";
+    switch (setting) {
+    case APRS_SCHEDULE: return cfg->armed ? "ARMED" : "OFF";
+    case APRS_MODE: return cfg->timed ? "TIMED" : "SMART";
+    case APRS_INTERVAL:
+        if (!cfg->timed) return "AUTO";
+        minutes[0] = (char)('0' + cfg->minutes / 10);
+        minutes[1] = (char)('0' + cfg->minutes % 10);
+        minutes[2] = ' ';
+        minutes[3] = 'M';
+        minutes[4] = 'I';
+        minutes[5] = 'N';
+        minutes[6] = 0;
+        return minutes + (minutes[0] == '0');
+    case APRS_SYMBOL: return symbols[cfg->symbol];
+    case APRS_MUTE: return cfg->mute ? "ON" : "OFF";
+    default: return "";
+    }
+}
+
+const char *aprs_setting_adjust(const struct h9_runtime_api *api, enum aprs_setting setting,
+                               struct ts_settings *cfg, int direction)
+{
+    switch (setting) {
+    case APRS_SCHEDULE:
+        if (!cfg->armed) {
+            struct h9_runtime_status status;
+            if (!api->read_status(&status) || !status.worker_ready) return "SCHEDULER UNAVAILABLE";
+            if (!select_tx(cfg)) return "CHECK APRS TX CHANNEL";
+        }
+        cfg->armed ^= 1;
+        break;
+    case APRS_MODE: cfg->timed ^= 1; break;
+    case APRS_INTERVAL: {
+        unsigned i = sizeof intervals;
+        if (direction > 0) {
+            for (i = 0; i < sizeof intervals && intervals[i] <= cfg->minutes; ++i) {}
+            if (i == sizeof intervals) i = 0;
+        } else {
+            while (i && intervals[i - 1] >= cfg->minutes) --i;
+            i = i ? i - 1 : sizeof intervals - 1;
+        }
+        cfg->minutes = intervals[i];
+        break;
+    }
+    case APRS_SYMBOL: cfg->symbol = (cfg->symbol + (direction > 0 ? 1u : 2u)) % 3u; break;
+    case APRS_MUTE: cfg->mute ^= 1; break;
+    default: break;
+    }
+    return 0;
+}
+
+int aprs_settings_save(const struct h9_api *loader, const struct h9_runtime_api *api,
+                       const struct ts_settings *cfg, struct ts_settings *saved)
+{
+    if (cfg->mute == saved->mute && cfg->armed == saved->armed && cfg->timed == saved->timed &&
+        cfg->minutes == saved->minutes && cfg->symbol == saved->symbol &&
+        cfg->tx_frequency == saved->tx_frequency && cfg->tx_setting == saved->tx_setting &&
+        cfg->tx_side == saved->tx_side) return 1;
+    if (save(loader, cfg) != TSP_OK) return 0;
+    api->publish_settings(cfg);
+    *saved = *cfg;
+    return 1;
+}
+#else
+/* The API 4 bench build runs the editor in its APRS BEACON app. */
+enum { RUN, MODE, EVERY, SYMBOL, MUTE, ROW_COUNT };
+#define TICK (*(const volatile uint32_t *)0x1D8B0u)
+
 static const char *const rows[] = { "SCHEDULE", "MODE", "EVERY", "SYMBOL", "APRS MUTE" };
 
 static void line(unsigned y, const char *s, unsigned color)
@@ -159,3 +229,4 @@ unsigned module_main(const struct h9_api *loader, unsigned self)
         h9_delay(20);
     }
 }
+#endif

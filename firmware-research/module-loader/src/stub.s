@@ -453,7 +453,7 @@ mll_index_ok:
     r2 = 32
     call ml_read
     .ifdef ML_RUNTIME_BOOT
-    /* APRS BEACON must match the resident status/settings screen built with
+    /* APRS BEACON must match the resident status screen built with
      * this firmware. Never run the old foreground or background scheduler. */
     r0 = [sp+0]
     r1 = 0x53525041
