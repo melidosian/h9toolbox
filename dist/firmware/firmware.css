@@ -1,0 +1,304 @@
+.firmware-header .site-brand {
+  flex-shrink: 0;
+}
+
+.firmware-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.24fr) minmax(270px, .76fr);
+  align-items: center;
+  column-gap: clamp(24px, 7vw, 100px);
+  padding-block: clamp(42px, 6vw, 84px);
+}
+
+.firmware-hero .overline {
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.firmware-hero .hero-lead {
+  max-width: 575px;
+}
+
+.hero-lead strong {
+  color: #e8f0ef;
+}
+
+.firmware-requirements {
+  margin: 21px 0 0;
+  color: #adcbca;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.hero-screen {
+  margin: 0;
+  padding: clamp(16px, 2.8vw, 32px);
+  border: 1px solid #577a6f;
+  border-radius: 22px;
+  background: linear-gradient(145deg, #2a5047, #132b33);
+  box-shadow: 0 24px 64px #030c1370;
+}
+
+.hero-screen img,
+.feature-card img,
+.firmware-games img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #54716e;
+  border-radius: 7px;
+  image-rendering: pixelated;
+}
+
+.hero-screen figcaption {
+  margin-top: 12px;
+  color: #c0d9d3;
+  font-size: 12px;
+}
+
+.firmware-section,
+.firmware-setup {
+  margin: 0 0 clamp(44px, 6vw, 80px);
+}
+
+.firmware-section h2,
+.firmware-setup .section-heading h2 {
+  margin: 0 0 20px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: clamp(26px, 3.2vw, 42px);
+  line-height: 1.12;
+  letter-spacing: -.045em;
+}
+
+.firmware-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px 22px;
+  margin-bottom: 20px;
+}
+
+.firmware-section-head h2,
+.firmware-section-head .text-link {
+  margin: 0;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, .98fr);
+  gap: 14px;
+}
+
+.feature-card {
+  display: grid;
+  grid-template-columns: minmax(85px, .7fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(14px, 2vw, 24px);
+  min-width: 0;
+  padding: clamp(16px, 2.6vw, 28px);
+  border: 1px solid #34565a;
+  border-radius: 15px;
+  background: #142b35;
+}
+
+.feature-aprs {
+  grid-row: span 2;
+  grid-template-columns: 1fr;
+  align-content: start;
+  background: linear-gradient(145deg, #1c3839, #152b34);
+}
+
+.feature-aprs img {
+  max-width: 400px;
+  margin-inline: auto;
+}
+
+.feature-card h3,
+.firmware-tools h3 {
+  margin: 0 0 8px;
+  font: 700 clamp(18px, 2vw, 24px)/1.18 'Space Grotesk', system-ui, sans-serif;
+  letter-spacing: -.025em;
+}
+
+.feature-aprs h3 {
+  font-size: clamp(23px, 3vw, 32px);
+}
+
+.feature-card p,
+.firmware-tools p,
+.firmware-games p,
+.firmware-questions p {
+  margin: 0;
+  color: #bfd3d2;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.firmware-tools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-block: 1px solid #34565a;
+}
+
+.firmware-tools article {
+  padding: 22px clamp(16px, 2.8vw, 34px) 24px 0;
+}
+
+.firmware-tools article + article {
+  padding-left: clamp(16px, 2.8vw, 34px);
+  border-left: 1px solid #34565a;
+}
+
+.firmware-tools .text-link {
+  margin-top: 12px;
+}
+
+.firmware-games {
+  display: grid;
+  grid-template-columns: minmax(96px, 146px) minmax(0, 1fr);
+  max-width: 720px;
+  align-items: center;
+  gap: clamp(14px, 3vw, 30px);
+  padding: 18px;
+  border: 1px solid #34565a;
+  border-radius: 14px;
+  background: #132630;
+}
+
+.firmware-games h2 {
+  margin-bottom: 8px;
+  font-size: clamp(20px, 2.8vw, 28px);
+}
+
+.firmware-setup {
+  background: linear-gradient(140deg, #1c3938, #142832);
+}
+
+.firmware-setup ol {
+  max-width: 750px;
+  padding-left: 1.5em;
+  margin: 20px 0 24px;
+  color: #c8dad7;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.firmware-setup li + li {
+  margin-top: 9px;
+}
+
+.firmware-setup li::marker {
+  color: #a8e9c9;
+  font-weight: 700;
+}
+
+.firmware-questions {
+  border-block: 1px solid #34565a;
+}
+
+.firmware-questions details + details {
+  border-top: 1px solid #34565a;
+}
+
+.firmware-questions summary {
+  padding: 16px 8px;
+  color: #e0f1e7;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.firmware-questions summary::marker {
+  color: #a8e9c9;
+}
+
+.firmware-questions summary:focus-visible {
+  outline: 2px solid #a8e9c9;
+  outline-offset: -2px;
+}
+
+.firmware-questions p {
+  max-width: 750px;
+  padding: 0 8px 17px;
+}
+
+.firmware-questions p a,
+.firmware-setup li a {
+  color: #a8e9c9;
+  text-decoration: underline;
+  text-underline-offset: .16em;
+}
+
+.firmware-doom {
+  margin-bottom: 40px;
+  background: #142832;
+}
+
+.firmware-doom h2 {
+  margin-top: 0;
+}
+
+@media (max-width: 800px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-aprs {
+    grid-row: auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, .75fr);
+  }
+
+  .feature-card img {
+    max-width: 216px;
+  }
+
+  .feature-aprs img {
+    max-width: 285px;
+  }
+}
+
+@media (max-width: 700px) {
+  .firmware-header {
+    height: auto;
+    padding-block: 14px;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .firmware-header .site-nav {
+    flex-wrap: wrap;
+  }
+
+  .firmware-hero {
+    grid-template-columns: 1fr;
+    row-gap: 27px;
+  }
+
+  .hero-screen {
+    width: min(100%, 390px);
+  }
+
+  .firmware-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .firmware-tools article,
+  .firmware-tools article + article {
+    padding: 18px 0;
+    border-left: 0;
+  }
+
+  .firmware-tools article + article {
+    border-top: 1px solid #34565a;
+  }
+}
+
+@media (max-width: 460px) {
+  .feature-aprs {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-card:not(.feature-aprs) {
+    grid-template-columns: minmax(70px, .52fr) minmax(0, 1fr);
+  }
+}
