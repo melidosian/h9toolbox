@@ -321,13 +321,22 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
         raise SystemExit("VFO PROBE overlaps the shared APRS state")
 
     # Brick Breaker: prove game.s is the hardware-tested source (its bytes at
-    # the original cave), then relink it unchanged for RAM. Its entry re-runs
-    # the panel set-up, as the original launcher did.
-    game = assemble(RESEARCH / "brick-breaker" / "src" / "game.s", out)
+    # the original cave), then relink it for RAM. Its entry re-runs the panel
+    # set-up, as the original launcher did.
+    game_source = RESEARCH / "brick-breaker" / "src" / "game.s"
+    game = assemble(game_source, out)
     original = text_of(link([game], IMAGE_BASE + CAVE, "hello_display_hook", out, "bb_cave_check"),
                        IMAGE_BASE + CAVE)
     if sha256(original).hexdigest() != BB_GAME_SHA256:
         raise ValueError("game.s differs from the hardware-tested Brick Breaker game")
+    if flash_shared:
+        # The LCD receives the high RGB565 byte first.
+        accent = next(line.split()[2] for line in (common / "app_theme.h").read_text().splitlines()
+                      if line.split()[:2] == ["#define", "UI_ACCENT"])
+        ink = int.from_bytes(int(accent.rstrip("uU"), 0).to_bytes(2, "big"), "little")
+        themed = out / "game_themed.s"
+        themed.write_text(f".equ TOOLBOX_SCORE_INK, {ink:#06x}\n" + game_source.read_text())
+        game = assemble(themed, out)
     bb_prog = link([game], LOAD, "brick_breaker_after_stock_setup", out, "mod_brick_breaker")
     bb = {"name": "BRICK BREAKER", "body": text_of(bb_prog, LOAD), "bss": 0,
           "entry": symbol(bb_prog, "brick_breaker_after_stock_setup") - LOAD}

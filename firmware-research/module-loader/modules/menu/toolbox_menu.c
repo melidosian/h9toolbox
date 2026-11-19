@@ -1,11 +1,11 @@
 /* The resident build uses the grouped list and keypad flow of Limehawk's
  * TD-H3 menu. The H9 module names and journaled APRS settings are its rows. */
-#include "gfx.h"
+#include "app_theme.h"
 #include "../aprs/aprs_resident_config.h"
 
-enum { APRS, APRS_SETTINGS, TOOLS, APPS, SETUP, GROUPS };
+enum { APRS, APRS_SETTINGS, TOOLS, APPS, DIAGNOSTICS, SETUP, GROUPS, APRS_PAGE };
 enum { MAX_APPS = 64, MAX_ITEMS = MAX_APPS + APRS_SETTING_COUNT + 1, HEADING = 0x80 };
-enum { ROW_Y = 17, ROW_H = 14, VISIBLE = 6, ROW_WIDTH = 155, NO_DIGIT = 10 };
+enum { ROW_Y = UI_TITLE_H, ROW_H = 14, VISIBLE = 6, ROW_WIDTH = 155, NO_DIGIT = 10 };
 enum { DIGIT_WAIT = 100, SAVE_WAIT = 200, IDLE_WAIT = 2000 }; /* 100 Hz tick */
 #ifndef MENU_TICK
 #define MENU_TICK (*(const volatile uint32_t *)0x1D8B0u)
@@ -16,7 +16,7 @@ enum { DIGIT_WAIT = 100, SAVE_WAIT = 200, IDLE_WAIT = 2000 }; /* 100 Hz tick */
 #define MENU_SELECTION (*(volatile uint32_t *)0x29EFCu)
 #endif
 
-static const char *const groups[] = { "APRS", "APRS SETTINGS", "RADIO TOOLS", "APPS", "SETUP" };
+static const char *const groups[] = { "APRS", "APRS SETTINGS", "RADIO TOOLS", "APPS", "DIAGNOSTICS", "SETUP" };
 static const char *const settings[] = { "SCHEDULE", "BEACON MODE", "INTERVAL", "SYMBOL", "APRS MUTE" };
 static const char *const setting_help[] = {
     "Arm the beacon scheduler", "Smart or timed beacon", "Time between beacons",
@@ -25,14 +25,14 @@ static const char *const setting_help[] = {
 
 struct tool_label { const char *name, *label, *help; uint8_t group; };
 static const struct tool_label tools[] = {
-    { "APRS", "STATIONS", "Read received packets", APRS },
+    { "APRS", "STATIONS", "Stations, map and messages", APRS },
     { "APRS BEACON", "BEACON STATUS", "GPS and beacon status", APRS },
-    { "APRS MAP", "MAP", "Plot heard stations", APRS },
-    { "APRS MSG", "MESSAGES", "Read APRS messages", APRS },
-    { "APRS SEND", "SEND MESSAGE", "Compose an APRS message", APRS },
-    { "APRS MONITOR", "MONITOR", "Watch incoming packets", APRS },
+    { "APRS MAP", "MAP", "Plot heard stations", APRS_PAGE },
+    { "APRS MSG", "MESSAGES", "Read APRS messages", APRS_PAGE },
+    { "APRS SEND", "SEND MESSAGE", "Compose an APRS message", APRS_PAGE },
     { "GPS", "GPS", 0, TOOLS },
     { "SAT PASS", "SAT PASS", 0, TOOLS },
+    { "SPECTRUM", "SPECTRUM", 0, TOOLS },
     { "ABOUT", "ABOUT", "Firmware information", SETUP }
 };
 
@@ -56,22 +56,34 @@ static void read_name(const struct h9_api *api, unsigned index, char name[H9_NAM
     name[H9_NAME_BYTES] = 0;
 }
 
+static const char *after_prefix(const char *name, const char *prefix)
+{
+    while (*prefix && *name == *prefix) { ++name; ++prefix; }
+    return *prefix ? 0 : name;
+}
+
 static const struct tool_label *named_tool(const char *name)
 {
     for (unsigned i = 0; i < sizeof tools / sizeof *tools; ++i) {
-        const char *a = name, *b = tools[i].name;
-        while (*a && *a == *b) { ++a; ++b; }
-        if (*a == *b) return &tools[i];
+        const char *tail = after_prefix(name, tools[i].name);
+        if (tail && !*tail) return &tools[i];
     }
     return 0;
 }
 
-static unsigned app_group(const char *name)
+static unsigned text_length(const char *s)
 {
-    const struct tool_label *tool = named_tool(name);
+    unsigned n = 0;
+    while (s[n]) ++n;
+    return n;
+}
+
+static unsigned app_group(const char *name, const struct tool_label *tool)
+{
     if (tool) return tool->group;
-    if (name[0] == 'A' && name[1] == 'P' && name[2] == 'R' && name[3] == 'S' && name[4] == ' ')
-        return APRS;
+    unsigned n = text_length(name);
+    if (after_prefix(name, "APRS ") || after_prefix(name, "AUDIO ") ||
+        (n > 6 && after_prefix(name + n - 6, " PROBE"))) return DIAGNOSTICS;
     return APPS;
 }
 
@@ -84,11 +96,18 @@ static void add_option(struct menu_list *list, unsigned group, unsigned index)
 static void build_list(struct menu_list *list, const struct h9_api *api, unsigned count)
 {
     struct menu_option apps[MAX_APPS];
-    unsigned shown = 0;
-    for (unsigned i = 1; i < count && shown < MAX_APPS; ++i) {
+    unsigned shown = 0, launcher = 0, station_list = 0;
+    for (unsigned i = 1; i < count; ++i) {
         char name[H9_NAME_BYTES + 1];
         read_name(api, i, name);
-        if (name[0] && name[0] != '.') apps[shown++] = (struct menu_option){ app_group(name), i, 0 };
+        if (name[0] == '.') {
+            const char *tail = after_prefix(name, ".APRS LIST");
+            if (tail && !*tail) station_list = 1;
+        } else if (name[0] && shown < MAX_APPS) {
+            const struct tool_label *tool = named_tool(name);
+            if (tool == tools) launcher = 1;   /* the APRS entry opens .APRS LIST */
+            apps[shown++] = (struct menu_option){ app_group(name, tool), i, 0 };
+        }
     }
     for (unsigned group = 0; group < GROUPS; ++group) {
         unsigned heading = list->row_count;
@@ -96,33 +115,29 @@ static void build_list(struct menu_list *list, const struct h9_api *api, unsigne
         if (group == APRS_SETTINGS) {
             for (unsigned i = 0; i < APRS_SETTING_COUNT; ++i) add_option(list, group, i);
         } else {
-            for (unsigned i = 0; i < shown; ++i)
-                if (apps[i].group == group) add_option(list, group, apps[i].index);
+            for (unsigned i = 0; i < shown; ++i) {
+                unsigned app = apps[i].group;
+                if (app == group || (group == APRS && app == APRS_PAGE && !(launcher && station_list)))
+                    add_option(list, group, apps[i].index);
+            }
             if (group == SETUP) add_option(list, group, 0);   /* USB UPDATE */
         }
         if (list->row_count == heading + 1) list->row_count = heading;
     }
 }
 
-static unsigned text_length(const char *s)
-{
-    unsigned n = 0;
-    while (s[n]) ++n;
-    return n;
-}
-
 static const char *draw_row(const struct h9_api *api, const struct menu_list *list,
                             const struct menu_state *state, unsigned row, unsigned y)
 {
     if (row >= list->row_count) {
-        gfx_fill(0, y, ROW_WIDTH, ROW_H, GFX_BLACK);
+        gfx_fill(0, y, ROW_WIDTH, ROW_H, UI_BG);
         return 0;
     }
     unsigned item = list->rows[row];
     if (item & HEADING) {
-        gfx_fill(0, y, ROW_WIDTH, ROW_H, GFX_BLACK);
-        unsigned x = gfx_text(3, y + 3, groups[item & ~HEADING], 20, 1, GFX_GREY, GFX_BLACK);
-        gfx_text(x + 6, y + 3, "-------------------------", (ROW_WIDTH - x - 6) / 6, 1, GFX_GREY, GFX_BLACK);
+        gfx_fill(0, y, ROW_WIDTH, ROW_H, UI_BG);
+        unsigned x = gfx_text(3, y + 3, groups[item & ~HEADING], 20, 1, UI_DIM, UI_BG);
+        gfx_text(x + 6, y + 3, "-------------------------", (ROW_WIDTH - x - 6) / 6, 1, UI_DIM, UI_BG);
         return 0;
     }
     struct menu_option option = list->options[item];
@@ -139,11 +154,11 @@ static const char *draw_row(const struct h9_api *api, const struct menu_list *li
         help = tool ? tool->help : 0;
     }
     unsigned selected = item == state->selected;
-    uint16_t bg = selected ? (state->editing ? GFX_WHITE : GFX_YELLOW) : GFX_BLACK;
+    uint16_t bg = selected ? (state->editing ? UI_EDIT : UI_ACCENT) : UI_BG;
     gfx_fill(0, y, ROW_WIDTH, ROW_H, bg);
-    gfx_text(3, y + 3, label, H9_NAME_BYTES, 1, selected ? GFX_BLACK : GFX_WHITE, bg);
+    gfx_text(3, y + 3, label, H9_NAME_BYTES, 1, selected ? UI_BG : UI_TEXT, bg);
     unsigned n = text_length(value);
-    gfx_text(ROW_WIDTH - 3 - n * 6, y + 3, value, n, 1, selected ? GFX_BLACK : GFX_YELLOW, bg);
+    gfx_text(ROW_WIDTH - 3 - n * 6, y + 3, value, n, 1, selected ? UI_BG : UI_ACCENT, bg);
     return selected ? help : 0;
 }
 
@@ -154,9 +169,9 @@ static void draw_menu(const struct h9_api *api, const struct menu_list *list, co
     char count[] = { '0' + item / 10, '0' + item % 10, '/',
                      '0' + list->count / 10, '0' + list->count % 10, 0 };
     if (state->digit != NO_DIGIT) { count[0] = '0' + state->digit; count[1] = '-'; }
-    gfx_fill(0, 0, H9_WIDTH, ROW_Y, GFX_BLACK);
-    gfx_text(3, 4, groups[option.group], 20, 1, GFX_YELLOW, GFX_BLACK);
-    gfx_text(H9_WIDTH - 33, 4, count, 5, 1, GFX_YELLOW, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, ROW_Y, UI_BG);
+    gfx_text(UI_LEFT, UI_TITLE_Y, groups[option.group], 20, 1, UI_ACCENT, UI_BG);
+    gfx_text(H9_WIDTH - 33, UI_TITLE_Y, count, 5, 1, UI_ACCENT, UI_BG);
 
     unsigned top = option.row < VISIBLE / 2 ? 0 : option.row - VISIBLE / 2;
     unsigned limit = list->row_count > VISIBLE ? list->row_count - VISIBLE : 0;
@@ -167,14 +182,14 @@ static void draw_menu(const struct h9_api *api, const struct menu_list *list, co
         if (row_help) help = row_help;   /* headings and other rows never return help */
     }
     unsigned track = VISIBLE * ROW_H;
-    gfx_fill(ROW_WIDTH + 1, ROW_Y, 2, track, GFX_GREY);
-    gfx_fill(ROW_WIDTH + 1, ROW_Y + (track - 5) * state->selected / (list->count - 1), 2, 5, GFX_YELLOW);
-    gfx_fill(0, ROW_Y + VISIBLE * ROW_H, H9_WIDTH, H9_HEIGHT - ROW_Y - VISIBLE * ROW_H, GFX_BLACK);
+    gfx_fill(ROW_WIDTH + 1, ROW_Y, 2, track, UI_DIM);
+    gfx_fill(ROW_WIDTH + 1, ROW_Y + (track - 5) * state->selected / (list->count - 1), 2, 5, UI_ACCENT);
+    gfx_fill(0, ROW_Y + VISIBLE * ROW_H, H9_WIDTH, H9_HEIGHT - ROW_Y - VISIBLE * ROW_H, UI_BG);
     if (state->notice || help)
         gfx_text(3, 104, state->notice ? state->notice : help, 26, 1,
-                 state->notice ? GFX_YELLOW : 0x07ff, GFX_BLACK);
-    gfx_text(3, 118, state->editing ? "MENU DONE   UP/DN CHANGE" : "MENU PICK   BACK RADIO", 26, 1,
-             GFX_WHITE, GFX_BLACK);
+                 state->notice ? UI_ACCENT : UI_HINT, UI_BG);
+    gfx_text(UI_LEFT, UI_FOOT_Y, state->editing ? "MENU DONE   UP/DN CHANGE" : "MENU PICK   BACK RADIO", UI_CELLS, 1,
+             UI_TEXT, UI_BG);
 }
 
 static int read_settings(const struct h9_runtime_api *api, struct menu_state *state)
@@ -213,7 +228,7 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
     unsigned saved_row = MENU_SELECTION;
     if (saved_row < list.count) state.selected = saved_row;
     state.available = read_settings(api, &state);
-    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
     draw_menu(loader, &list, &state);
     gfx_wait_release();
     uint32_t last_key = MENU_TICK;

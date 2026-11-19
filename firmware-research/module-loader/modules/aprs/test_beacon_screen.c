@@ -9,7 +9,7 @@
 
 #define APRS_HOST_TEST
 #include "h9mod.h"
-#include "gfx.h"
+#include "app_theme.h"
 
 static struct h9_request host_request;
 #undef H9_REQUEST
@@ -18,7 +18,7 @@ static struct h9_request host_request;
 static char on_air[16];                                   /* the title's "ARMED" / "OFF" */
 void gfx_fill(unsigned x, unsigned y, unsigned w, unsigned h, uint16_t c) { (void)x; (void)y; (void)w; (void)h; (void)c; }
 unsigned gfx_text(unsigned x, unsigned y, const char *t, unsigned max, unsigned s, uint16_t f, uint16_t b)
-{ (void)s; (void)f; (void)b; if (x == 112 && y == 5) { strncpy(on_air, t, sizeof on_air - 1); } unsigned n = 0; while (n < max && t[n]) n++; return x + n * 6; }
+{ (void)s; (void)f; (void)b; if (x == 112 && y == UI_TITLE_Y) { strncpy(on_air, t, sizeof on_air - 1); } unsigned n = 0; while (n < max && t[n]) n++; return x + n * 6; }
 void gfx_wait_release(void) {}
 unsigned gfx_wait_key(void) { return 0; }
 

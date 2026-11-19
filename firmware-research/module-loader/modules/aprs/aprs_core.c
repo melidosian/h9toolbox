@@ -591,11 +591,16 @@ unsigned put_age(char *out, const struct station *s)
     return n + 1;
 }
 
-/* The tab bar: the screens' names with their digit keys (the title says which one this is). */
 void aprs_tabs(unsigned cur)
 {
+    static const char labels[] = "1LIST 2MAP 3MSG 4SEND 5BCN";
+    aprs_line(FOOT_Y, labels, UI_HINT, UI_BG);
+#ifdef H9_FLASH_HELPERS
+    static const uint8_t start[] = { 0, 6, 11, 16, 22 }, width[] = { 5, 4, 4, 5, 4 };
+    gfx_text(4 + 6 * start[cur], FOOT_Y, labels + start[cur], width[cur], 1, UI_BG, UI_ACCENT);
+#else
     (void)cur;
-    aprs_line(FOOT_Y, "1LIST 2MAP 3MSG 4SEND 5BCN", GFX_GREY, GFX_BLACK);
+#endif
 }
 
 int aprs_tab(const struct h9_api *api, unsigned ev, unsigned cur)
@@ -607,12 +612,12 @@ int aprs_tab(const struct h9_api *api, unsigned ev, unsigned cur)
 
 void aprs_title(const char *text)
 {
-    char b[12];
-    gfx_fill(0, 0, H9_WIDTH, TITLE_H, GFX_BLUE);
-    gfx_text(4, 1, text, 8, 2, GFX_WHITE, GFX_BLUE);
+    char b[16];
+    gfx_fill(0, 0, H9_WIDTH, TITLE_H, UI_BG);
+    gfx_text(UI_LEFT, UI_TITLE_Y, text, 17, 1, UI_ACCENT, UI_BG);
     unsigned n = put_str(b, "RX ");
     put_uint(b + n, A->rx);
-    gfx_text(112, 1, b, 8, 1, A->rx_flash ? GFX_GREEN : GFX_WHITE, GFX_BLUE);
+    gfx_text(112, 1, b, 8, 1, A->rx_flash ? UI_OK : UI_DIM, UI_BG);
     gfx_text(112, 10, A->my_fix ? "GPS OK" : A->gps_seen ? "NO FIX" : "NO GPS", 8, 1,
-             A->my_fix ? GFX_GREEN : GFX_YELLOW, GFX_BLUE);
+             A->my_fix ? UI_OK : UI_ACCENT, UI_BG);
 }

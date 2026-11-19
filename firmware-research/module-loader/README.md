@@ -103,6 +103,9 @@ until reboot and returns to the radio after 20 seconds of inactivity.
 **APRS SETTINGS** contains Schedule, Beacon Mode, Interval, Symbol and APRS
 Mute. **APRS → BEACON STATUS** shows the live resident scheduler status.
 
+See the [app styling guide](APP-STYLE.md) for the color palette, layout and
+APRS navigation used by the dev bundle.
+
 The pinned KISS helpers occupy the preceding flash range. The RX15 and
 unsigned-byte fixes run on the separate APRS processor. Rebuild that image
 with the [KISS build instructions](../kiss-tnc/README.md).

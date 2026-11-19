@@ -1,5 +1,5 @@
 #include "aprs_resident_config.h"
-#include "gfx.h"
+#include "app_theme.h"
 
 enum { SET_A = 0x3FC000, SET_B = 0x3FD000, GAME_DIRECTORY = 0xA1F000 };
 #define NOR_READY (*(const volatile uint16_t *)0x12234u == 0x5AA5u)
@@ -134,8 +134,8 @@ static const char *const rows[] = { "SCHEDULE", "MODE", "EVERY", "SYMBOL", "APRS
 
 static void line(unsigned y, const char *s, unsigned color)
 {
-    gfx_fill(0, y, H9_WIDTH, 10, GFX_BLACK);
-    gfx_text(4, y, s, 25, 1, (uint16_t)color, GFX_BLACK);
+    gfx_fill(0, y, H9_WIDTH, 10, UI_BG);
+    gfx_text(4, y, s, 25, 1, (uint16_t)color, UI_BG);
 }
 
 static void draw(const struct h9_runtime_status *s, unsigned selected, const char *notice)
@@ -148,8 +148,8 @@ static void draw(const struct h9_runtime_status *s, unsigned selected, const cha
         cfg->timed ? minutes + (minutes[0] == '0') : "AUTO", symbols[cfg->symbol],
         cfg->mute ? "ON" : "OFF" };
     for (unsigned i = 0; i < ROW_COUNT; ++i) {
-        uint16_t fg = i == selected ? GFX_BLACK : GFX_WHITE;
-        uint16_t bg = i == selected ? GFX_YELLOW : GFX_BLACK;
+        uint16_t fg = i == selected ? UI_BG : UI_TEXT;
+        uint16_t bg = i == selected ? UI_ACCENT : UI_BG;
         unsigned y = 21 + i * 13;
         gfx_fill(0, y, H9_WIDTH, 12, bg);
         gfx_text(4, y + 2, rows[i], 12, 1, fg, bg);
@@ -160,21 +160,20 @@ static void draw(const struct h9_runtime_status *s, unsigned selected, const cha
         !beacon->gps.fix ? "WAITING FOR GPS" :
         !beacon->armed ? "GPS FIX" :
         beacon->pending ? "GPS FIX  BEACON DUE" : "GPS FIX  SCHEDULING";
-    line(87, state, beacon->gps.fix ? GFX_GREEN : GFX_YELLOW);
-    line(98, notice ? notice : "BENCH MODE  TX DISABLED", notice ? GFX_YELLOW : GFX_GREY);
-    line(116, selected == RUN ? "HOLD MENU  BACK" : "MENU SET  BACK", GFX_WHITE);
+    line(87, state, beacon->gps.fix ? UI_OK : UI_ACCENT);
+    line(98, notice ? notice : "BENCH MODE  TX DISABLED", notice ? UI_ACCENT : UI_DIM);
+    line(116, selected == RUN ? "HOLD MENU  BACK" : "MENU SET  BACK", UI_TEXT);
 }
 
 unsigned module_main(const struct h9_api *loader, unsigned self)
 {
     (void)self;
-    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
-    gfx_fill(0, 0, H9_WIDTH, 18, GFX_BLUE);
-    gfx_text(4, 1, "SMARTBEACON", 12, 2, GFX_WHITE, GFX_BLUE);
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
+    ui_title("SMARTBEACON");
     const struct h9_runtime_api *service =
         loader->version >= 4 && loader->resident ? loader->resident->api : 0;
     if (!service || service->abi != H9_RUNTIME_ABI) {
-        line(30, "SCHEDULER UNAVAILABLE", GFX_YELLOW);
+        line(30, "SCHEDULER UNAVAILABLE", UI_ACCENT);
         gfx_wait_release();
         gfx_wait_key();
         return 0;

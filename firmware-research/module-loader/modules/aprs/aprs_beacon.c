@@ -185,7 +185,7 @@ static void draw_setting(unsigned i, const struct screen *s)
     else if (i == 1) { if (B_TIMED) { n += put_uint(b + n, EVERY[B_EVERY]); put_str(b + n, " MIN"); } else put_str(b + n, "AUTO"); }
     else put_str(b + n, SYMBOL_NAME[B_SYMBOL]);
     int sel = i == s->sel;
-    aprs_line(y + 2, b, sel ? GFX_BLACK : GFX_WHITE, sel ? GFX_YELLOW : GFX_BLACK);
+    aprs_line(y + 2, b, sel ? UI_BG : UI_TEXT, sel ? UI_ACCENT : UI_BG);
 }
 
 static void draw(const struct screen *s)
@@ -193,36 +193,35 @@ static void draw(const struct screen *s)
     char b[40];
     unsigned n, y = TOP;
     uint32_t frequency = TX_FREQ;
-    gfx_fill(0, 0, H9_WIDTH, TITLE_H, GFX_BLUE);
-    gfx_text(4, 1, "BEACON", 8, 2, GFX_WHITE, GFX_BLUE);
-    gfx_text(112, 5, s->armed ? "ARMED" : "OFF", 8, 1, s->armed ? GFX_GREEN : GFX_WHITE, GFX_BLUE);
-    gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, GFX_BLACK);
+    ui_title("BEACON");
+    gfx_text(112, UI_TITLE_Y, s->armed ? "ARMED" : "OFF", 8, 1, s->armed ? UI_OK : UI_TEXT, UI_BG);
+    gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, UI_BG);
     n = put_str(b, A->mycall[0] ? A->mycall : "NO CALL");
     b[n++] = ' ';
     n += put_uint(b + n, frequency / 100000u);
     b[n++] = '.';
     for (unsigned digit = 10000; digit >= 10; digit /= 10) b[n++] = (char)('0' + frequency / digit % 10);
     put_str(b + n, " MHZ");
-    aprs_line(y, b, !A->mycall[0] ? GFX_RED : frequency >= TX_LOW && frequency <= TX_HIGH ? GFX_WHITE : GFX_YELLOW, GFX_BLACK); y += ROW;
+    aprs_line(y, b, !A->mycall[0] ? UI_DANGER : frequency >= TX_LOW && frequency <= TX_HIGH ? UI_TEXT : UI_ACCENT, UI_BG); y += ROW;
     if (s->g.fix) {
         n = put_str(b, "GPS "); n += put_uint(b + n, (s->g.kmh10 + 5u) / 10u);
         n += put_str(b + n, " KM/H  COURSE "); put_uint(b + n, s->g.course);
-        aprs_line(y, b, GFX_GREEN, GFX_BLACK);
+        aprs_line(y, b, UI_OK, UI_BG);
     } else if (!s->g.lat[0]) {
-        aprs_line(y, "NO POSITION", GFX_RED, GFX_BLACK);
+        aprs_line(y, "NO POSITION", UI_DANGER, UI_BG);
     } else {
-        aprs_line(y, "LAST POSITION", GFX_YELLOW, GFX_BLACK);
+        aprs_line(y, "LAST POSITION", UI_ACCENT, UI_BG);
     }
     for (unsigned i = 0; i < ROWS; i++) draw_setting(i, s);
     y = TOP + 2 * ROW + 4 + ROWS * 12 + 3;
-    aprs_line(y, s->armed ? "HOLD MENU: STOP" : "HOLD MENU: START", GFX_GREY, GFX_BLACK); y += ROW;
+    aprs_line(y, s->armed ? "HOLD MENU: STOP" : "HOLD MENU: START", UI_DIM, UI_BG); y += ROW;
     n = put_str(b, "SENT "); n += put_uint(b + n, s->sent);
     if (s->sent) { n += put_str(b + n, "  LAST "); n += put_uint(b + n, (now_ms(s) - s->last_ms) / 1000u); put_str(b + n, "S"); }
-    aprs_line(y, b, GFX_WHITE, GFX_BLACK); y += ROW;
+    aprs_line(y, b, UI_TEXT, UI_BG); y += ROW;
     static const char waiting[][6] = { "", "TIME", "SIDE", "KEY", "FREQ", "CFG", "BUSY", "RETRY", "POS", "CALL", "TX" };
     if (s->waiting < sizeof waiting / sizeof waiting[0])
-        aprs_line(y, waiting[s->waiting], GFX_YELLOW, GFX_BLACK);
-    aprs_line(FOOT_Y, s->armed ? "5 NOW BACK: BG" : "MENU SET 5 NOW", GFX_GREY, GFX_BLACK);
+        aprs_line(y, waiting[s->waiting], UI_ACCENT, UI_BG);
+    aprs_line(FOOT_Y, s->armed ? "5 NOW BACK: BG" : "MENU SET 5 NOW", UI_DIM, UI_BG);
 }
 #endif
 
@@ -304,7 +303,7 @@ static unsigned resident_main(const struct h9_api *api, unsigned self)
     aprs_side(A->home_side);
     SPEAKER_ON(A->home_speaker);
     if (frequency < TX_LOW || frequency > TX_HIGH) {
-        aprs_line(BODY_Y, "TX NOT ON 2M", GFX_RED, GFX_BLACK);
+        aprs_line(BODY_Y, "TX NOT ON 2M", UI_DANGER, UI_BG);
         h9_delay(1200);
         return 0;
     }
@@ -323,7 +322,7 @@ static unsigned resident_main(const struct h9_api *api, unsigned self)
     BEACON_RESIDENT->tick = TICK;
     BEACON_RESIDENT->flags = 0;
     BEACON_RESIDENT->magic = BEACON_RESIDENT_MAGIC;
-    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
     BEACON_REDRAW_RADIO();
     return H9_RETURN_RADIO;
 }

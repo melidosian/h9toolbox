@@ -13,9 +13,11 @@ static uint32_t tick, menu_selection;
 #include "../aprs/aprs_resident_status.c"
 
 static const char names[][H9_NAME_BYTES] = {
-    "MENU", "ABOUT", "APRS", ".APRS LIST", "GPS", "APRS BEACON", "CUSTOM APP", "APRS RAW"
+    "MENU", "ABOUT", "APRS", ".APRS LIST", "GPS", "APRS BEACON", "CUSTOM APP", "APRS RAW",
+    "APRS MAP", "APRS MSG", "APRS SEND"
 };
 static unsigned saves, committed_at, fail_save, saw_edit, saw_settings, saw_failure, saw_status, usb_updates;
+static unsigned omit_station_list;
 static struct ts_settings stored;
 
 static void read_bundle(void *dst, uint32_t address, uint32_t length)
@@ -23,7 +25,8 @@ static void read_bundle(void *dst, uint32_t address, uint32_t length)
     assert(address >= H9_BUNDLE_HEADER && length == H9_NAME_BYTES);
     unsigned index = (address - H9_BUNDLE_HEADER) / H9_BUNDLE_ENTRY;
     assert(index < sizeof names / sizeof *names);
-    memcpy(dst, names[index], length);
+    if (omit_station_list && index == 3) memset(dst, 0, length);
+    else memcpy(dst, names[index], length);
 }
 
 static unsigned runtime_status(struct h9_runtime_status *status)
@@ -96,7 +99,7 @@ unsigned gfx_text(unsigned x, unsigned y, const char *text, unsigned max, unsign
     while (n < max && text[n]) ++n;
     assert(x + n * 6 * scale <= H9_WIDTH && y + 8 * scale <= H9_HEIGHT);
     assert(strcmp(text, ".APRS LIST"));
-    saw_edit |= !strcmp(text, "APRS MUTE") && bg == GFX_WHITE;
+    saw_edit |= !strcmp(text, "APRS MUTE") && bg == UI_EDIT;
     saw_settings |= !strcmp(text, "APRS SETTINGS");
     saw_failure |= !strcmp(text, "SETTINGS SAVE FAILED");
     saw_status |= !strcmp(text, "GPS FIX  BEACON DUE");
@@ -112,6 +115,18 @@ static unsigned run_menu(const struct press *sequence)
 
 int main(void)
 {
+    struct menu_list list = { .count = 0 };
+    build_list(&list, &loader, sizeof names / sizeof *names);
+    assert(list.count == 12 && list.options[0].index == 2 && list.options[1].index == 5);
+    assert(list.options[9].group == DIAGNOSTICS && list.options[9].index == 7);
+    omit_station_list = 1;
+    list.count = list.row_count = 0;
+    build_list(&list, &loader, sizeof names / sizeof *names);
+    assert(list.count == 15 && list.options[2].group == APRS && list.options[2].index == 8);
+    assert(list.options[3].group == APRS && list.options[3].index == 9);
+    assert(list.options[4].group == APRS && list.options[4].index == 10);
+    omit_station_list = 0;
+
     const struct press about[] = {{ 16, H9_KEY_1 }, { 36, H9_KEY_1 }, { 56, H9_KEY_MENU }, { 0, 0 }};
     assert(run_menu(about) == 1 && menu_selection == 10);
     const struct press again[] = {{ 16, H9_KEY_MENU }, { 0, 0 }};
@@ -119,9 +134,9 @@ int main(void)
     const struct press usb[] = {{ 16, H9_KEY_1 }, { 36, H9_KEY_2 }, { 56, H9_KEY_MENU }, { 0, 0 }};
     assert(run_menu(usb) == 0 && usb_updates == 1);
 
-    enum { KEY_8 = 10 };
+    enum { KEY_7 = 9 };
     const struct press mute[] = {
-        { 16, KEY_8 }, { 36, H9_KEY_MENU }, { 56, H9_KEY_UP }, { 76, H9_KEY_BACK }, { 96, H9_KEY_BACK }, { 0, 0 }
+        { 16, KEY_7 }, { 36, H9_KEY_MENU }, { 56, H9_KEY_UP }, { 76, H9_KEY_BACK }, { 96, H9_KEY_BACK }, { 0, 0 }
     };
     assert(run_menu(mute) == 0 && saves == 1 && stored.mute && saw_edit && saw_settings && committed_at < 96);
     const struct press idle_edit[] = {
