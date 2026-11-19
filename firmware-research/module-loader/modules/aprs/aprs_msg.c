@@ -12,9 +12,9 @@ static void draw_list(void)
     char b[28];
     if (A->msg_sel < A->msg_top) A->msg_top = A->msg_sel;
     if (A->msg_sel >= A->msg_top + ITEMS) A->msg_top = A->msg_sel - ITEMS + 1;
-    aprs_title("MSG");
-    gfx_fill(0, LIST_Y, H9_WIDTH, FOOT_Y - LIST_Y, GFX_BLACK);
-    if (!A->msgs) aprs_line(LIST_Y + 24, "NO MESSAGES YET", GFX_YELLOW, GFX_BLACK);
+    aprs_title("APRS MESSAGES");
+    gfx_fill(0, LIST_Y, H9_WIDTH, FOOT_Y - LIST_Y, UI_BG);
+    if (!A->msgs) aprs_line(LIST_Y + 24, "NO MESSAGES YET", UI_ACCENT, UI_BG);
     for (unsigned k = 0; k < ITEMS && A->msg_top + k < A->msgs; k++) {
         unsigned i = A->msg_top + k, y = LIST_Y + k * ITEM_H;
         const struct message *m = &A->msg[i];
@@ -22,16 +22,16 @@ static void draw_list(void)
         unsigned n = put_str(b, m->from);
         b[n++] = '>';
         put_str(b + n, m->to);
-        aprs_line(y, b, sel ? GFX_BLACK : m->mine ? GFX_GREEN : GFX_WHITE, sel ? GFX_YELLOW : GFX_BLACK);
-        if (m->acked) gfx_text(H9_WIDTH - 22, y, "ACK", 3, 1, sel ? GFX_BLACK : GFX_GREEN, sel ? GFX_YELLOW : GFX_BLACK);
+        aprs_line(y, b, sel ? UI_BG : m->mine ? UI_OK : UI_TEXT, sel ? UI_ACCENT : UI_BG);
+        if (m->acked) gfx_text(H9_WIDTH - 22, y, "ACK", 3, 1, sel ? UI_BG : UI_OK, sel ? UI_ACCENT : UI_BG);
         for (n = 0; n < 26 && m->text[n]; n++) b[n] = m->text[n];
         b[n] = 0;
-        aprs_line(y + 10, b, m->live ? GFX_WHITE : GFX_GREY, GFX_BLACK);
+        aprs_line(y + 10, b, m->live ? UI_TEXT : UI_DIM, UI_BG);
     }
     unsigned n = put_str(b, "ME ");
-    n += put_str(b + n, A->mycall[0] ? A->mycall : "? (SET IN RADIO)");
-    if (A->msgs) put_str(b + n, "  MENU:READ");
-    aprs_line(INFO_Y, b, GFX_GREY, GFX_BLACK);
+    n += put_str(b + n, A->mycall[0] ? A->mycall : "UNSET");
+    if (A->msgs) put_str(b + n, "  MENU READ");
+    aprs_line(INFO_Y, b, UI_DIM, UI_BG);
     aprs_tabs(TAB_MSG);
 }
 
@@ -39,16 +39,17 @@ static void draw_message(void)
 {
     const struct message *m = &A->msg[A->msg_sel];
     char b[28];
-    aprs_title("MSG");
-    gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, GFX_BLACK);
+    aprs_title("MESSAGE");
+    gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, UI_BG);
     unsigned n = put_str(b, "FROM ");
     put_str(b + n, m->from);
-    aprs_line(BODY_Y + 2, b, GFX_YELLOW, GFX_BLACK);
+    aprs_line(BODY_Y + 2, b, UI_ACCENT, UI_BG);
     n = put_str(b, "TO   ");
     put_str(b + n, m->to);
-    aprs_line(BODY_Y + 12, b, m->mine ? GFX_GREEN : GFX_WHITE, GFX_BLACK);
-    aprs_wrap(BODY_Y + 26, m->text, FOOT_Y - 2, GFX_WHITE);
-    aprs_line(FOOT_Y, m->acked ? "DELIVERED (ACK)  BACK" : m->live ? "HEARD LIVE   BACK: LIST" : "FROM STOCK LIST  BACK", m->acked ? GFX_GREEN : GFX_GREY, GFX_BLACK);
+    aprs_line(BODY_Y + 12, b, m->mine ? UI_OK : UI_TEXT, UI_BG);
+    aprs_wrap(BODY_Y + 26, m->text, FOOT_Y - 2, UI_TEXT);
+    aprs_line(FOOT_Y, m->acked ? "DELIVERED (ACK)  BACK" : m->live ? "HEARD LIVE   BACK LIST" : "FROM STOCK LIST  BACK",
+              m->acked ? UI_OK : UI_HINT, UI_BG);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)
@@ -62,7 +63,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         if (!reading && aprs_tab(api, ev, TAB_MSG)) return 0;
         if (ev == EV_HOLD) {
             if (aprs_go(api, APRS_SEND)) return 0;
-            aprs_line(FOOT_Y, "NO SEND APP", GFX_RED, GFX_BLACK);
+            aprs_line(FOOT_Y, "NO SEND APP", UI_DANGER, UI_BG);
             continue;
         }
         if (reading) {

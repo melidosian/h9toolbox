@@ -1,0 +1,9 @@
+{
+  "kind": "aprs_release_image",
+  "flashable": true,
+  "image_sha256": "3a70e2f48283cfd0d06fb29a08f462fc0b8302898e09d41946d5f74205daf741",
+  "image_bytes": 17304,
+  "image_base": 134225920,
+  "base_image_sha256": "1dbbc10425f186f22a4d82d73f139f1e3cc3388931b73eb8ed18b6e3087ccd33",
+  "description": "Stock APRS 1.0.15 with RX15 and unsigned receive bytes"
+}

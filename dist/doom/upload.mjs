@@ -2,7 +2,7 @@
 // research prototype in prototypes/data-upload).
 //
 // Writes a data pack (for example the Freedoom E1M1 pack for the Doom
-// firmware) over Bluetooth through the H9 Toolbox write service (S2), under
+// firmware) through the H9 Toolbox write service (S2), under
 // the rules in firmware-research/doom-firmware/README.md:
 //   - only sectors that were erased in the 2026-11-09 full-chip dump, in
 //     partitions stock never writes (the `resource`, `font` and `voice` tails);
@@ -10,7 +10,7 @@
 //     directory lists it; anything else is refused;
 //   - everything written is read back and compared;
 //   - restore erases exactly what the directory lists (or, deep, every
-//     non-erased sector of the three tails), returning them to 0xFF.
+//     non-erased sector of the permitted tails), returning them to 0xFF.
 // Layout: game slot: a 4 KiB directory sector at 0xA1F000, the pack from
 // 0xA20000 to 0xCC0000, continuing into the font and then the voice tail if it
 // is larger. Modules slot: directory 0xCC0000, data 0xCC1000-0xCE0000. Music
@@ -22,18 +22,26 @@
 // without erasing the sector). Readers must ignore packs not marked complete.
 
 import {
-  BLOCK, LINK_FIXED_ADDRESS, LINK_STOCK_ADDRESS, OP, SECTOR,
+  BANK_SIZE, BLOCK, LINK_FIXED_ADDRESS, LINK_STOCK_ADDRESS, OP, SECTOR,
   controlFrame, crc16, dataFrame, parseBulkReply,
 } from '../boot-logo/resource.mjs';
 
 const ERASED_CRC = 0xe03e;
 const CHECK_EVERY = 16;
+// Two candidate settings sectors, then VFO recovery and GPS fix. Never let
+// game upload or deep restore claim these four sectors.
+export const VOICE_UPLOAD_END = 0x3fc000;
+const LEGACY_AREAS = [
+  { name: 'resource', start: 0xa1f000, end: 0xd00000 },
+  { name: 'font', start: 0x717000, end: 0x800000 },
+  { name: 'voice', start: 0x3a7000, end: 0x400000 },
+];
 
 // Erased in the full-chip dump (SHA-256 b6d60e2e...), never written by stock.
 export const AREAS = [
   { name: 'resource', start: 0xa1f000, end: 0xd00000 },
   { name: 'font', start: 0x717000, end: 0x800000 },
-  { name: 'voice', start: 0x3a7000, end: 0x400000 },
+  { name: 'voice', start: 0x3a7000, end: VOICE_UPLOAD_END },
 ];
 export const DIRECTORY = 0xa1f000;
 // Upload slots, each with its own directory sector. The game pack fills the
@@ -50,10 +58,9 @@ export const SLOTS = {
     areas: [
       { name: 'resource', start: DIRECTORY + 0x1000, end: MODULES_DIRECTORY },
       { name: 'font', start: 0x717000, end: 0x800000 },
-      // Stops two sectors short: 0x3FF000 holds the last GPS fix (the loader stub and
-      // SAT PASS write it) and 0x3FE000 the user's own VFO frequencies while SAT PASS's
-      // VFO tracker has changed them (module-loader/modules/common/vfo_backup.h).
-      { name: 'voice', start: 0x3a7000, end: 0x3fe000 },
+      // Stops four sectors short: two proposed settings sectors, VFO recovery,
+      // and GPS fix. Legacy packs crossing this boundary require migration.
+      { name: 'voice', start: 0x3a7000, end: VOICE_UPLOAD_END },
     ],
   },
   modules: { name: 'modules', directory: MODULES_DIRECTORY, areas: [{ name: 'modules', start: MODULES_DIRECTORY + 0x1000, end: MUSIC_DIRECTORY }] },
@@ -68,8 +75,8 @@ const hex = value => `0x${value.toString(16)}`;
 const isErased = bytes => bytes.every(byte => byte === 0xff);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-export function inAreas(start, end) {
-  return AREAS.some(area => start >= area.start && end <= area.end);
+export function inAreas(start, end, areas = AREAS) {
+  return areas.some(area => start >= area.start && end <= area.end);
 }
 
 // Chip ranges for a pack of `length` bytes in a slot's areas, in order (for
@@ -116,20 +123,31 @@ export async function buildDirectory(pack, name, slot = SLOTS.game) {
   return { sector, segments };
 }
 
-export function parseDirectory(sector) {
+export function parseDirectory(sector, areas = AREAS) {
   if (new TextDecoder().decode(sector.subarray(0, 8)) !== MAGIC) return null;
   const view = new DataView(sector.buffer, sector.byteOffset, sector.byteLength);
   const count = view.getUint32(80, true);
-  if (count < 1 || count > AREAS.length) return null;
+  if (count < 1 || count > areas.length) return null;
   const end = 84 + 8 * count;
   if (view.getUint16(end, true) !== crc16(sector.subarray(0, end))) return null;
   const segments = Array.from({ length: count }, (_, i) => ({
     address: view.getUint32(84 + 8 * i, true), length: view.getUint32(88 + 8 * i, true),
   }));
-  if (!segments.every(s => inAreas(s.address, s.address + s.length))) return null;
+  if (!segments.every(s => inAreas(s.address, s.address + s.length, areas))) return null;
   const name = new TextDecoder().decode(sector.subarray(48, 80)).replace(/\0+$/, '');
   const complete = new TextDecoder().decode(sector.subarray(COMPLETE_OFFSET, COMPLETE_OFFSET + COMPLETE.length)) === COMPLETE;
   return { length: view.getUint32(12, true), sha256: sector.slice(16, 48), name, segments, complete };
+}
+
+function writableDirectory(sector) {
+  const dir = parseDirectory(sector);
+  if (dir) return dir;
+  const legacy = parseDirectory(sector, LEGACY_AREAS);
+  if (legacy?.segments.some(({ address, length }) =>
+    address < 0x400000 && address + Math.ceil(length / SECTOR) * SECTOR > VOICE_UPLOAD_END)) {
+    throw new Error('A legacy game upload claims protected sectors. Back it up and migrate it before writing.');
+  }
+  return null;
 }
 
 // Sector actions to turn `current` into `next` at chip `address` (whole
@@ -202,7 +220,7 @@ async function withWriteLink(radio, work) {
   let linkRequested = false;
   await radio.enterProgramming();
   try {
-    const link = parseBulkReply(await radio.readBlock(LINK_FIXED_ADDRESS));
+    const link = radio.transport === 'serial' ? null : parseBulkReply(await radio.readBlock(LINK_FIXED_ADDRESS));
     if (link) {
       linkRequested = link.status === 0;
       radio.log(`Requested a fixed 15 ms link for writing: ${link.statusText}.`, link.status === 0 ? 'info' : 'warn');
@@ -217,14 +235,15 @@ async function withWriteLink(radio, work) {
 
 // Read the chip ranges [{address, length}] (whole sectors). Fast (bulk)
 // reads need a 32 KiB-aligned start, so each read starts at the bank
-// boundary below and the extra bytes are dropped.
-const BANK = 0x8000;
+// boundary below and the extra bytes are dropped. Serial reads can start
+// at the requested address.
 async function readRanges(radio, ranges, onProgress) {
-  const total = ranges.reduce((sum, r) => sum + r.length + r.address % BANK, 0);
+  const leadBytes = address => radio.transport === 'serial' ? 0 : address % BANK_SIZE;
+  const total = ranges.reduce((sum, r) => sum + r.length + leadBytes(r.address), 0);
   let done = 0;
   const out = [];
   for (const range of ranges) {
-    const lead = range.address % BANK;
+    const lead = leadBytes(range.address);
     const { bytes } = await radio.readRange(range.address - lead, range.length + lead,
       fraction => onProgress((done + fraction * (range.length + lead)) / total));
     done += range.length + lead;
@@ -251,7 +270,8 @@ export async function readDirectory(radio, slot) {
 // directory; `pack` is null unless the upload is complete and its bytes read
 // back with the directory's SHA-256.
 export async function readPack(radio, slot, onProgress = () => {}) {
-  const dir = parseDirectory(await readDirectory(radio, slot));
+  const sector = await readDirectory(radio, slot);
+  const dir = parseDirectory(sector, slot.directory === DIRECTORY ? LEGACY_AREAS : AREAS);
   if (!dir?.complete) return { dir, pack: null };
   const parts = await readRanges(radio, dir.segments.map(s => ({ address: s.address, length: Math.ceil(s.length / BLOCK) * BLOCK })),
     onProgress);
@@ -268,7 +288,7 @@ export function completeBlock() {
   return block;
 }
 
-// One line per sector: how long the GATT writes and the radio's ACKs took.
+// One line per sector: how long sending requests and receiving ACKs took.
 function logWriteTimes(radio, address) {
   const times = radio.writeTimes;
   if (!times?.length) return;
@@ -277,7 +297,7 @@ function logWriteTimes(radio, address) {
     const v = times.map(t => t[k]).sort((a, b) => a - b);
     return `median ${v[v.length >> 1].toFixed(0)} ms, max ${v[v.length - 1].toFixed(0)} ms`;
   };
-  radio.log(`${hex(address)}: ${times.length} writes; GATT write ${stat(0)}; ACK wait ${stat(1)}.`);
+  radio.log(`${hex(address)}: ${times.length} writes; send ${stat(0)}; ACK wait ${stat(1)}.`);
 }
 
 const sameBytes = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -309,7 +329,7 @@ export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game
   // Already there? The directory alone says so: COMPLETE is written only after
   // the whole upload read back correctly. One sector instead of the whole
   // target (about 17 minutes for the 1 MB game pack at upload mode's rate).
-  const already = parseDirectory(await readDirectory(radio, slot));
+  const already = writableDirectory(await readDirectory(radio, slot));
   if (already?.complete && already.length === pack.length && sameBytes(already.sha256, digest)) {
     radio.log(`"${already.name}" is already on the radio and complete; nothing to upload.`);
     onProgress(1, 'Already on the radio');
@@ -323,7 +343,7 @@ export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game
   }
   radio.log(`Reading ${regions.reduce((s, r) => s + r.length, 0).toLocaleString()} bytes to check the target sectors.`);
   let current = await readRanges(radio, regions, f => onProgress(0.2 * f, 'Checking target sectors'));
-  const previous = parseDirectory(current[0]);
+  const previous = writableDirectory(current[0]);
   const same = previous && previous.length === pack.length && sameBytes(previous.sha256, digest);
   if (previous && !same) {
     radio.log(`Replacing the previous upload "${previous.name}": erasing its ${previous.segments.length} range(s) first.`);
@@ -384,7 +404,7 @@ export async function uploadPack(radio, pack, { name = 'pack', slot = SLOTS.game
 // the three tails), then confirm 0xFF by read-back.
 export async function restore(radio, { deep = false, slot = SLOTS.game, onProgress = () => {} } = {}) {
   const [dirSector] = await readRanges(radio, [{ address: slot.directory, length: SECTOR }], () => {});
-  const dir = parseDirectory(dirSector);
+  const dir = writableDirectory(dirSector);
   let ranges;
   if (deep) {
     ranges = AREAS.map(a => ({ address: a.start, length: a.end - a.start }));

@@ -8,8 +8,7 @@
  * the loader's 100 Hz tick. */
 #include <stdint.h>
 
-#include "gfx.h"
-#include "h9mod.h"
+#include "app_theme.h"
 #include "snd.h"
 
 #ifndef TICK
@@ -183,9 +182,9 @@ static void hud(const struct game *m)
     const char *s = "SCORE ";
     while (*s) *d++ = *s++;
     d = put_num(d, m->score, 6);
-    gfx_text(2, 3, b, 12, 1, GFX_WHITE, GFX_BLACK);
+    gfx_text(UI_LEFT, 3, b, 12, 1, UI_ACCENT, UI_BG);
     d = b; *d++ = 'L'; d = put_num(d, m->level, 1);
-    gfx_text(88, 3, b, 4, 1, GFX_GREY, GFX_BLACK);
+    gfx_text(88, 3, b, 4, 1, UI_DIM, UI_BG);
     gfx_fill(116, 2, 42, 10, GFX_BLACK);
     for (unsigned i = 0; i < m->lives; i++) gfx_fill(120 + i * 9, 4, 6, 6, C_PLAYER);
 }
@@ -365,12 +364,13 @@ static void begin_round(struct game *m, const char *text, uint16_t color)
 
 static void title(const struct game *m)
 {
-    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
-    gfx_text(32, 36, "MAZE CHASE", 12, 2, C_PLAYER, GFX_BLACK);
-    gfx_text(12, 64, "2 4 6 8 OR UP/DOWN STEER", 26, 1, GFX_WHITE, GFX_BLACK);
-    gfx_text(12, 76, "MENU PAUSE  BACK EXIT", 26, 1, GFX_WHITE, GFX_BLACK);
-    gfx_text(12, 88, m->sound ? "5 SOUND: ON " : "5 SOUND: OFF", 26, 1, GFX_WHITE, GFX_BLACK);
-    gfx_text(12, 104, "ANY OTHER KEY STARTS", 26, 1, GFX_GREY, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
+    ui_title("MAZE CHASE");
+    gfx_text(UI_LEFT, 37, "2 4 6 8 OR UP/DOWN STEER", UI_CELLS, 1, UI_TEXT, UI_BG);
+    gfx_text(UI_LEFT, 51, "MENU PAUSE  BACK EXIT", UI_CELLS, 1, UI_TEXT, UI_BG);
+    gfx_text(UI_LEFT, 80, "5 SOUND", 7, 1, UI_DIM, UI_BG);
+    gfx_text(m->sound ? 145 : 139, 80, m->sound ? "ON" : "OFF", 3, 1, UI_ACCENT, UI_BG);
+    ui_footer("ANY OTHER KEY  START");
 }
 
 /* Plays games until Back. */
@@ -434,7 +434,7 @@ static void run(struct game *m)
         put_num(d, m->hi, 6);
         banner("GAME OVER", GFX_RED);
         gfx_text(40, OY + 9 * T + 32, b, 14, 1, GFX_WHITE, GFX_BLACK);
-        gfx_text(24, OY + 9 * T + 44, "MENU AGAIN  BACK EXIT", 22, 1, GFX_GREY, GFX_BLACK);
+        gfx_text(24, OY + 9 * T + 44, "MENU AGAIN  BACK EXIT", 22, 1, UI_HINT, UI_BG);
         fx(m, FX_OVER);
         release(m);
         for (;;) {

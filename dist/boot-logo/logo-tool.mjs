@@ -4,7 +4,7 @@
 // Firmware update page as its last step, and by the Bluetooth programmer on
 // its own connection (the `connection` option).
 import { LOGO_ADDRESS, LOGO_BYTES, LOGO_HEIGHT, LOGO_WIDTH, STOCK_LOGO_SHA256, fitRect, logoFromBin, logoSectorPlan, logoToRgba, rgbaToLogo } from './resource.mjs?v=20261108a';
-import { Stopped, connectBluetooth } from './radio.mjs?v=20261109b';
+import { Stopped, connectBluetooth } from './radio.mjs?v=usb3';
 
 const MARKUP = `
   <ol class="instructions" data-id="instructions">
@@ -74,7 +74,7 @@ async function imageToRgba(file, { fit, background, sharp }) {
 }
 
 // onStatus(message, isError) reports to the host page's activity log.
-// connection: a host that already holds the Bluetooth link supplies
+// connection: a host that already holds the radio connection supplies
 // { session() -> { radio, name } | null, onBusy(flag), blocked() -> bool
 // (the host is using the link) }; the tool then hides
 // its own Connect controls. Returns { refresh, reset } for such a host:
@@ -250,7 +250,7 @@ export function mountLogoTool(root, { onStatus = () => {}, connection = null } =
         el('currentInfo').textContent = '· read again before resuming';
         status(`Logo write stopped: ${error.message} Click Read current logo, then Write to resume (or choose your saved .bin to go back).`, true);
         showResult({ failed: true, title: 'Logo write did not finish', text: error.message,
-          steps: ['Keep the radio in Bluetooth programming mode (reconnect if needed).', 'Click Read current logo, then Write logo to radio to resume.', 'Or choose the .bin you saved to go back.'] });
+          steps: ['Reconnect to the radio if needed.', 'Click Read current logo, then Write logo to radio to resume.', 'Or choose the .bin you saved to go back.'] });
       }
     }
   }));

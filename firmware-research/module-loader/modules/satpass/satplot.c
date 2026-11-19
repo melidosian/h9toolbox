@@ -11,7 +11,7 @@
  * viewed. */
 #include <stdint.h>
 
-#include "gfx.h"
+#include "app_theme.h"
 #include "h9mod.h"
 #include "orbit.h"
 #include "satshare.h"
@@ -68,17 +68,17 @@ static void draw_pass(const struct satdata *data, const struct satshare *s, unsi
     satdata_get(data, s->dur_sat[n] >> 12, &entry);
     satdata_gmst(data, &gmst);
     const struct sat *sat = &entry.sat;
-    gfx_fill(0, 0, H9_WIDTH, 119, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, 119, UI_BG);
     /* rings (horizon, 30, 60 degrees) and the compass cross */
     for (unsigned ring = 0; ring < 3; ring++)
         for (unsigned a = 0; a < 64; a++)
-            dot(a << 26, (int32_t)ring * (0x40000000 / 3), 1, GFX_GREY);
-    gfx_fill(CX, CY - R, 1, 2 * R + 1, GFX_GREY);
-    gfx_fill(CX - R, CY, 2 * R + 1, 1, GFX_GREY);
-    gfx_text(CX - 3, CY - R - 10, "N", 1, 1, GFX_WHITE, GFX_BLACK);
-    gfx_text(CX - 3, CY + R + 3, "S", 1, 1, GFX_WHITE, GFX_BLACK);
-    gfx_text(CX + R + 4, CY - 3, "E", 1, 1, GFX_WHITE, GFX_BLACK);
-    gfx_text(CX - R - 10, CY - 3, "W", 1, 1, GFX_WHITE, GFX_BLACK);
+            dot(a << 26, (int32_t)ring * (0x40000000 / 3), 1, UI_DIM);
+    gfx_fill(CX, CY - R, 1, 2 * R + 1, UI_DIM);
+    gfx_fill(CX - R, CY, 2 * R + 1, 1, UI_DIM);
+    gfx_text(CX - 3, CY - R - 10, "N", 1, 1, UI_TEXT, UI_BG);
+    gfx_text(CX - 3, CY + R + 3, "S", 1, 1, UI_TEXT, UI_BG);
+    gfx_text(CX + R + 4, CY - 3, "E", 1, 1, UI_TEXT, UI_BG);
+    gfx_text(CX - R - 10, CY - 3, "W", 1, 1, UI_TEXT, UI_BG);
 
     uint32_t span = los > aos ? los - aos : 1;
     int32_t peak = -0x40000000;
@@ -88,32 +88,32 @@ static void draw_pass(const struct satdata *data, const struct satshare *s, unsi
         orbit_look(sat, &gmst, o, aos + span * i / SAMPLES, &l);
         if (l.el < 0) continue;
         if (l.el > peak) { peak = l.el; peak_az = l.az; }
-        dot(l.az, l.el, 2, GFX_WHITE);
+        dot(l.az, l.el, 2, UI_TEXT);
     }
     orbit_look(sat, &gmst, o, aos, &l);
     uint32_t az_aos = l.az;
-    dot(az_aos, 0, 5, GFX_GREEN);
+    dot(az_aos, 0, 5, UI_OK);
     orbit_look(sat, &gmst, o, los, &l);
     uint32_t az_los = l.az;
-    dot(az_los, 0, 5, GFX_RED);
-    dot(peak_az, peak, 5, GFX_YELLOW);
+    dot(az_los, 0, 5, UI_DANGER);
+    dot(peak_az, peak, 5, UI_ACCENT);
 
     char b[16];
-    gfx_text(116, 2, sat->name, 7, 1, GFX_YELLOW, GFX_BLACK);
-    gfx_text(116, 18, "RISE", 4, 1, GFX_GREEN, GFX_BLACK);
-    time_text(b, aos); gfx_text(116, 28, b, 6, 1, GFX_WHITE, GFX_BLACK);
-    az_text(b, az_aos); gfx_text(116, 38, b, 6, 1, GFX_GREY, GFX_BLACK);
-    gfx_text(116, 54, "SET", 3, 1, GFX_RED, GFX_BLACK);
-    time_text(b, los); gfx_text(116, 64, b, 6, 1, GFX_WHITE, GFX_BLACK);
-    az_text(b, az_los); gfx_text(116, 74, b, 6, 1, GFX_GREY, GFX_BLACK);
-    gfx_text(116, 90, "HIGH", 4, 1, GFX_YELLOW, GFX_BLACK);
+    gfx_text(116, 2, sat->name, 7, 1, UI_ACCENT, UI_BG);
+    gfx_text(116, 18, "RISE", 4, 1, UI_OK, UI_BG);
+    time_text(b, aos); gfx_text(116, 28, b, 6, 1, UI_TEXT, UI_BG);
+    az_text(b, az_aos); gfx_text(116, 38, b, 6, 1, UI_DIM, UI_BG);
+    gfx_text(116, 54, "SET", 3, 1, UI_DANGER, UI_BG);
+    time_text(b, los); gfx_text(116, 64, b, 6, 1, UI_TEXT, UI_BG);
+    az_text(b, az_los); gfx_text(116, 74, b, 6, 1, UI_DIM, UI_BG);
+    gfx_text(116, 90, "HIGH", 4, 1, UI_ACCENT, UI_BG);
     char *d = num(b, orbit_deg((uint32_t)peak), 1);
     put(d, " DEG");
-    gfx_text(116, 100, b, 6, 1, GFX_WHITE, GFX_BLACK);
+    gfx_text(116, 100, b, 6, 1, UI_TEXT, UI_BG);
     d = num(b, n + 1, 1); *d++ = '/'; num(d, s->count, 1);   /* "2/5" */
-    gfx_text(116, 110, b, 3, 1, GFX_GREY, GFX_BLACK);
+    gfx_text(116, 110, b, 3, 1, UI_DIM, UI_BG);
     sat_tabs(1);
-    gfx_text(96, 119, "UP/DN PASS", 10, 1, GFX_WHITE, GFX_BLACK);
+    gfx_text(96, UI_FOOT_Y, "UP/DN PASS", 10, 1, UI_HINT, UI_BG);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)
@@ -127,7 +127,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     struct observer o;
     orbit_observer(&o, s.lat, s.lon);
     unsigned n = s.sel < s.count ? s.sel : 0;
-    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
     draw_pass(&data, &s, n, &o);
     gfx_wait_release();
     unsigned next = 0;   /* Menu: on to the TRACK page; Back: the list */

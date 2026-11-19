@@ -1,0 +1,6 @@
+__pycache__/
+host/.venv/
+host/tncd-src/
+host/tncd-h9
+host/tncd-h9.exe
+!TD-H9-v1.0.38-KISS.fw
