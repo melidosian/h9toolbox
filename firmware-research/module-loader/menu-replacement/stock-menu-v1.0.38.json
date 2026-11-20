@@ -1,0 +1,209 @@
+{
+  "stock_sha256": "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3",
+  "menu_table_entry_site": "0xb6bc4",
+  "menu_table_entry_target": "0x1e6d426",
+  "stock_root_categories": [
+    {
+      "id": 0,
+      "label": "Radio Setting",
+      "items": [
+        "Squelch Lv",
+        "Step Freq",
+        "Vox Level",
+        "Vox Delay",
+        "TOT",
+        "Roger Beep",
+        "Keypad Beep",
+        "Power Save",
+        "Keypad Lock",
+        "Dual Watch",
+        "Voice",
+        "Backlight",
+        "Brightness",
+        "Pwr On Disp",
+        "Display",
+        "ANI-Edit",
+        "Disp Type-A",
+        "Disp Type-B",
+        "DTMF SIDE",
+        "PTT-Delay",
+        "Language",
+        "Alarm Mode",
+        "STE",
+        "Tone Burst",
+        "Talk Around",
+        "FM Interrupt",
+        "PF1 S Press",
+        "PF1 L Press",
+        "PF2 S Press",
+        "PF2 L Press",
+        "Top S Press",
+        "Top L Press",
+        "Factory R",
+        "Breath LED",
+        "Mic Gain",
+        "DTMF Speed",
+        "DCD",
+        "D-Hold",
+        "D-Rsp",
+        "200TX",
+        "350TX",
+        "500TX",
+        "Menu Color"
+      ],
+      "disabled_in_dev": false
+    },
+    {
+      "id": 1,
+      "label": "Program Chann",
+      "items": [
+        "RX Sub-Audio",
+        "TX Sub-Audio",
+        "Bandwidth",
+        "TX Power",
+        "Busy Lock",
+        "Call Code",
+        "PTT-ID",
+        "Scan Add",
+        "Scramble",
+        "Offset",
+        "Set-D",
+        "Memory CHL",
+        "Delete CHL",
+        "Hopping",
+        "CH-Name",
+        "Modulation"
+      ],
+      "disabled_in_dev": false
+    },
+    {
+      "id": 2,
+      "label": "Analog Set",
+      "items": [
+        "Freq Cal",
+        "AM Vol Level"
+      ],
+      "disabled_in_dev": false
+    },
+    {
+      "id": 3,
+      "label": "Radio Info",
+      "items": [
+        "Radio Info",
+        "APRS Info",
+        "User Manual"
+      ],
+      "disabled_in_dev": false
+    },
+    {
+      "id": 4,
+      "label": "Scan",
+      "items": [
+        "Scan Mode",
+        "Seek DCS",
+        "Hang Time",
+        "Scan Freq",
+        "Freq Ranger",
+        "Spectrum"
+      ],
+      "disabled_in_dev": false
+    },
+    {
+      "id": 5,
+      "label": "Bluetooth",
+      "items": [
+        "BT On/Off",
+        "BT Mode",
+        "BT Name",
+        "BT Pairing",
+        "OD PTT",
+        "OD Mode",
+        "BT Int Mic",
+        "BT Int Spk",
+        "BT Mic Gain",
+        "BT Spk Gain",
+        "BT PIN Code",
+        "BT Reset"
+      ],
+      "disabled_in_dev": false
+    },
+    {
+      "id": 6,
+      "label": "SMS",
+      "items": [
+        "SMS On/Off",
+        "Send SMS",
+        "Inbox",
+        "Sent",
+        "Draft",
+        "SMS Mode",
+        "RX Filter",
+        "Statistics",
+        "Clear"
+      ],
+      "disabled_in_dev": false
+    },
+    {
+      "id": 7,
+      "label": "Morse",
+      "items": [
+        "Morse On/Off",
+        "CW Terminal",
+        "CW Key",
+        "CW Speed",
+        "CW Tone",
+        "CW Power",
+        "RX Threshold",
+        "CW Message",
+        "Reset"
+      ],
+      "disabled_in_dev": true
+    },
+    {
+      "id": 8,
+      "label": "GNSS",
+      "items": [
+        "GPS On/Off",
+        "GPS Info",
+        "Position",
+        "Time Zone",
+        "Speed Unit",
+        "Dist Unit",
+        "Alt Unit",
+        "Fix Lon",
+        "Fix Lat",
+        "Fix Alt"
+      ],
+      "disabled_in_dev": false
+    },
+    {
+      "id": 9,
+      "label": "Site Type",
+      "items": [
+        "Fix Coord",
+        "GPS Coord"
+      ],
+      "disabled_in_dev": false
+    },
+    {
+      "id": 10,
+      "label": "APRS",
+      "items": [
+        "APRS Switch",
+        "Beacon Set",
+        "Beacon Type",
+        "Relay Set",
+        "Advanced Set",
+        "Beacon List",
+        "APRS Reset"
+      ],
+      "disabled_in_dev": false
+    }
+  ],
+  "factory_menu_items": 119,
+  "active_dev_menu_items": 110,
+  "bundle_sha256": "ab9880c84cee3f4e5fe8aedffc44610c945ce7c2ce3692514aa4e7e80e0da541",
+  "toolbox_menu_bytes": 6246,
+  "toolbox_menu_safe_ceiling": 6528,
+  "toolbox_menu_free_bytes": 282
+}

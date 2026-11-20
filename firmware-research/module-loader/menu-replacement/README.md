@@ -9,12 +9,19 @@ storage and radio control routines until their replacements are verified.
 ## Findings from the pinned factory image
 
 `inventory.py` verifies the factory v1.0.38 app SHA-256 before reporting any
-addresses. The stock Menu callback pointer is at app+`0xB6BC4` and targets
-CPU `0x01E6D426` (app+`0x6D326`). The target sets up the native root list;
-the root builder at app+`0x6811E` fills category IDs at RAM `0x12C77`.
-The ten active categories in the dev image are Radio Setting, Program Chann,
+addresses. One record in the stock menu dispatch table at app+`0xB6BC4`
+targets CPU `0x01E6D426` (app+`0x6D326`). Its role as an entry point is
+unverified; it must not be patched as a Menu-key hook. The submenu builder at
+app+`0x6811E` fills item IDs at RAM `0x12C77`.
+The verified label inventory is saved in `stock-menu-v1.0.38.json`. The ten
+active categories in the dev image are Radio Setting, Program Chann,
 Analog Set, Radio Info, Scan, Bluetooth, SMS, GNSS, Site Type and APRS. Morse
-is category 7 in the factory image and is disabled in the dev build.
+is category 7 in the factory image and is disabled in the dev build. Its nine
+rows are Morse On/Off, CW Terminal, CW Key, CW Speed, CW Tone, CW Power,
+RX Threshold, CW Message and Reset. The
+pinned submenu builder declares **119 entries in the factory image, 110
+active in dev**. These include actions as well as saved settings; the CHIRP
+setting list does not cover the entire on-radio menu.
 
 The current grouped Toolbox MENU module is 6,246 bytes. Its safe ceiling is
 6,528 bytes because shared satellite state begins at RAM `0x2B880`; only 282
@@ -37,14 +44,15 @@ branch is ready for an on-radio menu replacement test.
 
 ## Work required before changing the Menu callback
 
-1. Inventory every native menu item, its saved field, legal values, immediate
-   effects, and action screens. Preserve all ten active categories and their
+1. Inventory all 110 active native menu items, their saved fields, legal
+   values, immediate effects, and action screens. Preserve all ten categories and their
    radio behavior, including channel programming, scan, Bluetooth, SMS, GNSS
    and APRS.
 2. Add those items to the Toolbox list and implement their read, edit, save
    and action paths. The existing APRS settings journal remains available.
-3. Bench-check a complete settings round trip and the normal radio key flow.
-   Then redirect the pinned Menu callback to the new entry and remove only
+3. Trace the normal Menu-key call site. Bench-check a complete settings round
+   trip and the normal radio key flow. Then redirect that call site to the new
+   entry and remove only
    stock UI functions proven unused. Rebuild and validate the app-only
    package, far payload and module bundle together.
 4. Flash with main-image and far-region backups, verify readback, then check
