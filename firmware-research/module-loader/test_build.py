@@ -166,6 +166,20 @@ class FlashHelpers(unittest.TestCase):
         "h9_led", "h9_usb_loader", "h9_reset", "memcpy", "memset",
     )
 
+    def test_far_menu_trampoline_targets_plain_flash(self):
+        from pi32v2isa import objdump, table
+
+        self.assertEqual((build.FAR_MENU_FLASH, build.FAR_MENU_CPU), (0xEA000, 0x01EE5000))
+        self.assertEqual(build.FAR_MENU_END, build.RESIDENT_TX_FLASH)
+        with tempfile.TemporaryDirectory() as folder:
+            body = build.far_menu_trampoline(Path(folder))
+        decode = objdump.decoder_for(table.load(), mcpu="r3").decode
+        first = decode(body, 0)
+        second = decode(body, first[2])
+        self.assertEqual(len(body), 8)
+        self.assertEqual(first[3], f"r3 = {build.FAR_MENU_CPU}")
+        self.assertEqual(second[3], "goto r3")
+
     @classmethod
     def setUpClass(cls):
         from pi32v2isa import objdump, table

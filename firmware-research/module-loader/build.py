@@ -82,6 +82,8 @@ KISS_RESIDENT_HELPER = 0x84F88
 KISS_CALLS = {0x5DB40: 0xA7CAA, 0x5DB6A: 0xA7CB6, 0x5DB86: 0xA7CE8, 0x870E0: 0xA7CF8}
 FLASH_HELPERS = 0x85080   # after the relocated KISS helpers in the retired Morse code
 FLASH_HELPERS_API = 5
+FAR_MENU_FLASH, FAR_MENU_CPU = 0xEA000, 0x01EE5000
+FAR_MENU_END = 0xFA000     # resident TX starts here in the dev build
 # API 5 assigns one four-byte jump per export, in this order. Keep these
 # addresses fixed for ABI 5 even when the implementation's layout changes.
 FLASH_EXPORTS = (
@@ -243,8 +245,20 @@ def build_flash_helpers(lib: list[Path], out: Path) -> tuple[bytes, Path]:
     return body, assemble(calls, out)
 
 
+def far_menu_trampoline(out: Path) -> bytes:
+    jump = out / "far_menu_jump.s"
+    jump.write_text('    .section .text,"ax",@progbits\n'
+                    '    .globl module_flash_entry\nmodule_flash_entry:\n'
+                    f'    r3 = {FAR_MENU_CPU:#x}\n    goto r3\n')
+    program = link([assemble(jump, out)], LOAD, "module_flash_entry", out, "far_menu_jump")
+    return text_of(program, LOAD)
+
+
 def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
-                  flash_shared: bool = False, auto_tx: bool = False) -> tuple[list[dict], bytes | None]:
+                  flash_shared: bool = False, auto_tx: bool = False,
+                  far_menu: bool = False) -> tuple[list[dict], bytes | None, bytes | None]:
+    if far_menu and not flash_shared:
+        raise ValueError("The far menu needs the stable API 5 flash helpers")
     common = ROOT / "modules" / "common"
     run([sys.executable, "-I", str(common / "font5x7.py")])
     lib = [assemble(common / "h9lib.s", out), compile_c(common / "gfx.c", out, toolchain)]
@@ -268,8 +282,22 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
     if flash_shared:
         menu_sources += (menu_dir / "toolbox_menu.c", aprs_dir / "aprs_resident_config.c",
                          common / "toolbox_settings_pair.c")
-    menu = c_module("MENU", menu_dir / "menu.c", *menu_sources,
-                    extra_flags=("-DH9_GROUPED_MENU",) if flash_shared else ())
+    far_menu_body = None
+    if far_menu:
+        sources = (menu_dir / "menu.c", *menu_sources)
+        objects = [compile_c(src, out, toolchain, flags=flags + ("-DH9_GROUPED_MENU",)) for src in sources]
+        # The RAM trampoline targets the first far byte. Put the API gate
+        # before the C objects and reject any linker layout that moves it.
+        program = link([*lib, *objects], FAR_MENU_CPU, entry, out, "far_menu")
+        if program.entry != FAR_MENU_CPU:
+            raise ValueError("Far menu API gate is not at the trampoline target")
+        far_menu_body = text_of(program, FAR_MENU_CPU)
+        if len(far_menu_body) > FAR_MENU_END - FAR_MENU_FLASH:
+            raise ValueError("Unified menu exceeds the reserved far-flash window")
+        menu = {"name": "MENU", "body": far_menu_trampoline(out), "bss": 0, "entry": 0}
+    else:
+        menu = c_module("MENU", menu_dir / "menu.c", *menu_sources,
+                        extra_flags=("-DH9_GROUPED_MENU",) if flash_shared else ())
     if len(menu["body"]) > 0x2B880 - LOAD:
         raise SystemExit("MENU code overlaps the shared satellite state")
     about = c_module("ABOUT", ROOT / "modules" / "about" / "about.c")
@@ -365,7 +393,7 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
     test_bundle = bundle([reset_test])
     parse_bundle(test_bundle)
     (out / "test-ml-reset-bundle.bin").write_bytes(test_bundle)
-    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, maze, about], flash
+    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, maze, about], flash, far_menu_body
 
 
 def call_bytes(target: int, site: int) -> bytes:
@@ -642,7 +670,8 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
 
 def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
           aprs_mute: bool = False, disable_morse: bool = False, dev_kiss: bool = False,
-          resident_beacon: bool = False, *, flash_shared: bool = False, auto_tx: bool = False) -> dict:
+          resident_beacon: bool = False, *, flash_shared: bool = False, auto_tx: bool = False,
+          far_menu: bool = False) -> dict:
     stock = stock_image.read_bytes()
     if sha256(stock).hexdigest() != STOCK_SHA256:
         raise ValueError("Expected the exact official v1.0.38 main application")
@@ -650,17 +679,23 @@ def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
         raise ValueError("Expected the exact official v1.0.38 .fw package")
     if flash_shared and not resident_beacon:
         raise ValueError("--flash-shared needs --resident-beacon")
+    if far_menu and not flash_shared:
+        raise ValueError("--far-menu needs --flash-shared")
     if auto_tx and not (resident_beacon and flash_shared and aprs_mute and disable_morse and dev_kiss):
         raise ValueError("--resident-tx needs the full shared-flash dev build")
     out.mkdir(parents=True, exist_ok=True)
     resident = build_resident(out, toolchain, auto_tx=auto_tx) if resident_beacon else None
-    modules, flash = build_modules(out, toolchain, resident_beacon, flash_shared=flash_shared, auto_tx=auto_tx)
+    modules, flash, far_menu_body = build_modules(out, toolchain, resident_beacon,
+                                                 flash_shared=flash_shared, auto_tx=auto_tx,
+                                                 far_menu=far_menu)
     screen_crc = crc16(next(m["body"] for m in modules if m["name"] == "APRS BEACON")) if resident else None
     firmware = build_firmware(stock, stock_package, out, aprs_mute, disable_morse, dev_kiss, resident, screen_crc,
                               flash=flash, auto_tx=auto_tx)
     data = bundle(modules)
     parse_bundle(data)
     (out / "h9_modules.bin").write_bytes(data)
+    if far_menu_body is not None:
+        (out / "menu_0xEA000_OFFLINE.bin").write_bytes(far_menu_body)
     # One .h9mod per app (a one-module bundle) for the App Manager's "Add module".
     (out / "modules").mkdir(exist_ok=True)
     for m in modules[1:]:
@@ -677,6 +712,10 @@ def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
                                 "crc16": hex(crc16(m["body"]))} for m in modules]},
         "hardware_observation": "Not yet flashed",
     }
+    if far_menu_body is not None:
+        manifest["far_menu"] = {"flash_offset": hex(FAR_MENU_FLASH), "cpu_address": hex(FAR_MENU_CPU),
+                                "bytes": len(far_menu_body), "sha256": sha256(far_menu_body).hexdigest(),
+                                "required_with_bundle": True, "hardware_tested": False}
     (out / "h9_toolbox_modules-manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     return manifest
 
@@ -695,6 +734,8 @@ def main() -> int:
                         help="Put common app routines in the retired Morse space and build the matching API 5 bundle")
     parser.add_argument("--resident-tx", action="store_true",
                         help="Enable resident beacon TX at the stock timed-beacon boundary")
+    parser.add_argument("--far-menu", action="store_true",
+                        help="Build the grouped menu in far flash with an 8-byte RAM trampoline")
     args = parser.parse_args()
     if args.resident_beacon and not (args.aprs_mute and args.disable_morse and args.dev_kiss):
         parser.error("--resident-beacon needs --aprs-mute, --disable-morse and --dev-kiss")
@@ -702,6 +743,8 @@ def main() -> int:
         parser.error("--flash-shared needs --resident-beacon")
     if args.resident_tx and not (args.resident_beacon and args.flash_shared):
         parser.error("--resident-tx needs --resident-beacon and --flash-shared")
+    if args.far_menu and not args.flash_shared:
+        parser.error("--far-menu needs --flash-shared")
     bundled = RESEARCH / "toolchain" / "jieli" / "jieli-linux-toolchains-20260730.1"
     toolchain = Path(os.environ.get("JIELI_TOOLCHAIN", bundled)).expanduser().resolve()
     if not (toolchain / "pi32v2").is_dir():
@@ -709,7 +752,7 @@ def main() -> int:
     print(json.dumps(build(args.stock_image.resolve(), args.stock_package.resolve(), toolchain,
                            args.output.resolve(), args.aprs_mute, args.disable_morse,
                            args.dev_kiss, args.resident_beacon, flash_shared=args.flash_shared,
-                           auto_tx=args.resident_tx), indent=1))
+                           auto_tx=args.resident_tx, far_menu=args.far_menu), indent=1))
     print("Offline build only; not hardware tested")
     return 0
 

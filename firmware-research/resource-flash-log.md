@@ -5069,3 +5069,23 @@ result yet.**
   message journal across a power cycle, and RF send/receive remain untested.
   The dev updater still needs the matching mailbox guard before other uploader
   clients can safely share the reserved sectors.
+
+## 2026-11-20 — unified Menu replacement, offline branch
+
+- Started `codex/radio-menu-replacement` from `origin/dev` at `67e446b`.
+  The pinned stock root Menu callback pointer at app+`0xB6BC4` targets
+  CPU `0x01E6D426`. The ten active native categories and this pointer are
+  checked by `module-loader/menu-replacement/inventory.py` against the
+  factory v1.0.38 SHA-256.
+- The current grouped MENU occupies 6,246 of the 6,528 safe bytes below
+  satellite shared state. An offline `--far-menu` build moved it to plain
+  main flash at `0xEA000` via an eight-byte module trampoline. The far body
+  is 6,246 bytes, SHA-256
+  `0463da5aeae30858391f95988e0f633ae4a54aadf13dbb3abea33e506a1b9811`;
+  the matching main app remained SHA-256
+  `236ba5bc96c2860cd311475cb35f4f3e80bb1a01786f18543a98e3df7b42684d`.
+  The far entry starts with the API 5 gate at the trampoline target; the
+  stock-derived package check and 18 module-loader unit tests passed.
+  This is a placement trial only:
+  no native Menu callback patch, stock settings replacement, radio write or
+  RF test occurred.
