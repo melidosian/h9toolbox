@@ -202,6 +202,52 @@
   ],
   "factory_menu_items": 119,
   "active_dev_menu_items": 110,
+  "category_action_dispatch": [
+    {
+      "category_id": 0,
+      "stock_target_app_offset": "0x76fae"
+    },
+    {
+      "category_id": 1,
+      "stock_target_app_offset": "0x76998"
+    },
+    {
+      "category_id": 2,
+      "stock_target_app_offset": "0x769d0"
+    },
+    {
+      "category_id": 3,
+      "stock_target_app_offset": "0x76d1e"
+    },
+    {
+      "category_id": 4,
+      "stock_target_app_offset": "0x76a0c"
+    },
+    {
+      "category_id": 5,
+      "stock_target_app_offset": "0x76a40"
+    },
+    {
+      "category_id": 6,
+      "stock_target_app_offset": "0x76a68"
+    },
+    {
+      "category_id": 7,
+      "stock_target_app_offset": "0x76aa6"
+    },
+    {
+      "category_id": 8,
+      "stock_target_app_offset": "0x76b52"
+    },
+    {
+      "category_id": 9,
+      "stock_target_app_offset": "0x76d1e"
+    },
+    {
+      "category_id": 10,
+      "stock_target_app_offset": "0x76b56"
+    }
+  ],
   "bundle_sha256": "ab9880c84cee3f4e5fe8aedffc44610c945ce7c2ce3692514aa4e7e80e0da541",
   "toolbox_menu_bytes": 6246,
   "toolbox_menu_safe_ceiling": 6528,

@@ -26,6 +26,8 @@ MORSE_ID = 7
 MENU_SHARED_STATE = 0x2B880
 SUBMENU_BUILDER = (0x6811E, 0x68296)
 SUBMENU_BUILDER_SHA256 = "6be77c78a40b1781b3cecd81cb71f2b402ae1979e620773e33100adcf4845892"
+ACTION_DISPATCH_TABLE = 0x76982
+ACTION_DISPATCH_SHA256 = "73aa2515a293fac35359dbe932de52bfa11df59950a0e2d10f69584b7c0d58cb"
 # The stock selector's eleven branches write these final counts at RAM
 # 0x12C74. Most loops stop *before* the comparator's bound (N - 1 items).
 SUBMENU_COUNTS = (43, 16, 2, 3, 6, 12, 9, 9, 10, 2, 7)
@@ -58,6 +60,8 @@ def root_labels(stock: bytes) -> list[str]:
     start, end = SUBMENU_BUILDER
     if sha256(stock[start:end]).hexdigest() != SUBMENU_BUILDER_SHA256:
         raise ValueError("Stock submenu builder changed")
+    if sha256(stock[ACTION_DISPATCH_TABLE:ACTION_DISPATCH_TABLE + 2 * len(ROOT_CATEGORY_IDS)]).hexdigest() != ACTION_DISPATCH_SHA256:
+        raise ValueError("Stock category action dispatch changed")
     return [stock_label(stock, ENGLISH_ROOT_LABELS + 4 * category)
             for category in ROOT_CATEGORY_IDS]
 
@@ -86,6 +90,12 @@ def inventory(stock: bytes, bundle: bytes, far_menu: bytes | None = None) -> dic
         ],
         "factory_menu_items": sum(SUBMENU_COUNTS),
         "active_dev_menu_items": sum(SUBMENU_COUNTS) - SUBMENU_COUNTS[MORSE_ID],
+        "category_action_dispatch": [
+            {"category_id": index,
+             "stock_target_app_offset": hex(ACTION_DISPATCH_TABLE + 2 * struct.unpack_from(
+                 "<H", stock, ACTION_DISPATCH_TABLE + 2 * index)[0])}
+            for index in ROOT_CATEGORY_IDS
+        ],
         "bundle_sha256": sha256(bundle).hexdigest(),
         "toolbox_menu_bytes": menu["size"],
         "toolbox_menu_safe_ceiling": menu_ceiling,

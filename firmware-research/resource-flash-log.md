@@ -5083,6 +5083,9 @@ result yet.**
   also validates the pinned submenu builder hash. The nine disabled rows
   are Morse On/Off, CW Terminal, CW Key, CW Speed, CW Tone, CW Power,
   RX Threshold, CW Message and Reset.
+  The pinned category action table at app+`0x76982` was decoded into eleven
+  targets in the JSON inventory. Radio Setting routes to the common epilogue;
+  this table alone does not map individual setting handlers.
 - The current grouped MENU occupies 6,246 of the 6,528 safe bytes below
   satellite shared state. An offline `--far-menu` build moved it to plain
   main flash at `0xEA000` via an eight-byte module trampoline. The far body

@@ -22,6 +22,10 @@ RX Threshold, CW Message and Reset. The
 pinned submenu builder declares **119 entries in the factory image, 110
 active in dev**. These include actions as well as saved settings; the CHIRP
 setting list does not cover the entire on-radio menu.
+The inventory also records the pinned category action jump table at
+app+`0x76982`. These are category-level targets, not implementations for
+individual rows. Radio Setting currently routes to the common epilogue;
+its individual setting handlers still need tracing.
 
 The current grouped Toolbox MENU module is 6,246 bytes. Its safe ceiling is
 6,528 bytes because shared satellite state begins at RAM `0x2B880`; only 282
