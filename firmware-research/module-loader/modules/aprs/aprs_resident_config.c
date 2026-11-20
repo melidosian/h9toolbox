@@ -42,7 +42,7 @@ static enum tsp_result save(const struct h9_api *loader, const struct ts_setting
     return tsp_save(&io, next);
 }
 
-static int select_tx(struct ts_settings *s)
+int aprs_select_tx(struct ts_settings *s)
 {
     unsigned selector = TX_SETTING;
     if (selector > 4) return 0;
@@ -89,7 +89,7 @@ const char *aprs_setting_adjust(const struct h9_runtime_api *api, enum aprs_sett
         if (!cfg->armed) {
             struct h9_runtime_status status;
             if (!api->read_status(&status) || !status.worker_ready) return "SCHEDULER UNAVAILABLE";
-            if (!select_tx(cfg)) return "CHECK APRS TX CHANNEL";
+            if (!aprs_select_tx(cfg)) return "CHECK APRS TX CHANNEL";
         }
         cfg->armed ^= 1;
         break;
@@ -200,7 +200,7 @@ unsigned module_main(const struct h9_api *loader, unsigned self)
                 switch (selected) {
                 case RUN:
                     next.armed ^= 1;
-                    acceptable = !next.armed || (latest.worker_ready && select_tx(&next));
+                    acceptable = !next.armed || (latest.worker_ready && aprs_select_tx(&next));
                     break;
                 case MODE: next.timed ^= 1; break;
                 case EVERY: {

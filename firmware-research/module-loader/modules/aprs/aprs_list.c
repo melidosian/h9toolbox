@@ -63,6 +63,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         unsigned ev = aprs_event();
         if (ev == EV_STORE) { if (aprs_store(api, MAIL_PAGE_LIST)) return 0; }
         else if (ev == EV_REDRAW) draw_list();
+        else if (ev == EV_DIGIT + 3 && aprs_go_messages(api)) return 0;
         else if (aprs_tab(api, ev, TAB_LIST)) return 0;
         else if (ev == EV_HOLD) { if (aprs_go(api, APRS_MAP) || aprs_go(api, APRS_MSG)) return 0; }
         else if (ev == EV_BACK) { aprs_side(A->home_side); SPEAKER_ON(A->home_speaker); return 0; }

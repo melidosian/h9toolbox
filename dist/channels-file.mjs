@@ -1,4 +1,5 @@
 import { CHANNEL_COUNT, readChannel, writeChannel, clearChannel } from './channel.mjs';
+import { checkLongName, longNameField } from './channel-labels.mjs';
 
 export const CHANNELS_FORMAT = 'td-h9-channels';
 export const CHANNELS_VERSION = 1;
@@ -15,16 +16,21 @@ function channelData(channel) {
   const {valid, ...data} = channel;
   return {...data, tx: data.tx ?? ''};
 }
-export function exportChannels(image) {
+export function exportChannels(image, longNames = new Map()) {
   checkImage(image);
   const channels = [];
   for (let n=1; n<=CHANNEL_COUNT; n++) {
     const channel = readChannel(image,n);
-    if (channel.valid) channels.push(channelData(channel));
+    if (channel.valid) channels.push({...channelData(channel), ...longNameField(n, longNames)});
   }
   return {format:CHANNELS_FORMAT, formatVersion:CHANNELS_VERSION, model:'TD-H9', mode:modeNames[image[7]], replaceAll:false, channels};
 }
-export function inspectChannelImport(image, document) {
+function sameChannelData(current, entry) {
+  const {longName, ...nativeEntry} = entry;
+  return JSON.stringify(channelData(current)) === JSON.stringify(nativeEntry);
+}
+
+export function inspectChannelImport(image, document, longNames = new Map()) {
   checkImage(image);
   if (!document || document.format !== CHANNELS_FORMAT || document.formatVersion !== CHANNELS_VERSION || document.model !== 'TD-H9' || document.mode !== modeNames[image[7]] || !Array.isArray(document.channels)) {
     throw new Error('Expected TD-H9 channel data for the same radio mode.');
@@ -33,12 +39,14 @@ export function inspectChannelImport(image, document) {
   for (const entry of document.channels) {
     if (!entry || !Number.isInteger(entry.n) || entry.n < 1 || entry.n > CHANNEL_COUNT || seen.has(entry.n)) throw new Error('Channels file has an invalid or duplicate channel number.');
     seen.add(entry.n);
+    if (Object.hasOwn(entry, 'longName')) checkLongName(entry.longName, `Channel ${entry.n} long name`);
     const current = readChannel(image,entry.n);
     if (entry.clear === true) {
       if (current.valid) removals.push(entry.n);
       else unchanged.push(entry.n);
     } else if (!current.valid) additions.push(entry.n);
-    else if (JSON.stringify(channelData(current)) === JSON.stringify(entry)) unchanged.push(entry.n);
+    else if (sameChannelData(current, entry) && (!Object.hasOwn(entry, 'longName') ||
+      checkLongName(entry.longName) === (longNames.get(entry.n) ?? ''))) unchanged.push(entry.n);
     else conflicts.push(entry.n);
   }
   if (document.replaceAll === true) {
@@ -46,13 +54,24 @@ export function inspectChannelImport(image, document) {
   }
   return {conflicts, additions, removals, unchanged};
 }
-export function importChannels(image, document) {
-  const plan = inspectChannelImport(image, document);
+export function importChannels(image, document, longNames = new Map()) {
+  const plan = inspectChannelImport(image, document, longNames);
   let next = image.slice();
-  for (const n of [...plan.removals, ...plan.conflicts]) next = clearChannel(next,n);
-  for (const entry of document.channels) {
-    if (entry.clear === true || plan.unchanged.includes(entry.n)) continue;
-    next = writeChannel(next,entry.n,entry);
+  const nextNames = new Map(longNames);
+  for (const n of plan.removals) {
+    next = clearChannel(next, n);
+    nextNames.set(n, '');
   }
-  return {image:next, ...plan};
+  for (const entry of document.channels) {
+    if (entry.clear === true) {
+      nextNames.set(entry.n, '');
+      continue;
+    }
+    if (Object.hasOwn(entry, 'longName')) nextNames.set(entry.n, checkLongName(entry.longName));
+    const current = readChannel(image, entry.n);
+    if (current.valid && sameChannelData(current, entry)) continue;
+    if (current.valid) next = clearChannel(next, entry.n);
+    next = writeChannel(next, entry.n, entry);
+  }
+  return {image:next, longNames:nextNames, ...plan};
 }

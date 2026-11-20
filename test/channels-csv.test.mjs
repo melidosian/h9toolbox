@@ -65,3 +65,20 @@ test('CSV rejects wrong radio modes, duplicates, and malformed rows', () => {
   assert.throws(() => parseChannelsCsv(csv.replace('"146.52000"', '"oops"'), before), /RX must be/);
   assert.throws(() => parseChannelsCsv(csv + '"unfinished', before), /unclosed quoted field/);
 });
+
+test('optional CSV long_name round-trips guards and explicitly clears when blank', () => {
+  const before = writeChannel(image(), 1, channel(1, 'SHORT'));
+  const names = new Map([[1, '=A1 + named repeater']]);
+  const csv = serializeChannelsCsv(exportChannels(before, names));
+  assert.match(csv.split('\r\n')[0], /"long_name"$/);
+  assert.match(csv, /"'=A1/);
+  const parsed = parseChannelsCsv(csv, before);
+  assert.equal(parsed.channels[0].longName, '=A1 + named repeater');
+  const clearedCsv = serializeChannelsCsv(exportChannels(before, new Map([[1, '']])));
+  const cleared = importChannels(before, parseChannelsCsv(clearedCsv, before), names);
+  assert.deepEqual(cleared.image, before);
+  assert.equal(cleared.longNames.get(1), '');
+  const legacy = serializeChannelsCsv(exportChannels(before));
+  assert.doesNotMatch(legacy.split('\r\n')[0], /long_name/);
+  assert.equal(importChannels(before, parseChannelsCsv(legacy, before), names).longNames.get(1), '=A1 + named repeater');
+});

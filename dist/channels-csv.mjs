@@ -1,5 +1,6 @@
 import { CHANNEL_COUNT, CTCSS_TONES, DCS_CODES, encodeFrequency } from './channel.mjs';
 import { CHANNELS_FORMAT, CHANNELS_VERSION } from './channels-file.mjs';
+import { checkLongName } from './channel-labels.mjs';
 
 export const CSV_HEADERS = [
   'radio_mode', 'channel', 'action', 'name', 'rx_mhz', 'tx_mhz', 'modulation',
@@ -7,6 +8,7 @@ export const CSV_HEADERS = [
   'rx_dcs_polarity', 'power', 'scan', 'enabled', 'offset_direction', 'ptt_id',
   'scramble', 'busy_lock', 'hopping',
 ];
+const LONG_NAME_HEADER = 'long_name';
 const radioModes = {0x4e:'Normal', 0x48:'HAM', 0x47:'GMRS'};
 const powers = ['low', 'mid', 'high', 'unknown'];
 const directions = ['none', 'minus', 'plus', 'unknown'];
@@ -37,7 +39,14 @@ export function serializeChannelsCsv(document) {
       document.model !== 'TD-H9' || !['Normal', 'HAM', 'GMRS'].includes(document.mode) || !Array.isArray(document.channels)) {
     throw new Error('Expected TD-H9 channel data.');
   }
-  const rows = [CSV_HEADERS, ...document.channels.map(channel => rowFor(channel, document.mode))];
+  const hasLongNames = document.channels.some(channel => Object.hasOwn(channel, 'longName'));
+  const columns = hasLongNames ? [...CSV_HEADERS, LONG_NAME_HEADER] : CSV_HEADERS;
+  const rows = [columns, ...document.channels.map(channel => {
+    const row = rowFor(channel, document.mode);
+    if (hasLongNames) row.push(Object.hasOwn(channel, 'longName') ?
+      safeName(checkLongName(channel.longName)) : '');
+    return row;
+  })];
   return rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
 
@@ -128,13 +137,17 @@ export function parseChannelsCsv(text, image) {
     if (action === 'clear') { channels.push({n, clear:true}); continue; }
     if (action !== 'set') throw new Error(`Row ${line}: action must be set or clear.`);
     const name = originalName(field(row, 'name'));
+    const longName = field(row, LONG_NAME_HEADER);
+    const longNameEntry = longName === undefined ? {} : {
+      longName: checkLongName(originalName(longName), `Row ${line}: long name`),
+    };
     if (!/^[\x20-\x7e]{0,8}$/.test(name)) throw new Error(`Row ${line}: name must be at most 8 plain ASCII characters.`);
     const modulation = field(row, 'modulation').trim().toUpperCase();
     if (!['FM', 'NFM', 'AM', 'NAM'].includes(modulation)) throw new Error(`Row ${line}: modulation must be FM, NFM, AM, or NAM.`);
     const scrambleCell = field(row, 'scramble').trim(), scramble = Number(scrambleCell);
     if (!/^\d+$/.test(scrambleCell) || !Number.isInteger(scramble) || scramble < 0 || scramble > 255) throw new Error(`Row ${line}: scramble must be 0–255.`);
     channels.push({
-      n, name, rx:frequency(field(row, 'rx_mhz'), 'RX', line), tx:frequency(field(row, 'tx_mhz'), 'TX', line, true),
+      n, name, ...longNameEntry, rx:frequency(field(row, 'rx_mhz'), 'RX', line), tx:frequency(field(row, 'tx_mhz'), 'TX', line, true),
       used:booleanValue(field(row, 'enabled'), 'enabled', line), scan:booleanValue(field(row, 'scan'), 'scan', line),
       rxTone:toneValue(field(row, 'rx_tone_type'), field(row, 'rx_tone'), field(row, 'rx_dcs_polarity'), 'RX', line),
       txTone:toneValue(field(row, 'tx_tone_type'), field(row, 'tx_tone'), field(row, 'tx_dcs_polarity'), 'TX', line),

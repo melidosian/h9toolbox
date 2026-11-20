@@ -541,6 +541,12 @@ int aprs_go(const struct h9_api *api, const char *name)
     return 0;
 }
 
+void aprs_close(void)
+{
+    aprs_side(A->home_side);
+    SPEAKER(A->home_speaker);
+}
+
 int aprs_store(const struct h9_api *api, unsigned page)
 {
     A->mail_action = MAIL_OP_SAVE;

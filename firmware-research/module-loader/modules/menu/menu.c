@@ -37,6 +37,9 @@ static unsigned return_to_radio(void)
 }
 
 unsigned toolbox_menu(const struct h9_api *api, unsigned count);
+#ifdef H9_RADIO_SETTINGS
+void toolbox_open_messages(void);
+#endif
 #else
 enum { TITLE_H = 22, ROW_Y = 26, ROW_H = 18, ROWS = 5, FOOT_Y = 117, MAX_ITEMS = 64 };
 enum { ITEM_USB = -2 };
@@ -105,6 +108,11 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     if (rq->magic != H9_REQUEST_MAGIC) vfo_restore_pending(api->read);   /* opened by hold Back: the tracker is stopped */
     if (rq->magic == H9_REQUEST_MAGIC) {
         rq->magic = 0;
+#ifdef H9_RADIO_SETTINGS
+        unsigned j = 0;
+        while (H9_MESSAGE_CENTER[j] && rq->name[j] == H9_MESSAGE_CENTER[j]) ++j;
+        if (!H9_MESSAGE_CENTER[j] && !rq->name[j]) toolbox_open_messages();
+#endif
         for (unsigned i = 1; i < count; i++) {
             struct h9_entry entry;
             unsigned k = 0;

@@ -39,6 +39,19 @@ test('round trip and corruption', () => {
   assert.throws(() => parseBundle(new Uint8Array(64)), /Not an H9MODS01/);
 });
 
+test('app-declared menu categories survive export and bundle rebuild', () => {
+  const game = { ...BB, category: 'games' };
+  const built = buildBundle([MENU, game, ABOUT]);
+  const parsed = parseBundle(built);
+  assert.equal(parsed[1].category, 'games');
+  assert.equal(parsed[2].category, undefined);
+  assert.equal(parseBundle(buildBundle([parsed[0], parsed[2], parsed[1]]))[2].category, 'games');
+  assert.equal(describeChanges([MENU, BB], [MENU, game]).updated.length, 1);
+  built[built.length - 2] = 255;
+  assert.throws(() => parseBundle(built), /menu metadata/);
+  assert.throws(() => buildBundle([MENU, { ...BB, category: 'unknown' }]), /category/);
+});
+
 test('memory limits: RAM slot, chip slot, names', () => {
   assert.deepEqual(checkModule(mod('OK', RAM_SLOT)).errors, []);
   assert.match(checkModule(mod('BIG', RAM_SLOT, { bss: 1 })).errors.join(), /RAM/);

@@ -36,6 +36,13 @@ is 1 MB). Music stays at `0xCE0000`.
              u32 size  u32 bss  u16 entry (offset from 0x29F00)  u16 CRC-16/XMODEM of the body
 ```
 
+An optional `H9MENU01` trailer after the module bodies contains one category
+byte per module, in entry order. The header length includes the trailer.
+The values are 0 for the default, 1 for Apps, 2 for Games, 3 for Radio
+Tools, 4 for Diagnostics, 5 for Setup and 6 for APRS. Apps can declare the
+category when they are packaged. Older loaders still read the original
+entry layout. The App Manager preserves this metadata when editing bundles.
+
 Module 0 is the menu. The stub accepts a bundle only if the directory
 (magic, one segment at `0xCC1000`, CRC-16) is valid, its `H9DATA-COMPLETE`
 marker is set (written only after the uploader reads everything back), the

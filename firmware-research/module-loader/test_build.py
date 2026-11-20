@@ -40,6 +40,14 @@ class Bundle(unittest.TestCase):
             self.assertEqual(p["offset"] % 4, 0)
         self.assertEqual(struct.unpack_from("<I", data, 12)[0], len(data))
 
+    def test_bundle_menu_category_round_trip(self):
+        mod = {"name": "GAME", "body": b"\0\1", "bss": 0, "entry": 0, "category": "games"}
+        data = build.bundle([mod])
+        self.assertEqual(build.parse_bundle(data)[0]["category"], "games")
+        self.assertEqual(build.parse_bundle(build.bundle(build.parse_bundle(data)))[0]["category"], "games")
+        with self.assertRaisesRegex(ValueError, "menu metadata"):
+            build.parse_bundle(data[:-1] + b"\xff")
+
     def test_limits(self):
         build.bundle([module("A", 0x2000)])
         with self.assertRaises(ValueError):
@@ -59,11 +67,11 @@ class Bundle(unittest.TestCase):
 
 
 class SerialCloneWrite(unittest.TestCase):
-    """The patch that sends serial / USB clone writes at 0x2000-0x3FFF through Bluetooth's sector-aware routine."""
+    """USB clone writes use sector-aware writes, including channels in unified builds."""
 
     def test_shim_routes_the_range_and_keeps_the_stock_path(self):
         shim = STUB[STUB.index("ml_serial_write:"):STUB.index("/* ---- what a module gets in r0")]
-        self.assertIn("if (r0 < 0x2000) goto mlsw_stock", shim)
+        self.assertIn(".ifndef ML_LABELS_LOOP\n    if (r0 < 0x2000) goto mlsw_stock\n    .endif", shim)
         self.assertIn("if (r0 >= 0x4000) goto mlsw_stock", shim)
         self.assertIn("r3 = 0x01e5027c", shim)                 # Bluetooth's write: it overwrites r3, so r3 may be clobbered
         self.assertIn("goto r3", shim)
@@ -106,11 +114,20 @@ class ResourceWriteProtection(unittest.TestCase):
         shift, low, high, deny, ret, allow = instructions("ml_s2_guard", 6)
         self.assertEqual(shift[2], "r2 = r0 >> 12")
         for branch in (low, high):
-            match = re.fullmatch(r"if \(r2 (?:< 1018|>= 1024)\) goto (-?\d+)", branch[2])
+            match = re.fullmatch(r"if \(r2 (?:< 1014|>= 1024)\) goto (-?\d+)", branch[2])
             self.assertIsNotNone(match, branch[2])
             self.assertEqual(branch[0] + branch[1] + int(match[1]), allow[0])
         self.assertEqual((deny[2], ret[2], allow[2]), ("r0 = 0", "rts", "goto r3"))
-        self.assertEqual((0x3fa << 12, 0x400 << 12), (0x3FA000, 0x400000))
+        self.assertEqual((0x3f6 << 12, 0x400 << 12), (0x3F6000, 0x400000))
+
+
+class FirmwareVersion(unittest.TestCase):
+    def test_version_word_keeps_low_bytes_and_records_release_candidate(self):
+        self.assertEqual(build.firmware_version_word("0.1.6"), 0x00000106)
+        self.assertEqual(build.firmware_version_word("0.1.6-rc.1"), 0x01000106)
+        for invalid in ("0.1", "0.1.256", "0.1.6-rc.0", "0.1.6-rc.256"):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                build.firmware_version_word(invalid)
 
 
 class DevKiss(unittest.TestCase):

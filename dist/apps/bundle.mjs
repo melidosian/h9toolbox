@@ -21,6 +21,10 @@ export const MENU_LIST_MAX = 64;         // menu.c shows at most this many modul
 // Characters the menu's font can draw (modules/menu/font5x7.py; lower case is shown as upper case).
 export const MENU_CHARS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.:>/?';
 
+// Optional trailer. Older loaders continue to consume the same entry layout.
+const MENU_METADATA = 'H9MENU01';
+export const MENU_CATEGORIES = Object.freeze(['', 'apps', 'games', 'tools', 'diagnostics', 'setup', 'aprs']);
+
 const text = new TextEncoder();
 const ascii = bytes => String.fromCharCode(...bytes);
 
@@ -33,6 +37,7 @@ export function checkModule(m) {
   if (m.body?.length + m.bss > RAM_SLOT) errors.push(`needs ${(m.body.length + m.bss).toLocaleString()} bytes of RAM; the slot has ${RAM_SLOT.toLocaleString()}`);
   if (!(m.entry >= 0 && m.entry < m.body?.length && m.entry <= 0xffff)) errors.push('entry point outside the body');
   if (!(m.bss >= 0 && m.bss < RAM_SLOT)) errors.push('bad bss size');
+  if (!MENU_CATEGORIES.includes(m.category ?? '')) errors.push('unknown menu category');
   const unsupported = [...new Set([...(m.name ?? '').toUpperCase()].filter(c => !MENU_CHARS.includes(c)))];
   if (unsupported.length) warnings.push(`the menu shows ${unsupported.map(c => JSON.stringify(c)).join(' ')} as blank`);
   return { errors, warnings };
@@ -47,7 +52,9 @@ export function layout(modules) {
     offset += m.body.length;
     return at;
   });
-  return { offsets: placed, bytes: offset };
+  const hasMetadata = modules.some(m => m.category);
+  return { offsets: placed, metadataAt: offset,
+    bytes: offset + (hasMetadata ? MENU_METADATA.length + modules.length : 0) };
 }
 
 export function buildBundle(modules) {
@@ -56,7 +63,7 @@ export function buildBundle(modules) {
     const { errors } = checkModule(m);
     if (errors.length) throw new Error(`${m.name || 'module'}: ${errors.join('; ')}`);
   }
-  const { offsets, bytes } = layout(modules);
+  const { offsets, metadataAt, bytes } = layout(modules);
   if (bytes > CHIP_SLOT) throw new Error(`The bundle (${bytes.toLocaleString()} bytes) is larger than the ${CHIP_SLOT.toLocaleString()}-byte modules slot.`);
   const out = new Uint8Array(bytes).fill(0xff);
   const view = new DataView(out.buffer);
@@ -75,6 +82,10 @@ export function buildBundle(modules) {
     view.setUint16(e + 30, crc16(m.body), true);
     out.set(m.body, offsets[i]);
   });
+  if (metadataAt < bytes) {
+    out.set(text.encode(MENU_METADATA), metadataAt);
+    modules.forEach((m, i) => { out[metadataAt + MENU_METADATA.length + i] = MENU_CATEGORIES.indexOf(m.category ?? ''); });
+  }
   return out;
 }
 
@@ -85,6 +96,9 @@ export function parseBundle(bytes) {
   if (version !== VERSION) throw new Error(`Unsupported bundle version ${version}.`);
   if (count < 1 || count > MAX_MODULES || length !== bytes.length || HEADER + ENTRY * count > length) throw new Error('Bad bundle header.');
   const modules = [];
+  const trailer = length - MENU_METADATA.length - count;
+  const hasMetadata = trailer >= HEADER + ENTRY * count &&
+    ascii(bytes.subarray(trailer, trailer + MENU_METADATA.length)) === MENU_METADATA;
   for (let i = 0; i < count; i++) {
     const e = HEADER + ENTRY * i;
     const name = ascii(bytes.subarray(e, e + NAME_BYTES)).replace(/\0+$/, '');
@@ -93,7 +107,10 @@ export function parseBundle(bytes) {
     if (!(size > 0 && size + bss <= RAM_SLOT && entry < size && offset + size <= length)) throw new Error(`Module ${i} (${name}) has a bad entry.`);
     const body = bytes.slice(offset, offset + size);
     if (crc16(body) !== crc) throw new Error(`Module ${i} (${name}) fails its CRC.`);
-    modules.push({ name, body, bss, entry, crc });
+    const group = hasMetadata ? bytes[trailer + MENU_METADATA.length + i] : 0;
+    if (group >= MENU_CATEGORIES.length || (hasMetadata && offset + size > trailer))
+      throw new Error(`Module ${i} (${name}) has bad menu metadata.`);
+    modules.push({ name, body, bss, entry, crc, ...(group ? { category: MENU_CATEGORIES[group] } : {}) });
   }
   return modules;
 }

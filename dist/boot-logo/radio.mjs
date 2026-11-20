@@ -429,7 +429,7 @@ export async function connectBluetooth({ log = () => {}, onDisconnect = () => {}
 }
 
 // Web Serial reaches the clone handler with the radio powered on normally.
-export async function connectUsb({ log = () => {}, onDisconnect = () => {} } = {}) {
+export async function connectUsb({ log = () => {}, onDisconnect = () => {}, onReceive = () => {} } = {}) {
   const serial = globalThis.navigator?.serial;
   if (!serial) throw new Error('USB-C requires desktop Chrome or Edge over HTTPS.');
   const known = (await serial.getPorts()).filter(port => {
@@ -467,6 +467,7 @@ export async function connectUsb({ log = () => {}, onDisconnect = () => {} } = {
         const { value, done } = await reader.read();
         if (done) break;
         radio.receive(value);
+        onReceive(value);
       }
     } catch (error) {
       if (!closing) log(`USB serial: ${error.message}`, 'warn');

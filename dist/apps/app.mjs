@@ -148,7 +148,7 @@ function render() {
     const tr = document.createElement('tr');
     const { errors, warnings } = checkModule(m);
     const before = installed?.find(x => x.name === m.name);
-    const status = !installed || !before ? 'new' : before.crc !== m.crc || before.bss !== m.bss || before.entry !== m.entry ? 'changed' : '';
+    const status = !installed || !before ? 'new' : before.crc !== m.crc || before.bss !== m.bss || before.entry !== m.entry || before.category !== m.category ? 'changed' : '';
     const cells = [
       String(i),
       null,

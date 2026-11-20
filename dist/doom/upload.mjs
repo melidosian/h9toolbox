@@ -28,9 +28,9 @@ import {
 
 const ERASED_CRC = 0xe03e;
 const CHECK_EVERY = 16;
-// Mailbox pair, settings pair, VFO recovery and GPS fix occupy the final six
-// sectors. Game upload and deep restore stop before them.
-export const VOICE_UPLOAD_END = 0x3fa000;
+// The channel labels, mailbox and settings pairs, VFO recovery and GPS fix
+// occupy the end of the voice tail. Game writes stop before their journals.
+export const VOICE_UPLOAD_END = 0x3f6000;
 const LEGACY_AREAS = [
   { name: 'resource', start: 0xa1f000, end: 0xd00000 },
   { name: 'font', start: 0x717000, end: 0x800000 },
