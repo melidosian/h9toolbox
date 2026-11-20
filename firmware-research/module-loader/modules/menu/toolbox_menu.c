@@ -2,10 +2,25 @@
  * TD-H3 menu. The H9 module names and journaled APRS settings are its rows. */
 #include "app_theme.h"
 #include "../aprs/aprs_resident_config.h"
+#ifdef H9_RADIO_MENU_PREVIEW
+#include "../../menu-replacement/stock_menu_catalog.h"
+#endif
 
 enum { APRS, APRS_SETTINGS, TOOLS, APPS, DIAGNOSTICS, SETUP, GROUPS, APRS_PAGE };
-enum { MAX_APPS = 64, MAX_ITEMS = MAX_APPS + APRS_SETTING_COUNT + 1, HEADING = 0x80 };
+#ifdef H9_RADIO_MENU_PREVIEW
+enum { RADIO_FIRST = GROUPS, RADIO_GROUPS = GROUPS + RADIO_CATEGORY_COUNT };
+#define RADIO_ROWS RADIO_ITEM_COUNT
+#define MENU_GROUPS RADIO_GROUPS
+#else
+#define RADIO_ROWS 0
+#define MENU_GROUPS GROUPS
+#endif
+enum { MAX_APPS = 64, MAX_ITEMS = MAX_APPS + APRS_SETTING_COUNT + 1 + RADIO_ROWS, HEADING = 0x8000 };
+#ifdef H9_RADIO_MENU_PREVIEW
+enum { ROW_Y = UI_TITLE_H, ROW_H = 14, VISIBLE = 6, ROW_WIDTH = 155, NO_DIGIT = 1000 };
+#else
 enum { ROW_Y = UI_TITLE_H, ROW_H = 14, VISIBLE = 6, ROW_WIDTH = 155, NO_DIGIT = 10 };
+#endif
 enum { DIGIT_WAIT = 100, SAVE_WAIT = 200, IDLE_WAIT = 2000 }; /* 100 Hz tick */
 #ifndef MENU_TICK
 #define MENU_TICK (*(const volatile uint32_t *)0x1D8B0u)
@@ -39,7 +54,7 @@ static const struct tool_label tools[] = {
 struct menu_option { uint8_t group, index, row; };
 struct menu_list {
     struct menu_option options[MAX_ITEMS];
-    uint8_t rows[MAX_ITEMS + GROUPS];
+    uint16_t rows[MAX_ITEMS + MENU_GROUPS];
     unsigned count, row_count;
 };
 
@@ -89,8 +104,16 @@ static unsigned app_group(const char *name, const struct tool_label *tool)
 
 static void add_option(struct menu_list *list, unsigned group, unsigned index)
 {
-    list->rows[list->row_count] = (uint8_t)list->count;
+    list->rows[list->row_count] = (uint16_t)list->count;
     list->options[list->count++] = (struct menu_option){ group, index, list->row_count++ };
+}
+
+static const char *group_name(unsigned group)
+{
+#ifdef H9_RADIO_MENU_PREVIEW
+    if (group >= RADIO_FIRST) return radio_categories[group - RADIO_FIRST].name;
+#endif
+    return groups[group];
 }
 
 static void build_list(struct menu_list *list, const struct h9_api *api, unsigned count)
@@ -111,7 +134,7 @@ static void build_list(struct menu_list *list, const struct h9_api *api, unsigne
     }
     for (unsigned group = 0; group < GROUPS; ++group) {
         unsigned heading = list->row_count;
-        list->rows[list->row_count++] = (uint8_t)(HEADING | group);
+        list->rows[list->row_count++] = (uint16_t)(HEADING | group);
         if (group == APRS_SETTINGS) {
             for (unsigned i = 0; i < APRS_SETTING_COUNT; ++i) add_option(list, group, i);
         } else {
@@ -124,6 +147,14 @@ static void build_list(struct menu_list *list, const struct h9_api *api, unsigne
         }
         if (list->row_count == heading + 1) list->row_count = heading;
     }
+#ifdef H9_RADIO_MENU_PREVIEW
+    for (unsigned i = 0; i < RADIO_CATEGORY_COUNT; ++i) {
+        unsigned group = RADIO_FIRST + i;
+        list->rows[list->row_count++] = (uint16_t)(HEADING | group);
+        for (unsigned j = 0; j < radio_categories[i].count; ++j)
+            add_option(list, group, j);
+    }
+#endif
 }
 
 static const char *draw_row(const struct h9_api *api, const struct menu_list *list,
@@ -136,7 +167,7 @@ static const char *draw_row(const struct h9_api *api, const struct menu_list *li
     unsigned item = list->rows[row];
     if (item & HEADING) {
         gfx_fill(0, y, ROW_WIDTH, ROW_H, UI_BG);
-        unsigned x = gfx_text(3, y + 3, groups[item & ~HEADING], 20, 1, UI_DIM, UI_BG);
+        unsigned x = gfx_text(3, y + 3, group_name(item & ~HEADING), 20, 1, UI_DIM, UI_BG);
         gfx_text(x + 6, y + 3, "-------------------------", (ROW_WIDTH - x - 6) / 6, 1, UI_DIM, UI_BG);
         return 0;
     }
@@ -147,6 +178,11 @@ static const char *draw_row(const struct h9_api *api, const struct menu_list *li
         label = settings[option.index];
         value = aprs_setting_value(option.index, state->available ? &state->draft : 0, minutes);
         help = setting_help[option.index];
+#ifdef H9_RADIO_MENU_PREVIEW
+    } else if (option.group >= RADIO_FIRST) {
+        label = radio_categories[option.group - RADIO_FIRST].items[option.index];
+        help = "STOCK CONTROL NOT WIRED";
+#endif
     } else if (option.index) {
         read_name(api, option.index, name);
         const struct tool_label *tool = named_tool(name);
@@ -166,12 +202,23 @@ static void draw_menu(const struct h9_api *api, const struct menu_list *list, co
 {
     struct menu_option option = list->options[state->selected];
     unsigned item = state->selected + 1;
+#ifdef H9_RADIO_MENU_PREVIEW
+    char count[] = { '0' + item / 100, '0' + item / 10 % 10, '0' + item % 10, '/',
+                     '0' + list->count / 100, '0' + list->count / 10 % 10,
+                     '0' + list->count % 10, 0 };
+    if (state->digit != NO_DIGIT) {
+        count[0] = '-';
+        count[1] = state->digit >= 10 ? '0' + state->digit / 10 : '-';
+        count[2] = '0' + state->digit % 10;
+    }
+#else
     char count[] = { '0' + item / 10, '0' + item % 10, '/',
                      '0' + list->count / 10, '0' + list->count % 10, 0 };
     if (state->digit != NO_DIGIT) { count[0] = '0' + state->digit; count[1] = '-'; }
+#endif
     gfx_fill(0, 0, H9_WIDTH, ROW_Y, UI_BG);
-    gfx_text(UI_LEFT, UI_TITLE_Y, groups[option.group], 20, 1, UI_ACCENT, UI_BG);
-    gfx_text(H9_WIDTH - 33, UI_TITLE_Y, count, 5, 1, UI_ACCENT, UI_BG);
+    gfx_text(UI_LEFT, UI_TITLE_Y, group_name(option.group), 20, 1, UI_ACCENT, UI_BG);
+    gfx_text(H9_WIDTH - sizeof count * 6 + 1, UI_TITLE_Y, count, sizeof count - 1, 1, UI_ACCENT, UI_BG);
 
     unsigned top = option.row < VISIBLE / 2 ? 0 : option.row - VISIBLE / 2;
     unsigned limit = list->row_count > VISIBLE ? list->row_count - VISIBLE : 0;
@@ -220,16 +267,26 @@ static void select_number(struct menu_state *state, unsigned count, unsigned num
 
 unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
 {
-    struct menu_list list;
-    list.count = list.row_count = 0;
+#ifdef H9_RADIO_MENU_PREVIEW
+#ifndef MENU_LIST_STORAGE
+    /* The far menu's RAM module is only an eight-byte jump. Its unused slot
+     * holds the larger list while this menu runs; the next module replaces it. */
+#define MENU_LIST_STORAGE ((struct menu_list *)0x29F20u)
+#endif
+    struct menu_list *list = MENU_LIST_STORAGE;
+#else
+    struct menu_list stack_list;
+    struct menu_list *list = &stack_list;
+#endif
+    list->count = list->row_count = 0;
     struct menu_state state = { .digit = NO_DIGIT };
     const struct h9_runtime_api *api = aprs_runtime(loader);
-    build_list(&list, loader, count);
+    build_list(list, loader, count);
     unsigned saved_row = MENU_SELECTION;
-    if (saved_row < list.count) state.selected = saved_row;
+    if (saved_row < list->count) state.selected = saved_row;
     state.available = read_settings(api, &state);
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
-    draw_menu(loader, &list, &state);
+    draw_menu(loader, list, &state);
     gfx_wait_release();
     uint32_t last_key = MENU_TICK;
     unsigned sample = H9_KEY_NONE, stable = H9_KEY_NONE;
@@ -242,7 +299,7 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
             redraw = 1;
         }
         if (state.digit != NO_DIGIT && now - last_key >= DIGIT_WAIT) {
-            select_number(&state, list.count, state.digit);
+            select_number(&state, list->count, state.digit);
             redraw = 1;
         }
         if (now - last_key >= IDLE_WAIT) return 0;
@@ -258,12 +315,27 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
                     unsigned digit = key - 2;
                     save_pending(loader, api, &state);
                     state.editing = 0;
-                    if (state.digit != NO_DIGIT) select_number(&state, list.count, 10 * state.digit + digit);
-                    else if (digit > list.count / 10) select_number(&state, list.count, digit);
+#ifdef H9_RADIO_MENU_PREVIEW
+                    if (state.digit != NO_DIGIT) {
+                        unsigned number = 10 * state.digit + digit;
+                        if (number > list->count / 10) select_number(&state, list->count, number);
+                        else state.digit = number;
+                    } else if (digit > list->count / 10) select_number(&state, list->count, digit);
                     else state.digit = digit;
+#else
+                    if (state.digit != NO_DIGIT) select_number(&state, list->count, 10 * state.digit + digit);
+                    else if (digit > list->count / 10) select_number(&state, list->count, digit);
+                    else state.digit = digit;
+#endif
                 } else {
+#ifdef H9_RADIO_MENU_PREVIEW
+                    if (key == H9_KEY_MENU && state.digit != NO_DIGIT)
+                        select_number(&state, list->count, state.digit);
+                    else state.digit = NO_DIGIT;
+#else
                     state.digit = NO_DIGIT;
-                    struct menu_option option = list.options[state.selected];
+#endif
+                    struct menu_option option = list->options[state.selected];
                     if (key == H9_KEY_UP || key == H9_KEY_DOWN) {
                         int direction = key == H9_KEY_UP ? 1 : -1;
                         if (state.editing) {
@@ -273,9 +345,9 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
                                 state.last_edit = now;
                             }
                         } else if (direction > 0) {
-                            state.selected = state.selected ? state.selected - 1 : list.count - 1;
+                            state.selected = state.selected ? state.selected - 1 : list->count - 1;
                         } else {
-                            state.selected = (state.selected + 1) % list.count;
+                            state.selected = (state.selected + 1) % list->count;
                         }
                     } else if (state.editing && (key == H9_KEY_MENU || key == H9_KEY_BACK)) {
                         save_pending(loader, api, &state);
@@ -288,9 +360,16 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
                         else if (option.index == APRS_INTERVAL && !state.draft.timed) state.notice = "TIMED MODE ONLY";
                         else state.editing = 1;
                     } else if (key == H9_KEY_MENU) {
-                        if (option.index) return option.index;
-                        h9_usb_loader();
-                        return 0;
+#ifdef H9_RADIO_MENU_PREVIEW
+                        if (option.group >= RADIO_FIRST) {
+                            state.notice = "STOCK CONTROL NOT WIRED";
+                        } else
+#endif
+                        if (option.index) {
+                            MENU_SELECTION = state.selected;
+                            return option.index;
+                        }
+                        else { h9_usb_loader(); return 0; }
                     }
                 }
             }
@@ -298,7 +377,7 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
         sample = key;
         if (redraw) {
             MENU_SELECTION = state.selected;
-            draw_menu(loader, &list, &state);
+            draw_menu(loader, list, &state);
         }
     }
 }

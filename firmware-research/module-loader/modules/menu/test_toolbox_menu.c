@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -7,6 +8,10 @@
 static uint32_t tick, menu_selection;
 #define MENU_TICK tick
 #define MENU_SELECTION menu_selection
+#ifdef H9_RADIO_MENU_PREVIEW
+static max_align_t preview_list_storage[2048 / sizeof(max_align_t) + 1];
+#define MENU_LIST_STORAGE ((struct menu_list *)preview_list_storage)
+#endif
 #include "toolbox_menu.c"
 
 #define BEACON_TICK tick
@@ -17,6 +22,9 @@ static const char names[][H9_NAME_BYTES] = {
     "APRS MAP", "APRS MSG", "APRS SEND"
 };
 static unsigned saves, committed_at, fail_save, saw_edit, saw_settings, saw_failure, saw_status, usb_updates;
+#ifdef H9_RADIO_MENU_PREVIEW
+static unsigned saw_unwired;
+#endif
 static unsigned omit_station_list;
 static struct ts_settings stored;
 
@@ -103,6 +111,9 @@ unsigned gfx_text(unsigned x, unsigned y, const char *text, unsigned max, unsign
     saw_settings |= !strcmp(text, "APRS SETTINGS");
     saw_failure |= !strcmp(text, "SETTINGS SAVE FAILED");
     saw_status |= !strcmp(text, "GPS FIX  BEACON DUE");
+#ifdef H9_RADIO_MENU_PREVIEW
+    saw_unwired |= !strcmp(text, "STOCK CONTROL NOT WIRED");
+#endif
     return x + n * 6 * scale;
 }
 
@@ -117,12 +128,24 @@ int main(void)
 {
     struct menu_list list = { .count = 0 };
     build_list(&list, &loader, sizeof names / sizeof *names);
-    assert(list.count == 12 && list.options[0].index == 2 && list.options[1].index == 5);
+#ifdef H9_RADIO_MENU_PREVIEW
+    assert(list.count == 122 && list.options[12].group == RADIO_FIRST);
+    assert(!strcmp(radio_categories[0].items[0], "Squelch Lv"));
+    assert(!strcmp(radio_categories[9].items[6], "APRS Reset"));
+#else
+    assert(list.count == 12);
+#endif
+    assert(list.options[0].index == 2 && list.options[1].index == 5);
     assert(list.options[9].group == DIAGNOSTICS && list.options[9].index == 7);
     omit_station_list = 1;
     list.count = list.row_count = 0;
     build_list(&list, &loader, sizeof names / sizeof *names);
-    assert(list.count == 15 && list.options[2].group == APRS && list.options[2].index == 8);
+#ifdef H9_RADIO_MENU_PREVIEW
+    assert(list.count == 125);
+#else
+    assert(list.count == 15);
+#endif
+    assert(list.options[2].group == APRS && list.options[2].index == 8);
     assert(list.options[3].group == APRS && list.options[3].index == 9);
     assert(list.options[4].group == APRS && list.options[4].index == 10);
     omit_station_list = 0;
@@ -152,5 +175,15 @@ int main(void)
     keys = beacon;
     tick = 0;
     assert(module_main(&loader, 5) == 0 && saw_status && saves == 3);
+#ifdef H9_RADIO_MENU_PREVIEW
+    menu_selection = 12;
+    const struct press radio[] = {{ 16, H9_KEY_MENU }, { 36, H9_KEY_BACK }, { 0, 0 }};
+    assert(run_menu(radio) == 0 && saw_unwired && menu_selection == 12);
+    const struct press jump[] = {
+        { 16, H9_KEY_1 }, { 36, H9_KEY_1 }, { 56, H9_KEY_1 - 1 },
+        { 76, H9_KEY_MENU }, { 96, H9_KEY_BACK }, { 0, 0 }
+    };
+    assert(run_menu(jump) == 0 && menu_selection == 109 && usb_updates == 1);
+#endif
     puts("Toolbox grouping, digits, menu return, APRS saves, and read-only beacon status passed.");
 }

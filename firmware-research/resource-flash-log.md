@@ -5100,3 +5100,22 @@ result yet.**
   the normal Menu-key hook. This is a placement trial only:
   no native Menu callback patch, stock settings replacement, radio write or
   RF test occurred.
+
+## 2026-11-20 — unified list preview, still offline
+
+- Generated a C catalog from the pinned 119-row factory inventory. The
+  `--far-menu --radio-menu-preview` path appends the 110 active stock labels to
+  the sectioned Toolbox menu, retaining all ten native headings. The list
+  now has three-digit navigation; its 940-byte row/option buffer is placed in
+  the unused RAM module slot at `0x29F20` while the far menu is active.
+- Selecting a stock row displays `STOCK CONTROL NOT WIRED`; no stock setting
+  handler or normal Menu-key redirect exists yet. Both host menu variants
+  passed their navigation and APRS setting tests, including row 110. The
+  preview is not ready for a radio flash. The cross build produced an 8,234
+  byte far body (SHA-256
+  `582088ce38e557f6d459263cd20a50ee80969b259a7a0783010c91f138c671a1`)
+  and an unchanged main firmware package. The compiled `toolbox_menu` frame
+  is 284 bytes, with the 940-byte list in the free module slot.
+- The non-preview dev build still passes and its RAM MENU occupies 6,270 of
+  6,528 safe bytes. The main app SHA remains
+  `236ba5bc96c2860cd311475cb35f4f3e80bb1a01786f18543a98e3df7b42684d`.

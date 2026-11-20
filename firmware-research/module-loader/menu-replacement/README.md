@@ -27,9 +27,28 @@ app+`0x76982`. These are category-level targets, not implementations for
 individual rows. Radio Setting currently routes to the common epilogue;
 its individual setting handlers still need tracing.
 
-The current grouped Toolbox MENU module is 6,246 bytes. Its safe ceiling is
-6,528 bytes because shared satellite state begins at RAM `0x2B880`; only 282
+The starting grouped Toolbox MENU module was 6,246 bytes; the compatible
+non-preview build after these changes is 6,270 bytes. Its safe ceiling is
+6,528 bytes because shared satellite state begins at RAM `0x2B880`; only 258
 bytes remain. A complete radio settings editor must live outside that slot.
+
+## Offline unified list preview
+
+`generate_catalog.py` turns the pinned JSON inventory into
+`stock_menu_catalog.h`. With `--far-menu --radio-menu-preview`, the grouped
+Toolbox UI includes all 110 active stock row labels under their ten native
+category headings. The expanded list uses a three-digit position counter and
+can jump to three-digit row numbers. Its list storage occupies the unused RAM
+module slot at `0x29F20` while the far menu runs, rather than consuming the
+radio task stack. Host tests exercise the ordinary and preview menus.
+The preview body is 8,234 bytes at `0xEA000`; its compiled menu frame is
+284 bytes. The preview's `.fw` package is byte-identical to the dev baseline,
+so it does not contain this far body or a normal Menu-key hook.
+
+Selecting a stock row only displays `STOCK CONTROL NOT WIRED`. No stock
+setting is read, changed or saved through the preview, and the normal Menu
+key still enters the stock UI. This flag is for offline layout and navigation
+validation only. It is not an installable unified menu.
 
 ## Flash placement trial
 

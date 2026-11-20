@@ -256,9 +256,11 @@ def far_menu_trampoline(out: Path) -> bytes:
 
 def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
                   flash_shared: bool = False, auto_tx: bool = False,
-                  far_menu: bool = False) -> tuple[list[dict], bytes | None, bytes | None]:
+                  far_menu: bool = False, radio_menu_preview: bool = False) -> tuple[list[dict], bytes | None, bytes | None]:
     if far_menu and not flash_shared:
         raise ValueError("The far menu needs the stable API 5 flash helpers")
+    if radio_menu_preview and not far_menu:
+        raise ValueError("The radio menu preview needs far-flash placement")
     common = ROOT / "modules" / "common"
     run([sys.executable, "-I", str(common / "font5x7.py")])
     lib = [assemble(common / "h9lib.s", out), compile_c(common / "gfx.c", out, toolchain)]
@@ -285,7 +287,10 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
     far_menu_body = None
     if far_menu:
         sources = (menu_dir / "menu.c", *menu_sources)
-        objects = [compile_c(src, out, toolchain, flags=flags + ("-DH9_GROUPED_MENU",)) for src in sources]
+        menu_flags = flags + ("-DH9_GROUPED_MENU",)
+        if radio_menu_preview:
+            menu_flags += ("-DH9_RADIO_MENU_PREVIEW",)
+        objects = [compile_c(src, out, toolchain, flags=menu_flags) for src in sources]
         # The RAM trampoline targets the first far byte. Put the API gate
         # before the C objects and reject any linker layout that moves it.
         program = link([*lib, *objects], FAR_MENU_CPU, entry, out, "far_menu")
@@ -671,7 +676,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
 def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
           aprs_mute: bool = False, disable_morse: bool = False, dev_kiss: bool = False,
           resident_beacon: bool = False, *, flash_shared: bool = False, auto_tx: bool = False,
-          far_menu: bool = False) -> dict:
+          far_menu: bool = False, radio_menu_preview: bool = False) -> dict:
     stock = stock_image.read_bytes()
     if sha256(stock).hexdigest() != STOCK_SHA256:
         raise ValueError("Expected the exact official v1.0.38 main application")
@@ -681,13 +686,15 @@ def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
         raise ValueError("--flash-shared needs --resident-beacon")
     if far_menu and not flash_shared:
         raise ValueError("--far-menu needs --flash-shared")
+    if radio_menu_preview and not far_menu:
+        raise ValueError("--radio-menu-preview needs --far-menu")
     if auto_tx and not (resident_beacon and flash_shared and aprs_mute and disable_morse and dev_kiss):
         raise ValueError("--resident-tx needs the full shared-flash dev build")
     out.mkdir(parents=True, exist_ok=True)
     resident = build_resident(out, toolchain, auto_tx=auto_tx) if resident_beacon else None
     modules, flash, far_menu_body = build_modules(out, toolchain, resident_beacon,
                                                  flash_shared=flash_shared, auto_tx=auto_tx,
-                                                 far_menu=far_menu)
+                                                 far_menu=far_menu, radio_menu_preview=radio_menu_preview)
     screen_crc = crc16(next(m["body"] for m in modules if m["name"] == "APRS BEACON")) if resident else None
     firmware = build_firmware(stock, stock_package, out, aprs_mute, disable_morse, dev_kiss, resident, screen_crc,
                               flash=flash, auto_tx=auto_tx)
@@ -716,6 +723,7 @@ def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
         manifest["far_menu"] = {"flash_offset": hex(FAR_MENU_FLASH), "cpu_address": hex(FAR_MENU_CPU),
                                 "bytes": len(far_menu_body), "sha256": sha256(far_menu_body).hexdigest(),
                                 "required_with_bundle": True, "hardware_tested": False}
+    manifest["radio_menu_preview"] = radio_menu_preview
     (out / "h9_toolbox_modules-manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     return manifest
 
@@ -736,6 +744,8 @@ def main() -> int:
                         help="Enable resident beacon TX at the stock timed-beacon boundary")
     parser.add_argument("--far-menu", action="store_true",
                         help="Build the grouped menu in far flash with an 8-byte RAM trampoline")
+    parser.add_argument("--radio-menu-preview", action="store_true",
+                        help="Show stock radio labels in the grouped menu without setting handlers; offline only")
     args = parser.parse_args()
     if args.resident_beacon and not (args.aprs_mute and args.disable_morse and args.dev_kiss):
         parser.error("--resident-beacon needs --aprs-mute, --disable-morse and --dev-kiss")
@@ -745,6 +755,8 @@ def main() -> int:
         parser.error("--resident-tx needs --resident-beacon and --flash-shared")
     if args.far_menu and not args.flash_shared:
         parser.error("--far-menu needs --flash-shared")
+    if args.radio_menu_preview and not args.far_menu:
+        parser.error("--radio-menu-preview needs --far-menu")
     bundled = RESEARCH / "toolchain" / "jieli" / "jieli-linux-toolchains-20260730.1"
     toolchain = Path(os.environ.get("JIELI_TOOLCHAIN", bundled)).expanduser().resolve()
     if not (toolchain / "pi32v2").is_dir():
@@ -752,7 +764,8 @@ def main() -> int:
     print(json.dumps(build(args.stock_image.resolve(), args.stock_package.resolve(), toolchain,
                            args.output.resolve(), args.aprs_mute, args.disable_morse,
                            args.dev_kiss, args.resident_beacon, flash_shared=args.flash_shared,
-                           auto_tx=args.resident_tx, far_menu=args.far_menu), indent=1))
+                           auto_tx=args.resident_tx, far_menu=args.far_menu,
+                           radio_menu_preview=args.radio_menu_preview), indent=1))
     print("Offline build only; not hardware tested")
     return 0
 
