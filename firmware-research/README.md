@@ -21,7 +21,11 @@ This folder collects the TD-H9 v1.0.38 firmware investigation and tools. It is r
 The TD-H9 HID `C4` command was measured on a physical v1.0.38 radio. A request with block size 1 and an unaligned address returns CRC16 values for 4096-byte windows at 4096-byte strides, shifted by that address. Adjacent CRC windows differ by one outgoing and one incoming byte. CRC16 linearity lets the browser solve for the incoming byte when the previous sector is known, or the outgoing byte when the next sector is known. A live 4096-byte settings sector was reconstructed both forward from the verified official application image and backward from a verified erased sector; the two results matched byte for byte and matched the radio's sector CRC. No erase or write was sent in that test.
 
 The archive contains physical flash bytes `0x5000..0xFFFFF`, a checksum, and an explicit notice that protected boot bytes `0x0000..0x4FFF` are absent. Before accepting it, the browser checks the known image or an erased seed against shifted CRCs, verifies every reconstructed sector CRC, and rescans all accessible sector CRCs. Reconstruction on this radio's stock image uses about 12,285 shifted CRC requests; a nonmatching application image with an erased sector pair needs about 65,520. This protocol behavior is hardware observed on one radio and may differ on other firmware or devices. The page never writes the protected boot area or the retained settings region above `0xDA000`; the archive preserves those accessible settings bytes for offline recovery research. It is not a complete raw flash image and cannot repair corrupted protected boot bytes.
-- [Early browser USB probe](h9-usb-probe/index.html): exploratory WebUSB UI. The mass-storage update device cannot be accessed through WebUSB; use the Python flasher for that interface.
+
+## Archived experiments
+
+- [WebUSB probe](archive/webusb-probe.html) tested browser access to the mass-storage update device. Use the [Python flasher](h9-flasher/README.md) for that interface.
+- [Early resource loader design](archive/resource-loader-design.md) records the original proposal. The [module loader](module-loader/README.md) documents the implementation that shipped.
 
 ## Hardware findings
 
