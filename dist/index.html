@@ -19,8 +19,9 @@
   <meta name="twitter:description" content="Explore H9 Toolbox Firmware for the TIDRADIO TD-H9, with Quick Change shortcuts, on-radio APRS, and satellite tools. Program channels and settings over Bluetooth from your browser.">
   <title>TIDRADIO TD-H9 Custom Firmware &amp; Programmer | H9 Toolbox</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="/landing.css?v=20261121">
+  <link rel="stylesheet" href="/landing.css?v=20261121-carousel">
   <script src="/https-redirect.js"></script>
+  <script src="/firmware-carousel.js" defer></script>
   <script src="/analytics.js"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"H9 Toolbox","url":"https://h9toolbox.com/","description":"Free, independent browser tools for the TIDRADIO TD-H9 handheld radio: Bluetooth programming, custom firmware, and boot logo changes.","publisher":{"@type":"Organization","name":"H9 Toolbox","url":"https://h9toolbox.com/","sameAs":["https://github.com/melidosian/h9toolbox"]},"about":{"@type":"Product","name":"TIDRADIO TD-H9","brand":{"@type":"Brand","name":"TIDRADIO"},"category":"Handheld two-way radio"}}</script>
 </head>
@@ -39,14 +40,38 @@
           <p class="hero-lead">In v0.1.7, hold <strong>Back</strong> for Quick Change or hold <strong>#</strong> to start scanning. Open Toolbox for radio settings, APRS, GPS and FM satellite passes.</p>
           <div class="hero-start">
             <a class="hero-primary" href="/firmware/">Explore H9 Toolbox Firmware <span aria-hidden="true">↗</span></a>
-            <a class="subtle-link" href="/firmware-update/">Open firmware installer</a>
+            <a class="subtle-link" href="/programmer/">Open Channel Programmer</a>
           </div>
           <p class="home-compatibility">Firmware for the Type-C TD-H9 · Installs over USB-C</p>
         </div>
-        <figure class="landing-screen">
-          <img src="/firmware/quick-change.png" width="480" height="384" alt="Quick Change on the TD-H9 display, with a three-by-three grid of shortcuts and large setting values.">
-          <figcaption>Quick Change in v0.1.7</figcaption>
-        </figure>
+        <section class="landing-screen" aria-label="Firmware screenshots" aria-roledescription="carousel">
+          <div id="firmware-screens" aria-live="polite">
+            <figure>
+              <img src="/firmware/quick-change.png" width="480" height="384" alt="Nine numbered shortcuts with large current values and dividing lines.">
+              <figcaption>Quick Change <span>1 / 5</span></figcaption>
+            </figure>
+            <figure hidden>
+              <img src="/firmware/toolbox-menu.png" width="480" height="384" loading="lazy" alt="The Toolbox menu lists Radio Settings, Channel Settings, APRS, Radio Tools, Games, and Apps.">
+              <figcaption>Toolbox menu <span>2 / 5</span></figcaption>
+            </figure>
+            <figure hidden>
+              <img src="/apps/catalog/shots/aprs-map.png" width="480" height="384" loading="lazy" alt="An APRS map plots nearby stations by direction and distance.">
+              <figcaption>APRS station map <span>3 / 5</span></figcaption>
+            </figure>
+            <figure hidden>
+              <img src="/apps/catalog/shots/sat-track.png" width="480" height="384" loading="lazy" alt="The satellite tracker displays azimuth, elevation, and Doppler-adjusted frequencies.">
+              <figcaption>FM satellite tracking <span>4 / 5</span></figcaption>
+            </figure>
+            <figure hidden>
+              <img src="/apps/catalog/shots/gps-signals.png" width="480" height="384" loading="lazy" alt="GPS Info shows signal strength bars for navigation satellites.">
+              <figcaption>GPS signal strength <span>5 / 5</span></figcaption>
+            </figure>
+          </div>
+          <div class="screen-controls" hidden>
+            <button type="button" aria-controls="firmware-screens" aria-label="Previous screenshot"><span aria-hidden="true">←</span></button>
+            <button type="button" aria-controls="firmware-screens" aria-label="Next screenshot"><span aria-hidden="true">→</span></button>
+          </div>
+        </section>
       </section>
 
       <section class="home-tools" aria-labelledby="tools-title">
