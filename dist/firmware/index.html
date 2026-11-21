@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self'; connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'">
   <meta name="theme-color" content="#0c1822">
-  <meta name="description" content="Add APRS maps and messages, FM satellite tracking, GPS tools, and a customizable app menu to your Type-C TIDRADIO TD-H9 with H9 Toolbox Firmware.">
+  <meta name="description" content="See the unified Toolbox menu and Quick Change shortcuts in H9 Toolbox Firmware v0.1.7 for the Type-C TD-H9. Explore APRS, GPS, and FM satellite tracking.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://h9toolbox.com/firmware/">
   <meta property="og:type" content="website">
@@ -13,14 +13,14 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://h9toolbox.com/firmware/">
   <meta property="og:title" content="H9 Toolbox Firmware for the TD-H9 | Features &amp; Apps">
-  <meta property="og:description" content="Add APRS maps and messages, FM satellite tracking, GPS tools, and a customizable app menu to your Type-C TIDRADIO TD-H9 with H9 Toolbox Firmware.">
+  <meta property="og:description" content="See the unified Toolbox menu and Quick Change shortcuts in H9 Toolbox Firmware v0.1.7 for the Type-C TD-H9. Explore APRS, GPS, and FM satellite tracking.">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="H9 Toolbox Firmware for the TD-H9 | Features &amp; Apps">
-  <meta name="twitter:description" content="Add APRS maps and messages, FM satellite tracking, GPS tools, and a customizable app menu to your Type-C TIDRADIO TD-H9 with H9 Toolbox Firmware.">
+  <meta name="twitter:description" content="See the unified Toolbox menu and Quick Change shortcuts in H9 Toolbox Firmware v0.1.7 for the Type-C TD-H9. Explore APRS, GPS, and FM satellite tracking.">
   <title>H9 Toolbox Firmware for the TD-H9 | Features &amp; Apps</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="/landing.css?v=20261108c">
-  <link rel="stylesheet" href="/firmware/firmware.css?v=20261119">
+  <link rel="stylesheet" href="/landing.css?v=20261121">
+  <link rel="stylesheet" href="/firmware/firmware.css?v=20261121">
   <script src="/https-redirect.js"></script>
   <script src="/analytics.js"></script>
   <script type="application/ld+json">
@@ -29,14 +29,15 @@
     "@type": "SoftwareApplication",
     "name": "H9 Toolbox Firmware",
     "url": "https://h9toolbox.com/firmware/",
-    "description": "Add APRS maps and messages, FM satellite tracking, GPS tools, and a customizable app menu to your Type-C TIDRADIO TD-H9 with H9 Toolbox Firmware.",
+    "description": "See the unified Toolbox menu and Quick Change shortcuts in H9 Toolbox Firmware v0.1.7 for the Type-C TD-H9. Explore APRS, GPS, and FM satellite tracking.",
     "applicationCategory": "Firmware",
     "operatingSystem": "TIDRADIO TD-H9 (based on official Type-C firmware v1.0.38)",
     "installUrl": "https://h9toolbox.com/firmware-update/",
     "isAccessibleForFree": true,
     "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
     "featureList": [
-      "On-radio app menu opened by holding Back",
+      "Quick Change shortcuts on hold Back and scan on hold # in v0.1.7",
+      "Unified on-radio Toolbox menu opened with the Menu key in v0.1.7",
       "App Manager for installing apps and changing the boot logo",
       "Optional APRS, FM Satellite Passes, GPS Info, and games",
       "Browser firmware updater with backup and a stock firmware option"
@@ -56,18 +57,42 @@
     <main>
       <section class="firmware-hero" aria-labelledby="firmware-title">
         <div>
-          <p class="overline">H9 Toolbox Firmware · TIDRADIO TD-H9</p>
-          <h1 id="firmware-title">APRS, satellites, and GPS <em>on your TD-H9.</em></h1>
-          <p class="hero-lead">Map stations you’ve heard, track FM satellite passes, and check your GPS from the radio. Keep your saved channels and hold <strong>Back</strong> to open Toolbox from the channel screen.</p>
+          <p class="overline">TYPE-C TIDRADIO TD-H9 · V0.1.7</p>
+          <h1 id="firmware-title">H9 Toolbox Firmware <em>for the <span>TD-H9.</span></em></h1>
+          <p class="hero-lead">Press <strong>Menu</strong> for radio settings, channel editing and apps. Hold <strong>Back</strong> for Quick Change to adjust power, squelch, tones and more from the channel screen.</p>
           <div class="hero-actions">
             <a class="solid-link" href="/firmware-update/">Install H9 Toolbox Firmware</a>
-            <a class="subtle-link" href="#apps">Explore features</a>
+            <a class="subtle-link" href="#shortcuts">See the shortcuts</a>
           </div>
           <p class="firmware-requirements">Type-C TD-H9 · USB-C data cable · Desktop Chrome or Edge</p>
         </div>
         <figure class="hero-screen">
-          <img src="/apps/catalog/shots/sat-plot.png" width="480" height="384" alt="Satellite pass prediction with the sky path, rise and set times, and maximum elevation.">
-          <figcaption>FM satellite pass prediction · Simulated radio screen</figcaption>
+          <img src="/firmware/quick-change.png" width="480" height="384" alt="Quick Change screen showing shortcut numbers, labels, and large current values.">
+          <figcaption>Quick Change · Firmware-rendered screen</figcaption>
+        </figure>
+      </section>
+
+      <section class="firmware-section shortcut-section" id="shortcuts" aria-labelledby="shortcut-title">
+        <div class="shortcut-copy">
+          <h2 id="shortcut-title">Quick Change shortcuts</h2>
+          <p>Hold <kbd>Back</kbd> on the channel screen. Press a number to select a tile, or move with the arrow keys and press <kbd>Menu</kbd>.</p>
+          <ol class="shortcut-keys">
+            <li><kbd>1</kbd> Power</li>
+            <li><kbd>2</kbd> Squelch</li>
+            <li><kbd>3</kbd> Tone</li>
+            <li><kbd>4</kbd> Scan Resume</li>
+            <li><kbd>5</kbd> Monitor / VFO TX Freq</li>
+            <li><kbd>6</kbd> VOX</li>
+            <li><kbd>7</kbd> Dual Watch</li>
+            <li><kbd>8</kbd> Bandwidth</li>
+            <li><kbd>9</kbd> Brightness</li>
+            <li><kbd>0</kbd> Radio Settings</li>
+          </ol>
+          <p>Brightness updates as you cycle through it. On the channel screen, hold <kbd>#</kbd> to scan or hold <kbd>*</kbd> to lock and unlock the keypad.</p>
+        </div>
+        <figure class="hero-screen toolbox-screen">
+          <img src="/firmware/toolbox-menu.png" width="480" height="384" loading="lazy" alt="The unified H9 Toolbox menu with entries for Radio Settings, Channel Settings, APRS, Radio Tools, Games, and Apps.">
+          <figcaption>Press <kbd>Menu</kbd> on the channel screen to open Toolbox.</figcaption>
         </figure>
       </section>
 
@@ -110,7 +135,7 @@
           </article>
           <article>
             <h3>Full KISS TNC</h3>
-            <p>Use the optional APRS modem update in v0.1.5 and connect over Bluetooth to packet apps such as Pat or Paracon. The updater provides the bridge and setup instructions.</p>
+            <p>Use the optional APRS modem update and connect over Bluetooth to packet apps such as Pat or Paracon. The updater provides the bridge and setup instructions.</p>
           </article>
           <article>
             <h3>Make Toolbox your own</h3>
@@ -136,7 +161,7 @@
         <ol>
           <li><strong>Install the firmware.</strong> The updater walks you through connecting, saving a recovery backup and installing.</li>
           <li><strong>Add your apps.</strong> Turn the radio on normally, connect in <a href="/apps/">App Manager</a> over Bluetooth or experimental USB-C, and choose <strong>Write to radio</strong> after selecting your apps.</li>
-          <li><strong>Open an app.</strong> Hold <strong>Back</strong> on the channel screen, then select an app with <strong>Menu</strong>.</li>
+          <li><strong>Open an app.</strong> Press <strong>Menu</strong> on the channel screen in v0.1.7. On v0.1.5, hold <strong>Back</strong> for the app menu.</li>
         </ol>
         <a class="solid-link" href="/firmware-update/">Open the firmware updater</a>
       </section>
@@ -158,7 +183,7 @@
           </details>
           <details>
             <summary>What is KISS TNC support?</summary>
-            <p>H9 Toolbox Firmware v0.1.5 offers an optional APRS modem update for using the TD-H9 with compatible packet-radio software over Bluetooth. Look for <strong>Optional: Unlock KISS TNC</strong> after the v0.1.5 updater confirms that the modem update was staged.</p>
+            <p>H9 Toolbox Firmware includes an optional APRS modem update for using the TD-H9 with compatible packet-radio software over Bluetooth. Follow <strong>Optional: Unlock KISS TNC</strong> in the installer after it verifies the modem update.</p>
           </details>
           <details>
             <summary>Who makes H9 Toolbox Firmware?</summary>

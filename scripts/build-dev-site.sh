@@ -37,15 +37,13 @@ cp "$release"/{h9-toolbox-firmware-v0.1.7.fw,h9-toolbox-v0.1.7-far.bin} dist/fir
 mkdir -p dist/apps/catalog/0.1.7
 cp "$release"/apps/* dist/apps/catalog/0.1.7/
 
-sed -e 's|<h1 id="firmware-title">.*</h1>|<h1 id="firmware-title">H9 Toolbox Firmware v0.1.7</h1>|' \
-  -e 's|hold <strong>Back</strong> to open Toolbox|press <strong>Menu</strong> to open Toolbox|' \
-  -e 's|Hold <strong>Back</strong> on the channel screen, then select an app with <strong>Menu</strong>.|Press <strong>Menu</strong> on the channel screen, then choose an app. Hold <strong>Back</strong> for Quick Change, or hold <strong>#</strong> to start scanning.|' \
-  -e 's|Use the optional APRS modem update in v0.1.5|Use the included optional APRS modem stage|' \
-  -e 's|H9 Toolbox Firmware v0.1.5 offers|H9 Toolbox Firmware v0.1.7 includes|' \
-  -e 's|after the v0.1.5 updater confirms that the modem update was staged|after the installer verifies both firmware regions|' \
-  -e 's|href="/apps/">App Manager|href="/apps/?catalog=0.1.7">App Manager|g' \
-  dist/firmware/index.html > dist/firmware/index.html.tmp
-mv dist/firmware/index.html.tmp dist/firmware/index.html
+for page in dist/index.html dist/firmware/index.html; do
+  sed -e 's|href="/firmware-update/"|href="/firmware-update/?release=0.1.7"|g' \
+    -e 's|href="/apps/"|href="/apps/?catalog=0.1.7"|g' \
+    -e 's|href="/apps/#catalog"|href="/apps/?catalog=0.1.7#catalog"|g' \
+    "$page" > "$page.tmp"
+  mv "$page.tmp" "$page"
+done
 
 # Offer the catalog built for the dev firmware.
 test -s dist/apps/catalog/smartbeacon/catalog.json
