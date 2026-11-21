@@ -1,5 +1,6 @@
 import { CHANNEL_COUNT, readChannel, writeChannel, clearChannel } from './channel.mjs';
 import { SETTINGS, SETTING_GROUPS, readSetting, writeSetting } from './settings.mjs';
+import { checkLongName, longNameField } from './channel-labels.mjs';
 
 export const PORTABLE_FORMAT = 'td-h9-web-programmer';
 export const PORTABLE_VERSION = 2;
@@ -38,14 +39,14 @@ function portableChannel(channel) {
   return { ...fields, tx: fields.tx ?? '' };
 }
 
-export function exportPortable(baseImage, workingImage = baseImage, {archive = false} = {}) {
+export function exportPortable(baseImage, workingImage = baseImage, {archive = false, longNames = new Map(), baseLongNames = null} = {}) {
   validImage(baseImage);
   validImage(workingImage);
   if (baseImage[7] !== workingImage[7]) throw new Error('The backup and edited image have different radio modes.');
   const channels = [];
   for (let n = 1; n <= CHANNEL_COUNT; n++) {
     const channel = readChannel(workingImage, n);
-    if (channel.valid) channels.push(portableChannel(channel));
+    if (channel.valid) channels.push({...portableChannel(channel), ...longNameField(n, longNames)});
     else if (readChannel(baseImage, n).valid) channels.push({n, clear: true});
   }
   const settings = {};
@@ -70,11 +71,14 @@ export function exportPortable(baseImage, workingImage = baseImage, {archive = f
     for (let offset = 8; offset < IMAGE_SIZE; offset += MEMORY_BLOCK_SIZE) memoryBlocks.push(toHex(baseImage.subarray(offset, offset + MEMORY_BLOCK_SIZE)));
     document.identityHex = toHex(baseImage.subarray(0, 8));
     document.memoryBlocks = memoryBlocks;
+    if (baseLongNames !== null) {
+      document.originalLongNames = [...baseLongNames].map(([n, longName]) => ({n, longName: checkLongName(longName)}));
+    }
   }
   return document;
 }
 
-export function importPortable(data, baseImage = null) {
+export function importPortable(data, baseImage = null, existingLongNames = new Map()) {
   if (!data || typeof data !== 'object' || data.format !== PORTABLE_FORMAT || ![ARCHIVE_VERSION, PORTABLE_VERSION].includes(data.formatVersion) || data.model !== 'TD-H9') throw new Error('Unsupported TD-H9 JSON format or version.');
   let original;
   if (data.formatVersion === ARCHIVE_VERSION) {
@@ -86,14 +90,33 @@ export function importPortable(data, baseImage = null) {
   }
   if (data.mode !== modes[original[7]]) throw new Error('JSON mode does not match the loaded radio image.');
   if (!Array.isArray(data.channels) || !data.settings || typeof data.settings !== 'object') throw new Error('JSON is missing channels or settings.');
+  let baselineLongNames = null;
+  const archive = data.formatVersion === ARCHIVE_VERSION;
+  if (archive && Object.hasOwn(data, 'originalLongNames')) {
+    if (!Array.isArray(data.originalLongNames)) throw new Error('Original long names must be an array.');
+    baselineLongNames = new Map();
+    for (const entry of data.originalLongNames) {
+      if (!entry || !Number.isInteger(entry.n) || entry.n < 1 || entry.n > CHANNEL_COUNT || baselineLongNames.has(entry.n)) {
+        throw new Error('JSON has an invalid or duplicate original long name channel.');
+      }
+      baselineLongNames.set(entry.n, checkLongName(entry.longName));
+    }
+  }
+  const longNames = new Map(archive ? baselineLongNames ?? [] : existingLongNames);
   let edited = original.slice();
   const seen = new Set();
   for (const channel of data.channels) {
     if (!channel || !Number.isInteger(channel.n) || channel.n < 1 || channel.n > CHANNEL_COUNT || seen.has(channel.n)) throw new Error('JSON has an invalid or duplicate channel number.');
     seen.add(channel.n);
-    if (channel.clear === true) { edited = clearChannel(edited, channel.n); continue; }
+    if (channel.clear === true) {
+      edited = clearChannel(edited, channel.n);
+      longNames.set(channel.n, '');
+      continue;
+    }
+    const {longName, ...nativeChannel} = channel;
+    if (Object.hasOwn(channel, 'longName')) longNames.set(channel.n, checkLongName(longName));
     const current = readChannel(edited, channel.n);
-    if (JSON.stringify(portableChannel(current)) === JSON.stringify(channel)) continue;
+    if (JSON.stringify(portableChannel(current)) === JSON.stringify(nativeChannel)) continue;
     edited = writeChannel(edited, channel.n, channel);
   }
   for (const setting of SETTINGS) {
@@ -104,7 +127,7 @@ export function importPortable(data, baseImage = null) {
     if (wanted === visibleSetting(edited, setting)) continue;
     edited = writeSetting(edited, setting, inputSetting(edited, setting, wanted));
   }
-  return {original, edited};
+  return {original, edited, baselineLongNames, longNames};
 }
 
 function readArchiveImage(data) {

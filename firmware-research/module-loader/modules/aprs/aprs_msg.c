@@ -25,28 +25,42 @@ static void prepare_reply(const struct message *m)
     A->send_sel = 1;                    /* focus the message field */
 }
 
-static void draw_list(void)
+static int matches(const struct message *m, unsigned route)
+{
+    if (route == H9_MSG_INBOX) return m->mine && !own_call(m->from);
+    if (route == H9_MSG_SENT) return own_call(m->from);
+    return 1;
+}
+
+static unsigned message_order(uint8_t order[MESSAGES], unsigned route)
+{
+    unsigned n = 0;
+    for (unsigned i = 0; i < A->msgs; ++i)
+        if (matches(&A->msg[i], route)) order[n++] = i;
+    return n;
+}
+
+static void draw_list(const uint8_t *order, unsigned count, unsigned selected, unsigned route)
 {
     char b[28];
-    if (A->msg_sel < A->msg_top) A->msg_top = A->msg_sel;
-    if (A->msg_sel >= A->msg_top + ITEMS) A->msg_top = A->msg_sel - ITEMS + 1;
-    aprs_title("APRS MESSAGES");
+    if (selected < A->msg_top) A->msg_top = selected;
+    if (selected >= (unsigned)A->msg_top + ITEMS) A->msg_top = selected - ITEMS + 1;
+    aprs_title(route == H9_MSG_INBOX ? "APRS INBOX" : route == H9_MSG_SENT ? "APRS SENT" : "APRS MESSAGES");
     gfx_fill(0, LIST_Y, H9_WIDTH, FOOT_Y - LIST_Y, UI_BG);
-    if (!A->msgs) aprs_line(LIST_Y + 24, "NO MESSAGES YET", UI_ACCENT, UI_BG);
-    for (unsigned k = 0; k < ITEMS && A->msg_top + k < A->msgs; k++) {
+    if (!count) aprs_line(LIST_Y + 24, "NO MESSAGES YET", UI_ACCENT, UI_BG);
+    for (unsigned k = 0; k < ITEMS && A->msg_top + k < count; k++) {
         unsigned i = A->msg_top + k, y = LIST_Y + k * ITEM_H;
-        const struct message *m = &A->msg[i];
-        int sel = i == A->msg_sel;
+        const struct message *m = &A->msg[order[i]];
+        int sel = i == selected;
         uint16_t bg = sel ? UI_ACCENT : UI_BG;
         gfx_fill(0, y, H9_WIDTH, ITEM_H, bg);
         unsigned n = put_str(b, m->mine ? "FROM " : "TO ");
-        put_str(b + n, target(m));
+        int sent = own_call(m->from);
+        put_str(b + n, sent ? m->to : m->from);
         aprs_line(y, b, sel ? UI_BG : m->mine ? UI_OK : UI_TEXT, bg);
-        if (own_call(m->from))
-            gfx_text(H9_WIDTH - (m->acked || m->rejected ? 22 : 32), y,
-                     m->acked ? "ACK" : m->rejected ? "REJ" : "SENT",
-                     m->acked || m->rejected ? 3 : 4, 1,
-                     sel ? UI_BG : m->acked ? UI_OK : m->rejected ? UI_DANGER : UI_DIM, bg);
+        if (sent)
+            gfx_text(H9_WIDTH - 28, y, m->acked ? "ACK" : m->rejected ? "REJ" : "SENT",
+                     4, 1, sel ? UI_BG : m->acked ? UI_OK : m->rejected ? UI_DANGER : UI_DIM, bg);
         for (n = 0; n < 26 && m->text[n]; n++) b[n] = m->text[n];
         b[n] = 0;
         aprs_line(y + 10, b, sel ? UI_BG : m->live ? UI_TEXT : UI_DIM, bg);
@@ -54,7 +68,8 @@ static void draw_list(void)
     const char *footer = A->mail_status == MAIL_BLOCKED ? "MAILBOX USED BY GAME" :
                          A->mail_status == MAIL_OTHER_OWNER ? "MAILBOX: OTHER CALL" :
                          A->mail_status == MAIL_UNAVAILABLE ? "MAILBOX NOT SAVED" :
-                         A->msgs ? "MENU READ  HOLD COMPOSE" : "HOLD MENU TO COMPOSE";
+                         route ? "BACK  HOLD COMPOSE" :
+                         count ? "MENU READ  HOLD COMPOSE" : "HOLD MENU TO COMPOSE";
     aprs_line(INFO_Y, footer, A->mail_status == MAIL_READY ? UI_DIM : UI_DANGER, UI_BG);
     aprs_tabs(TAB_MSG);
 }
@@ -82,6 +97,7 @@ static void draw_message(void)
 unsigned module_main(const struct h9_api *api, unsigned self)
 {
     (void)self;
+    unsigned route = H9_HAS_MESSAGES ? H9_MSG_ROUTE : 0;
     aprs_open();
     for (;;) {
         unsigned ev = aprs_event();
@@ -108,11 +124,23 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             else if (ev == EV_REDRAW) draw_message();
             continue;
         }
-        if (ev == EV_REDRAW) draw_list();
-        else if (ev == EV_BACK) { aprs_go(api, APRS_LIST); return 0; }
-        else if (!A->msgs) continue;
-        else if (ev == EV_UP) { A->msg_sel = A->msg_sel ? A->msg_sel - 1 : A->msgs - 1; A->dirty = 1; }
-        else if (ev == EV_DOWN) { A->msg_sel = A->msg_sel + 1 < A->msgs ? A->msg_sel + 1 : 0; A->dirty = 1; }
-        else if (ev == EV_MENU) { A->msg_reading = 1; A->dirty = 1; }
+        uint8_t order[MESSAGES];
+        unsigned count = message_order(order, route);
+        unsigned selected = 0;
+        while (selected + 1 < count && order[selected] != A->msg_sel) ++selected;
+        if (ev == EV_REDRAW) draw_list(order, count, selected, route);
+        else if (ev == EV_BACK) {
+            if (route) aprs_close();
+            else aprs_go(api, APRS_LIST);
+            return 0;
+        } else if (count && (ev == EV_UP || ev == EV_DOWN)) {
+            selected = (selected + (ev == EV_UP ? count - 1 : 1)) % count;
+            A->msg_sel = order[selected];
+            A->dirty = 1;
+        } else if (count && ev == EV_MENU) {
+            A->msg_sel = order[selected];
+            A->msg_reading = 1;
+            A->dirty = 1;
+        }
     }
 }

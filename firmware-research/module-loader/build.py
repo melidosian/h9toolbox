@@ -24,6 +24,7 @@ import argparse
 from hashlib import sha256
 import json
 import os
+import re
 from pathlib import Path
 import struct
 import subprocess
@@ -56,6 +57,27 @@ LOAD, SLOT_END = 0x29F00, 0x2BF00
 APRS_BOOT_SITE = 0x88186
 APRS_SERVICE_RAM = 0x29C00
 RESIDENT_RAM = 0x29A00
+CHANNEL_LABEL_RAM = 0x29900
+CHANNEL_LABEL_SHIMS, CHANNEL_LABEL_SHIMS_END = 0x87C80, 0x87E38
+# Pinned A/B Name + number row calls in all stock layouts.
+CHANNEL_NAME_CALLS = ((0x6758E, 0x5A386, "ml_labels_draw_a"),
+                      (0x67642, 0x5A44E, "ml_labels_draw_b"),
+                      (0x5A59E, 0x5A386, "ml_labels_draw_a"),
+                      (0x5A614, 0x5A44E, "ml_labels_draw_b"),
+                      (0x59B24, 0x59908, "ml_labels_draw_classic"),
+                      (0x59DEC, 0x59908, "ml_labels_draw_classic"),
+                      (0x7AEAE, 0x59908, "ml_labels_draw_classic"),
+                      (0x7AEDA, 0x59908, "ml_labels_draw_classic"),
+                      (0x5A232, 0x5967C, "ml_labels_draw_tx_frequency"))
+CHANNEL_CLONE_CALLS = ((0x5D018, 0xA51A8, "ml_labels_read"),
+                       (0x5D122, 0xA5200, "ml_labels_write"))
+CHANNEL_LABEL_EXPORTS = {
+    "LABEL_FAR_TICK": "radio_label_display_tick", "LABEL_FAR_DRAW_A": "radio_label_draw_a",
+    "LABEL_FAR_DRAW_B": "radio_label_draw_b", "LABEL_FAR_READ": "radio_label_clone_read",
+    "LABEL_FAR_DRAW_CLASSIC": "radio_label_draw_classic",
+    "LABEL_FAR_DRAW_TX_FREQUENCY": "radio_label_draw_tx_frequency",
+    "LABEL_FAR_WRITE": "radio_label_clone_write",
+}
 RESIDENT_FLASH, RESIDENT_CPU = 0xFB000, 0x01EF6000
 RESIDENT_TX_FLASH, RESIDENT_TX_CPU = 0xFA000, 0x01EF5000
 RESIDENT_TX_HOOKS = 0x87B8C   # retired Morse code after the other dev helpers
@@ -82,6 +104,8 @@ KISS_RESIDENT_HELPER = 0x84F88
 KISS_CALLS = {0x5DB40: 0xA7CAA, 0x5DB6A: 0xA7CB6, 0x5DB86: 0xA7CE8, 0x870E0: 0xA7CF8}
 FLASH_HELPERS = 0x85080   # after the relocated KISS helpers in the retired Morse code
 FLASH_HELPERS_API = 5
+FAR_MENU_FLASH, FAR_MENU_CPU = 0xEA000, 0x01EE5000
+FAR_MENU_END = 0xFA000     # resident TX starts here in the dev build
 # API 5 assigns one four-byte jump per export, in this order. Keep these
 # addresses fixed for ABI 5 even when the implementation's layout changes.
 FLASH_EXPORTS = (
@@ -99,6 +123,17 @@ C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as", "-ffreestan
 C_FLAGS += os.environ.get("H9_CFLAGS", "").split()
 
 
+def firmware_version_word(version: str) -> int:
+    """Keep the loader's three version bytes and use the high byte for RC."""
+    match = re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-rc\.([1-9][0-9]*))?", version)
+    if not match:
+        raise ValueError(f"Invalid firmware version {version!r}")
+    major, minor, patch, rc = (int(part or 0) for part in match.groups())
+    if max(major, minor, patch, rc) >= 256:
+        raise ValueError(f"Firmware version components must fit in one byte: {version!r}")
+    return rc << 24 | major << 16 | minor << 8 | patch
+
+
 def crc16(data: bytes) -> int:
     """CRC-16/XMODEM, as the stub, the S2 service and the uploader compute it."""
     crc = 0
@@ -108,6 +143,9 @@ def crc16(data: bytes) -> int:
             crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
     return crc
 
+
+MENU_METADATA = b"H9MENU01"
+MENU_CATEGORIES = ("", "apps", "games", "tools", "diagnostics", "setup", "aprs")
 
 def bundle(modules: list[dict]) -> bytes:
     """H9MODS01 bundle: header, 32-byte entries, then 4-byte aligned bodies."""
@@ -128,7 +166,10 @@ def bundle(modules: list[dict]) -> bytes:
                                                          crc16(body))
         bodies += body
         offset += len(body)
-    data = BUNDLE_MAGIC + struct.pack("<HHI", BUNDLE_VERSION, len(modules), offset) + entries + bodies
+    categories = bytes(MENU_CATEGORIES.index(m.get("category", "")) for m in modules)
+    metadata = MENU_METADATA + categories if any(categories) else b""
+    offset += len(metadata)
+    data = BUNDLE_MAGIC + struct.pack("<HHI", BUNDLE_VERSION, len(modules), offset) + entries + bodies + metadata
     if len(data) != offset or len(data) > SLOT_LIMIT - SLOT_DATA:
         raise ValueError("bundle does not fit the modules slot")
     return data
@@ -142,6 +183,8 @@ def parse_bundle(data: bytes) -> list[dict]:
     if version != BUNDLE_VERSION or not 1 <= count <= 255 or length != len(data):
         raise ValueError("bad bundle header")
     out = []
+    trailer = length - len(MENU_METADATA) - count
+    has_metadata = trailer >= HEADER + ENTRY * count and data[trailer:trailer + len(MENU_METADATA)] == MENU_METADATA
     for i in range(count):
         e = data[HEADER + ENTRY * i:HEADER + ENTRY * (i + 1)]
         offset, size, bss, entry, crc = struct.unpack_from("<IIIHH", e, NAME)
@@ -150,8 +193,11 @@ def parse_bundle(data: bytes) -> list[dict]:
             raise ValueError(f"bad entry {i}")
         if crc16(body) != crc:
             raise ValueError(f"CRC mismatch in entry {i}")
+        category = data[trailer + len(MENU_METADATA) + i] if has_metadata else 0
+        if category >= len(MENU_CATEGORIES) or (has_metadata and offset + size > trailer):
+            raise ValueError(f"bad menu metadata in entry {i}")
         out.append({"name": e[:NAME].rstrip(b"\0").decode("ascii"), "offset": offset, "size": size, "bss": bss,
-                    "entry": entry, "body": body})
+                    "entry": entry, "body": body, **({"category": MENU_CATEGORIES[category]} if category else {})})
     return out
 
 
@@ -168,14 +214,16 @@ def assemble(source: Path, out: Path) -> Path:
     return obj
 
 
-def link(objs: list[Path], origin: int, entry: str, out: Path, name: str) -> elf.Program:
+def link(objs: list[Path], origin: int, entry: str, out: Path, name: str,
+         *, keep: tuple[str, ...] = ()) -> elf.Program:
     script = out / f"{name}.ld"
     script.write_text('OUTPUT_FORMAT("elf32-pi32v2")\nOUTPUT_ARCH(pi32v2)\n'
                       f"ENTRY({entry})\nSECTIONS {{\n    . = 0x{origin:08X};\n"
                       "    .text : { *(.text .text.*) *(.rodata .rodata.*) }\n"
                       "    /DISCARD/ : { *(.comment) *(.note*) }\n}\n")
     path = out / f"{name}.elf"
-    state, data = ld.link(ld.parse_args(["--gc-sections", "-T", str(script), "-o", str(path), *map(str, objs)]))
+    state, data = ld.link(ld.parse_args(["--gc-sections", *(f"--undefined={name}" for name in keep),
+                                         "-T", str(script), "-o", str(path), *map(str, objs)]))
     if data is None or state.errors:
         raise RuntimeError(f"Pi32 linker failed for {name}: {state.errors}")
     path.write_bytes(data)
@@ -243,8 +291,25 @@ def build_flash_helpers(lib: list[Path], out: Path) -> tuple[bytes, Path]:
     return body, assemble(calls, out)
 
 
+def far_menu_trampoline(out: Path) -> bytes:
+    jump = out / "far_menu_jump.s"
+    jump.write_text('    .section .text,"ax",@progbits\n'
+                    '    .globl module_flash_entry\nmodule_flash_entry:\n'
+                    f'    r3 = {FAR_MENU_CPU:#x}\n    goto r3\n')
+    program = link([assemble(jump, out)], LOAD, "module_flash_entry", out, "far_menu_jump")
+    return text_of(program, LOAD)
+
+
 def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
-                  flash_shared: bool = False, auto_tx: bool = False) -> tuple[list[dict], bytes | None]:
+                  flash_shared: bool = False, auto_tx: bool = False,
+                  far_menu: bool = False, radio_menu_preview: bool = False,
+                  unified_menu: bool = False) -> tuple[list[dict], bytes | None, bytes | None]:
+    if far_menu and not flash_shared:
+        raise ValueError("The far menu needs the stable API 5 flash helpers")
+    if radio_menu_preview and not far_menu:
+        raise ValueError("The radio menu preview needs far-flash placement")
+    if unified_menu and (not far_menu or radio_menu_preview):
+        raise ValueError("Unified menu requires far flash and excludes the label preview")
     common = ROOT / "modules" / "common"
     run([sys.executable, "-I", str(common / "font5x7.py")])
     lib = [assemble(common / "h9lib.s", out), compile_c(common / "gfx.c", out, toolchain)]
@@ -257,10 +322,12 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
         entry = "module_flash_entry"
         flags += ("-DH9_FLASH_HELPERS",)
 
-    def c_module(name: str, source: Path, *extra: Path, extra_flags: tuple[str, ...] = ()) -> dict:
+    def c_module(name: str, source: Path, *extra: Path, extra_flags: tuple[str, ...] = (),
+                 category: str = "") -> dict:
         objs = [compile_c(src, out, toolchain, flags=flags + extra_flags) for src in (source, *extra)]
         prog = link([*objs, *lib], LOAD, entry, out, "mod_" + source.stem)
-        return {"name": name, "body": text_of(prog, LOAD), "bss": 0, "entry": prog.entry - LOAD}
+        return {"name": name, "body": text_of(prog, LOAD), "bss": 0, "entry": prog.entry - LOAD,
+                **({"category": category} if category else {})}
 
     menu_dir = ROOT / "modules" / "menu"
     aprs_dir = ROOT / "modules" / "aprs"
@@ -268,12 +335,45 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
     if flash_shared:
         menu_sources += (menu_dir / "toolbox_menu.c", aprs_dir / "aprs_resident_config.c",
                          common / "toolbox_settings_pair.c")
-    menu = c_module("MENU", menu_dir / "menu.c", *menu_sources,
-                    extra_flags=("-DH9_GROUPED_MENU",) if flash_shared else ())
+    far_menu_body = None
+    if far_menu:
+        if unified_menu:
+            radio_dir = ROOT / "menu-replacement"
+            run(["node", str(radio_dir / "generate_settings.mjs")])
+            run(["node", str(radio_dir / "generate_channel_choices.mjs")])
+            menu_sources += tuple(radio_dir / name for name in (
+                "radio_settings.c", "radio_storage.c", "radio_editor.c", "radio_channels.c", "radio_channel_editor.c",
+                "radio_actions.c", "radio_actions_catalog.c", "radio_bluetooth.c", "radio_scan.c",
+                "radio_system.c", "radio_system_native.c", "radio_aprs.c", "channel_labels.c",
+                "channel_labels_native.c", "channel_name_scroll.c", "channel_name_view.c"))
+        sources = (menu_dir / "menu.c", *menu_sources)
+        menu_flags = flags + ("-DH9_GROUPED_MENU",)
+        if radio_menu_preview:
+            menu_flags += ("-DH9_RADIO_MENU_PREVIEW",)
+        if unified_menu:
+            menu_flags += ("-DH9_RADIO_SETTINGS",)
+        objects = [compile_c(src, out, toolchain, flags=menu_flags) for src in sources]
+        if unified_menu:
+            objects.extend(assemble(radio_dir / name, out) for name in (
+                "radio_io.s", "radio_bluetooth_io.s", "radio_scan_io.s", "radio_system_io.s"))
+        # The RAM trampoline targets the first far byte. Put the API gate
+        # before the C objects and reject any linker layout that moves it.
+        program = link([*lib, *objects], FAR_MENU_CPU, entry, out, "far_menu",
+                       keep=tuple(CHANNEL_LABEL_EXPORTS.values()) if unified_menu else ())
+        if program.entry != FAR_MENU_CPU:
+            raise ValueError("Far menu API gate is not at the trampoline target")
+        far_menu_body = text_of(program, FAR_MENU_CPU)
+        if len(far_menu_body) > FAR_MENU_END - FAR_MENU_FLASH:
+            raise ValueError("Unified menu exceeds the reserved far-flash window")
+        menu = {"name": "MENU", "body": far_menu_trampoline(out), "bss": 0, "entry": 0}
+    else:
+        menu = c_module("MENU", menu_dir / "menu.c", *menu_sources,
+                        extra_flags=("-DH9_GROUPED_MENU",) if flash_shared else ())
     if len(menu["body"]) > 0x2B880 - LOAD:
         raise SystemExit("MENU code overlaps the shared satellite state")
     about = c_module("ABOUT", ROOT / "modules" / "about" / "about.c")
-    maze = c_module("MAZE CHASE", ROOT / "modules" / "maze" / "maze.c", ROOT / "modules" / "common" / "snd.c")
+    maze = c_module("MAZE CHASE", ROOT / "modules" / "maze" / "maze.c", ROOT / "modules" / "common" / "snd.c",
+                    category="games")
     aprs = c_module("APRS MONITOR", ROOT / "modules" / "aprs_monitor" / "aprs_monitor.c")
     if len(aprs["body"]) > 0x2000 - 0x800:
         raise SystemExit("APRS MONITOR code overlaps its state in the top 2 KiB of the RAM slot")
@@ -365,7 +465,7 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
     test_bundle = bundle([reset_test])
     parse_bundle(test_bundle)
     (out / "test-ml-reset-bundle.bin").write_bytes(test_bundle)
-    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, maze, about], flash
+    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, maze, about], flash, far_menu_body
 
 
 def call_bytes(target: int, site: int) -> bytes:
@@ -464,10 +564,41 @@ def apply_resident_tx(app: bytearray, stock: bytes, resident: bytes, out: Path, 
             "shims_bytes": len(code), "call_sites": [hex(site) for site, _, _ in RESIDENT_TX_CALLS]}
 
 
+def apply_channel_labels(app: bytearray, stock: bytes, base: bytes, far: bytes, crc_entry: int, out: Path) -> dict:
+    far_program = elf.read((out / "far_menu.elf").read_bytes())
+    addresses = {key: symbol(far_program, entry) for key, entry in CHANNEL_LABEL_EXPORTS.items()}
+    if any(not FAR_MENU_CPU <= address < FAR_MENU_CPU + len(far) for address in addresses.values()):
+        raise ValueError("Channel label exports exceed the verified far-menu body")
+    constants = {**addresses, "LABEL_FAR_BASE": FAR_MENU_CPU, "LABEL_FAR_LENGTH": len(far),
+                 "LABEL_FAR_CRC": crc16(far), "LABEL_CRC_HELPER": crc_entry}
+    source = out / "channel_label_hooks.s"
+    source.write_text("".join(f".equ {name}, {value:#x}\n" for name, value in constants.items())
+                      + (ROOT / "src/channel_label_hooks.s").read_text())
+    origin = IMAGE_BASE + CHANNEL_LABEL_SHIMS
+    shim = link([assemble(source, out)], origin, "ml_labels_tick", out, "channel_label_hooks")
+    code = text_of(shim, origin)
+    end = CHANNEL_LABEL_SHIMS + len(code)
+    if shim.entry != origin or end > CHANNEL_LABEL_SHIMS_END or app[CHANNEL_LABEL_SHIMS:end] != bytes(len(code)):
+        raise ValueError("Channel label hooks overlap existing instructions")
+    for image, hooks in ((stock, CHANNEL_NAME_CALLS), (base, CHANNEL_CLONE_CALLS)):
+        for site, original, name in hooks:
+            expected = call_bytes(original, site)
+            if image[site:site + 4] != expected or app[site:site + 4] != expected:
+                raise ValueError(f"Channel label hook at {site:#x} differs from the pinned call")
+            app[site:site + 4] = call_bytes(symbol(shim, name) - IMAGE_BASE, site)
+    app[CHANNEL_LABEL_SHIMS:end] = code
+    return {"display_calls": [hex(site) for site, _, _ in CHANNEL_NAME_CALLS],
+            "clone_calls": [hex(site) for site, _, _ in CHANNEL_CLONE_CALLS],
+            "shims_app_offset": hex(CHANNEL_LABEL_SHIMS), "shims_bytes": len(code),
+            "storage_start": "0x3f6000", "storage_end_exclusive": "0x3fa000",
+            "heap_end": hex(CHANNEL_LABEL_RAM)}
+
+
 def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool = False,
                    disable_morse: bool = False, dev_kiss: bool = False,
                    resident: bytes | None = None, resident_screen_crc: int | None = None, *,
-                   flash: bytes | None = None, auto_tx: bool = False) -> dict:
+                   flash: bytes | None = None, auto_tx: bool = False,
+                   unified_menu: bool = False, far_menu_body: bytes | None = None) -> dict:
     if resident and not (aprs_mute and disable_morse and dev_kiss):
         raise ValueError("Resident APRS requires --aprs-mute, --disable-morse and --dev-kiss")
     if resident and resident_screen_crc is None:
@@ -493,19 +624,22 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
     if aprs_mute:
         combined = out / "stub_with_mute.s"
         definitions = ""
+        if unified_menu:
+            if not far_menu_body:
+                raise ValueError("Unified loader requires its far body")
+            definitions += (f".equ ML_LABELS_LOOP, {IMAGE_BASE + CHANNEL_LABEL_SHIMS:#x}\n"
+                            f".equ ML_UNIFIED_MENU, 1\n.equ ML_UNIFIED_CPU, {FAR_MENU_CPU:#x}\n"
+                            f".equ ML_UNIFIED_BYTES, {len(far_menu_body)}\n.equ ML_UNIFIED_CRC, {crc16(far_menu_body)}\n")
         if resident:
-            definitions = (f".equ ML_RUNTIME_BOOT, {IMAGE_BASE + OLD_LAUNCHER:#x}\n"
+            definitions += (f".equ ML_RUNTIME_BOOT, {IMAGE_BASE + OLD_LAUNCHER:#x}\n"
                            f".equ ML_RESIDENT_SCREEN_CRC, {resident_screen_crc}\n"
                            f".equ ML_API_VERSION, {api_version}\n")
         combined.write_text(definitions + stub_source.read_text() + "\n" + (ROOT / "src" / "aprs_mute.s").read_text())
         stub_source = combined
     stub_prog = link([assemble(stub_source, out)], IMAGE_BASE + CAVE, "ml_hotkey", out, "stub")
     stub = bytearray(text_of(stub_prog, IMAGE_BASE + CAVE))
-    version_text = (ROOT / "VERSION").read_text().strip()      # H9 Toolbox Firmware version, "major.minor.patch"
-    major, minor, patch_no = (int(part) for part in version_text.split("."))
-    if not (major < 256 and minor < 256 and patch_no < 256):
-        raise ValueError(f"VERSION {version_text!r} must be three numbers below 256")
-    version_word = major << 16 | minor << 8 | patch_no
+    version_text = (ROOT / "VERSION").read_text().strip()
+    version_word = firmware_version_word(version_text)
     version_at = symbol(stub_prog, "ml_fw_version") - (IMAGE_BASE + CAVE)
     if stub[version_at:version_at + 4] != b"\0\0\0\0":
         raise ValueError("ml_fw_version is not the empty word the build expects")
@@ -545,7 +679,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
             or struct.unpack_from("<I", patched, api_at + 24)[0] != version_word):
         raise ValueError("the image's API table disagrees with the build")
     patched[HOOK:HOOK + 4] = call_bytes(CAVE, HOOK)
-    heap_end = RESIDENT_RAM if resident else APRS_SERVICE_RAM
+    heap_end = CHANNEL_LABEL_RAM if unified_menu else RESIDENT_RAM if resident else APRS_SERVICE_RAM
     patched[HEAP_END_SITE + 2:HEAP_END_SITE + 6] = heap_end.to_bytes(4, "little")
     patched[SERIAL_WRITE_SITE:SERIAL_WRITE_SITE + 4] = serial_write.to_bytes(4, "little")
     for site, original, name in S2_WRITE_GUARDS:
@@ -584,6 +718,19 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
     if auto_tx:
         tx_limit = next(end for start, end, _ in morse_disable.REMOVED if start == RESIDENT_TX_HOOKS)
         tx_hooks = apply_resident_tx(patched, stock, resident, out, tx_limit)
+    menu_patch = label_patch = None
+    if unified_menu:
+        if not far_menu_body:
+            raise ValueError("Unified menu needs its matching far body")
+        label_patch = apply_channel_labels(patched, stock, base, far_menu_body, symbol(stub_prog, "ml_crc"), out)
+        sys.path.insert(0, str(ROOT / "menu-replacement"))
+        import radio_menu_patch
+        def raw_assembly(source):
+            return bytes(next(s for s in elf.read(asm.assemble_source(source)).sections if s.name == ".text").data)
+        menu_patch = radio_menu_patch.apply(stock, patched, symbol(stub_prog, "ml_main"),
+                                           symbol(stub_prog, "ml_crc"), FAR_MENU_CPU,
+                                           len(far_menu_body), crc16(far_menu_body), raw_assembly,
+                                           preceding_patches=morse_disable.patches(stock) if disable_morse else ())
     raw = out / "h9_toolbox_modules_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)
 
@@ -607,6 +754,11 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
             expected.update(range(first, last + 0x1000, 0x1000))
     if auto_tx:
         expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in RESIDENT_TX_CALLS}
+    if menu_patch:
+        for _, start, end in radio_menu_patch.REMOVED_UI:
+            expected.update(range((start + 0x5100) & ~0xFFF, ((end - 1 + 0x5100) & ~0xFFF) + 0x1000, 0x1000))
+    if label_patch:
+        expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in CHANNEL_NAME_CALLS + CHANNEL_CLONE_CALLS}
     if changed != expected:
         raise ValueError(f"changed sectors {sorted(map(hex, changed))}, expected {sorted(map(hex, expected))}")
     return {
@@ -621,7 +773,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         "heap_end": hex(heap_end),
         "aprs_service_ram": {"start": hex(APRS_SERVICE_RAM), "end": hex(LOAD)},
         "serial_write": hex(serial_write),
-        "resource_write_protection": {"start": "0x3fa000", "end_exclusive": "0x400000"},
+        "resource_write_protection": {"start": "0x3f6000", "end_exclusive": "0x400000"},
         "morse_disabled": {"enabled": disable_morse, "menu_entry_hidden": disable_morse,
                            "code_bytes_removed": sum(end - start for start, end, _ in morse_disable.REMOVED)
                            if disable_morse else 0, "hardware_tested": False},
@@ -633,6 +785,8 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
                             "screen_crc16": f"{resident_screen_crc:04x}", "auto_tx": auto_tx}
                            if resident else None,
         "resident_tx_hooks": tx_hooks,
+        "unified_menu": menu_patch,
+        "channel_labels": label_patch,
         "dev_kiss": kiss,
         "flash_helpers": {"app_offset": hex(FLASH_HELPERS), "bytes": len(flash),
                           "sha256": sha256(flash).hexdigest(), "exports": [name for name, _ in FLASH_EXPORTS]}
@@ -642,7 +796,9 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
 
 def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
           aprs_mute: bool = False, disable_morse: bool = False, dev_kiss: bool = False,
-          resident_beacon: bool = False, *, flash_shared: bool = False, auto_tx: bool = False) -> dict:
+          resident_beacon: bool = False, *, flash_shared: bool = False, auto_tx: bool = False,
+          far_menu: bool = False, radio_menu_preview: bool = False,
+          unified_menu: bool = False) -> dict:
     stock = stock_image.read_bytes()
     if sha256(stock).hexdigest() != STOCK_SHA256:
         raise ValueError("Expected the exact official v1.0.38 main application")
@@ -650,17 +806,37 @@ def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
         raise ValueError("Expected the exact official v1.0.38 .fw package")
     if flash_shared and not resident_beacon:
         raise ValueError("--flash-shared needs --resident-beacon")
+    if far_menu and not flash_shared:
+        raise ValueError("--far-menu needs --flash-shared")
+    if radio_menu_preview and not far_menu:
+        raise ValueError("--radio-menu-preview needs --far-menu")
+    if unified_menu and not (aprs_mute and disable_morse):
+        raise ValueError("Unified menu uses the dev feature set: --aprs-mute --disable-morse")
     if auto_tx and not (resident_beacon and flash_shared and aprs_mute and disable_morse and dev_kiss):
         raise ValueError("--resident-tx needs the full shared-flash dev build")
     out.mkdir(parents=True, exist_ok=True)
+    if unified_menu:
+        run([sys.executable, "-I", str(ROOT / "menu-replacement" / "generate_manuals.py"), str(stock_image)])
     resident = build_resident(out, toolchain, auto_tx=auto_tx) if resident_beacon else None
-    modules, flash = build_modules(out, toolchain, resident_beacon, flash_shared=flash_shared, auto_tx=auto_tx)
+    modules, flash, far_menu_body = build_modules(out, toolchain, resident_beacon,
+                                                 flash_shared=flash_shared, auto_tx=auto_tx,
+                                                 far_menu=far_menu, radio_menu_preview=radio_menu_preview,
+                                                 unified_menu=unified_menu)
     screen_crc = crc16(next(m["body"] for m in modules if m["name"] == "APRS BEACON")) if resident else None
     firmware = build_firmware(stock, stock_package, out, aprs_mute, disable_morse, dev_kiss, resident, screen_crc,
-                              flash=flash, auto_tx=auto_tx)
+                              flash=flash, auto_tx=auto_tx, unified_menu=unified_menu,
+                              far_menu_body=far_menu_body)
     data = bundle(modules)
     parse_bundle(data)
+    coverage_report = None
+    if unified_menu:
+        sys.path.insert(0, str(ROOT / "menu-replacement"))
+        import coverage as menu_coverage
+        coverage_report = menu_coverage.validate(module_ids={m["name"] for m in modules})
+        (out / "native-menu-coverage.json").write_text(json.dumps(coverage_report, indent=2) + "\n")
     (out / "h9_modules.bin").write_bytes(data)
+    if far_menu_body is not None:
+        (out / "menu_0xEA000_OFFLINE.bin").write_bytes(far_menu_body)
     # One .h9mod per app (a one-module bundle) for the App Manager's "Add module".
     (out / "modules").mkdir(exist_ok=True)
     for m in modules[1:]:
@@ -677,6 +853,16 @@ def build(stock_image: Path, stock_package: Path, toolchain: Path, out: Path,
                                 "crc16": hex(crc16(m["body"]))} for m in modules]},
         "hardware_observation": "Not yet flashed",
     }
+    if far_menu_body is not None:
+        manifest["far_menu"] = {"flash_offset": hex(FAR_MENU_FLASH), "cpu_address": hex(FAR_MENU_CPU),
+                                "bytes": len(far_menu_body), "sha256": sha256(far_menu_body).hexdigest(),
+                                "required_with_bundle": True, "hardware_tested": False}
+    manifest["radio_menu_preview"] = radio_menu_preview
+    if coverage_report:
+        manifest["native_menu_coverage"] = {"active_rows": coverage_report["active_rows"],
+                                           "implemented_rows": coverage_report["implemented_rows"],
+                                           "retired_rf_sms_rows": len(coverage_report["retired_rf_sms_rows"]),
+                                           "report": "native-menu-coverage.json", "hardware_tested": False}
     (out / "h9_toolbox_modules-manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     return manifest
 
@@ -695,6 +881,12 @@ def main() -> int:
                         help="Put common app routines in the retired Morse space and build the matching API 5 bundle")
     parser.add_argument("--resident-tx", action="store_true",
                         help="Enable resident beacon TX at the stock timed-beacon boundary")
+    parser.add_argument("--far-menu", action="store_true",
+                        help="Build the grouped menu in far flash with an 8-byte RAM trampoline")
+    parser.add_argument("--radio-menu-preview", action="store_true",
+                        help="Show stock radio labels in the grouped menu without setting handlers; offline only")
+    parser.add_argument("--unified-menu", action="store_true",
+                        help="Replace native Menu entry and include saved radio setting editors")
     args = parser.parse_args()
     if args.resident_beacon and not (args.aprs_mute and args.disable_morse and args.dev_kiss):
         parser.error("--resident-beacon needs --aprs-mute, --disable-morse and --dev-kiss")
@@ -702,6 +894,12 @@ def main() -> int:
         parser.error("--flash-shared needs --resident-beacon")
     if args.resident_tx and not (args.resident_beacon and args.flash_shared):
         parser.error("--resident-tx needs --resident-beacon and --flash-shared")
+    if args.far_menu and not args.flash_shared:
+        parser.error("--far-menu needs --flash-shared")
+    if args.radio_menu_preview and not args.far_menu:
+        parser.error("--radio-menu-preview needs --far-menu")
+    if args.unified_menu and (not args.far_menu or args.radio_menu_preview):
+        parser.error("--unified-menu needs --far-menu and excludes --radio-menu-preview")
     bundled = RESEARCH / "toolchain" / "jieli" / "jieli-linux-toolchains-20260730.1"
     toolchain = Path(os.environ.get("JIELI_TOOLCHAIN", bundled)).expanduser().resolve()
     if not (toolchain / "pi32v2").is_dir():
@@ -709,7 +907,9 @@ def main() -> int:
     print(json.dumps(build(args.stock_image.resolve(), args.stock_package.resolve(), toolchain,
                            args.output.resolve(), args.aprs_mute, args.disable_morse,
                            args.dev_kiss, args.resident_beacon, flash_shared=args.flash_shared,
-                           auto_tx=args.resident_tx), indent=1))
+                           auto_tx=args.resident_tx, far_menu=args.far_menu,
+                           radio_menu_preview=args.radio_menu_preview,
+                           unified_menu=args.unified_menu), indent=1))
     print("Offline build only; not hardware tested")
     return 0
 

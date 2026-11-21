@@ -16,11 +16,14 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         A->mail_status = MAIL_UNKNOWN;
         aprs_load_stored(api);
     }
+    unsigned route = H9_HAS_MESSAGES ? H9_MSG_ROUTE : 0;
+    unsigned folder = route == H9_MSG_INBOX || route == H9_MSG_SENT;
+    unsigned compose = route == H9_MSG_NEW || route == H9_MSG_DRAFT;
     A->mail_action = MAIL_OP_LOAD;
-    A->mail_return = MAIL_PAGE_LIST;
+    A->mail_return = folder ? MAIL_PAGE_MSG : compose ? MAIL_PAGE_SEND : MAIL_PAGE_LIST;
     if (!aprs_go(api, APRS_STORE)) {
         A->mail_status = MAIL_UNAVAILABLE;
-        aprs_go(api, APRS_LIST);
+        aprs_go(api, folder ? APRS_MSG : compose ? APRS_SEND : APRS_LIST);
     }
     return 0;
 }

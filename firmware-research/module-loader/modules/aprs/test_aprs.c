@@ -7,6 +7,8 @@
 #include <string.h>
 
 #define APRS_HOST_TEST
+static unsigned menu_position;
+#define H9_MENU_POSITION menu_position
 #include "h9mod.h"
 #include "gfx.h"
 
@@ -64,6 +66,7 @@ static uint16_t host_write, host_read;
 #include "aprs_tx.c"
 #include "aprs_text.c"
 #include "aprs_edit.c"
+#include "aprs_msg.c"
 struct aprs aprs_host;
 
 static int failures;
@@ -149,8 +152,39 @@ static void put_record(unsigned slot, const char *src, unsigned ssid, const char
     d[R_LEN] = (uint8_t)len; d[R_LEN + 1] = (uint8_t)(len >> 8);
 }
 
+static void message_center_tests(void)
+{
+    reset();
+    put_str(A->mycall, "N0CALL-7");
+    A->msgs = 3;
+    put_str(A->msg[0].from, "W1ABC");
+    A->msg[0].mine = 1;
+    put_str(A->msg[1].from, A->mycall);
+    put_str(A->msg[1].to, "W2LIC");
+    put_str(A->msg[2].from, "W3DEF");
+    uint8_t order[MESSAGES];
+    CHECK(message_order(order, H9_MSG_INBOX) == 1 && order[0] == 0);
+    CHECK(message_order(order, H9_MSG_SENT) == 1 && order[0] == 1);
+    CHECK(message_order(order, 0) == 3 && order[2] == 2);
+
+    const struct h9_api compatible = { .version = 5 };
+    menu_position = 0x48390001; /* navigation firmware before Messages */
+    CHECK(!aprs_go_messages(&compatible));
+    menu_position = H9_MENU_MAGIC | H9_MSG_INBOX << H9_MSG_ROUTE_SHIFT;
+    host_request.magic = 0;
+    A->home_side = 1;
+    A->home_speaker = 1;
+    host_side = 0;
+    speaker_on = 0;
+    CHECK(aprs_go_messages(&compatible));
+    CHECK(host_request.magic == H9_REQUEST_MAGIC && !strcmp(host_request.name, H9_MESSAGE_CENTER));
+    CHECK((host_side >> 7) == 1 && speaker_on == 1);
+    menu_position = 0;
+}
+
 int main(void)
 {
+    message_center_tests();
     /* Uncompressed position (APRS 1.0.1 ch. 8 example). */
     reset();
     SEND("N0CALL", 9, "APRS", "!4903.50N/07201.75W-Test 001234");

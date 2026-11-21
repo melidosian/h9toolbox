@@ -5,12 +5,17 @@ import { exportPortable, importPortable } from './portable.mjs';
 import { parseMHz, standardOffset, planTransmit } from './channel-plan.mjs';
 import { exportChannels, inspectChannelImport, importChannels } from './channels-file.mjs';
 import { serializeChannelsCsv, parseChannelsCsv } from './channels-csv.mjs';
+import { checkLongName, longNameChanges, readCloneCapabilities, readLongName, writeLongName } from './channel-labels.mjs';
 import { readBlockReply } from './protocol.mjs';
-import { ResourceRadio } from './boot-logo/radio.mjs?v=20261109b';
+import { ResourceRadio, connectUsb } from './boot-logo/radio.mjs?v=programmer-usb';
 import { parseStatus, statusAddress } from './boot-logo/resource.mjs?v=20261108a';
 import { mountLogoTool } from './boot-logo/logo-tool.mjs?v=20261109b';
 
 const $ = id => document.getElementById(id);
+const guide = $('programmerGuide');
+const slides = [...guide.querySelectorAll('.guide-slide')];
+const stepIndicators = [...guide.querySelectorAll('.guide-steps li')];
+const nextLabels = ['Read & back up →', 'Edit channels →', 'Radio settings →', 'Review changes →'];
 const MEM_SIZE = 0x3140;
 const BLOCK = 0x20;
 const IMAGE_SIZE = MEM_SIZE + 8;
@@ -26,9 +31,14 @@ const modeNames = { 0x4e: 'Normal', 0x48: 'HAM', 0x47: 'GMRS' };
 let device = null;
 let writeChar = null;
 let notifyChar = null;
+let usbSession = null;
+let sparseSerialWrites = false;
+let radioBackup = null;
 let baseline = null;
 let edited = null;
 let originalBackup = null;
+let baselineLongNames = null;
+let editedLongNames = new Map();
 let backupSaved = false;
 let selectedChannel = null;
 let txManuallyEdited = false;
@@ -47,6 +57,34 @@ let resourceRadio = null;
 let toolbox = null;
 let logoTool = null;
 let logoBusy = false;
+let currentStep = 0;
+
+function refreshNavigation(connected) {
+  const onLastStep = currentStep === slides.length - 1;
+  $('previousStep').disabled = busy || currentStep === 0;
+  $('nextStep').hidden = onLastStep;
+  $('nextStep').disabled = busy || onLastStep || (currentStep === 1 && !edited);
+  $('nextStep').textContent = currentStep === 0 && !connected ? 'Open a backup →' : nextLabels[currentStep] ?? '';
+  $('reconnectStep').hidden = !onLastStep || (connected && (!usbSession || sparseSerialWrites));
+  $('reconnectStep').disabled = busy;
+  $('reconnectStep').textContent = connected ? 'Change connection →' : 'Connect radio →';
+  $('writeDisconnected').hidden = connected;
+  $('usbWriteUnavailable').hidden = !(usbSession && !sparseSerialWrites);
+}
+
+function showStep(index) {
+  if (index < 0 || index >= slides.length) return;
+  slides[currentStep].hidden = true;
+  currentStep = index;
+  slides[currentStep].hidden = false;
+  stepIndicators.forEach((step, i) => {
+    step.classList.toggle('past', i < currentStep);
+    if (i === currentStep) step.setAttribute('aria-current', 'step');
+    else step.removeAttribute('aria-current');
+  });
+  refresh();
+  $(slides[currentStep].getAttribute('aria-labelledby')).focus();
+}
 
 function log(message) {
   const item = document.createElement('li');
@@ -54,7 +92,11 @@ function log(message) {
   $('log').prepend(item);
   while ($('log').children.length > 45) $('log').lastChild.remove();
 }
+function radioLog(message, level) {
+  if (level !== 'debug') log(message);
+}
 function status(message, error = false) {
+  $('status').hidden = false;
   $('status').textContent = message;
   $('status').classList.toggle('error-status', error);
   log(message);
@@ -72,14 +114,27 @@ function selectedProfiles() {
   const choice = $('profile').value;
   return choice === 'auto' || choice === 'custom' ? PROFILES : [PROFILES[{ h9: 0, nordic: 1, hm10: 2, feasycom: 3 }[choice]]];
 }
+function connectedName() {
+  return usbSession?.name ?? (device?.gatt?.connected && writeChar && notifyChar ? device.name || 'TD-H9' : '');
+}
 function refresh() {
-  const connected = !!device?.gatt?.connected && !!writeChar && !!notifyChar;
+  const name = connectedName();
+  const connected = !!name;
+  refreshNavigation(connected);
   $('connection').classList.toggle('connected', connected);
-  $('connection').innerHTML = `<i></i> ${connected ? 'Connected to ' + escapeHtml(device.name || 'TD-H9') : 'Disconnected'}`;
-  $('connect').disabled = busy || connected;
-  $('disconnect').disabled = busy || !device;
+  $('connection').innerHTML = `<i></i> ${connected ? 'Connected to ' + escapeHtml(name) : 'Disconnected'}`;
+  $('connect').disabled = busy || connected || !navigator.bluetooth;
+  $('connectUsb').disabled = busy || connected || !navigator.serial;
+  $('bluetoothUnavailable').hidden = !!navigator.bluetooth;
+  $('usbUnavailable').hidden = !!navigator.serial;
+  $('disconnect').disabled = busy || !connected;
   $('read').disabled = busy || !connected;
+  $('read').hidden = !connected || busy;
   $('save').disabled = busy || !baseline;
+  $('connectedBackup').hidden = !radioBackup;
+  $('useConnectedImage').disabled = busy;
+  $('saveConnectedBackup').disabled = busy;
+  $('openFile').disabled = busy;
   $('exportJson').disabled = busy || !edited;
   $('exportArchive').disabled = busy || !edited;
   $('exportImg').disabled = busy || !edited;
@@ -88,15 +143,20 @@ function refresh() {
   $('createChannel').disabled = busy || !edited;
   $('newChannelNumber').disabled = busy || !edited;
   $('exportChannels').disabled = busy || !edited;
+  $('openChannels').disabled = busy || !edited;
   $('applySettings').disabled = busy || !edited;
   $('riskAcknowledged').disabled = busy || !edited;
   const count = edited && baseline ? changedBlocks().length : 0;
-  $('changeCount').textContent = count ? `${count} changed block${count === 1 ? '' : 's'}` : 'No changes';
-  $('write').disabled = busy || !connected || !$('riskAcknowledged').checked || !count;
+  const longNames = pendingLongNames().filter(change => !change.implicit).length;
+  const summaries = [count ? `${count} changed block${count === 1 ? '' : 's'}` : '',
+    longNames ? `${longNames} long name${longNames === 1 ? '' : 's'}` : ''].filter(Boolean);
+  $('changeCount').textContent = summaries.join(' · ') || 'No changes';
+  $('write').disabled = busy || !connected || (usbSession && !sparseSerialWrites) ||
+    !$('riskAcknowledged').checked || (!count && !longNames);
   $('radioMode').textContent = edited ? `${modeName(edited)} image` : 'No image';
   $('logoCard').hidden = !(toolbox && connected);
   $('toolboxNote').hidden = !toolbox;
-  if (toolbox) $('toolboxNote').innerHTML = '<strong>H9 Toolbox Firmware detected.</strong> Reads use the fast path (checked against normal reads), and you can change the boot logo below.';
+  if (toolbox) $('toolboxNote').innerHTML = '<strong>H9 Toolbox Firmware detected.</strong> The final step includes the boot logo tool.';
   logoTool?.refresh();
   $('imageInfo').textContent = edited ? `${IMAGE_SIZE.toLocaleString()} bytes · ${modeName(edited)} · ${backupSaved ? 'Original backup saved' : 'Original backup available to save'}` : 'No radio image loaded.';
 }
@@ -107,8 +167,12 @@ function validateImage(bytes) {
   if (!same(bytes.slice(0, 7), Uint8Array.of(0x54, 0x44, 0x48, 0x39, 0xff, 0xff, 0xff)) || !modeNames[bytes[7]]) throw new Error('This is not a TD-H9 Normal, HAM, or GMRS image.');
 }
 function onNotification(event) {
+  if (event.target !== notifyChar) return;
   const bytes = new Uint8Array(event.target.value.buffer, event.target.value.byteOffset, event.target.value.byteLength);
   resourceRadio?.receive(bytes.slice());
+  receiveCloneBytes(bytes);
+}
+function receiveCloneBytes(bytes) {
   incoming.push(...bytes);
   if (incomingWake) { incomingWake(); incomingWake = null; }
 }
@@ -117,6 +181,7 @@ async function readExact(length, timeoutMs = 2500) {
   let at = 0;
   const deadline = Date.now() + timeoutMs;
   while (at < length) {
+    if (!connectedName()) throw new Error('Radio disconnected.');
     while (incoming.length && at < length) out[at++] = incoming.shift();
     if (at === length) break;
     const remaining = deadline - Date.now();
@@ -129,7 +194,8 @@ async function readExact(length, timeoutMs = 2500) {
   return out;
 }
 async function send(bytes) {
-  if (!writeChar) throw new Error('Bluetooth is disconnected.');
+  if (usbSession) return usbSession.radio.write(bytes);
+  if (!writeChar) throw new Error('Radio disconnected.');
   if (writeChar.properties.write) await writeChar.writeValueWithResponse(bytes);
   else await writeChar.writeValueWithoutResponse(bytes);
 }
@@ -160,7 +226,7 @@ async function enterProgramming() {
   }
 }
 async function exitProgramming() {
-  try { if (device?.gatt?.connected) await send(Uint8Array.of(0x45)); }
+  try { if (connectedName()) await send(Uint8Array.of(0x45)); }
   catch (error) { log(`Could not send exit command: ${error.message}`); }
 }
 async function readBlock(address) {
@@ -174,6 +240,33 @@ async function readBlock(address) {
   readReplyMode = reply.mode;
   if (previousMode !== readReplyMode) log(`Read reply: ${readReplyMode === 'yes' ? '37 bytes (checksum)' : '36 bytes (no checksum)'}.`);
   return reply.data;
+}
+async function writeBlock(address, bytes) {
+  const checksum = bytes.reduce((sum, byte) => (sum + byte) & 255, 0);
+  await send(Uint8Array.of(0x57, (address >> 8) & 255, address & 255, BLOCK, ...bytes, checksum));
+  await expectAck(`Write at 0x${address.toString(16)}`);
+}
+const labelRadio = {readBlock, writeBlock};
+
+async function probeCloneCapabilities() {
+  try {
+    return {...await readCloneCapabilities(labelRadio), resync: false};
+  } catch (error) {
+    log(`Channel long-name probe did not respond (${error.message}).`);
+    return {longNames: false, sparseSerialWrites: false, resync: true};
+  }
+}
+
+async function readChannelLongNames(image) {
+  const names = new Map();
+  const channels = [];
+  for (let n = 1; n <= CHANNEL_COUNT; n++) if (readChannel(image, n).valid) channels.push(n);
+  if (channels.length) startProgress('Reading channel long names');
+  for (const [i, n] of channels.entries()) {
+    names.set(n, await readLongName(labelRadio, n));
+    showProgress(i + 1, channels.length);
+  }
+  return names;
 }
 // One status read at the H9 Toolbox service address, as the first read of a
 // session. Stock firmware returns ordinary clone bytes there (or nothing).
@@ -243,120 +336,195 @@ async function work(fn) {
   catch (error) { status(error.message || String(error), true); }
   finally { busy = false; refresh(); }
 }
-async function connect() {
-  await work(async () => {
-    if (!navigator.bluetooth) throw new Error('Web Bluetooth is unavailable here. Open this page in Chrome or Edge over HTTPS.');
-    let profiles = selectedProfiles();
-    const extra = $('customUuid').value.trim();
-    const extraUuid = extra ? serviceUuid(extra) : null;
-    if ($('profile').value === 'custom' && !extraUuid) throw new Error('Enter the custom service UUID first.');
-    const optionalServices = [...new Set([...profiles.map(p => p.service), ...(extraUuid ? [extraUuid] : [])])];
-    status('Choose your TD-H9 in the Bluetooth device picker.');
-    device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'TD-H9' }], optionalServices });
-    device.addEventListener('gattserverdisconnected', () => { writeChar = null; notifyChar = null; resourceRadio = null; toolbox = null; status('Radio disconnected.'); refresh(); });
-    const server = await device.gatt.connect();
-    let services;
-    try { services = await server.getPrimaryServices(); }
-    catch (error) { server.disconnect(); throw new Error(`Could not discover approved BLE services: ${error.message}`); }
-    log(`Visible services: ${services.map(s => s.uuid).join(', ') || 'none'}.`);
-    let pair = null;
-    for (const profile of profiles) {
-      const service = services.find(s => s.uuid.toLowerCase() === profile.service);
-      if (!service) continue;
+async function connectBluetooth() {
+  if (!navigator.bluetooth) throw new Error('Web Bluetooth is unavailable here. Open this page in Chrome or Edge over HTTPS.');
+  let profiles = selectedProfiles();
+  const extra = $('customUuid').value.trim();
+  const extraUuid = extra ? serviceUuid(extra) : null;
+  if ($('profile').value === 'custom' && !extraUuid) throw new Error('Enter the custom service UUID first.');
+  const optionalServices = [...new Set([...profiles.map(p => p.service), ...(extraUuid ? [extraUuid] : [])])];
+  status('Choose your TD-H9 in the Bluetooth device picker.');
+  device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'TD-H9' }], optionalServices });
+  device.addEventListener('gattserverdisconnected', bluetoothDisconnected);
+  const server = await device.gatt.connect();
+  let services;
+  try { services = await server.getPrimaryServices(); }
+  catch (error) { server.disconnect(); throw new Error(`Could not discover approved BLE services: ${error.message}`); }
+  log(`Visible services: ${services.map(s => s.uuid).join(', ') || 'none'}.`);
+  let pair = null;
+  for (const profile of profiles) {
+    const service = services.find(s => s.uuid.toLowerCase() === profile.service);
+    if (!service) continue;
+    const chars = await service.getCharacteristics();
+    const tx = chars.find(c => c.uuid.toLowerCase() === profile.write && (c.properties.write || c.properties.writeWithoutResponse));
+    const rx = chars.find(c => c.uuid.toLowerCase() === profile.notify && (c.properties.notify || c.properties.indicate));
+    if (tx && rx) { pair = { tx, rx, name: profile.name }; break; }
+  }
+  if (!pair && extraUuid) {
+    const service = services.find(s => s.uuid.toLowerCase() === extraUuid);
+    if (service) {
       const chars = await service.getCharacteristics();
-      const tx = chars.find(c => c.uuid.toLowerCase() === profile.write && (c.properties.write || c.properties.writeWithoutResponse));
-      const rx = chars.find(c => c.uuid.toLowerCase() === profile.notify && (c.properties.notify || c.properties.indicate));
-      if (tx && rx) { pair = { tx, rx, name: profile.name }; break; }
+      const writers = chars.filter(c => c.properties.write || c.properties.writeWithoutResponse);
+      const readers = chars.filter(c => c.properties.notify || c.properties.indicate);
+      log(`Custom service characteristics: ${chars.map(c => `${c.uuid} [${c.properties.write ? 'W' : ''}${c.properties.writeWithoutResponse ? 'w' : ''}${c.properties.notify ? 'N' : ''}${c.properties.indicate ? 'I' : ''}]`).join(', ')}.`);
+      if (writers.length === 1 && readers.length === 1) pair = { tx: writers[0], rx: readers[0], name: 'Custom UART' };
     }
-    if (!pair && extraUuid) {
-      const service = services.find(s => s.uuid.toLowerCase() === extraUuid);
-      if (service) {
-        const chars = await service.getCharacteristics();
-        const writers = chars.filter(c => c.properties.write || c.properties.writeWithoutResponse);
-        const readers = chars.filter(c => c.properties.notify || c.properties.indicate);
-        log(`Custom service characteristics: ${chars.map(c => `${c.uuid} [${c.properties.write ? 'W' : ''}${c.properties.writeWithoutResponse ? 'w' : ''}${c.properties.notify ? 'N' : ''}${c.properties.indicate ? 'I' : ''}]`).join(', ')}.`);
-        if (writers.length === 1 && readers.length === 1) pair = { tx: writers[0], rx: readers[0], name: 'Custom UART' };
-      }
-    }
-    if (!pair) {
-      server.disconnect();
-      throw new Error('No known UART write/notify pair found. Try another service UUID in Bluetooth options.');
-    }
-    writeChar = pair.tx; notifyChar = pair.rx;
-    incoming = [];
-    resourceRadio = new ResourceRadio({ write: send, log: (message, level) => { if (level !== 'debug') log(message); } });
-    toolbox = null;
-    logoTool?.reset();
-    notifyChar.addEventListener('characteristicvaluechanged', onNotification);
-    await notifyChar.startNotifications();
-    status(`Connected to ${device.name || 'TD-H9'} via ${pair.name}.`);
+  }
+  if (!pair) {
+    server.disconnect();
+    throw new Error('No known UART write/notify pair found. Try another service UUID in Bluetooth options.');
+  }
+  writeChar = pair.tx; notifyChar = pair.rx;
+  incoming = [];
+  resourceRadio = new ResourceRadio({ write: send, log: radioLog });
+  notifyChar.addEventListener('characteristicvaluechanged', onNotification);
+  await notifyChar.startNotifications();
+  status(`Connected to ${device.name || 'TD-H9'} via ${pair.name}.`);
+}
+async function connectSerial() {
+  status('Choose the TD-H9 serial port.');
+  let session;
+  session = await connectUsb({
+    log: radioLog,
+    onReceive: receiveCloneBytes,
+    onDisconnect: () => { if (session && usbSession === session) finishDisconnect(); },
+  });
+  usbSession = session;
+  resourceRadio = session.radio;
+}
+function clearConnection() {
+  device?.removeEventListener('gattserverdisconnected', bluetoothDisconnected);
+  notifyChar?.removeEventListener('characteristicvaluechanged', onNotification);
+  device = null;
+  writeChar = null;
+  notifyChar = null;
+  usbSession = null;
+  sparseSerialWrites = false;
+  resourceRadio = null;
+  toolbox = null;
+  incoming = [];
+  if (incomingWake) { incomingWake(); incomingWake = null; }
+  logoTool?.reset();
+}
+function finishDisconnect() {
+  clearConnection();
+  status('Radio disconnected.');
+  refresh();
+}
+function bluetoothDisconnected(event) {
+  if (event.target === device) finishDisconnect();
+}
+async function closeConnection() {
+  const port = usbSession;
+  const gatt = device?.gatt;
+  clearConnection();
+  if (port) await port.disconnect();
+  else if (gatt?.connected) gatt.disconnect();
+}
+function startConnection(open) {
+  return work(async () => {
+    try { await open(); }
+    catch (error) { await closeConnection(); throw error; }
+    radioBackup = null;
+    showStep(1);
+    await readRadio();
   });
 }
-async function disconnect() {
-  if (device?.gatt?.connected) device.gatt.disconnect();
-  writeChar = null; notifyChar = null; incoming = []; resourceRadio = null; toolbox = null;
-  status('Radio disconnected.'); refresh();
-}
-async function download() {
-  await work(async () => {
-    let entered = false;
-    try {
-      status('Starting TD-H9 backup…');
-      let ident = await enterProgramming(); entered = true;
-      const began = performance.now();
-      let image = null;
-      const probe = await probeToolbox();
-      if (probe.resync) {
-        // A stock radio may ignore the probe; start a clean session.
-        await exitProgramming(); entered = false;
-        await new Promise(resolve => setTimeout(resolve, 300));
-        ident = await enterProgramming(); entered = true;
-      }
-      toolbox = probe.status;
-      refresh();
-      if (toolbox) {
-        await exitProgramming(); entered = false;
-        // Let the radio's late acknowledgement of the exit arrive before the
-        // fast session starts (it otherwise precedes the next identity).
-        await new Promise(resolve => setTimeout(resolve, 300));
-        image = await fastImage(ident);
-        if (!image) { await new Promise(resolve => setTimeout(resolve, 300)); ident = await enterProgramming(); entered = true; }
-      }
-      if (!image) {
-        startProgress('Reading the radio');
-        image = new Uint8Array(IMAGE_SIZE);
-        image.set(ident);
-        for (let address = 0; address < MEM_SIZE; address += BLOCK) {
-          image.set(await readBlock(address), address + 8);
-          if (address % (BLOCK * 8) === 0 || address + BLOCK === MEM_SIZE) {
-            showProgress(address + BLOCK, MEM_SIZE);
-            await new Promise(resolve => setTimeout(resolve, 0));
-          }
+async function readRadio() {
+  let entered = false;
+  try {
+    status(`Reading backup from ${connectedName()}…`);
+    startProgress('Reading the radio');
+    let ident = await enterProgramming(); entered = true;
+    const began = performance.now();
+    let image = null;
+    const probe = await probeToolbox();
+    if (probe.resync) {
+      // A stock radio may ignore the probe; start a clean session.
+      await exitProgramming(); entered = false;
+      await new Promise(resolve => setTimeout(resolve, 300));
+      ident = await enterProgramming(); entered = true;
+    }
+    toolbox = probe.status;
+    refresh();
+    if (toolbox && !usbSession) {
+      await exitProgramming(); entered = false;
+      // Let the radio's late acknowledgement of the exit arrive before the
+      // fast session starts (it otherwise precedes the next identity).
+      await new Promise(resolve => setTimeout(resolve, 300));
+      image = await fastImage(ident);
+      if (!image) { await new Promise(resolve => setTimeout(resolve, 300)); ident = await enterProgramming(); entered = true; }
+    }
+    if (!image) {
+      startProgress('Reading the radio');
+      image = new Uint8Array(IMAGE_SIZE);
+      image.set(ident);
+      for (let address = 0; address < MEM_SIZE; address += BLOCK) {
+        image.set(await readBlock(address), address + 8);
+        if (address % (BLOCK * 8) === 0 || address + BLOCK === MEM_SIZE) {
+          showProgress(address + BLOCK, MEM_SIZE);
+          await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
-      log(`Read ${IMAGE_SIZE.toLocaleString()} bytes in ${((performance.now() - began) / 1000).toFixed(1)} s.`);
-      $('progressBar').style.width = '100%';
-      $('progressLabel').textContent = `100% · Read complete in ${formatDuration((performance.now() - began) / 1000)}`;
-      validateImage(image);
-      baseline = image;
-      edited = image.slice();
-      originalBackup = image.slice();
-      backupSaved = false;
-      $('riskAcknowledged').checked = false;
-      renderChannels();
-      renderSettings();
-      status(`Read complete: ${modeName(image)} image, ${IMAGE_SIZE.toLocaleString()} bytes. You can save an untouched backup before editing.`);
-    } finally { if (entered) await exitProgramming(); }
-  });
+    }
+    let names = null;
+    if (toolbox) {
+      try {
+        if (!entered) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+          const nameIdent = await enterProgramming();
+          entered = true;
+          if (!same(nameIdent, ident)) throw new Error('Radio changed before reading channel long names.');
+        }
+        const capabilities = await probeCloneCapabilities();
+        sparseSerialWrites = capabilities.sparseSerialWrites;
+        if (capabilities.longNames) names = await readChannelLongNames(image);
+      } catch (error) {
+        log(`Channel long names could not be read (${error.message}). The radio image is available.`);
+      }
+    }
+    log(`Read ${IMAGE_SIZE.toLocaleString()} bytes in ${((performance.now() - began) / 1000).toFixed(1)} s.`);
+    $('progressBar').style.width = '100%';
+    $('progressLabel').textContent = `100% · Read complete in ${formatDuration((performance.now() - began) / 1000)}`;
+    validateImage(image);
+    if (edited) {
+      radioBackup = {image, names};
+      status('Read complete. Your working image is still open. The connected radio backup is ready to save or use.');
+    } else {
+      useRadioImage({image, names});
+      status(`Read complete: ${modeName(image)} image. ${names ? 'Channel long names loaded. ' : ''}Save the original backup before editing.`);
+    }
+  } finally { if (entered) await exitProgramming(); }
+}
+function useRadioImage({image, names}) {
+  baseline = image;
+  edited = image.slice();
+  originalBackup = image.slice();
+  baselineLongNames = names;
+  editedLongNames = new Map([...(names ?? [])].filter(([, name]) => name !== ''));
+  backupSaved = false;
+  radioBackup = null;
+  selectedChannel = null;
+  $('editPanel').hidden = true;
+  $('riskAcknowledged').checked = false;
+  renderChannels();
+  renderSettings();
+}
+function useConnectedImage() {
+  if (!radioBackup) return;
+  if ((changedBlocks().length || pendingLongNames().length) &&
+      !window.confirm('Replace your working image and its staged edits with the backup just read from the connected radio?')) return;
+  useRadioImage(radioBackup);
+  status('The backup from the connected radio is now your working image.');
+}
+function saveConnectedBackup() {
+  if (!radioBackup) return;
+  saveFile(radioBackup.image, `TD-H9-${modeName(radioBackup.image)}-radio-backup.img`, 'application/octet-stream');
+  status('Connected radio backup download started.');
 }
 function saveBackup() {
   if (!originalBackup) return;
-  const blob = new Blob([originalBackup], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `TD-H9-${modeName(originalBackup)}-original-${new Date().toISOString().slice(0, 10)}.img`;
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  saveFile(originalBackup, `TD-H9-${modeName(originalBackup)}-original-${new Date().toISOString().slice(0, 10)}.img`, 'application/octet-stream');
   backupSaved = true;
   status('Original backup download started. Keep this file unchanged.'); refresh();
 }
@@ -371,7 +539,7 @@ function saveFile(bytes, name, type) {
 function downloadJson(archive = false) {
   if (!baseline || !edited) return;
   try {
-    const document = exportPortable(baseline, edited, {archive});
+    const document = exportPortable(baseline, edited, {archive, longNames: editedLongNames, baseLongNames: baselineLongNames});
     const bytes = JSON.stringify(document, null, 2) + '\n';
     saveFile(bytes, `TD-H9-${modeName(edited)}-${archive ? 'archive' : 'config'}-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
     status(archive ? 'Lossless JSON archive downloaded with complete original image bytes.' : 'Readable configuration JSON downloaded. Load an .img backup or read the destination radio before importing it.');
@@ -380,12 +548,13 @@ function downloadJson(archive = false) {
 function exportImg() {
   if (!edited) return;
   saveFile(edited, `TD-H9-${modeName(edited)}-working-${new Date().toISOString().slice(0, 10)}.img`, 'application/octet-stream');
-  status('Working .img downloaded. Keep the separate original backup unchanged.');
+  status(editedLongNames.size ? 'Working .img downloaded. Use CSV or JSON to save channel long names.' :
+    'Working .img downloaded. Keep the separate original backup unchanged.');
 }
 function downloadChannels() {
   if (!edited) return;
   try {
-    const document = exportChannels(edited);
+    const document = exportChannels(edited, editedLongNames);
     saveFile(serializeChannelsCsv(document), `TD-H9-${modeName(edited)}-channels-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8');
     status(`${document.channels.length} channel${document.channels.length === 1 ? '' : 's'} exported as CSV. Radio settings and raw memory are not included.`);
   } catch (error) { status(error.message, true); }
@@ -401,10 +570,11 @@ async function openChannels(event) {
       catch { throw new Error('Could not parse the older channels JSON file.'); }
     } else document = parseChannelsCsv(await file.text(), edited);
     document = {...document, replaceAll: document?.replaceAll === true || $('replaceChannels').checked};
-    const plan = inspectChannelImport(edited, document);
+    const plan = inspectChannelImport(edited, document, editedLongNames);
     if ((plan.conflicts.length || plan.removals.length) && !window.confirm(`Import will replace ${plan.conflicts.length} occupied channel${plan.conflicts.length === 1 ? '' : 's'} and remove ${plan.removals.length} channel${plan.removals.length === 1 ? '' : 's'}${document.replaceAll === true ? ' because Replace all channels is selected' : ''}. Continue?`)) return;
-    const result = importChannels(edited, document);
+    const result = importChannels(edited, document, editedLongNames);
     edited = result.image;
+    editedLongNames = result.longNames;
     $('replaceChannels').checked = false;
     selectedChannel = null;
     $('editPanel').hidden = true;
@@ -423,13 +593,15 @@ async function openJson(event) {
     try { document = JSON.parse(await file.text()); }
     catch { throw new Error('Could not parse the JSON file.'); }
     const configuration = document.formatVersion === 2;
-    const parsed = importPortable(document, configuration ? edited : null);
+    const parsed = importPortable(document, configuration ? edited : null, editedLongNames);
     if (!configuration) {
       baseline = parsed.original;
       originalBackup = parsed.original.slice();
+      baselineLongNames = parsed.baselineLongNames;
       backupSaved = true;
     }
     edited = parsed.edited;
+    editedLongNames = parsed.longNames;
     $('riskAcknowledged').checked = false;
     renderChannels();
     renderSettings();
@@ -445,6 +617,8 @@ async function openBackup(event) {
     baseline = bytes;
     edited = bytes.slice();
     originalBackup = bytes.slice();
+    baselineLongNames = null;
+    editedLongNames = new Map();
     backupSaved = true;
     $('riskAcknowledged').checked = false;
     renderChannels();
@@ -483,9 +657,10 @@ function renderChannels() {
     const ch = readChannel(edited, n);
     if (ch.valid) count++;
     if (!ch.valid && !showAll) continue;
-    if (search && !`${n} ${ch.name} ${ch.rx || ''} ${ch.tx || ''} ${ch.mode} ${toneSummary(ch)}`.toLowerCase().includes(search)) continue;
+    const longName = ch.valid ? editedLongNames.get(n) ?? '' : '';
+    if (search && !`${n} ${ch.name} ${longName} ${ch.rx || ''} ${ch.tx || ''} ${ch.mode} ${toneSummary(ch)}`.toLowerCase().includes(search)) continue;
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${n.toString().padStart(3, '0')}</td><td>${escapeHtml(ch.name || '—')}</td><td>${ch.rx || '—'}</td><td>${ch.tx || '—'}</td><td>${ch.valid ? ch.mode : '—'}</td><td>${ch.valid ? escapeHtml(toneSummary(ch)) : '—'}</td><td>${ch.valid ? ['Low', 'Mid', 'High', '?'][ch.power] : '—'}</td><td>${ch.valid ? (ch.scan ? 'Yes' : 'No') : '—'}</td><td class="channel-actions"><button class="text-button" data-channel="${n}" aria-label="${ch.valid ? 'Edit' : 'Add'} channel ${n}">${ch.valid ? 'Edit' : 'Add'}</button>${ch.valid ? `<button class="text-button danger-text" data-remove="${n}" aria-label="Remove channel ${n}">Remove</button>` : ''}</td>`;
+    row.innerHTML = `<td>${n.toString().padStart(3, '0')}</td><td>${escapeHtml(longName || ch.name || '—')}</td><td>${ch.rx || '—'}</td><td>${ch.tx || '—'}</td><td>${ch.valid ? ch.mode : '—'}</td><td>${ch.valid ? escapeHtml(toneSummary(ch)) : '—'}</td><td>${ch.valid ? ['Low', 'Mid', 'High', '?'][ch.power] : '—'}</td><td>${ch.valid ? (ch.scan ? 'Yes' : 'No') : '—'}</td><td class="channel-actions"><button class="text-button" data-channel="${n}" aria-label="${ch.valid ? 'Edit' : 'Add'} channel ${n}">${ch.valid ? 'Edit' : 'Add'}</button>${ch.valid ? `<button class="text-button danger-text" data-remove="${n}" aria-label="Remove channel ${n}">Remove</button>` : ''}</td>`;
     fragment.append(row);
   }
   rows.append(fragment);
@@ -538,6 +713,7 @@ function startEdit(n) {
   txManuallyEdited = ch.valid && !ch.tx;
   $('editHeading').textContent = `${ch.valid ? 'Edit' : 'Add'} channel ${n}`;
   $('editName').value = ch.valid ? ch.name : '';
+  $('editLongName').value = ch.valid ? editedLongNames.get(n) ?? '' : '';
   $('editRx').value = ch.valid ? ch.rx : '';
   $('editTx').value = ch.valid ? ch.tx || '' : '';
   $('editDirection').value = String(ch.valid ? ch.offsetDirection : 0);
@@ -596,10 +772,14 @@ function applyEdit() {
       busyLock: $('editBusyLock').checked, hopping: $('editHopping').checked,
       txTone: toneForm('Tx', original.txTone), rxTone: toneForm('Rx', original.rxTone),
     };
+    const longName = checkLongName($('editLongName').value);
     edited = writeChannel(edited, selectedChannel, form);
+    if (longName !== (editedLongNames.get(selectedChannel) ?? '')) {
+      editedLongNames.set(selectedChannel, longName);
+    }
     $('riskAcknowledged').checked = false;
     $('editPanel').hidden = true;
-    status(`Channel ${selectedChannel} updated in the image. Radio has not been changed.`);
+    status(`Channel ${selectedChannel} changes staged.`);
     selectedChannel = null;
     renderChannels();
   } catch (error) { $('editError').textContent = error.message; }
@@ -609,6 +789,7 @@ function removeChannel(n) {
   const name = readChannel(edited, n).name;
   if (!window.confirm(`Remove channel ${n}${name ? ` (${name})` : ''} from the working image? The radio is not changed until you write.`)) return;
   edited = clearChannel(edited, n);
+  editedLongNames.set(n, '');
   $('riskAcknowledged').checked = false;
   status(`Channel ${n} removed from the image. Radio has not been changed.`);
   selectedChannel = null;
@@ -714,46 +895,97 @@ function changedBlocks() {
   }
   return changed;
 }
+function pendingLongNames() {
+  return baseline && edited ? longNameChanges(baselineLongNames, editedLongNames, baseline, edited) : [];
+}
+
 async function writeChanges() {
   await work(async () => {
     if (!$('riskAcknowledged').checked || !baseline || !edited) throw new Error('Review your channels and settings and confirm you are ready to write first.');
     const addresses = changedBlocks();
-    if (!addresses.length) return;
+    const names = pendingLongNames();
+    if (!addresses.length && !names.length) return;
     if (addresses.some(a => !(a < 0x1f80 || (a >= 0x3000 && a < 0x3140)))) throw new Error('An edit touches an unsupported radio memory region.');
     let entered = false;
     let writes = 0;
     try {
-      status(`Checking radio before ${addresses.length} block write${addresses.length === 1 ? '' : 's'}…`);
-      const ident = await enterProgramming(); entered = true;
+      status('Checking radio before writing changes…');
+      let ident = await enterProgramming(); entered = true;
       if (!same(ident, baseline.slice(0, 8))) throw new Error(`Radio mode differs from backup (${modeNames[ident[7]]} vs ${modeName(baseline)}). No data written.`);
-      startProgress(`Writing ${addresses.length} changed block${addresses.length === 1 ? '' : 's'}`);
-      for (let i = 0; i < addresses.length; i++) {
-        const address = addresses[i];
-        const original = baseline.slice(address + 8, address + 8 + BLOCK);
-        const next = edited.slice(address + 8, address + 8 + BLOCK);
-        const current = await readBlock(address);
-        if (!same(current, original)) throw new Error(`Radio memory changed at 0x${address.toString(16)} since the backup. Stopped after ${writes} writes.`);
-        const checksum = next.reduce((sum, b) => (sum + b) & 255, 0);
-        await send(Uint8Array.of(0x57, (address >> 8) & 255, address & 255, BLOCK, ...next, checksum));
-        await expectAck(`Write at 0x${address.toString(16)}`);
-        writes++;
-        const verify = await readBlock(address);
-        if (!same(verify, next)) throw new Error(`Readback differs at 0x${address.toString(16)}. Stopped after ${writes} writes.`);
-        showProgress(i + 1, addresses.length);
+      const verifiedNames = [];
+      if (usbSession || names.length) {
+        const capability = await probeCloneCapabilities();
+        if (usbSession && !capability.sparseSerialWrites) {
+          sparseSerialWrites = false;
+          throw new Error('This firmware supports USB-C reads only. Connect over Bluetooth to write changes.');
+        }
+        if (!capability.longNames && names.some(change => !change.implicit)) {
+          throw new Error('Upgrade to H9 Toolbox Firmware with channel long-name support before writing these changes.');
+        }
+        if (capability.resync) {
+          await exitProgramming(); entered = false;
+          await new Promise(resolve => setTimeout(resolve, 300));
+          ident = await enterProgramming(); entered = true;
+          if (!same(ident, baseline.slice(0, 8))) throw new Error('Radio mode differs from backup. No data written.');
+        }
+        if (capability.longNames) {
+          for (const change of names) {
+            const current = await readLongName(labelRadio, change.channel);
+            if (!change.implicit && current !== change.previous && current !== change.next) {
+              throw new Error(`Channel ${change.channel} long name changed since the backup. Read the radio again before writing. No data written.`);
+            }
+            verifiedNames.push({...change, current});
+          }
+          baselineLongNames ??= new Map();
+          for (const change of verifiedNames) {
+            baselineLongNames.set(change.channel, change.current);
+            if (change.implicit) editedLongNames.set(change.channel, '');
+          }
+        }
       }
-      baseline = edited.slice();
+      const nameWrites = verifiedNames.filter(change => change.current !== change.next);
+      const total = addresses.length + nameWrites.length;
+      for (const address of addresses) {
+        const original = baseline.slice(address + 8, address + 8 + BLOCK);
+        const current = await readBlock(address);
+        if (!same(current, original)) throw new Error(`Radio memory changed at 0x${address.toString(16)} since the backup. No data written.`);
+      }
+      if (total) startProgress('Writing verified changes');
+      for (const address of addresses) {
+        const next = edited.slice(address + 8, address + 8 + BLOCK);
+        await writeBlock(address, next);
+        const verify = await readBlock(address);
+        if (!same(verify, next)) throw new Error(`Readback differs at 0x${address.toString(16)}. Stopped after ${writes} verified writes.`);
+        baseline.set(next, address + 8);
+        showProgress(++writes, total);
+      }
+      for (const change of nameWrites) {
+        await writeLongName(labelRadio, change.channel, change.next);
+        baselineLongNames.set(change.channel, change.next);
+        showProgress(++writes, total);
+      }
       $('riskAcknowledged').checked = false;
-      status(`${writes} changed block${writes === 1 ? '' : 's'} written and read back. Check the changed settings on the radio after it restarts.`);
+      status(total ? `${addresses.length} image block${addresses.length === 1 ? '' : 's'} and ${nameWrites.length} long name${nameWrites.length === 1 ? '' : 's'} written and read back.` :
+        'The radio already matches these changes.');
       renderChannels();
       renderSettings();
     } finally { if (entered) await exitProgramming(); }
   });
 }
 
-$('connect').addEventListener('click', connect);
-$('disconnect').addEventListener('click', disconnect);
-$('read').addEventListener('click', download);
+$('previousStep').addEventListener('click', () => showStep(currentStep - 1));
+$('nextStep').addEventListener('click', () => showStep(currentStep + 1));
+$('reconnectStep').addEventListener('click', () => showStep(0));
+$('connect').addEventListener('click', () => startConnection(connectBluetooth));
+$('connectUsb').addEventListener('click', () => startConnection(connectSerial));
+$('disconnect').addEventListener('click', () => work(async () => {
+  await closeConnection();
+  status('Radio disconnected.');
+}));
+$('read').addEventListener('click', () => work(readRadio));
 $('save').addEventListener('click', saveBackup);
+$('saveConnectedBackup').addEventListener('click', saveConnectedBackup);
+$('useConnectedImage').addEventListener('click', useConnectedImage);
 $('exportJson').addEventListener('click', () => downloadJson(false));
 $('exportArchive').addEventListener('click', () => downloadJson(true));
 $('exportImg').addEventListener('click', exportImg);
@@ -808,7 +1040,7 @@ refresh();
 logoTool = mountLogoTool($('logoTool'), {
   onStatus: (message, error) => status(message, error),
   connection: {
-    session: () => (toolbox && resourceRadio && writeChar ? { radio: resourceRadio, name: device?.name || 'TD-H9' } : null),
+    session: () => (toolbox && resourceRadio && connectedName() ? { radio: resourceRadio, name: connectedName() } : null),
     onBusy: flag => { logoBusy = flag; busy = flag; refresh(); },
     blocked: () => busy && !logoBusy,
   },

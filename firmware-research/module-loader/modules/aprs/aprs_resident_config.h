@@ -4,6 +4,7 @@
 #include "h9mod.h"
 #include "../../resident-service/runtime.h"
 
+int aprs_select_tx(struct ts_settings *);
 enum aprs_setting { APRS_SCHEDULE, APRS_MODE, APRS_INTERVAL, APRS_SYMBOL, APRS_MUTE, APRS_SETTING_COUNT };
 
 static inline const struct h9_runtime_api *aprs_runtime(const struct h9_api *loader)

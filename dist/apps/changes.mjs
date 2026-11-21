@@ -2,7 +2,7 @@
 // renamed menu order. Modules are matched by name.
 import { crc16 } from '../boot-logo/resource.mjs';
 
-const same = (a, b) => a.body.length === b.body.length && crc16(a.body) === crc16(b.body) && a.bss === b.bss && a.entry === b.entry;
+const same = (a, b) => a.body.length === b.body.length && crc16(a.body) === crc16(b.body) && a.bss === b.bss && a.entry === b.entry && (a.category ?? '') === (b.category ?? '');
 
 export function describeChanges(installed, staged) {
   const names = list => list.map(m => m.name);

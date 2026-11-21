@@ -5,13 +5,13 @@ A condensed reference for people and agents working on the TIDRADIO TD-H9
 with commands and hashes, is in [resource-flash-log.md](resource-flash-log.md);
 search it for the addresses below.
 
-Tags: **[HW]** proven on the radio · **[STATIC]** from disassembly of the
-pinned stock image · **[HYP]** a working hypothesis, not proven.
+Tags: **[HW]** proven on the radio Â· **[STATIC]** from disassembly of the
+pinned stock image Â· **[HYP]** a working hypothesis, not proven.
 
 Addresses: *app+X* is an offset into the stock `app.bin`
-(SHA-256 `11a07bc0…`). Code runs at **CPU = 0x01E00100 + app offset**; in
+(SHA-256 `11a07bc0â€¦`). Code runs at **CPU = 0x01E00100 + app offset**; in
 main flash that is **flash = app offset + 0x5100**, i.e.
-`CPU = 0x01E00000 + (flash − 0x5000)`. RAM addresses are plain (`0x11AD0`).
+`CPU = 0x01E00000 + (flash âˆ’ 0x5000)`. RAM addresses are plain (`0x11AD0`).
 ROM routines live at `0x0200xxxx`.
 
 ---
@@ -29,7 +29,7 @@ ROM routines live at `0x0200xxxx`.
 - **Anything written to the 16 MB chip must be restorable**: only in erased
   tails, recorded by a directory, so that "restore" means erase. Stock must
   still boot afterwards.
-- **Every custom firmware keeps a way back to USB update mode** (see §6).
+- **Every custom firmware keeps a way back to USB update mode** (see Â§6).
 - **Log every finding** in `resource-flash-log.md`: what was tried, results,
   hashes.
 - User-facing text says "H9 Toolbox Firmware", not the research names
@@ -39,10 +39,10 @@ ROM routines live at `0x0200xxxx`.
 
 | Part | What we know |
 |---|---|
-| Main MCU | JieLi BR23 (chip key `0xF181`) [HW]. CPU about 135,000–200,000 busy-loop iterations per 10 ms tick (C-hello LOOP) [HW]; `clk_set("sys", 240 MHz)` changes nothing measurable, so it already runs fast [HW]. |
+| Main MCU | JieLi BR23 (chip key `0xF181`) [HW]. CPU about 135,000â€“200,000 busy-loop iterations per 10 ms tick (C-hello LOOP) [HW]; `clk_set("sys", 240 MHz)` changes nothing measurable, so it already runs fast [HW]. |
 | Main flash | 1 MiB SPI NOR, ID `0x856014` [HW]. |
 | Resource chip | 16 MiB SPI NOR on SPI2 (port A pins 24/26/25, CS = GPIO 23 = bank 1 `0x1E5040` bit 7) [HW]. Reads about 2 MB/s [HW]. |
-| Screen | 160 × 128 RGB565 [HW]; a full-screen write takes 10–30 ms [HW]. Backlight duty = level × 2000 + 2000; stock caps it at 10000 [HW]. |
+| Screen | 160 Ã— 128 RGB565 [HW]; a full-screen write takes 10â€“30 ms [HW]. Backlight duty = level Ã— 2000 + 2000; stock caps it at 10000 [HW]. |
 | Speaker | BR23 DAC to an amplifier enabled by **PA3** (bank `0x1E5000` bit 3). PA3 must be configured as an **output** (DIR bit 3 = 0) as well as driven high [HW]; the radio app does this at start-up, and stock's speaker writer (app+`0x52228`) only writes OUT. |
 | LED | GPIO 9 (bank `0x1E5000` bit 9) [HW]. |
 | Keypad | Resistor ladders on **two ADC channels (13 and 10)**, matched against voltage windows by the stock scan `0x01E515AC`, with no debounce [STATIC]. A single noisy sample can read as a key; take a key only when two readings in a row agree [HW]. |
@@ -54,14 +54,14 @@ ROM routines live at `0x0200xxxx`.
 
 | Range | Contents |
 |---|---|
-| `0x00000–0x04FFF` | Boot region. HID recovery cannot read or write it [HW]. |
-| `0x05000–0xD9FFF` | App image, **encrypted**: each 32-byte block is XORed with JieLi's CRC stream keyed `0xF181 ^ ((flash − 0x5000) >> 2)` [HW]. `firmware.py` repacks it. The flash mapping decrypts it for the CPU. |
-| `0xDA000–0xE9FFF` | Settings VM, two 32 KiB banks (`0xDA000`, `0xE2000`) [STATIC]. VM init clamps its reserved size to 64 KiB (app+`0x8C9D4`). |
-| `0xEA000–0xFBFFF` | **Free, used by no stock code** (72 KiB) [HW]. Stored **plain** and runs in place at `0x01EE5000` [HW]. Encrypted code here hangs [HW]. Code here can be called after start-up, but cannot be the boot entry itself [HW]. |
-| `0xFC000–0xFFFFF` | Stock data (`0xFD000` holds about 10 bytes) [HW]. Leave alone. |
+| `0x00000â€“0x04FFF` | Boot region. HID recovery cannot read or write it [HW]. |
+| `0x05000â€“0xD9FFF` | App image, **encrypted**: each 32-byte block is XORed with JieLi's CRC stream keyed `0xF181 ^ ((flash âˆ’ 0x5000) >> 2)` [HW]. `firmware.py` repacks it. The flash mapping decrypts it for the CPU. |
+| `0xDA000â€“0xE9FFF` | Settings VM, two 32 KiB banks (`0xDA000`, `0xE2000`) [STATIC]. VM init clamps its reserved size to 64 KiB (app+`0x8C9D4`). |
+| `0xEA000â€“0xFBFFF` | **Free, used by no stock code** (72 KiB) [HW]. Stored **plain** and runs in place at `0x01EE5000` [HW]. Encrypted code here hangs [HW]. Code here can be called after start-up, but cannot be the boot entry itself [HW]. |
+| `0xFC000â€“0xFFFFF` | Stock data (`0xFD000` holds about 10 bytes) [HW]. Leave alone. |
 
 Free code space inside the app, once `my_app` (the radio app) is replaced:
-app+`0x79E32–0x7D64E` and `0x7D69E–0x890E4` (about 62 KB; trap-tested 713 s
+app+`0x79E32â€“0x7D64E` and `0x7D69Eâ€“0x890E4` (about 62 KB; trap-tested 713 s
 with no hit) [HW], plus the cave at app+`0xA77F0` (1,704 B; H9 Toolbox's
 resource-service tables start at app+`0xA7E50`) [HW].
 
@@ -69,15 +69,15 @@ resource-service tables start at app+`0xA7E50`) [HW].
 
 | Range | Use |
 |---|---|
-| `0x3A7000–0x3FFFFF` | Voice partition tail: erased, never written by stock [HW]. |
-| `0x3FA000–0x3FBFFF` | Candidate two-sector APRS mailbox journal; guarded offline, pending radio validation. The game uploader now stops before it. |
-| `0x717000–0x7FFFFF` | Font partition tail: erased, never written by stock [HW]. |
+| `0x3A7000â€“0x3FFFFF` | Voice partition tail: erased, never written by stock [HW]. |
+| `0x3FA000â€“0x3FBFFF` | Candidate two-sector APRS mailbox journal; guarded offline, pending radio validation. The game uploader now stops before it. |
+| `0x717000â€“0x7FFFFF` | Font partition tail: erased, never written by stock [HW]. |
 | `0x3FF000` | Last GPS fix (H9 Toolbox module loader's background recorder, `module-loader/modules/common/fix_store.h`); the game slot stops before it. |
 | `0x900000` | `rw_freq`: **stock writes here**. Never use it. |
 | `0xA00000` | Boot logo (H9 Toolbox boot-logo tool). |
 | `0xA1F000` | Game slot directory (`H9DATA01`); data from `0xA20000` to `0xCC0000` (2.6 MB), then the font and voice tails. |
-| `0xCC0000` | Modules slot directory; `H9MODS01` bundle at `0xCC1000` (≤ 124 KiB) for H9 Toolbox's module loader. |
-| `0xCE0000` | Music slot directory; data `0xCE1000–0xCFFFFF` (124 KiB). |
+| `0xCC0000` | Modules slot directory; `H9MODS01` bundle at `0xCC1000` (â‰¤ 124 KiB) for H9 Toolbox's module loader. |
+| `0xCE0000` | Music slot directory; data `0xCE1000â€“0xCFFFFF` (124 KiB). |
 | `0x802000`, `0x80B606` | Stock APRS message inbox and beacon list (in `sys_data`) [STATIC]. |
 
 Directory sector: magic `H9DATA01`, version, length, SHA-256, name, segment
@@ -87,24 +87,24 @@ readers: `doom-firmware/port/td_nor.c`.
 
 The stock partition reader (`0x01E52CB2`) refuses to run unless RAM
 `0x12234 = 0x5AA5` (set by `my_app` once the chip is up). Without `my_app`,
-set up SPI2 and read with raw NOR reads (§7).
+set up SPI2 and read with raw NOR reads (Â§7).
 
 ## 5. RAM landmarks
 
 | Address | Meaning |
 |---|---|
 | `0x1D8B0` | 100 Hz tick counter [HW]. |
-| `0xC3AF` | Key byte of the stock scan: **digit d → d+2**; Menu 12, Up 13, Down 14, Back 15; one key at a time [HW]. |
+| `0xC3AF` | Key byte of the stock scan: **digit d â†’ d+2**; Menu 12, Up 13, Down 14, Back 15; one key at a time [HW]. |
 | `0x12234` | NOR "ready" marker `0x5AA5` (above). |
 | `0x11AD0` | app_core state block: **+100 requested mode, +101 current mode** [HW]; +138 BLE connection handle [STATIC]; +6636 DAC handle [STATIC]. |
 | `0x1D7D0` | Heap free-bit map: 128-byte blocks, bit set = free. Summary word per 32 blocks at +192 [STATIC]. |
 | `0x1D8A8` / `0x1D8AA` | Heap blocks used / total [HW]. |
-| `0x1E4D8–0x2BF00` | Stock heap first range (end at app+`0x05FA9E`) [STATIC]; a second range is `0x2D27F–0x2FF80`. |
+| `0x1E4D8â€“0x2BF00` | Stock heap first range (end at app+`0x05FA9E`) [STATIC]; a second range is `0x2D27Fâ€“0x2FF80`. |
 | `0x127B0` | Clone-protocol reply buffer (80 B) [STATIC]. |
 | `0xC4A1` / `0xC4A7` | Own APRS callsign (6 chars) / SSID [STATIC]. |
 | `0x13D10` | Last decoded AX.25 packet (324 B: dest +0, source +7, digis +14, info +59, info length u16 +316) [STATIC]. |
 | `0x16634` | Main-side APRS serial ring (2048 B; write index `h[0x16E34]`, read index `h[0x16E36]`); it keeps filling while a module runs [HW]. |
-| `0x29F00–0x2BEFF` | **Module-loader builds**: 8 KiB module RAM (heap end moved to `0x29F00`); "run next" mailbox in its last 32 bytes (`0x2BEE0`, magic `HRUN`). |
+| `0x29F00â€“0x2BEFF` | **Module-loader builds**: 8 KiB module RAM (heap end moved to `0x29F00`); "run next" mailbox in its last 32 bytes (`0x2BEE0`, magic `HRUN`). |
 
 Stock (H9 Toolbox) runs with 288 of 527 heap blocks used. **Bluetooth needs
 about 30 KB of heap** [HW]: allocation failure jumps to ROM `0x0200000A`,
@@ -123,7 +123,7 @@ which shows up as a boot loop. The module loader's 8 KiB carve (heap end
 - Takeover builds (C-hello, Doom) replace `my_app`, whose key-8 check is the
   stock route to the USB loader. They must provide their own exit, as Doom's
   hold-3 does.
-- **HID protocol** [HW]: 64-byte reports `AA 55 len cmd …`, XOR key
+- **HID protocol** [HW]: 64-byte reports `AA 55 len cmd â€¦`, XOR key
   `4E 61 BC 00`, CRC-16. Commands: `C0` init (`app_dir_head`; app at
   `0x5000`, 4 KiB blocks), `C2` erase sector, `C3` write up to 40 bytes,
   `C4` CRC windows. Addresses are relative to `0x5000`.
@@ -146,31 +146,31 @@ which shows up as a boot loop. The module loader's 8 KiB carve (heap end
 
 The wrappers are in `c-hello/entry.s` and the `EXTRA_API` of
 `doom-firmware/build.py`. Calling convention: JieLi clang ABI, arguments
-r0–r3, result r0; wrappers save `{rets, r14-r4}`.
+r0â€“r3, result r0; wrappers save `{rets, r14-r4}`.
 
 | Purpose | CPU address | Notes |
 |---|---|---|
 | Key scan | `0x01E515AC` | then read `0xC3AF` [HW] |
 | Delay | `0x01E516C6` | ms / 10, then the ROM OS delay `0x02001F82` (yields) [HW] |
-| LCD window / write | `entry.s` (`hello_set_window`, `hello_transfer_submit`) | big-endian RGB565, ≤ 128 bytes a write [HW] |
+| LCD window / write | `entry.s` (`hello_set_window`, `hello_transfer_submit`) | big-endian RGB565, â‰¤ 128 bytes a write [HW] |
 | IRQ off / on | ROM `0x02001634` / `0x02001650` | [HW] |
 | SPI2 setup | `0x01E4C2DA(2)` | plus GPIO 23 as an output [HW] |
-| NOR read | `0x01E4FF22(dst, addr, len)` | **DMA only if len ≥ 16 and dst is 4-byte aligned**, otherwise byte by byte [STATIC] |
+| NOR read | `0x01E4FF22(dst, addr, len)` | **DMA only if len â‰¥ 16 and dst is 4-byte aligned**, otherwise byte by byte [STATIC] |
 | Partition read | `0x01E52CB2` | needs `0x12234 = 0x5AA5` [HW] |
 | Post an app_core event | `0x01E2D87A(code, value)` | code `0xFFFF` is ignored by the handler [HW] |
 | DAC rate / start / write | `0x01E434C8(dac, hz)` / `0x01E43534(dac)` / `0x01E43698(pcm128)` | dac = `0x11AD0+6636`; 11025 Hz is supported [HW] |
-| Volume | `0x01E60EDA(state 0–4, level ≤ 30)` | app_audio_set_volume [STATIC] |
+| Volume | `0x01E60EDA(state 0â€“4, level â‰¤ 30)` | app_audio_set_volume [STATIC] |
 | Speaker gate | `0x01E5234C(source, on)` | source 1 is direct; it only writes PA3's OUT [HW] |
 | Key-tone player | `0x01E5241A(n)` | stock voice prompts ("zero"); needs heap [HW] |
 | System clock | `0x01EC548E(name, hz)` | name `0x01EB1C7B` = "sys" [HW, no effect seen] |
 | ROM task post | `0x02002C9C` | used for the `btstack` wake [STATIC] |
 | **Deliberate restart** | stock `cpu_reset` `0x01EC6FC8` / `0x01EC6FF4` | IRQs off (`0x02001634`), set bit 4 of `[0x1E0000]`, spin. **Calling ROM `0x0200000A` directly froze the radio** [HW]. |
 | KISS transmit | `0x01E5DBCC(buf, len)` | stock: deframes KISS, AX.25 decode, PTT handler, modem send, airtime wait, end of TX [HW, APRS SEND] |
-| RF register write / read | `0x01E5070A(reg, value)` / `0x01E505FE` | see §2 [STATIC] |
-| Set RF frequency | `0x01E59094(rx0/tx1, freq, tone…)` | the only writer of RF registers `0x38`/`0x39` (frequency, 10 Hz units); adds per-band calibration [STATIC] |
+| RF register write / read | `0x01E5070A(reg, value)` / `0x01E505FE` | see Â§2 [STATIC] |
+| Set RF frequency | `0x01E59094(rx0/tx1, freq, toneâ€¦)` | the only writer of RF registers `0x38`/`0x39` (frequency, 10 Hz units); adds per-band calibration [STATIC] |
 | Receive / transmit tune | `0x01E5942E(ch)` / `0x01E5AD68(ch)` | `ch` = channel-like struct (+0 u32 frequency, +6 tone) or 0 for the live state (`0x11AD0+0x1BC` receive frequency, `+0x1CC` transmit base, `+0x1C8` offset, `+0x789` shift direction) [STATIC] |
 | NOR sector erase / program | `0x01E50000(addr >> 12)` / `0x01E5006E(src, addr, len)` | 4 KiB erase (command `0x20`), page program; interrupts off, waits; no range checks [HW, S2 uploads] |
-| Stock GPS fix | RAM `0x12550` valid, `0x12558` lat, `0x12560` lon | signed microdegrees from stock's NMEA parser (`0x01E86780…`, converter `0x01E54450`); date `+0xAA4` (u16 year, month, day) and local time `+0xAA8` [STATIC] |
+| Stock GPS fix | RAM `0x12550` valid, `0x12558` lat, `0x12560` lon | signed microdegrees from stock's NMEA parser (`0x01E86780â€¦`, converter `0x01E54450`); date `+0xAA4` (u16 year, month, day) and local time `+0xAA8` [STATIC] |
 | VFO frequencies (RAM) | `0x11AD0`+: `+0x1D0` VFO A, `+0x1D8` VFO B (u32, 10 Hz units; `+0x1D4` / `+0x1DC` hold the same value in simplex, likely each side's TX); working copy of the selected side at `+0x1BC` (RX) / `+0x1CC` (TX base), offset `+0x1C8`, direction `+0x789`, band byte `+0x10CD` (1 = UHF, 0 = VHF) [HW, VFO PROBE 2026-11-11] |
 | VFO step / retune | `0x01E67B94(dir)` steps `+0x1D0` / `+0x1D8` (by side), clamps, copies to `+0x1BC` and calls `0x01E595B6` (tune receive from `+0x1BC`); `0x01E58E3E(side)` = full RF setup for a side [STATIC] |
 | Resident tracker hook | loader stub `res_tick`: while RAM `0x2B8B4` = `"CSRT"` (satshare `res_magic`) it calls the module entry at `res_entry` as `entry(&ml_api, 0xFFFF)` twice a second from the my_app loop; checks the slot CRC once; the menu (hold Back) disarms it; the tracker sets `0x11CA0` / `0x11CA8`, the selected side's `0x11C8C`, the band byte `0x11AD0+0x10CD` and calls `0x01E595B6` [STATIC, untested on hardware] |
@@ -195,14 +195,14 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
 - **app_core** (app+`0x66648`) runs a mode state machine [HW]. Doom and
   other takeovers sit in **mode 10** (start-up). Stock runs in **mode 3**,
   which starts Bluetooth.
-  - Mode table at app+`0x667F2`: 1 → `0x63390`, 2 → `0x633BE`,
-    3 → `0x63C9A`, 4 → `0x65700`, 5 → `0x6616A`, 10 → the message loop `0x665B2`.
+  - Mode table at app+`0x667F2`: 1 â†’ `0x63390`, 2 â†’ `0x633BE`,
+    3 â†’ `0x63C9A`, 4 â†’ `0x65700`, 5 â†’ `0x6616A`, 10 â†’ the message loop `0x665B2`.
   - To switch, write the request byte (+100), then post any event:
     mode 10's loop only applies a request after a message [HW].
-  - Mode 3 needs the heap given back first (see §9, upload mode), or it
+  - Mode 3 needs the heap given back first (see Â§9, upload mode), or it
     resets [HW].
 - **Bluetooth stack** [STATIC]:
-  - Operations go through a dispatcher at app+`0x16552(op, n, …)`: op 9 is
+  - Operations go through a dispatcher at app+`0x16552(op, n, â€¦)`: op 9 is
     TX space (answered directly), op 10 is notify/send (queued), op 11 is
     the connection-parameter request.
   - The `btstack` task is woken with a task post (app+`0x164F8`).
@@ -228,7 +228,7 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
   | Doom upload mode | about 1.3 KiB/s | about 0.11 KiB/s |
 
   - Reads waited on app_core's loop. Posting `0xFFFF` every 10 ms
-    helped 2.5× [HW].
+    helped 2.5Ã— [HW].
   - Write ACKs take about 260 ms each [HW]; the static trace found no wait
     on the radio's path. The open suspects are link timing and btstack
     scheduling [HYP].
@@ -246,7 +246,7 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
     **FM receiver**, and DAC CON bit 24 is its analog link.
   - Calling its power-up mid-run **froze the radio**. It is not the
     speaker path.
-- **Low-power timer** [STATIC]: event 3 arms a timeout (app+`0x5E208` →
+- **Low-power timer** [STATIC]: event 3 arms a timeout (app+`0x5E208` â†’
   `0x4F4EC`) that later calls app+`0x5E3E2` (`clk_set` 24 MHz). It was not
   active in our runs.
 
@@ -256,7 +256,7 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
   - A 4-byte call at `my_app`'s entry (app+`0x88180`) leads to the
     start-up stub in the cave.
   - Engine code goes in the far region and the `my_app` block.
-  - The RAM block `0x22000–0x2BF00` comes from shrinking the stock heap
+  - The RAM block `0x22000â€“0x2BF00` comes from shrinking the stock heap
     (patch at app+`0x05FA9E`).
   - The image is built on H9 Toolbox, so the BT upload service is
     included.
@@ -265,8 +265,8 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
     stub 844 B; about 23 KB free
   - RAM: 20,448 B `.data` + `.bss`, 15,208 B frame, 5,048 B spare
   - game pack: Freedoom E1M1S, 1,056,192 B
-- **Speed** [HW]: about 22–24 fps close to walls, 8–14 fps in far views
-  (about 70–75 KB of chip reads a frame). Batching 16 columns per LCD
+- **Speed** [HW]: about 22â€“24 fps close to walls, 8â€“14 fps in far views
+  (about 70â€“75 KB of chip reads a frame). Batching 16 columns per LCD
   window doubled the close-up rate. Drawing dominates far views; the music
   costs nothing measurable.
 - **Keys**: 2/5 move, 4/6 turn, 1 fire, 3 use, 7 music. At power-on: 2
@@ -291,7 +291,7 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
   code at address 0 and hung after PACK OK. Use a real 1 KiB buffer.
 - **Bluetooth beside Doom**: heap exhaustion leads to a reset loop. Use the
   separate upload mode.
-- **Sound** (builds 14–23): driving the DAC registers, volume, DAC CON
+- **Sound** (builds 14â€“23): driving the DAC registers, volume, DAC CON
   bit 24, mode 3, PA0/PC pins and the FM power-up all failed. The answer was
   the PA3 direction.
 - **Upload speed**: 240 MHz made no difference; waking app_core every 2 ms
@@ -302,8 +302,8 @@ r0–r3, result r0; wrappers save `{rets, r14-r4}`.
 ## 11. Open questions
 
 - What stretches Bluetooth write ACKs to about 260 ms in Doom's upload
-  mode (§8).
-- Multi-key input: the keypad is two ADC resistor ladders (§2). Two keys on
+  mode (Â§8).
+- Multi-key input: the keypad is two ADC resistor ladders (Â§2). Two keys on
   the same ladder cannot be told apart; one on each channel might be read
   together by sampling both channels ourselves [HYP].
 - The APRS MCU's identity, and its firmware.

@@ -8,6 +8,16 @@
 #define BEACON_TICK (*(const volatile uint32_t *)0x1D8B0u)
 #endif
 
+static const char *mode_label(const struct ts_settings *settings)
+{
+    if (H9_HAS_MESSAGES) {
+        if (*(const volatile uint8_t *)0xC512u == 1) return "PTT";
+        if (*(const volatile uint8_t *)0xC513u == 1) return "TIMED";
+        return !settings->armed ? "OFF" : settings->timed ? "TIMED" : "SMART";
+    }
+    return settings->armed ? "ARMED" : "OFF";
+}
+
 static const char *beacon_status(const struct h9_runtime_status *status)
 {
     if (!status->worker_ready || !status->polls) return "SCHEDULER UNAVAILABLE";
@@ -70,9 +80,9 @@ unsigned module_main(const struct h9_api *loader, unsigned self)
         struct h9_runtime_status status;
         if (api && now - last >= 100u && api->read_status(&status)) {
             gfx_fill(0, 26, H9_WIDTH, 48, UI_BG);
-            gfx_text(UI_LEFT, 27, "SCHEDULE", 8, 1, UI_DIM, UI_BG);
-            gfx_text(status.settings.armed ? 127 : 139, 27, status.settings.armed ? "ARMED" : "OFF",
-                     5, 1, UI_TEXT, UI_BG);
+            gfx_text(UI_LEFT, 27, H9_HAS_MESSAGES ? "BEACON TYPE" : "SCHEDULE",
+                     11, 1, UI_DIM, UI_BG);
+            gfx_text(127, 27, mode_label(&status.settings), 5, 1, UI_TEXT, UI_BG);
             gfx_text(UI_LEFT, 51, beacon_status(&status), 25, 1,
                      status.beacon.gps.fix && status.beacon.wait < H9_BS_BUSY ? UI_OK : UI_ACCENT, UI_BG);
 #ifdef H9_RESIDENT_TX

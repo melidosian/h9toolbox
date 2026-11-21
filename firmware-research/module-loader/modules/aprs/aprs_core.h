@@ -93,6 +93,7 @@ enum { BEACON_DEFAULT = 2 << 3 };
  * fresh start (from the menu): partial frames dropped, own callsign reread;
  * the station list then also reloads stock's Beacon List. */
 int aprs_open(void);
+void aprs_close(void);
 /* Stock Beacon List into the station table (aprs_stored.c; station list only). */
 void aprs_load_stored(const struct h9_api *api);
 /* Radio side 0 = A, 1 = B: put the radio there as stock's APRS beacon sender
@@ -114,6 +115,15 @@ unsigned aprs_event(void);
 int aprs_go(const struct h9_api *api, const char *name);
 /* Save the mailbox through its guarded module and return to this page. */
 int aprs_store(const struct h9_api *api, unsigned page);
+static inline int aprs_go_messages(const struct h9_api *api)
+{
+    if (api->version < 5 || !H9_HAS_MESSAGES) return 0;
+    volatile struct h9_request *rq = H9_REQUEST;
+    for (unsigned i = 0; i < sizeof H9_MESSAGE_CENTER; ++i) rq->name[i] = H9_MESSAGE_CENTER[i];
+    rq->magic = H9_REQUEST_MAGIC;
+    aprs_close();
+    return 1;
+}
 /* One decoded packet into the tables (used by aprs_stored.c). */
 void aprs_packet(const char *dest, const char *from, const uint8_t *info, unsigned len, int live);
 void aprs_call_of(const uint8_t *address, int raw, char *out);

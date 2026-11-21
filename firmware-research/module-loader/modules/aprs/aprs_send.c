@@ -147,9 +147,10 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     unsigned state = CHOOSE, len = 0;
     const char *why = 0;
     (void)self;
+    unsigned route = H9_HAS_MESSAGES ? H9_MSG_ROUTE : 0;
     aprs_open();
     edit_init(&to, ADDRESSEE, 1, A->draft_valid ? A->draft_to :
-              A->count && A->list_sel < A->count ? A->st[A->list_sel].call : 0);
+              !route && A->count && A->list_sel < A->count ? A->st[A->list_sel].call : 0);
     edit_init(&msg, EDIT_MAX, 0, A->draft_valid ? A->draft_msg : 0);
     if (!A->draft_valid && to.len) A->send_sel = I_MSG;
     if (A->send_sel >= ITEMS) A->send_sel = I_TO;
@@ -160,7 +161,11 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             if (aprs_store(api, state == DONE ? MAIL_PAGE_MSG : MAIL_PAGE_SEND)) return 0;
             continue;
         }
-        if (ev == EV_HOLD) { if (aprs_go(api, APRS_LIST)) return 0; continue; }
+        if (ev == EV_HOLD) {
+            if (route) { aprs_close(); return 0; }
+            if (aprs_go(api, APRS_LIST)) return 0;
+            continue;
+        }
         if (ev == EV_REDRAW) {
             if (state == REVIEW) draw_review(why, info);
             else if (state != DONE) draw_choose(state == EDIT, &to, &msg);
@@ -209,7 +214,12 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             }
             continue;
         }
-        if (ev == EV_BACK) { aprs_go(api, APRS_LIST); return 0; }
+        if (ev == EV_BACK) {
+            if (route == H9_MSG_INBOX || route == H9_MSG_SENT) aprs_go(api, APRS_MSG);
+            else if (route) aprs_close();
+            else aprs_go(api, APRS_LIST);
+            return 0;
+        }
         else if (ev == EV_UP) { A->send_sel = A->send_sel ? A->send_sel - 1 : ITEMS - 1; A->dirty = 1; }
         else if (ev == EV_DOWN) { A->send_sel = A->send_sel + 1 < ITEMS ? A->send_sel + 1 : 0; A->dirty = 1; }
         else if (ev == EV_MENU) {

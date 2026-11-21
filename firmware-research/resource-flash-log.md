@@ -5069,3 +5069,416 @@ result yet.**
   message journal across a power cycle, and RF send/receive remain untested.
   The dev updater still needs the matching mailbox guard before other uploader
   clients can safely share the reserved sectors.
+
+## 2026-11-20 — unified Menu replacement, offline branch
+
+- Started `codex/radio-menu-replacement` from `origin/dev` at `67e446b`.
+  A pinned stock menu table record at app+`0xB6BC4` targets
+  CPU `0x01E6D426`. The ten active native categories and this record are
+  checked by `module-loader/menu-replacement/inventory.py` against the
+  factory v1.0.38 SHA-256. The pinned submenu builder enumerates 119
+  factory entries, 110 after the dev build disables nine Morse entries.
+  The English labels for all 119 factory rows were extracted into
+  `module-loader/menu-replacement/stock-menu-v1.0.38.json`; the inventory
+  also validates the pinned submenu builder hash. The nine disabled rows
+  are Morse On/Off, CW Terminal, CW Key, CW Speed, CW Tone, CW Power,
+  RX Threshold, CW Message and Reset.
+  The pinned category action table at app+`0x76982` was decoded into eleven
+  targets in the JSON inventory. Radio Setting routes to the common epilogue;
+  this table alone does not map individual setting handlers.
+- The current grouped MENU occupies 6,246 of the 6,528 safe bytes below
+  satellite shared state. An offline `--far-menu` build moved it to plain
+  main flash at `0xEA000` via an eight-byte module trampoline. The far body
+  is 6,246 bytes, SHA-256
+  `0463da5aeae30858391f95988e0f633ae4a54aadf13dbb3abea33e506a1b9811`;
+  the matching main app remained SHA-256
+  `236ba5bc96c2860cd311475cb35f4f3e80bb1a01786f18543a98e3df7b42684d`.
+  The far entry starts with the API 5 gate at the trampoline target; the
+  stock-derived package check and 18 module-loader unit tests passed.
+  Further inspection showed this is one of several pointer/ID records, so its
+  role as the Menu-key entry point is unverified. Do not patch that record as
+  the normal Menu-key hook. This is a placement trial only:
+  no native Menu callback patch, stock settings replacement, radio write or
+  RF test occurred.
+
+## 2026-11-20 — unified list preview, still offline
+
+- Generated a C catalog from the pinned 119-row factory inventory. The
+  `--far-menu --radio-menu-preview` path appends the 110 active stock labels to
+  the sectioned Toolbox menu, retaining all ten native headings. The list
+  now has three-digit navigation; its 940-byte row/option buffer is placed in
+  the unused RAM module slot at `0x29F20` while the far menu is active.
+- Selecting a stock row displays `STOCK CONTROL NOT WIRED`; no stock setting
+  handler or normal Menu-key redirect exists yet. Both host menu variants
+  passed their navigation and APRS setting tests, including row 110. The
+  preview is not ready for a radio flash. The cross build produced an 8,234
+  byte far body (SHA-256
+  `582088ce38e557f6d459263cd20a50ee80969b259a7a0783010c91f138c671a1`)
+  and an unchanged main firmware package. The compiled `toolbox_menu` frame
+  is 284 bytes, with the 940-byte list in the free module slot.
+- The non-preview dev build still passes and its RAM MENU occupies 6,270 of
+  6,528 safe bytes. The main app SHA remains
+  `236ba5bc96c2860cd311475cb35f4f3e80bb1a01786f18543a98e3df7b42684d`.
+
+## 2026-11-20 — resumed full menu replacement implementation
+
+- The label preview did not satisfy the requested full replacement. Continued
+  on `codex/radio-menu-replacement` with actual saved setting and channel editors.
+  The browser schema supplies 100 active fields; native extended-band bits
+  at logical `0xCAB` bits 4/3/2 and AM volume at logical `0x538F` add four.
+  The extended-band setters are app+`0x7463C/0x74668/0x74694`; the AM volume
+  setter at `0x73828` writes `0x538F`, and the loader at `0x71D04` bounds it
+  to indices 0..4 with default 2.
+- New partition wrappers preserve stock registers and call CPU `0x01E52CB2`
+  for read and `0x01E50128` for write. Both return zero on success. Settings
+  offsets exclude the programmer image's eight-byte identity header. Saves
+  preserve unrelated bits, reject changed fields, and verify actual readback.
+- Added channel/VFO field editing, BCD frequency/tone encoding, memory flag
+  validation, Store VFO A/B with record verification before publishing the
+  used flag, and Delete through used/scan flags. Native channel names and
+  unrelated record bits remain intact.
+- `--unified-menu` replaces app+`0x6D326..0x6D38E` (104 bytes) with a guarded
+  loader entry. The dispatch record remains at `0xB6BC4`. The replacement
+  checks the matching far payload CRC and takes ROM USB recovery on failure.
+  Actual radio edits currently require restart on menu exit to reload runtime
+  settings. Hardware behavior and the remaining action UI are unverified.
+- Host setting, editor, channel and menu tests passed. The production C font
+  and rendering pipeline produced offline menu, numeric and callsign frames.
+  No radio flash or persistent device write has occurred in this work.
+
+## 2026-11-20 — inline numeric editing and keypad verification
+
+- Simple radio and channel values now edit in the selected list row, with
+  Menu to save and Back to cancel. Squelch accepts every keypad digit 0..9.
+  Host input sequences also cover a multi-digit scan limit, a complete BCD
+  channel frequency and selecting memory 199 by keypad. Cancelling the target
+  edit restores the original memory. No separate scalar editor is opened.
+- The unified Toolbox beacon interval accepts typed 1..30 minute values.
+  Invalid prefixes cannot be saved, and Back cancels without an idle write.
+  The ordinary and label-preview menus retain their previous save behavior.
+- Expanded the generated saved catalog from 104 to 121 fields with ANI, the
+  DTMF group selector, eight terminated stored sequences, length-prefixed
+  BOT/EOT sequences, fixed longitude/latitude plus hemisphere, and altitude.
+  Their formats follow `chirp/tdh8.py`: ANI logical `0x1820`, group `0x1829`,
+  stored codes `0x1830 + n*16`, BOT/EOT `0x18C0/0x18D0`; coordinates begin
+  at `0x306C`, `0x3071` and `0x3076` in the partition. Coordinate magnitudes
+  are unsigned big-endian microdegrees, altitude signed big-endian millionths
+  of a meter. Tests assert exact wire bytes, bounds and surrounding-byte
+  preservation. DTMF text editing restricts characters to the tone alphabet.
+- `menu-replacement/run_host_tests.py` passes all seven C harness variants:
+  ordinary, preview and unified menus; setting storage; text/DTMF editing;
+  channel storage; and channel input. The 18 module-loader Python checks and
+  two native-entry patch checks also pass. Rendered production menu frames
+  confirm normal squelch selection and inline keypad editing.
+- The `build/unified-numeric` cross build passes. Its far menu occupies
+  29,835 bytes of the 64 KiB window, SHA-256
+  `b12dd7bfd895dad9381f29a7bb4cbcd20a67f31269f8642970d348501d3057c3`.
+  App SHA-256 is
+  `90d9d939b5c696552be14b31b8009fd28f6ff797603fdb04e4dfb798f55464a6`;
+  package SHA-256 is
+  `2e1b76ab093f3d25183b5fee1449c83193e00e05c051434468e68a6575cde63f`.
+  The root guard checks far CRC `0x4051`. Artifact sizes and hashes match the
+  generated manifest. The package still needs the matching far body and
+  module bundle as a coordinated install.
+- This does not complete all 110 native action paths. Scan tools, calibration,
+  Bluetooth pairing/name/PIN and internal audio controls, RF SMS folders and
+  composition, resets and help still require equivalent new UI behavior.
+  The nine disabled Morse rows remain a separate existing dev choice. Only
+  the 104-byte native root builder is removed so far; other stock UI code
+  remains. Radio settings still reload by restarting on exit after a save.
+  Nothing was flashed, committed or pushed in this continuation; the primary
+  checkout's unrelated edits were preserved.
+
+## 2026-11-20 — unified native menu and first hardware flash
+
+- Implemented and audited replacement endpoints for all 110 active stock
+  menu rows. The nine Morse rows stay disabled in this dev build. The far
+  menu contains the spectrum and frequency/tone scans, Bluetooth identity
+  and pairing, RF/APRS SMS, manual QR codes, radio and modem information,
+  and the factory reset paths. Saved settings use the native post-reset
+  configuration reload while the CPU keeps running.
+- Replaced 11,950 bytes in five stock menu functions. Direct branch and pointer
+  checks identified the incoming getter entry at app+`0x75250` and the
+  stock dispatch records. The loader enters the far menu through a CRC guard
+  even when an installed bundle has a different module zero. The remaining
+  native RF, Bluetooth, SMS and configuration backends are preserved.
+- Eleven C host harnesses passed, including all menu action rows, inline
+  keypad edits, SMS storage and compose, Bluetooth pairing controls, scans
+  and RF restore, and confirmed resets. The loader, native patch and coverage
+  Python tests passed. The production renderer produced the inline squelch
+  and callsign screens for offline inspection.
+- The unified build has a 56,790 byte far menu, SHA-256
+  `10a18249cd06a19bb147caefccb6cc6f1a612c9c9021228bff64bf5d3637fb99`.
+  The verified app-only package is
+  `ca006f4cf81a443e023d5277bfe74af0ee6e2ad20db9e5fd3225fed48be2e1ef`.
+  `prepare_trial.py` checked the matching bundle and far files and joined
+  the menu and resident APRS payloads into one image.
+- The elevated Windows BR23 session captured the pre-trial main and far
+  backups under ignored `private/downloads/unified-menu-trial-20261120-141901`.
+  It updated 18 main sectors and 16 far sectors. Full main readback SHA-256
+  `0a3400857c39e1160d9c09bd7f51f175aadcf30de0b57e1610e08383bfb08c10`
+  matched the manifest. The flasher verified all 18 far sectors spanning
+  `0xEA000..0xFC000`. The combined far blob SHA-256 is
+  `69ce18d59a6380e7a6cff2ba5ceb472162de01b2b3569780ec8c84627adcbf69`.
+  The installed resource bundle and APRS controller were left in place.
+  Normal boot, Menu entry and live settings behavior require a keypad check.
+
+## 2026-11-20 — unified menu folders, keypad repeat, and factory colors
+
+- Grouped the active menu into Radio, APRS, Radio Tools, Apps, Diagnostics
+  and Setup. Radio and APRS open additional folders. Back restores the
+  highlighted parent row and the loader keeps the current folder and row
+  when a Toolbox app returns. Keypad row numbers apply to the open folder.
+- Held Up/Down starts repeating after 350 ms and repeats every 100 ms, using
+  the 100 Hz stock tick and existing two-sample keypad debounce. Inline
+  setting changes still use one step per press.
+- The factory settings reload at app+0x72302 reads Menu Color at logical
+  offset 0x1F2A and indexes 18 RGB565 values at app+0xB2F68. The unified
+  menu uses that palette for its selection and scroll indicator, with
+  lighter text on black for dark selections. Menu Color previews inline,
+  saves via the native setting, and reverts on Back.
+- All 110 active stock rows still map to reachable endpoints. Eleven C
+  harnesses and 24 Python tests passed. Production LCD renders were checked
+  for the top level, Radio folder, inline Squelch and Menu Color preview.
+- `build/unified-navigation` cross-built a 57,766 byte far menu, SHA-256
+  `429e1dc0a3e7ef6a0d03556c916d7aba3c6fb99f94debeecc9b08947291c3885`.
+  The verified firmware package SHA-256 is
+  `db3a9c22e4d7f1ab52824e3b2591eb9e020a31177d836c1fad78d3c2ae446c82`.
+  `prepare_trial.py` verified the package, bundle and both far payloads.
+  The combined far payload SHA-256 is
+  `cd47c69cf4940afb8cab31388eba7d2da4aaf4b454146e61b2fe3a5ec676a640`.
+  This navigation build was verified offline.
+
+## 2026-11-20 — unified navigation hardware flash
+
+- User authorized the navigation firmware trial. Verified the exact package
+  and combined far payload against the offline build before selecting the
+  BR23 USB updater. The first launcher exited before creating a backup or
+  writing. The elevated retry used the prior script's process-scoped
+  PowerShell execution policy.
+- The retry saved fresh main and far backups and the recovery manifest under
+  ignored `private/downloads/unified-navigation-trial-20261120-144627`.
+  The prior main backed up to
+  `0a3400857c39e1160d9c09bd7f51f175aadcf30de0b57e1610e08383bfb08c10`.
+  The full prior far region backed up to
+  `8963262f46aefdc7807b81181b8089efac2beabbd0cd956737fb3ce4f1f8f3c2`.
+- BR23 wrote 10 of 218 main sectors and 15 of 18 far sectors. Full main
+  readback matched the manifest
+  `b0b053a254228687749cc7e4c5a09fd79d667c55ae7e3fc0ed47f3ede40efb17`.
+  The checked far range was 0xEA000–0xFC000 and the payload matched
+  `cd47c69cf4940afb8cab31388eba7d2da4aaf4b454146e61b2fe3a5ec676a640`.
+  The run reported `UNIFIED_MENU_FLASH_VERIFIED` and exited zero. Power-cycle
+  and keypad behavior are pending observation.
+
+## 2026-11-20 — APRS modes, Messages and app categories
+
+- The menu now starts with Radio Settings, Channel Settings and APRS.
+  A backwards-compatible H9MENU01 bundle trailer lets applications
+  declare a category. Maze Chase declares Games, and previously installed
+  bundles without metadata also show Maze Chase under Games.
+- APRS Settings includes APRS Mute. A single APRS Beacon Type row switches
+  between Off, native Timed, native PTT and resident Smart. Native flags
+  use the VM bytes at 0x30EE–0x30EF. The type switch verifies writes and
+  restores the prior profile on failure. Explicitly saving a legacy
+  resident Timed schedule as Timed migrates its interval to native seconds.
+- APRS Messages and radio SMS share New Message, Inbox, Sent and Drafts.
+  The transport/source picker retains both existing stores. APRS Stations
+  opens the same menu through the MSG tab. The firmware uses the reserved
+  menu position for the handoff and keeps loader API 5 so older modules
+  still load. The complete APRS experience needs the matching app bundle.
+- All 110 active stock rows are still covered. The menu, APRS client,
+  settings journal, mailbox journal and resident TX harnesses passed.
+  App Manager round-tripped the exact 20 cross-built module entries,
+  including the Games metadata. The APRS MSG module is 6,624 bytes under
+  its 6,704-byte shared-RAM boundary.
+- `build/unified-aprs` contains a 59,234-byte far menu, SHA-256
+  `23957ffed9ca4ed48640e8e953465525e25dfe42a18c689de5aecda4edee4646`.
+  `prepare_trial.py` verified package
+  `e732ffe9c2c877a9fb1df8f08f558bcd4219d16c476b0598ae22a50ffd7295dd`,
+  bundle `0755990b7322f2a71e715420b685d3febcc0a5d62d927d1d6ac9223559d8d042`,
+  and combined far payload
+  `32196ef7ff8f2117b82caa1b2dc45e97e85b447c7a4549c3f2ad9886bd56478c`.
+  The production LCD preview and payload checks were offline.
+
+## 2026-11-20 — unified APRS hardware flash and app update
+
+- A single elevated BR23 run saved the pre-trial main and far backups and
+  recovery manifest under ignored
+  `private/downloads/unified-aprs-trial-20261120-152327`. It wrote 8 main
+  sectors and 15 far sectors. Full main readback matched
+  `210a3029a725530ba0cdeebb26e6a872b9de5ee294dc6c770fc221e354602172`;
+  the far region matched the combined payload
+  `32196ef7ff8f2117b82caa1b2dc45e97e85b447c7a4549c3f2ad9886bd56478c`.
+- After a normal power-cycle, the radio exposed USB serial on COM4.
+  The H9 Toolbox resource service read and verified the pre-trial 29-module
+  bundle and saved it with SHA-256
+  `1f0faae1cd59cd8ad202984384bcd1d1a74137314a2e602f7cb9171c7af7ab6c`.
+- The selected APRS client modules matched the verified build. The Maze Chase
+  body was preserved and its menu category set to Games. Every unrelated
+  module retained its original code, metadata and position. The resource
+  uploader verified 110,888 bytes across 29 sectors including the directory,
+  then a separate full read matched the staged bundle byte for byte,
+  SHA-256 `4036e7ede2b8d8eb11d931837f441850439702609220ca24ab44136e9b43bc5a`.
+  Keypad navigation and on-air behavior are pending observation.
+
+## 2026-11-20 — APRS-only Messages menu
+
+- New Message, Inbox, Sent and Drafts launch their APRS routes on the first
+  Menu press. Removed the transport picker, RF SMS settings and native SMS
+  action adapter from the unified menu build. Existing message storage is
+  preserved. The native audit maps the four message functions to APRS and
+  records five RF SMS control retirements among the 110 factory rows.
+- Host menu, APRS client, settings and coverage tests passed. The production
+  LCD renderer shows four Messages entries. The app bundle is byte-identical
+  to the unified APRS build. All eight APRS module bodies match the last
+  verified on-radio bundle.
+- `build/aprs-only-messages` contains a 51,842-byte far menu, SHA-256
+  `e40fa1ec313e81ad88f35d85dcb72a688ff310269bc41a39536d97ae7706cbe4`.
+  Verified package SHA-256
+  `2273c273e0435785551934e4d3e10f98a02c3eee4d24a140bcc1ed287c3e402e`
+  and combined far payload
+  `4f84d860738750cbb67fbfc37406c29ce7510ca335f379e524fbfd98c48f25f1`.
+  This build was verified offline.
+
+## 2026-11-20 — long channel names and 0.1.6-rc.1
+
+- The local release branch is `codex/0.1.6-rc.1`. The numeric loader version
+  retains 0.1.6 in the low three bytes and uses the high byte for RC1.
+- The pinned Pi32 v1.0.38 name call sites are app+0x5A59E and 0x5A614
+  for single layout and app+0x6758E and 0x67642 for dual. Stock provides
+  the x/y origin, and both renderers use 8×16 cells. A guarded loop paints
+  just the name rectangle when it is visible. The hook defaults to the
+  stock short-name renderer until the far payload passes its CRC.
+- An optional long label owns neither the CHIRP name nor the stock used
+  and scan bits. Channel label banks span 0x3F6000–0x3FA000, protected from
+  game uploads. The bank writer checks the existing directory, verifies the
+  inactive bank and publishes a commit marker last. Host tests cover torn
+  operations, bank conflicts, invalid records and recovery.
+- The programmer uses H9LN capability/status at clone 0x3F00 and selector/
+  data blocks at 0x3F20/0x3F40. Stock clone calls are pinned at app+0x5D018
+  and app+0x5D122. Firmware and JS tests exercised selection, full-length
+  data, clear, checksum, rejection and readback. A local Chromium smoke
+  staged a 32-character edit without editing a raw image block. CSV/JSON
+  round trips and the resource upload boundary tests passed offline.
+- `build/release-0.1.6-rc.1` verifies package SHA-256
+  `52e276b9cc66c33cad1a6c0fe6b21ca6cc71ca1d5601858de3f377b9d79bfb17`
+  and combined far payload
+  `014759f5efb412bd3830aa58c1fe0b7974fe3b90316f6e7d9a61df09e8de62d4`.
+  Its 55,409-byte menu payload SHA-256 is
+  `dd3b0329e1dff833e7d2a92e032d84626eff8c53ebd4e480189da126113d8527`.
+  The package retains the existing APRS app bundle byte for byte.
+  Live keypad, display and programmer testing are pending.
+
+## 2026-11-20 — 0.1.6-rc.1 hardware flash
+
+- A single elevated BR23 session saved the pre-trial main image, full far
+  backup and recovery manifest in ignored
+  `private/downloads/release-0.1.6-rc.1-trial-20261120-162641`.
+  It wrote 15 main and 15 far sectors.
+- Main readback matched the RC manifest
+  `124bea0b972015c948674000d6feaade3d2b711b0a272e988aa0971f84d746e6`.
+  The full far region at 0xEA000–0xFC000 matched the verified payload
+  `014759f5efb412bd3830aa58c1fe0b7974fe3b90316f6e7d9a61df09e8de62d4`.
+  The flasher exited zero and reported UNIFIED_MENU_FLASH_VERIFIED.
+- Existing APRS apps were already compatible. The resource app bundle and
+  channel-label banks were untouched. Normal boot and live name scrolling
+  are pending observation.
+
+## 2026-11-20 — 0.1.6-rc.2 Classic long-name display
+
+- On flashed RC1 the user confirmed a saved long name appeared in
+  Channels / VFO and the stock short name appeared on the Classic home
+  screen. RC1 intercepted Single and Dual only and rejected layout 2.
+- The pinned stock Classic drawer app+0x59908 has four callers at
+  app+0x59B24, 0x59DEC, 0x7AEAE and 0x7AEDA. The wrapper preserves the
+  fifth stack argument for stock color, including the green event repaint.
+  The Classic name uses stock's 24-pixel text renderer with a dynamic
+  width up to 108 pixels. The tick advances only the visible name and
+  keeps the original renderer for a short name or frequency display.
+- Host tests covered Classic A/B, clipping, scroll timing, name-to-short
+  fallback, frequency delegation and refusal to paint over the alternate
+  screen. All firmware build, patch and coverage tests passed. The RC2
+  package and far payload verified with SHA-256
+  `77d87c29b905a86872a04b0dc7ba23cf82162779d78ec4d1e02676467dd80a0d` and
+  `1d5d9812eb6aa13650da2fb9282119e48a12763cecabe5a2e0c8b216f26047e8`.
+  The app bundle matches RC1 byte for byte. Live scrolling is pending.
+
+## 2026-11-20 — 0.1.6-rc.2 hardware flash
+
+- A single elevated BR23 session saved the pre-trial main image, full far
+  backup and recovery manifest in ignored
+  `private/downloads/release-0.1.6-rc.2-trial-20261120-164307`.
+  It wrote 14 main and 14 far sectors.
+- Full main readback matched
+  `b132b8ccdacebd8a82027bc10c0a6b230e0393f3a84716b681ac263fc785f007`.
+  The full far region at 0xEA000–0xFC000 matched
+  `1d5d9812eb6aa13650da2fb9282119e48a12763cecabe5a2e0c8b216f26047e8`.
+  The flasher exited zero and reported UNIFIED_MENU_FLASH_VERIFIED.
+- The flash targeted the internal firmware. The separate resource flash
+  still holds the saved channel names and installed apps. Normal boot and
+  live Classic name scrolling are pending observation.
+
+## 2026-11-20 — 0.1.6-rc.3 USB-C programmer
+
+- The programmer follows the firmware updater's slide layout. Connecting by
+  Bluetooth or Web Serial opens the backup slide and starts a read. An
+  existing working image stays open while the new radio backup is available
+  separately.
+- The unified serial clone shim sends ordinary writes below 0x4000 through
+  the sector-aware writer. Below 0x2000 this avoids the stock two-sector
+  erase triggered by a write at address zero. H9LN status byte 7 bit 0
+  advertises the new behavior. The programmer checks it again before USB-C
+  writes and compares all changed blocks before sending the first write.
+- Chromium with simulated radio transports covered offline editing, CSV
+  export, staged edits across reconnect, automatic backups, RC2 USB-C
+  write refusal and successful RC3 USB-C write/readback. The firmware and
+  host suites passed. The RC3 app bundle matches RC2 byte for byte.
+- The RC3 package verified with SHA-256
+  `4df314cec313c7faf34d95843174f31f6b6c4e88ee25349c9c9867cd067d5bd3`.
+  The combined far payload SHA-256 is
+  `b852e3884ee4c5f8520849602479087dc1a48036ace132820ad253446cfafd30`.
+  This firmware has been verified offline. USB-C writes on hardware are
+  pending.
+
+## 2026-11-20 — 0.1.6-rc.4 Classic transmit name display
+
+- The user reported a transient frequency and white channel name during
+  transmit. The pinned Classic TX routine at app+0x5A12C refreshes the
+  opposite row normally and calls the numeric renderer at app+0x5A232
+  with red (0xF800) on the transmitting row, bypassing the name renderer.
+- The new hook keeps the original color and font arguments and uses the
+  same stock side selector (app+0x50E58). In Name + number view it paints
+  the long or stock short name in red. The scrolling row retains that
+  color until the next stock redraw. Numeric and VFO paths still use the
+  original frequency renderer.
+- The host tests covered A/B transmit, scrolling in red, return to the
+  stock white and green redraws, short names and numeric fallback. The
+  built call and its five-argument fallback were decoded and verified.
+  The app bundle matches RC3 byte for byte.
+- The offline RC4 package verified with SHA-256
+  `8e7cb1fc97605704665bb7fa0add10fb83ef4c0950189e0920200193a6e189ce`.
+  The combined far payload SHA-256 is
+  `83228873b940b95d39adb8150bd42add25799be05e6567749816922dd9019445`.
+  The transmit display check on the radio is pending.
+
+## 2026-11-20 — 0.1.6-rc.4 hardware flash
+
+- The first BR23 session saved the original RC2 main image and recovery
+  manifest in ignored `private/downloads/release-0.1.6-rc.4-trial-20261120-181351`.
+  The 892,928-byte backup matches the RC2 readback SHA-256
+  `b132b8ccdacebd8a82027bc10c0a6b230e0393f3a84716b681ac263fc785f007`.
+- The session wrote and verified all nine changed main sectors. USB
+  returned Windows error 31 during the full main readback, before the
+  flasher backed up or wrote any far sectors. The next attempt must read
+  back the entire RC4 main image before it proceeds to the far region.
+- The completed retry in
+  `private/downloads/release-0.1.6-rc.4-trial-20261120-185708` read the
+  entire main region and confirmed it already matched RC4, SHA-256
+  `7589d63f7b7eee83908a00852cfef0538b920364d71e0e532085ab62ae34fc43`.
+  It then saved the complete RC2 far region, which matches the padded
+  RC2 build byte for byte, and wrote 14 of 18 far sectors.
+- Full far readback matched the RC4 combined payload
+  `83228873b940b95d39adb8150bd42add25799be05e6567749816922dd9019445`.
+  The flasher exited zero and reported UNIFIED_MENU_FLASH_VERIFIED. The
+  original RC2 main and far backups are retained. The Classic transmit
+  display and the RC3 USB-C write behavior await on-radio testing.
