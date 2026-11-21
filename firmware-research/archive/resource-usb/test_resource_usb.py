@@ -322,7 +322,7 @@ class U2Tests(unittest.TestCase):
 
 class FlasherCopyTests(unittest.TestCase):
     def test_flasher_transport_matches_tested_copy(self):
-        flasher_copy = rom.ROOT.parent / "h9-flasher" / "vendor" / "scsiio" / "usb_msc.py"
+        flasher_copy = rom.RESEARCH / "h9-flasher" / "vendor" / "scsiio" / "usb_msc.py"
         self.assertEqual(flasher_copy.read_bytes(), (rom.ROOT / "usb_msc.py").read_bytes())
 
 

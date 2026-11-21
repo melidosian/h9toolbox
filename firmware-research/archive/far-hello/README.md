@@ -3,13 +3,13 @@
 The first test of the free main-flash space found on 2026-11-09:
 `0xEA000–0xFBFFF` (72 KiB) is after the settings VM (two 32 KiB banks at
 `0xDA000`/`0xE2000`) and is written by no stock code
-([../resource-flash-log.md](../resource-flash-log.md)). The chip maps all of
+([../../resource-flash-log.md](../../resource-flash-log.md)). The chip maps all of
 flash into the CPU, so flash `0xEA000` runs at `0x01EE5000`.
 
 ## What it is
 
 - **Far program** (`h9_far_hello_0xEA000.bin`, 1,696 bytes): a 16-byte header
-  (`H9X1` magic, then a jump) and the unchanged [C-hello](../c-hello) startup
+  (`H9X1` magic, then a jump) and the unchanged [C-hello](../../c-hello) startup
   from the point Brick Breaker enters, plus C-hello's `main.c`.
 - **H9 Toolbox Firmware with a far launcher** (`h9_far_hello_OFFLINE_EXPERIMENT.fw`):
   - a 24-byte stub in the spare tail of the `.tables` cave (app+`0xA7E80`)
@@ -51,7 +51,7 @@ export JIELI_TOOLCHAIN=~/path/to/jieli-linux-toolchains-20260730.1
 python3 -I build.py --stock-package <TD-H9-V1.0.38.fw>
 ```
 
-It needs the pinned H9 Toolbox build in `../resource-service/build`
+It needs the pinned H9 Toolbox build in `../../resource-service/build`
 (`build.py --stage bb-s2`). It checks:
 
 - the stub decode

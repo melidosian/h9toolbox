@@ -8,7 +8,7 @@ Doom runs as its **own firmware image**:
 3. To get the radio back, H9 Toolbox Firmware (or stock) is flashed again.
 
 The resource chip keeps its contents across these swaps. Why not alongside
-the radio: [../takeover/DOOM-SIZE.md](../takeover/DOOM-SIZE.md).
+the radio: [../archive/takeover/DOOM-SIZE.md](../archive/takeover/DOOM-SIZE.md).
 
 ## Rules for the resource chip (the user's requirements)
 

@@ -112,7 +112,7 @@ programs, far beyond the 8 KiB slot needed while the stock radio runs.
 
 ## Phase 4: resident loader plus loaded programs
 
-Put the loader (see `../archive/resource-loader-design.md`) and a small runtime (LCD,
+Put the loader (see `../resource-loader-design.md`) and a small runtime (LCD,
 keys, timing, resource-flash reads, a frame-buffer blit) into reclaimed flash.
 Programs are C, built with the Docker toolchain, linked for the reclaimed RAM
 region and stored in `resource` (2.9 MiB free), written over Bluetooth and

@@ -10,8 +10,8 @@ Mac.
 Status: U0 (offline analysis, RAM programs, client) is done. **U1 passed on
 hardware on 2026-11-08 (macOS):** the mask ROM runs a RAM program and
 returns to its USB command loop. U2 is next. The chronological
-record is the [research log](../resource-flash-log.md); stock facts are in
-[main-resource-flash.md](../h9-firmware-research/evidence/stock/main-resource-flash.md).
+record is the [research log](../../resource-flash-log.md); stock facts are in
+[main-resource-flash.md](../../h9-firmware-research/evidence/stock/main-resource-flash.md).
 
 ## U0 findings
 
@@ -85,8 +85,8 @@ Homebrew `libusb` and Python 3.11+:
 ```sh
 brew install libusb
 python3 -m venv ~/h9usb
-~/h9usb/bin/pip install -r firmware-research/resource-usb/requirements.txt
-cd firmware-research/resource-usb
+~/h9usb/bin/pip install -r firmware-research/archive/resource-usb/requirements.txt
+cd firmware-research/archive/resource-usb
 ~/h9usb/bin/python -m unittest test_resource_usb
 ~/h9usb/bin/python resource_usb.py plan
 ```
@@ -128,7 +128,7 @@ The tool reattaches the macOS driver when it exits.
 
 Power-cycle the radio when finished. Nothing is written to either flash
 chip. Keep the JSON reports: they are the evidence for the
-[research log](../resource-flash-log.md).
+[research log](../../resource-flash-log.md).
 
 ## Running U2
 
