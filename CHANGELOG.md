@@ -1,6 +1,26 @@
 # Changelog
 
-## Unreleased: APRS app v1.0
+## H9 Toolbox Firmware v0.1.7
+
+### Quick Change
+
+- Hold **Back** from the channel screen to open Quick Change, even with
+  Monitor on or the squelch set to 0. Hold **#** to start scanning and
+  hold **\*** to lock or unlock the keypad.
+- Use **1–9** for Power, Squelch, Tone, Scan Resume, Monitor or VFO TX
+  frequency, VOX, Dual Watch, Width and Brightness. Press **0** for
+  Radio Settings.
+- Brightness cycles and updates on the grid. Squelch can be raised from
+  level 0 while the receiver is open.
+
+### Toolbox menu
+
+- Press **Menu** on the channel screen to open Toolbox. The unified menu
+  brings together radio settings, channel editing and APRS.
+- The Type-C TD-H9 release includes the optional on-radio APRS modem
+  update and a matching App Manager catalog.
+
+### APRS app v1.0
 
 - The six-message on-radio inbox and outbox now survive power cycles in a
   guarded two-sector resource-flash journal. Outgoing messages retain their
@@ -17,7 +37,7 @@
 - Menu on a message detail opens Send addressed to that station. Send remembers a
   draft while switching APRS screens, and focuses the message field when a
   recipient is already selected. Send from Map uses its highlighted station.
-- The prepared dev App Manager catalog includes the hidden mailbox worker.
+- The matching App Manager catalog includes the hidden mailbox worker.
 - Station notes, messages and send previews wrap at word boundaries on the
   radio's narrow screen.
 

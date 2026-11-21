@@ -22,9 +22,11 @@ let catalog = null;     // catalog/catalog.json
 const catalogs = { classic: null, bench: null };
 const benchLink = $('smartbeaconCatalogLink');
 const requestedCatalog = new URLSearchParams(location.search).get('catalog');
-const benchCatalog = requestedCatalog === 'rc5' ? 'rc5' : 'smartbeacon';
-const usePreviewCatalog = Boolean(benchLink && requestedCatalog === 'rc5');
-const preferBench = Boolean(benchLink && ['smartbeacon', 'rc5'].includes(requestedCatalog));
+const combinedCatalogs = { rc5: 'v0.1.6 RC5', '0.1.7': 'v0.1.7' };
+const combinedVersion = Object.hasOwn(combinedCatalogs, requestedCatalog) ? combinedCatalogs[requestedCatalog] : null;
+const benchCatalog = combinedVersion ? requestedCatalog : 'smartbeacon';
+const useCombinedCatalog = Boolean(benchLink && combinedVersion);
+const preferBench = useCombinedCatalog || Boolean(benchLink && requestedCatalog === 'smartbeacon');
 const downloaded = new Map();  // catalog SHA-256 -> modules
 
 async function catalogApp(item) {
@@ -60,9 +62,9 @@ function renderCatalog() {
   const bench = catalog?.profile === 'smartbeacon';
   if (benchLink) benchLink.hidden = bench;
   const menu = catalog && menuState(catalog, staged, preferBench);
-  $('menuUpdate').hidden = usePreviewCatalog || !menu?.canUpdate;
+  $('menuUpdate').hidden = useCombinedCatalog || !menu?.canUpdate;
   $('stageMenuUpdate').disabled = busy;
-  if (!usePreviewCatalog && menu?.canUpdate) {
+  if (!useCombinedCatalog && menu?.canUpdate) {
     let label = bench ? 'Update menu and apps' : 'Update menu';
     if (menu.status === 'different') label = 'Use matching menu and apps';
     $('stageMenuUpdate').textContent = label;
@@ -250,7 +252,7 @@ function reportUpdates() {
   const menu = menuState(catalog, installed, preferBench);
   if (menu.status === 'outdated') outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
   if (outdated.length) log(`Updates available for ${outdated.join(', ')}.`);
-  if (menu.status === 'different' && !usePreviewCatalog) {
+  if (menu.status === 'different' && !useCombinedCatalog) {
     log(menu.canUpdate
       ? 'A different Toolbox menu is installed. Select Use matching menu and apps to stage the version for the dev firmware.'
       : 'The installed Toolbox menu differs from this catalog.');
@@ -281,7 +283,7 @@ async function readRadio() {
 }
 
 async function applyPreviewBundle(opened) {
-  if (!usePreviewCatalog || catalog?.profile !== 'smartbeacon' || !installed?.length ||
+  if (!useCombinedCatalog || catalog?.profile !== 'smartbeacon' || !installed?.length ||
       !menuState(catalog, installed, true).canUpdate) return;
   const radio = opened.radio;
   let capabilities;
@@ -293,13 +295,13 @@ async function applyPreviewBundle(opened) {
   }
   // RC3 and later use this catalog's firmware menu and module API.
   if (!capabilities.sparseSerialWrites) {
-    log('The connected radio needs compatible v0.1.6 firmware for the RC5 app bundle.');
+    log(`The connected radio needs compatible firmware for the ${combinedVersion} app bundle.`);
     return;
   }
   const updated = await withUpdatedMenu(catalog, installed, { restoreBench: true });
-  if (session !== opened) throw new Error('Radio disconnected before applying the RC5 app bundle.');
+  if (session !== opened) throw new Error(`Radio disconnected before applying the ${combinedVersion} app bundle.`);
   staged = updated;
-  log('Applying the RC5 app bundle to your installed apps.');
+  log(`Applying the ${combinedVersion} app bundle to your installed apps.`);
   await writeBundle();
 }
 
@@ -393,7 +395,7 @@ async function writeBundle() {
   if (bundle.length > CHIP_SLOT) throw new Error('The bundle does not fit the modules slot.');
   $('result').textContent = '';
   const manifest = await uploadPack(session.radio, bundle, { name: BUNDLE_NAME, slot: SLOTS.modules, onProgress: progress(performance.now()) });
-  $('result').innerHTML = `<span class="ok">Written and verified.</span> ${manifest.bytes.toLocaleString()} bytes, ${manifest.sectorsWritten} sector(s), ${manifest.totalSeconds.toFixed(0)} s. ${usePreviewCatalog ? 'Press Menu on the radio to open Toolbox.' : 'Hold Back on the radio for the menu.'}`;
+  $('result').innerHTML = `<span class="ok">Written and verified.</span> ${manifest.bytes.toLocaleString()} bytes, ${manifest.sectorsWritten} sector(s), ${manifest.totalSeconds.toFixed(0)} s. ${useCombinedCatalog ? 'Press Menu on the radio to open Toolbox.' : 'Hold Back on the radio for the menu.'}`;
   log(`Bundle written: ${staged.map(m => m.name).join(', ')} (${manifest.bytes} bytes).`);
   await readRadio();
 }

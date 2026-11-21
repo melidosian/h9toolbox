@@ -1,3 +1,4 @@
+import { quickChangeBuild, rc5Build } from './combined-builds.mjs';
 import { APP_START, IMAGE_SIZE, SECTOR_SIZE, RESIDENT_START, RESIDENT_END, BUILD, PREVIOUS, classifyRadio, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261119m';
 import { BackupStoppedError, createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261120skip';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
@@ -35,26 +36,19 @@ const priorDevBuild = {
   imageSha256: 'e976a10f89aea4f42757c582bb10cc828018e56bf36eb7b8ee2093748b335e92',
 };
 const useDevBuild = $('optBuild').hasAttribute('data-dev-firmware');
-const useRc = useDevBuild && new URLSearchParams(location.search).get('release') !== '0.1.5';
-const previewBuild = {
-  label: 'H9 Toolbox Firmware v0.1.6 RC5',
-  file: 'dev/h9-toolbox-firmware-v0.1.6-rc.5.fw',
-  packageSha256: '395fbc94aeca54eb130b0bf811107bdf06b7c524972b0ca064e26a827a7b3c76',
-  imageSha256: 'fa79bef5fa13e6cbaccd0d4b39eb7a24b51b2ef565ea84503e2e7d08e1e24ac0',
-  farFile: 'dev/h9-toolbox-v0.1.6-rc.5-far.bin',
-  farSha256: '9d1b7ec6b72d7aee88183b08e21c9604bd15ad1b6451868471cbd86d64fa7aa0',
-};
-const devBuild = useRc ? previewBuild : legacyDevBuild;
+const requestedRelease = new URLSearchParams(location.search).get('release');
+const useCombined = useDevBuild && requestedRelease !== '0.1.5';
+const devBuild = useCombined ? (requestedRelease === '0.1.6-rc.5' ? rc5Build : quickChangeBuild) : legacyDevBuild;
 const release = useDevBuild ? devBuild : BUILD;
-if (useRc) {
-  $('optBuild').querySelector('strong').textContent = previewBuild.label;
-  $('loadBuild').textContent = 'Load H9 Toolbox v0.1.6 RC5';
-  $('optBuild').querySelector('small').textContent = 'Includes the new Menu-key interface, long channel names, persistent APRS messages and the optional modem fix.';
+if (useCombined) {
+  $('optBuild').querySelector('strong').textContent = devBuild.label;
+  $('loadBuild').textContent = `Load H9 Toolbox v${devBuild.version}`;
+  $('optBuild').querySelector('small').textContent = devBuild.summary;
   $('bundledModemSetup').hidden = false;
   $('legacyStageNote').hidden = true;
   $('rcInstallNote').hidden = false;
 }
-if (useDevBuild && !useRc) $('rcPreviewLink').hidden = false;
+if (useDevBuild && !useCombined) $('rcPreviewLink').hidden = false;
 class BackupRequiredError extends Error {}
 let currentStep = 0;
 // target: the image to install (kind 'build' or 'stock'). stockSeed: exact
@@ -161,7 +155,7 @@ function progress(done, total) {
   }
 }
 let shownSelection = null;
-function rcBackupSelected() { return useRc && target?.kind === 'build'; }
+function combinedBackupSelected() { return useCombined && target?.kind === 'build'; }
 
 function refresh() {
   if (!busy && device && !device.opened) clearConnection();
@@ -172,15 +166,15 @@ function refresh() {
     $(id).disabled = Boolean(backupAction);
   }
   const ready = Boolean(hid && target);
-  const canRestore = ready && Boolean(backup) && (!rcBackupSelected() || Boolean(backedUpFar(backup.accessible)));
-  const rcBackup = rcBackupSelected();
+  const canRestore = ready && Boolean(backup) && (!combinedBackupSelected() || Boolean(backedUpFar(backup.accessible)));
+  const combinedBackup = combinedBackupSelected();
   $('acknowledge').disabled = busy || !ready;
   $('flash').disabled = busy || !ready || !$('acknowledge').checked;
   $('restore').disabled = busy || !canRestore || !$('acknowledge').checked;
   $('restore').textContent = backup?.source === 'hosted-stock' ? 'Restore stock v1.0.38' : 'Restore backup';
   if (!busy) $('planState').textContent = !hid ? 'Return to step 2 to connect your radio.'
     : !target ? 'Return to step 3 to select firmware.'
-      : rcBackup && !backedUpFar(backup?.accessible) ? 'Install will save a backup of both firmware regions before writing.'
+      : combinedBackup && !backedUpFar(backup?.accessible) ? 'Install will save a backup of both firmware regions before writing.'
       : '';
   // Highlight the chosen firmware; the animation plays when the choice changes.
   const selected = target?.kind ?? null;
@@ -294,7 +288,7 @@ async function loadHostedBuild() {
     previous.push({ info, image: await loadPreviousImage(new Uint8Array(await previousResponses[index].arrayBuffer()), build.image, info) });
   let dev = null;
   if (useDevBuild) {
-    const otherDevBuilds = [earlierDevBuild, priorDevBuild, ...(useRc ? [legacyDevBuild] : [])];
+    const otherDevBuilds = [earlierDevBuild, priorDevBuild, legacyDevBuild, rc5Build, quickChangeBuild].filter(build => build !== devBuild);
     const [current, ...others] = await Promise.all([devBuild, ...otherDevBuilds].map(loadDevImage));
     dev = current;
     previous.push(...otherDevBuilds.map((info, index) => ({ info, image: others[index] })));
@@ -335,7 +329,7 @@ async function validateSelectedBackup(announceWaiting = true) {
     if (announceWaiting && file) status('Backup selected. Choose firmware to check it against.');
     refresh(); return;
   }
-  if (!useRc && !file && !['stock', 'stock-like', 'other', devBuild.label].includes(createdBackup.source) && target.kind === 'build') {
+  if (!useCombined && !file && !['stock', 'stock-like', 'other', devBuild.label].includes(createdBackup.source) && target.kind === 'build') {
     // `source` is what the backup scan matched: 'build', or an earlier
     // build's PREVIOUS id (e.g. 'release1').
     if (createdBackup.source === 'build' || previousInfo(createdBackup.source)) {
@@ -376,7 +370,7 @@ async function validateSelectedBackup(announceWaiting = true) {
     // right before writing, so a file that does not match the radio is refused then.
     if (target.kind === 'build') {
       await ensureReferences();
-      if (useRc || !stockCompatible(expectedCrcs(loaded.image), stockSeed)) { requireH9(loaded.image); loaded.fullInstall = true; }
+      if (useCombined || !stockCompatible(expectedCrcs(loaded.image), stockSeed)) { requireH9(loaded.image); loaded.fullInstall = true; }
     }
     if (selection !== backupSelection) return;
     backup = loaded;
@@ -474,7 +468,7 @@ $('connect').addEventListener('click', async () => {
     chosen = devices[0];
     if (!chosen.collections.some(collection => collection.usagePage === 0xff00 && collection.usage === 1 && collection.inputReports.some(report => report.reportId === 0) && collection.outputReports.some(report => report.reportId === 0))) throw new Error('Unexpected HID report layout.');
     await chosen.open();
-    const candidate = useRc ? new FarFirmwareHid(chosen) : new H9Hid(chosen);
+    const candidate = useCombined ? new FarFirmwareHid(chosen) : new H9Hid(chosen);
     const geometry = await candidate.initialize();
     device = chosen; hid = candidate; radioBackedUp = false;
     $('deviceState').textContent = 'Connected';
@@ -557,7 +551,7 @@ async function createBackup() {
   // Firmware area only: the settings area above 0xDA000 is never written
   // here and takes about 10 minutes to recover. A radio with unknown
   // firmware still gets the full recovery (there is no shortcut for it).
-  const includeFar = useRc && target?.kind === 'build';
+  const includeFar = useCombined && target?.kind === 'build';
   const recovered = await readAccessibleFlash(hid, current, images.map(([, image]) => image), progress, () => Boolean(backupAction), { settings: includeFar });
   if (!recovered.settings) status('The radio matches a known firmware image, so the backup was quick.');
   if (backupAction) throw new BackupStoppedError();
@@ -575,7 +569,7 @@ async function createBackup() {
   $('cancelBackup').disabled = true;
   $('skipBackup').disabled = true;
   const sourceName = source === 'build' || source === devBuild.label ? 'H9-Toolbox-Firmware-'
-    : [earlierDevBuild.id, priorDevBuild.id].includes(source) ? 'H9-Toolbox-Earlier-Dev-'
+    : [earlierDevBuild.id, priorDevBuild.id, legacyDevBuild.id, rc5Build.id, quickChangeBuild.id].includes(source) ? 'H9-Toolbox-Earlier-Dev-'
       : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
   const sourceLabel = source === 'build' ? BUILD.label : source === devBuild.label ? devBuild.label : previousInfo(source)?.label;
   const date = new Date().toISOString().slice(0, 10);
@@ -676,12 +670,12 @@ async function restartAfterVerification() {
 
 const stockRestart = ['Check the firmware version, channels, and settings.'];
 const toolboxRestart = [
-  useRc ? 'From the channel screen, press Menu to open Toolbox.' : 'From the channel screen, hold Back to open the app menu.',
+  useCombined ? 'From the channel screen, press Menu to open Toolbox.' : 'From the channel screen, hold Back to open the app menu.',
   useDevBuild ? 'Open the development app catalog in App Manager and install the matching apps.'
     : 'Use the App Manager over Bluetooth or experimental USB-C to add apps or a boot logo.',
 ];
 const appManagerLink = {
-  href: useRc ? '../apps/?catalog=rc5' : useDevBuild ? '../apps/?catalog=smartbeacon' : '../apps/',
+  href: useCombined ? `../apps/?catalog=${devBuild.catalog}` : useDevBuild ? '../apps/?catalog=smartbeacon' : '../apps/',
   label: 'Open the App Manager',
 };
 
@@ -698,8 +692,8 @@ async function performWrite(direction) {
   showResult(null);
   busy = true; refresh();
   try {
-    const installingRc = useRc && direction === 'update' && target.kind === 'build';
-    const savedBackup = installingRc ? backedUpFar(backup?.accessible)
+    const installingCombined = useCombined && direction === 'update' && target.kind === 'build';
+    const savedBackup = installingCombined ? backedUpFar(backup?.accessible)
       : backup && (radioBackedUp || $('backupFile').files.length);
     let skippedBackup = false;
     if (direction === 'update' && !savedBackup) {
@@ -730,27 +724,27 @@ async function performWrite(direction) {
     const work = checked[direction];
     const toolbox = direction === 'update' && target.kind === 'build';
     const farBackup = backedUpFar(reference.accessible);
-    const restoringFar = useRc && direction === 'restore' && farBackup;
+    const restoringFar = useCombined && direction === 'restore' && farBackup;
     let farPlan;
     function saveFarProgress(sector) {
       if (sector === null) localStorage.removeItem(farResumeKey);
-      else localStorage.setItem(farResumeKey, JSON.stringify({ backupHash: reference.hash, packageHash: previewBuild.packageSha256, sector }));
+      else localStorage.setItem(farResumeKey, JSON.stringify({ backupHash: reference.hash, packageHash: devBuild.packageSha256, sector }));
     }
-    if (installingRc || restoringFar) {
+    if (installingCombined || restoringFar) {
       phase(skippedBackup ? 'Checking the far firmware' : 'Checking the far firmware against the recovery backup');
-      const far = await loadReleaseFile(previewBuild.farFile, previewBuild.farSha256);
+      const far = await loadReleaseFile(devBuild.farFile, devBuild.farSha256);
       const marker = pending(farResumeKey);
-      const interrupted = marker?.backupHash === reference.hash && marker?.packageHash === previewBuild.packageSha256 ? marker.sector : null;
+      const interrupted = marker?.backupHash === reference.hash && marker?.packageHash === devBuild.packageSha256 ? marker.sector : null;
       farPlan = skippedBackup ? await planFarFirmwareWithoutBackup(hid, far)
         : await planFarFirmware(hid, farBackup, far, direction, interrupted);
     }
-    if (installingRc) {
+    if (installingCombined) {
       phase('Writing and verifying the menu and APRS scheduler');
       await writeFarFirmware(hid, farPlan, saveFarProgress, progress);
     }
-    let aprs = installingRc ? 'ready' : null;
-    if (toolbox && useDevBuild && !useRc) await stageAprsScheduler();
-    if (toolbox && !installingRc) {
+    let aprs = installingCombined ? 'ready' : null;
+    if (toolbox && useDevBuild && !useCombined) await stageAprsScheduler();
+    if (toolbox && !installingCombined) {
       status('Checking the APRS update file and staging area. Keep USB connected.');
       const response = await fetch(`./${release.aprsStageFile}?v=${release.aprsStageSha256.slice(0, 8)}`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Could not download the staged APRS update file.');
