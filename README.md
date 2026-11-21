@@ -31,14 +31,14 @@ hold **Back**.
 
 1. Open the firmware updater in Chrome or Edge on a computer. Connect a
    data-capable USB-C cable and hold **PTT + 2** while powering on the
-   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [v0.1.6 firmware updater](https://dev.h9toolbox.com/firmware-update/)
+   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [Dev firmware updater](https://dev.h9toolbox.com/firmware-update/)
 2. Choose your firmware, save the recommended `.h9hid` recovery backup,
-   and keep USB connected through verification. The current updater on
-   `dev` requests a reboot after verification and gives manual restart
-   instructions if the radio stays in update mode.
+   and keep USB connected through verification. The updater requests a reboot
+   after verification and gives manual restart instructions if the radio
+   stays in update mode.
 3. With the radio on its normal channel screen, use the App Manager linked
    from your updater to choose apps and select **Write to radio**.
-   [App Manager](https://h9toolbox.com/apps/) · [v0.1.6 App Manager](https://dev.h9toolbox.com/apps/)
+   [App Manager](https://h9toolbox.com/apps/) · [Dev App Manager](https://dev.h9toolbox.com/apps/)
 4. If you want full KISS TNC and the updater verifies that the modem
    update was staged, follow **Optional: Unlock KISS TNC** on the restart
    step. It includes the keypad instructions and bridge download.
@@ -60,13 +60,12 @@ The `htcommander` repository is a separate project with its own TD-H9 integratio
 
 ## Hosting
 
-GitHub Pages publishes `dist/` from `main` to [h9toolbox.com](https://h9toolbox.com/).
-Cloudflare Pages builds `dev` with `scripts/build-dev-site.sh` for
-[dev.h9toolbox.com](https://dev.h9toolbox.com/). The dev build serves H9
-Toolbox Firmware v0.1.6 over USB-C, including the main firmware and far-flash
-payload, and defaults to the matching App Manager catalog. It records the
-deployed commit at
-[`/dev-build.txt`](https://dev.h9toolbox.com/dev-build.txt).
+GitHub Pages builds `main` with `scripts/build-site.sh` for
+[h9toolbox.com](https://h9toolbox.com/). Cloudflare Pages builds `dev` with
+`scripts/build-dev-site.sh` for [dev.h9toolbox.com](https://dev.h9toolbox.com/)
+and records that commit at [`/dev-build.txt`](https://dev.h9toolbox.com/dev-build.txt).
+Both builds default to H9 Toolbox Firmware v0.1.6 over USB-C, including the
+main firmware and far-flash payload, and serve the matching App Manager catalog.
 
 The production site uses Google Analytics 4 for page views and automatic
 interaction events. The tag runs only on `h9toolbox.com`. H9 Toolbox keeps

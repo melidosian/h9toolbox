@@ -20,11 +20,12 @@ let installed = null;   // modules on the radio (null: not read / none)
 let staged = [];        // the list "Write to radio" will install
 let catalog = null;     // catalog/catalog.json
 const catalogs = { classic: null, bench: null };
-const devCatalog = $('catalog').hasAttribute('data-dev-catalog');
+const catalogElement = $('catalog');
 const requestedCatalog = new URLSearchParams(location.search).get('catalog');
-const usePreviewCatalog = devCatalog && requestedCatalog !== 'smartbeacon';
+const useLegacyDevCatalog = catalogElement.hasAttribute('data-legacy-dev-catalog') && requestedCatalog === 'smartbeacon';
+const usePreviewCatalog = catalogElement.hasAttribute('data-release-catalog') && !useLegacyDevCatalog;
 const benchCatalog = usePreviewCatalog ? 'rc5' : 'smartbeacon';
-const preferBench = devCatalog;
+const preferBench = usePreviewCatalog || useLegacyDevCatalog;
 const downloaded = new Map();  // catalog SHA-256 -> modules
 
 async function catalogApp(item) {
@@ -231,13 +232,13 @@ function pickCatalog() {
 
 async function refreshCatalog() {
   const sources = [['classic', undefined]];
-  if (devCatalog) sources.push(['bench', new URL(`catalog/${benchCatalog}/`, import.meta.url)]);
+  if (preferBench) sources.push(['bench', new URL(`catalog/${benchCatalog}/`, import.meta.url)]);
   await Promise.all(sources.map(async ([key, base]) => {
     try { catalogs[key] = await loadCatalog(base); }
     catch (error) { log(error.message, 'error'); }
   }));
   pickCatalog();
-  if (!catalog) $('catalogNote').textContent = preferBench ? 'The development app catalog did not load.' : 'The app catalog did not load.';
+  if (!catalog) $('catalogNote').textContent = preferBench ? 'The selected app catalog did not load.' : 'The app catalog did not load.';
 }
 // After reading the radio: which installed apps have a newer version in the catalog.
 function reportUpdates() {
