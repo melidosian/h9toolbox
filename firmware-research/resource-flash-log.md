@@ -5497,3 +5497,13 @@ result yet.**
 - Host tests passed for the contiguous and split modem image, including all
   136 blocks, a corrupted image, modem timeouts and the version reply.
   The combined binary has not been flashed to a radio.
+
+## 2026-11-20 RC5 browser HID test
+
+- The Type-C TD-H9 enumerated in PTT+2 mode as HID 4C4A:4155. The local
+  updater fetched the pinned RC5 main package and far payload.
+- The radio left HID mode after the install. The operator confirmed the
+  browser reported that both firmware regions were installed and verified.
+- With USB unplugged, the operator booted into PTT+7 APRS update mode,
+  ran the bundled keypad update, and reported APRS BOOT VERIFIED
+  (V1.0.15X). The version reply passed after the modem restarted.
