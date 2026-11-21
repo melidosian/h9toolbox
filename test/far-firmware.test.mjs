@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { APP_START, APRS_STAGE_START, FLASH_SIZE, RESIDENT_START, SECTOR_SIZE, crc16 } from '../dist/firmware-update/firmware.mjs';
-import { FAR_END, FAR_START, backedUpFar, planFarFirmware, writeFarFirmware } from '../dist/firmware-update/far-region.mjs';
+import { FAR_END, FAR_START, backedUpFar, planFarFirmware, planFarFirmwareWithoutBackup, writeFarFirmware } from '../dist/firmware-update/far-region.mjs';
 
 const rc = new URL('../firmware-research/module-loader/combined-preview-release/', import.meta.url);
 const old = new URL('../firmware-research/module-loader/smartbeacon-release/', import.meta.url);
@@ -51,4 +51,15 @@ test('far installer rejects a foreign sector and resumes only the recorded inter
   assert.ok(plan.work.includes(interrupted));
   await writeFarFirmware(hid, plan, () => {}, () => {});
   assert.deepEqual(flash.slice(FAR_START, FAR_END), candidate);
+});
+
+test('skip-backup flashes the bounded far region and recognizes a verified reinstall', async () => {
+  const { candidate, flash, writes, hid } = await radio();
+  const plan = await planFarFirmwareWithoutBackup(hid, candidate);
+  assert.equal(plan.work.length, (FAR_END - FAR_START) / SECTOR_SIZE);
+  await writeFarFirmware(hid, plan, () => {}, () => {});
+  assert.deepEqual(flash.slice(FAR_START, FAR_END), candidate);
+  assert.equal(writes.length, plan.work.length);
+  const reinstall = await planFarFirmwareWithoutBackup(hid, candidate);
+  assert.deepEqual(reinstall.work, []);
 });

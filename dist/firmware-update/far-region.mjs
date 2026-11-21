@@ -36,7 +36,7 @@ function equal(a, b) {
   return a.every((byte, i) => byte === b[i]);
 }
 
-async function verifyWindows(hid, bytes, interrupted = -1) {
+async function windowsMatch(hid, bytes, interrupted = -1) {
   // Include windows that straddle each sector boundary in the managed region.
   for (const shift of SHIFTS) {
     const base = FAR_START - APP_START + shift;
@@ -44,19 +44,34 @@ async function verifyWindows(hid, bytes, interrupted = -1) {
       ...await hid.windowCrcs(base, 16),
       ...await hid.windowCrcs(base + 16 * SECTOR_SIZE, COUNT - 17),
     ];
-    if (observed.length !== COUNT - 1 || observed.some((crc, i) =>
-      i !== interrupted && i + 1 !== interrupted &&
-      crc !== crc16(bytes.subarray(i * SECTOR_SIZE + shift, (i + 1) * SECTOR_SIZE + shift))))
-      throw new Error('The far firmware does not match the verified data. Check that you selected the original backup from this radio.');
+    if (observed.length !== COUNT - 1) throw new Error('Incomplete far firmware window scan.');
+    if (observed.some((crc, i) => i !== interrupted && i + 1 !== interrupted &&
+      crc !== crc16(bytes.subarray(i * SECTOR_SIZE + shift, (i + 1) * SECTOR_SIZE + shift)))) return false;
   }
+  return true;
+}
+
+async function scanFar(hid) {
+  const base = FAR_START - APP_START;
+  const observed = [...await hid.crcs(base, 16), ...await hid.crcs(base + 16 * SECTOR_SIZE, COUNT - 16)];
+  if (observed.length !== COUNT) throw new Error('Incomplete far firmware checksum scan.');
+  return observed;
+}
+
+export async function planFarFirmwareWithoutBackup(hid, release) {
+  if (release?.length !== FAR_SIZE) throw new Error('Invalid far firmware size.');
+  const observed = await scanFar(hid);
+  const matches = observed.every((crc, i) => crc === crc16(sector(release, i)));
+  if (matches && await windowsMatch(hid, release)) return { destination: release, work: [] };
+  // A matching sector CRC alone cannot exclude a collision with unknown bytes.
+  const work = Array.from({ length: COUNT }, (_, i) => FAR_END - (i + 1) * SECTOR_SIZE);
+  return { destination: release, work };
 }
 
 export async function planFarFirmware(hid, saved, release, direction, interruptedAddress) {
   if (saved?.length !== FAR_SIZE || release?.length !== FAR_SIZE)
     throw new Error('Select a recovery backup that includes the far firmware.');
-  const base = FAR_START - APP_START;
-  const observed = [...await hid.crcs(base, 16), ...await hid.crcs(base + 16 * SECTOR_SIZE, COUNT - 16)];
-  if (observed.length !== COUNT) throw new Error('Incomplete far firmware checksum scan.');
+  const observed = await scanFar(hid);
   const destination = direction === 'restore' ? saved : release;
   const live = new Uint8Array(FAR_SIZE);
   const work = [];
@@ -75,7 +90,8 @@ export async function planFarFirmware(hid, saved, release, direction, interrupte
     else throw new Error('The far firmware differs from both the recovery backup and the preview. Select the original backup from this radio.');
     if (observed[i] !== crc16(sector(destination, i))) work.unshift(address);
   }
-  await verifyWindows(hid, live, interrupted);
+  if (!await windowsMatch(hid, live, interrupted))
+    throw new Error('The far firmware does not match the verified data. Check that you selected the original backup from this radio.');
   return { destination, work };
 }
 
@@ -89,9 +105,7 @@ export async function writeFarFirmware(hid, plan, pending, progress) {
     pending(null);
     progress(index + 1, plan.work.length);
   }
-  const base = FAR_START - APP_START;
-  const observed = [...await hid.crcs(base, 16), ...await hid.crcs(base + 16 * SECTOR_SIZE, COUNT - 16)];
-  if (observed.length !== COUNT || observed.some((crc, i) => crc !== crc16(sector(plan.destination, i))))
+  const observed = await scanFar(hid);
+  if (observed.some((crc, i) => crc !== crc16(sector(plan.destination, i))) || !await windowsMatch(hid, plan.destination))
     throw new Error('Final far firmware checksum verification failed.');
-  await verifyWindows(hid, plan.destination);
 }
