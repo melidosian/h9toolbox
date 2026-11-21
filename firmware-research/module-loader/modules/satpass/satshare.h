@@ -6,6 +6,7 @@
 #define SATSHARE_H
 
 #include <stdint.h>
+#include "app_theme.h"
 
 struct satshare {
     uint32_t magic;            /* SAT_MAGIC: valid, written by SAT PASS when it opens the plot */
@@ -17,7 +18,7 @@ struct satshare {
     /* The resident VFO tracker (.SAT TRACK called from the loader stub's main-loop hook;
      * offsets 52..64 are read by src/stub.s res_tick). */
     uint32_t res_magic;        /* RES_MAGIC while the tracker is armed; the stub clears it when the menu opens */
-    uint32_t res_entry;        /* the tracker's module_main in the RAM slot */
+    uint32_t res_entry;        /* the tracker's entry point in the RAM slot */
     uint32_t res_lencrc;       /* body length (high half) and CRC-16 (low half): the stub checks the slot once */
     uint32_t res_tick;         /* tick of the last call (the stub throttles to twice a second) */
     uint32_t st_ticks;         /* tracker status, left for VFO PROBE: calls so far */
@@ -51,14 +52,13 @@ static inline uint32_t sat_local(uint32_t unix_time)
 }
 static inline char sat_zone_letter(void) { unsigned v = H9_TZ_BYTE; return v <= 24 && v != 12 ? 'L' : 'Z'; }
 
-/* The page tabs along the bottom of the SAT PASS screens: LIST, PLOT and
- * TRACK, the current one in yellow. Drawn with gfx_text (include gfx.h first). */
+/* The page tabs along the bottom of the SAT PASS screens. */
 static inline void sat_tabs(unsigned current)
 {
     static const char TABS[] = "LIST PLOT TRACK";
     static const uint8_t AT[3] = { 0, 5, 10 }, LEN[3] = { 4, 4, 5 };
-    gfx_text(0, 119, TABS, 15, 1, GFX_GREY, GFX_BLACK);
-    gfx_text(AT[current] * 6u, 119, TABS + AT[current], LEN[current], 1, GFX_YELLOW, GFX_BLACK);
+    gfx_text(UI_LEFT, UI_FOOT_Y, TABS, 15, 1, UI_HINT, UI_BG);
+    gfx_text(UI_LEFT + AT[current] * 6u, UI_FOOT_Y, TABS + AT[current], LEN[current], 1, UI_BG, UI_ACCENT);
 }
 
 #endif

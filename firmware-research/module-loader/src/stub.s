@@ -42,6 +42,10 @@
     .globl ml_hotkey
 ml_hotkey:
     [--sp] = {rets, r4}
+    .ifdef ML_RUNTIME_BOOT
+    r3 = ML_RUNTIME_BOOT
+    call r3
+    .endif
     r3 = 0x0000c3af
     r0 = b[r3+0] (u)
     if (r0 != 15) goto ml_back_released
@@ -83,6 +87,10 @@ ml_back_released:
 ml_stock_loop_call:
     call res_tick
     call rec_tick
+    .ifdef ML_LABELS_LOOP
+    r3 = ML_LABELS_LOOP
+    call r3
+    .endif
     r3 = 0x01e58ee4
     call r3
     {pc, r4} = [sp++]
@@ -315,11 +323,17 @@ ml_main:
     if (r10 == 0) goto ml_main_return
     r11 = 0
 ml_run:
+    .ifdef ML_UNIFIED_MENU
+    /* Unified firmware owns its UI even if an app upload replaces bundle
+     * module zero. Both normal Menu and hold-Back pass this far CRC guard. */
+    if (r11 == 0) goto ml_unified_menu
+    .endif
     r0 = r11
     r1 = r10
     call ml_load
     if (r0 == 0) goto ml_load_failed
     r3 = r0
+ml_run_loaded:
     r0 = ml_api
     r1 = r11
     call r3
@@ -341,6 +355,22 @@ ml_back_to_menu:
     goto ml_run
 ml_main_return:
     {pc, r14-r4} = [sp++]
+
+    .ifdef ML_UNIFIED_MENU
+ml_unified_menu:
+    r0 = ML_UNIFIED_CPU
+    r1 = ML_UNIFIED_BYTES
+    call ml_crc
+    r1 = ML_UNIFIED_CRC
+    if (r0 != r1) goto ml_unified_recovery
+    r3 = ML_UNIFIED_CPU
+    goto ml_run_loaded
+ml_unified_recovery:
+    r3 = 0x02000d68
+    call r3
+ml_unified_wait:
+    goto ml_unified_wait
+    .endif
 
 /* Restart the radio the way stock's cpu_reset does (app+0xC6EC8/0xC6EF4):
  * interrupts off (ROM 0x02001634), PWR_CON 0x1E0000 |= bit 4, spin. Same
@@ -448,6 +478,27 @@ mll_index_ok:
     r0 = sp + 0
     r2 = 32
     call ml_read
+    .ifdef ML_RUNTIME_BOOT
+    /* APRS BEACON must match the resident status screen built with
+     * this firmware. Never run the old foreground or background scheduler. */
+    r0 = [sp+0]
+    r1 = 0x53525041
+    if (r0 != r1) goto mll_check_bg
+    r2 = [sp+4]
+    r1 = 0x41454220
+    if (r2 != r1) goto mll_check_bg
+    r1 = sp + 0
+    r2 = h[r1+30] (u)
+    r1 = ML_RESIDENT_SCREEN_CRC
+    if (r2 != r1) goto mll_fail
+mll_check_bg:
+    r1 = 0x5250412e
+    if (r0 != r1) goto mll_entry
+    r2 = [sp+4]
+    r1 = 0x47422053
+    if (r2 == r1) goto mll_fail
+mll_entry:
+    .endif
     r5 = [sp+16]
     r6 = [sp+20]
     r7 = [sp+24]
@@ -539,6 +590,24 @@ mlcrc_done:
     r0 = r2
     {pc, r5-r4} = [sp++]
 
+/* Keep the S2 uploader out of the channel labels, mailbox and settings
+ * pairs, VFO recovery and last GPS fix. Check both the control request and each data block. */
+    .globl ml_s2_allowed
+ml_s2_allowed:
+    r3 = 0x01ea552c
+    goto ml_s2_guard
+    .globl ml_s2_program_check
+ml_s2_program_check:
+    r3 = 0x01ea558e
+ml_s2_guard:
+    r2 = r0 >> 12
+    if (r2 < 0x3f6) goto ml_s2_guard_pass
+    if (r2 >= 0x400) goto ml_s2_guard_pass
+    r0 = 0
+    rts
+ml_s2_guard_pass:
+    goto r3
+
 /* ---- serial / USB clone writes: use Bluetooth's sector-aware write ------
  * The clone 'W' handler (app+0x5CF18) serves Bluetooth, the K-plug UART and
  * USB-C serial. Each transport hands it a write routine at [ops+12], called
@@ -551,12 +620,15 @@ mlcrc_done:
  * ANDed with the old values, or "ignored", and were still ACKed
  * (resource-flash-log.md, 2026-11-11; CHIRP issue 12216). build.py points the
  * serial wrapper's ops table (the literal 0x01E78348 at app+0x78A9E) here.
- * 0x2000-0x3FFF go to Bluetooth's routine, which ignores r3; everything else
- * goes to the stock serial routine unchanged (0x4000-0x4FFF never get this far:
- * the S2 hook takes them first). */
+ * Unified-menu builds also use the sector-aware routine below 0x2000, so
+ * sparse USB writes can update channels without a block-zero bulk erase.
+ * Other builds retain the stock path below 0x2000. The S2 hook still owns
+ * 0x4000-0x4FFF, and stock handles the remaining addresses. */
     .globl ml_serial_write
 ml_serial_write:
+    .ifndef ML_LABELS_LOOP
     if (r0 < 0x2000) goto mlsw_stock
+    .endif
     if (r0 >= 0x4000) goto mlsw_stock
     r3 = 0x01e5027c         /* Bluetooth's write (partition 4, address, data, length): r3 is not needed */
     goto r3
@@ -566,15 +638,44 @@ mlsw_stock:
     call r4
     {pc, r4} = [sp++]
 
+/* Clear the protected APRS state at my_app startup before any module runs.
+ * Finish with the original stock delay, preserving its argument in r0. */
+    .globl ml_aprs_boot
+ml_aprs_boot:
+    .ifdef ML_LABELS_LOOP
+    r1 = 0x29900
+    .else
+    .ifdef ML_RUNTIME_BOOT
+    r1 = 0x29a00
+    .else
+    r1 = 0x29c00
+    .endif
+    .endif
+    r2 = 0
+    r3 = 0x29f00
+ml_aprs_clear:
+    [r1+0] = r2
+    r1 += 4
+    if (r1 != r3) goto ml_aprs_clear
+    r3 = 0x01e516c6
+    goto r3
+
 /* ---- what a module gets in r0 ---------------------------------------- */
     .balign 4
 ml_api:
     .long 0x50413948        /* "H9AP" */
-    .long 2                 /* API version: 2 = a module may return 0xFFFF (H9_RETURN_RADIO) to leave for the radio */
+    .ifdef ML_API_VERSION
+    .long ML_API_VERSION    /* 4 adds the resident APRS prefix, 5 the flash helpers */
+    .else
+    .long 3                 /* API 3 reserves 0x29C00–0x29EFF and retains H9_RETURN_RADIO */
+    .endif
     .long 0x00cc1000        /* bundle chip address */
     .long 0x00029f00        /* load address */
     .long 0x2000            /* slot bytes */
     .long ml_read           /* void read(dst, chip_address, length) */
     .globl ml_fw_version
 ml_fw_version:
-    .long 0                 /* H9 Toolbox Firmware version 0x00MMmmpp (0x000104 = v0.1.4): build.py writes it from VERSION */
+    .long 0                 /* H9 Toolbox Firmware version 0xRRMMmmpp (RR = release candidate): build.py writes it from VERSION */
+    .ifdef ML_RUNTIME_BOOT
+    .long 0x29a00
+    .endif

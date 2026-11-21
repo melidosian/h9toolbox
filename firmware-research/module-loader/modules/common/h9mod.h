@@ -13,16 +13,33 @@
 
 #include <stdint.h>
 
+struct h9_runtime_prefix;
 struct h9_api {
     uint32_t magic;      /* "H9AP" */
-    uint32_t version;    /* 1; 2 = the loader returns to the radio (menu returns 0, module returns H9_RETURN_RADIO) */
+    uint32_t version;    /* 2 adds return to radio, 4 adds resident APRS, 5 adds flash helper jumps */
     uint32_t bundle;     /* chip address of the bundle header */
     uint32_t load;       /* 0x29F00 */
     uint32_t slot;       /* bytes available at `load` (8 KiB) */
     void (*read)(void *dst, uint32_t chip_address, uint32_t length);
     uint32_t firmware;   /* API version 2 and later only (older loaders have nothing here): H9 Toolbox Firmware version
-                          * 0x00MMmmpp, 0x000104 = v0.1.4 (module-loader/VERSION) */
+                          * 0xRRMMmmpp, where RR is the release candidate number or zero */
+    const struct h9_runtime_prefix *resident; /* API version 4 and later only */
 };
+
+/* API 6 adds a request for the firmware Messages menu. Bits 20â€“23 of the
+ * reserved menu position carry the APRS view across module switches. */
+enum { H9_MESSAGE_API = 6, H9_MSG_NEW = 1, H9_MSG_INBOX, H9_MSG_SENT, H9_MSG_DRAFT };
+#define H9_MESSAGE_CENTER ".MESSAGES"
+#ifndef H9_MENU_POSITION
+#define H9_MENU_POSITION (*(volatile uint32_t *)0x29EFCu)
+#endif
+#define H9_MENU_MAGIC 0x4D090000u
+#define H9_HAS_MESSAGES ((H9_MENU_POSITION & (0xffff0000u & ~H9_MSG_ROUTE_MASK)) == H9_MENU_MAGIC)
+#define H9_MSG_ROUTE_SHIFT 20u
+#define H9_MSG_ROUTE_MASK (15u << H9_MSG_ROUTE_SHIFT)
+#ifndef H9_MSG_ROUTE
+#define H9_MSG_ROUTE ((H9_MENU_POSITION & H9_MSG_ROUTE_MASK) >> H9_MSG_ROUTE_SHIFT)
+#endif
 
 /* Bundle layout on the resource chip (little-endian). */
 enum { H9_BUNDLE_HEADER = 16, H9_BUNDLE_ENTRY = 32, H9_NAME_BYTES = 16 };

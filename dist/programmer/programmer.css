@@ -1,0 +1,22 @@
+.programmer-main { width: min(100%, 1040px); }
+
+.programmer-main .guide-slide .subtext {
+  color: #bdd2d4;
+  font-size: 14px;
+  margin: 14px 0 20px;
+}
+
+.programmer-main .guide-footer .progress-wrap { margin: 0 0 12px; }
+.programmer-main .guide-actions #reconnectStep { margin-inline-start: auto; }
+.programmer-main .channel-tools .toggle { white-space: nowrap; }
+.programmer-main .channel-tools .toggle input { width: auto; }
+.programmer-main .connected-backup .controls { margin-top: 8px; }
+.programmer-main .file-label:focus-within { outline: 2px solid #a8e9c9; outline-offset: 3px; }
+.programmer-main .file-label:has(input:disabled) { opacity: .45; cursor: not-allowed; }
+.programmer-main .file-label input:disabled { cursor: not-allowed; }
+.programmer-main #logoTool { padding: 0 14px 14px; }
+.programmer-main #logoTool p { padding: 0; }
+.programmer-help { margin-top: 4px; }
+.programmer-help .advanced { margin: 0 14px; padding: 12px 0; }
+.programmer-help .advanced summary { padding: 0; }
+.programmer-help .advanced p { padding: 8px 0 0; }

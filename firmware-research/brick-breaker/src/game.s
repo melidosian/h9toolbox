@@ -383,7 +383,11 @@ glyph_row:
 glyph_pixel:
     r0 = r2 & 0x80
     if (r0 == 0) goto glyph_black
+    .ifdef TOOLBOX_SCORE_INK
+    r0 = TOOLBOX_SCORE_INK
+    .else
     r0 = 0xffff
+    .endif
 glyph_black:
     h[r7+0] = r0
     r7 += 2

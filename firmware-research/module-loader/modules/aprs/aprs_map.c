@@ -38,32 +38,32 @@ static void draw(void)
     int32_t keep_lat = A->my_lat, keep_lon = A->my_lon;
     if (!A->my_fix && sel_ok) { A->my_lat = A->st[A->map_sel].lat; A->my_lon = A->st[A->map_sel].lon; }
 
-    aprs_title("MAP");
-    gfx_fill(0, MAP_Y, H9_WIDTH, MAP_H, GFX_BLACK);
-    if (A->my_fix) { gfx_fill(CX - 4, CY, 9, 1, GFX_GREEN); gfx_fill(CX, CY - 4, 1, 9, GFX_GREEN); }
+    aprs_title("APRS MAP");
+    gfx_fill(0, MAP_Y, H9_WIDTH, MAP_H, UI_BG);
+    if (A->my_fix) { gfx_fill(CX - 4, CY, 9, 1, UI_OK); gfx_fill(CX, CY - 4, 1, 9, UI_OK); }
     for (unsigned i = 0; i < A->count; i++) {
         const struct station *s = &A->st[i];
         if (!s->has_pos || i == A->map_sel || !project(s->lat, s->lon, &x, &y)) continue;
-        gfx_fill(x - 1, y - 1, 3, 3, s->live ? GFX_WHITE : GFX_GREY);
+        gfx_fill(x - 1, y - 1, 3, 3, s->live ? UI_TEXT : UI_DIM);
     }
     if (sel_ok && project(A->st[A->map_sel].lat, A->st[A->map_sel].lon, &x, &y)) {
-        gfx_fill(x - 2, y - 2, 5, 5, GFX_YELLOW);
+        gfx_fill(x - 2, y - 2, 5, 5, UI_ACCENT);
         unsigned lx = x + 5 + 6 * 9 > H9_WIDTH ? x - 5 - 6 * 9 : x + 5;
-        gfx_text(lx, y > MAP_Y + 10 ? y - 4 : y, A->st[A->map_sel].call, CALL, 1, GFX_YELLOW, GFX_BLACK);
+        gfx_text(lx, y > MAP_Y + 10 ? y - 4 : y, A->st[A->map_sel].call, CALL, 1, UI_ACCENT, UI_BG);
     }
     unsigned n = put_str(b, "R ");
     n += put_uint(b + n, RADIUS_KM[A->map_zoom]);
     put_str(b + n, "KM");
-    gfx_text(2, MAP_Y + MAP_H - 9, b, 8, 1, GFX_GREY, GFX_BLACK);
+    gfx_text(2, MAP_Y + MAP_H - 9, b, 8, 1, UI_DIM, UI_BG);
 
     A->my_lat = keep_lat; A->my_lon = keep_lon;
     if (sel_ok) {
         n = put_str(b, A->st[A->map_sel].call);
         b[n++] = ' ';
         put_range(b + n, &A->st[A->map_sel]);
-        aprs_line(INFO_Y, b, GFX_WHITE, GFX_BLACK);
+        aprs_line(INFO_Y, b, UI_TEXT, UI_BG);
     } else {
-        aprs_line(INFO_Y, "NO POSITIONS YET", GFX_GREY, GFX_BLACK);
+        aprs_line(INFO_Y, "NO POSITIONS YET", UI_DIM, UI_BG);
     }
     aprs_tabs(TAB_MAP);
 }
@@ -74,7 +74,14 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     aprs_open();
     for (;;) {
         unsigned ev = aprs_event();
-        if (ev == EV_REDRAW) draw();
+        if (ev == EV_STORE) { if (aprs_store(api, MAIL_PAGE_MAP)) return 0; }
+        else if (ev == EV_REDRAW) draw();
+        /* Send from the station highlighted on the map, not an older list
+         * selection. The Send screen uses list_sel for its default recipient. */
+        else if (ev == EV_DIGIT + 4 && A->map_sel < A->count) {
+            A->list_sel = A->map_sel;
+            if (aprs_tab(api, ev, TAB_MAP)) return 0;
+        }
         else if (aprs_tab(api, ev, TAB_MAP)) return 0;
         else if (ev == EV_HOLD) { if (aprs_go(api, APRS_MSG) || aprs_go(api, APRS_LIST)) return 0; }
         else if (ev == EV_BACK) { aprs_go(api, APRS_LIST); return 0; }

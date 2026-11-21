@@ -56,6 +56,8 @@ static uint32_t host_tx_freq = 14439000;   /* 144.3900 MHz in 10 Hz units */
 #include "aprs_core.c"
 #include "aprs_text.c"
 struct aprs aprs_host;
+static uint8_t beacon_handoff[384];
+#define BEACON_HANDOFF beacon_handoff
 #define module_main screen_main
 #include SCREEN
 #undef module_main
@@ -114,10 +116,16 @@ int main(int argc, char **argv)
     memset(&A->msg[0], 0, sizeof A->msg[0]);
     strcpy(A->msg[0].from, "N0CALL-7"); strcpy(A->msg[0].to, "W9ABC-9"); strcpy(A->msg[0].text, "On my way");
     A->msg[0].live = 1; A->msg[0].id = 5; A->msg[0].acked = 1;
-    A->unread = 1; A->list_sel = 1; A->msg_sel = 1; A->map_zoom = 4; A->map_sel = 1;
+    A->msgs++; for (unsigned i = A->msgs - 1; i > 0; i--) A->msg[i] = A->msg[i - 1];
+    memset(&A->msg[0], 0, sizeof A->msg[0]);
+    strcpy(A->msg[0].from, "N0CALL-7"); strcpy(A->msg[0].to, "K9XYZ"); strcpy(A->msg[0].text, "QSL 73");
+    A->msg[0].live = 1; A->msg[0].id = 6;
+    A->unread = 1; A->list_sel = 1; A->msg_sel = 2; A->map_zoom = 4; A->map_sel = 1;
+    A->mail_status = MAIL_READY; /* screenshot assumes an available mailbox */
+    A->mail_dirty = 0;
     for (unsigned i = 0; i < A->count; i++) if (!strcmp(A->st[i].call, "W9ABC-9")) A->list_sel = (uint8_t)i;
     A->map_sel = A->list_sel;
-    struct h9_api fake = { .read = fake_read };
+    struct h9_api fake = { .version = 3, .read = fake_read };
     if (!setjmp(done)) screen_main(&fake, 0);
     FILE *f = fopen(argc > 1 ? argv[1] : "out.ppm", "wb");
     fprintf(f, "P6\n160 128\n255\n");

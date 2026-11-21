@@ -17,8 +17,6 @@
 #include "gfx.h"
 #include "vfo_persist.h"   /* put the user's VFOs back if SAT TRACK's tracker had changed them */
 
-enum { TITLE_H = 22, ROW_Y = 26, ROW_H = 18, ROWS = 5, FOOT_Y = 117, MAX_ITEMS = 64 };
-enum { ITEM_USB = -2 };
 #ifndef STOCK_REFRESH
 #define STOCK_REFRESH() ((void (*)(unsigned))0x01E58E3E)(0)   /* full RF refresh: reloads both VFOs (satauto.c) */
 #define STOCK_REDRAW() ((void (*)(unsigned))0x01E53306)(0)    /* marks the three display rows for redraw */
@@ -28,6 +26,23 @@ static void read_entry(const struct h9_api *api, unsigned index, struct h9_entry
 {
     api->read(entry, api->bundle + H9_BUNDLE_HEADER + H9_BUNDLE_ENTRY * index, sizeof *entry);
 }
+
+#ifdef H9_GROUPED_MENU
+static unsigned return_to_radio(void)
+{
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);   /* stock redraws only what it thinks changed */
+    STOCK_REFRESH();
+    STOCK_REDRAW();
+    return 0;
+}
+
+unsigned toolbox_menu(const struct h9_api *api, unsigned count);
+#ifdef H9_RADIO_SETTINGS
+void toolbox_open_messages(void);
+#endif
+#else
+enum { TITLE_H = 22, ROW_Y = 26, ROW_H = 18, ROWS = 5, FOOT_Y = 117, MAX_ITEMS = 64 };
+enum { ITEM_USB = -2 };
 
 /* Item i of the list: the visible modules (vis[], bundle indices), then
  * USB UPDATE. */
@@ -76,6 +91,7 @@ static void message(const char *text)
     gfx_fill(0, ROW_Y, H9_WIDTH, ROWS * ROW_H, GFX_BLACK);
     gfx_text(4, ROW_Y + 8, text, 12, 2, GFX_YELLOW, GFX_BLACK);
 }
+#endif
 
 unsigned module_main(const struct h9_api *api, unsigned self)
 {
@@ -83,13 +99,20 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     (void)self;
     api->read(header, api->bundle, sizeof header);
     unsigned count = header[10] | (unsigned)header[11] << 8;
+#ifndef H9_GROUPED_MENU
     unsigned modules = count > 1 ? count - 1 : 0;
+#endif
 
     /* A module asked for another one: run it without showing the menu. */
     volatile struct h9_request *rq = H9_REQUEST;
     if (rq->magic != H9_REQUEST_MAGIC) vfo_restore_pending(api->read);   /* opened by hold Back: the tracker is stopped */
     if (rq->magic == H9_REQUEST_MAGIC) {
         rq->magic = 0;
+#ifdef H9_RADIO_SETTINGS
+        unsigned j = 0;
+        while (H9_MESSAGE_CENTER[j] && rq->name[j] == H9_MESSAGE_CENTER[j]) ++j;
+        if (!H9_MESSAGE_CENTER[j] && !rq->name[j]) toolbox_open_messages();
+#endif
         for (unsigned i = 1; i < count; i++) {
             struct h9_entry entry;
             unsigned k = 0;
@@ -98,6 +121,10 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             if (k == H9_NAME_BYTES || entry.name[k] == rq->name[k]) return i;
         }
     }
+#ifdef H9_GROUPED_MENU
+    unsigned module = toolbox_menu(api, count);
+    return module ? module : return_to_radio();
+#else
     /* Visible modules: names starting with '.' are helper screens that other
      * modules open by request; they are not listed. */
     uint8_t vis[MAX_ITEMS];
@@ -151,4 +178,5 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             draw_row(api, selected, modules, vis, selected - top, 1);
         }
     }
+#endif
 }

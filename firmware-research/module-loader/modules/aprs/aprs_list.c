@@ -10,36 +10,36 @@ static void draw_row(unsigned i, unsigned row)
 {
     unsigned y = BODY_Y + row * ROW_H;
     int sel = i == A->list_sel;
-    uint16_t bg = sel ? GFX_YELLOW : GFX_BLACK;
+    uint16_t bg = sel ? UI_ACCENT : UI_BG;
     gfx_fill(0, y, H9_WIDTH, ROW_H, bg);
     if (i >= A->count) return;
     const struct station *s = &A->st[i];
     char r[16];
-    gfx_text(4, y + 2, s->call, CALL, 1, sel ? GFX_BLACK : s->live ? GFX_WHITE : GFX_GREY, bg);
+    gfx_text(4, y + 2, s->call, CALL, 1, sel ? UI_BG : s->live ? UI_TEXT : UI_DIM, bg);
     put_age(r, s);
-    gfx_text(AGE_X, y + 2, r, 3, 1, sel ? GFX_BLACK : GFX_GREY, bg);
+    gfx_text(AGE_X, y + 2, r, 3, 1, sel ? UI_BG : UI_DIM, bg);
     unsigned n = put_range(r, s);
-    gfx_text(H9_WIDTH - 4 - n * 6, y + 2, r, 15, 1, sel ? GFX_BLACK : GFX_GREEN, bg);
+    gfx_text(H9_WIDTH - 4 - n * 6, y + 2, r, 15, 1, sel ? UI_BG : UI_OK, bg);
 }
 
 static void draw_list(void)
 {
-    char t[24];
+    char t[32];
     if (A->list_sel < A->list_top) A->list_top = A->list_sel;
     if (A->list_sel >= A->list_top + ROWS) A->list_top = A->list_sel - ROWS + 1;
-    aprs_title("APRS");
+    aprs_title("APRS STATIONS");
     if (!A->count) {
-        gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, GFX_BLACK);
-        aprs_line(BODY_Y + 36, "NO STATIONS HEARD YET", GFX_YELLOW, GFX_BLACK);
+        gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, UI_BG);
+        aprs_line(BODY_Y + 36, "NO STATIONS HEARD YET", UI_ACCENT, UI_BG);
     } else {
-        gfx_fill(0, TITLE_H, H9_WIDTH, BODY_Y - TITLE_H, GFX_BLACK);
+        gfx_fill(0, TITLE_H, H9_WIDTH, BODY_Y - TITLE_H, UI_BG);
         for (unsigned row = 0; row < ROWS; row++) draw_row(A->list_top + row, row);
-        gfx_fill(0, BODY_Y + ROWS * ROW_H, H9_WIDTH, INFO_Y - BODY_Y - ROWS * ROW_H, GFX_BLACK);
+        gfx_fill(0, BODY_Y + ROWS * ROW_H, H9_WIDTH, INFO_Y - BODY_Y - ROWS * ROW_H, UI_BG);
     }
     if (A->unread) {
         unsigned n = put_uint(t, A->unread);
         put_str(t + n, " NEW MESSAGE: PRESS 3");
-        aprs_line(INFO_Y, t, GFX_GREEN, GFX_BLACK);
+        aprs_line(INFO_Y, t, UI_OK, UI_BG);
     } else {
         /* The receiver stays where it was when the app opened (Dual Watch
          * pauses with the stock loop): show the working RX frequency, RAM
@@ -49,8 +49,8 @@ static void draw_list(void)
         t[n++] = '.';
         unsigned k = f % 100000 / 10;                /* kHz and 100 Hz: 3900 */
         for (unsigned d = 1000; d; d /= 10) t[n++] = (char)('0' + k / d % 10);
-        put_str(t + n, " MHZ  MENU:INFO");
-        aprs_line(INFO_Y, t, GFX_GREY, GFX_BLACK);
+        put_str(t + n, " MHZ  MENU INFO");
+        aprs_line(INFO_Y, t, UI_DIM, UI_BG);
     }
     aprs_tabs(TAB_LIST);
 }
@@ -61,7 +61,9 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     aprs_open();
     for (;;) {
         unsigned ev = aprs_event();
-        if (ev == EV_REDRAW) draw_list();
+        if (ev == EV_STORE) { if (aprs_store(api, MAIL_PAGE_LIST)) return 0; }
+        else if (ev == EV_REDRAW) draw_list();
+        else if (ev == EV_DIGIT + 3 && aprs_go_messages(api)) return 0;
         else if (aprs_tab(api, ev, TAB_LIST)) return 0;
         else if (ev == EV_HOLD) { if (aprs_go(api, APRS_MAP) || aprs_go(api, APRS_MSG)) return 0; }
         else if (ev == EV_BACK) { aprs_side(A->home_side); SPEAKER_ON(A->home_speaker); return 0; }

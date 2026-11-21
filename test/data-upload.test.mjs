@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  AREAS, DIRECTORY, MODULES_DIRECTORY, MUSIC_DIRECTORY, SLOTS, buildDirectory, parseDirectory, planLayout, restore,
-  sectorPlan, uploadPack,
+  AREAS, DIRECTORY, MODULES_DIRECTORY, MUSIC_DIRECTORY, SLOTS, VOICE_UPLOAD_END, COMPLETE_OFFSET, buildDirectory,
+  completeBlock, parseDirectory, planLayout, readPack, restore, sectorPlan, uploadPack,
 } from '../prototypes/data-upload/upload.mjs';
 import { SECTOR } from '../dist/boot-logo/resource.mjs';
 import { SimulatedRadio } from './support/simulated-radio.mjs';
@@ -20,6 +20,10 @@ test('layout fills resource after the directory, then font, then voice', () => {
   const resourceRoom = MODULES_DIRECTORY - (DIRECTORY + SECTOR);  // the modules and music slots follow
   const two = planLayout(resourceRoom + 5);
   assert.deepEqual(two.map(s => [s.area, s.address, s.length]), [['resource', 0xa20000, resourceRoom], ['font', 0x717000, 5]]);
+  const capacity = SLOTS.game.areas.reduce((n, a) => n + a.end - a.start, 0);
+  const last = planLayout(capacity).at(-1);
+  assert.equal(last.address + last.length, VOICE_UPLOAD_END);
+  assert.throws(() => planLayout(capacity + 1), /larger than the stock-safe space/);
   assert.throws(() => planLayout(5 << 20), /larger than the stock-safe space/);
 });
 
@@ -36,6 +40,8 @@ test('sector plans never leave the stock-safe areas or overwrite foreign data', 
   const blank = new Uint8Array(SECTOR).fill(0xff);
   assert.throws(() => sectorPlan(0xa1e000, blank, blank), /outside the stock-safe areas/);   // boot-logo/stock images
   assert.throws(() => sectorPlan(0x900000, blank, blank), /outside the stock-safe areas/);   // rw_freq
+  for (let address = 0x3f6000; address < 0x400000; address += SECTOR)
+    assert.throws(() => sectorPlan(address, blank, blank), /outside the stock-safe areas/);
   const foreign = new Uint8Array(SECTOR).fill(7);
   assert.throws(() => sectorPlan(0xa20000, foreign, pack(SECTOR)), /did not write/);
   assert.equal(sectorPlan(0xa20000, blank, pack(SECTOR))[0].erase, false);              // erased: program only
@@ -44,6 +50,9 @@ test('sector plans never leave the stock-safe areas or overwrite foreign data', 
 test('upload writes the pack and directory, verifies, and leaves stock data alone', async () => {
   const sim = new SimulatedRadio();
   stockLikeChip(sim);
+  sim.chip.fill(0x4e, 0x3f6000, 0x3fa000);              // channel labels journal
+  sim.chip.fill(0x4f, 0x3fa000, 0x3fb000);              // APRS mailbox journal
+  sim.chip.fill(0x50, 0x3fb000, 0x3fc000);
   const before = sim.chip.slice();
   const data = pack(3 * SECTOR + 100);
   const manifest = await uploadPack(sim.radio, data, { name: 'test pack' });
@@ -108,10 +117,36 @@ test('an interrupted upload is marked in progress and resumes where it stopped',
 test('a deep restore clears the tails whatever is there', async () => {
   const sim = new SimulatedRadio();
   stockLikeChip(sim);
+  sim.chip.fill(0x51, 0x3fc000, 0x3fd000);              // prospective mute settings
+  sim.chip.fill(0x52, 0x3fd000, 0x3fe000);
+  sim.chip.fill(0x53, 0x3fe000, 0x3ff000);              // VFO recovery
+  sim.chip.fill(0x54, 0x3ff000, 0x400000);              // last GPS fix
   const before = sim.chip.slice();
   sim.chip.fill(0x11, 0x3a8000, 0x3a9000);                   // stray data in the voice tail
   await uploadPack(sim.radio, pack(SECTOR), { name: 'd' });
   await restore(sim.radio, { deep: true });
+  assert.deepEqual(sim.chip, before);
+});
+
+test('legacy game allocation crossing the reserved tail requires migration', async () => {
+  const legacySlot = { ...SLOTS.game, areas: [
+    ...SLOTS.game.areas.slice(0, 2),
+    { name: 'voice', start: 0x3a7000, end: 0x3fe000 },
+  ] };
+  const beforeVoice = legacySlot.areas.slice(0, 2).reduce((n, a) => n + a.end - a.start, 0);
+  const length = beforeVoice + VOICE_UPLOAD_END - 0x3a7000 + 1;
+  const payload = new Uint8Array(length);
+  const { sector, segments } = await buildDirectory(payload, 'legacy', legacySlot);
+  assert.equal(parseDirectory(sector), null);
+  const sim = new SimulatedRadio();
+  sector.set(completeBlock(), COMPLETE_OFFSET);
+  sim.chip.set(sector, DIRECTORY);
+  for (const { address, length } of segments) sim.chip.fill(0, address, address + length);
+  const before = sim.chip.slice();
+  assert.deepEqual((await readPack(sim.radio, SLOTS.game)).pack, payload);
+  await assert.rejects(restore(sim.radio), /legacy game upload claims/);
+  await assert.rejects(restore(sim.radio, { deep: true }), /legacy game upload claims/);
+  await assert.rejects(uploadPack(sim.radio, new Uint8Array([1, 2, 3])), /legacy game upload claims/);
   assert.deepEqual(sim.chip, before);
 });
 

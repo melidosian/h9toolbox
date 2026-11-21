@@ -225,13 +225,20 @@ static struct station *station(const char *call, int live)
     return &A->st[0];
 }
 
-/* "ackNN" from `from` to me: the message I sent them with {NN is delivered. */
-static void got_ack(const char *from, const uint8_t *p, unsigned len)
+/* "ackNN" or "rejNN" from the recipient updates the sent message's state. */
+static void got_ack(const char *from, const uint8_t *p, unsigned len, int rejected)
 {
     unsigned id = 0;
-    for (unsigned n = 0; n < len && digit(p[n]); n++) id = id * 10 + (unsigned)(p[n] - '0');
+    for (unsigned n = 0; n < len && digit(p[n]); n++) {
+        id = id * 10 + (unsigned)(p[n] - '0');
+        if (id > 99) return;
+    }
     for (struct message *m = A->msg; id && m < A->msg + A->msgs; m++)
-        if (m->id == id && same(m->from, A->mycall) && same(m->to, from)) { m->acked = 1; A->dirty = 1; }
+        if (m->id == id && same(m->from, A->mycall) && same(m->to, from) &&
+            (m->acked != !rejected || m->rejected != !!rejected)) {
+            m->acked = !rejected; m->rejected = !!rejected;
+            A->dirty = A->mail_dirty = 1;
+        }
 }
 
 /* ":ADDRESSEE:text{id" (rejects skipped, acks marked, retries merged). */
@@ -245,14 +252,28 @@ static void message(const char *from, const uint8_t *info, unsigned len, int liv
     const uint8_t *t = info + 11;
     len -= 11;
     if (len >= 3 && t[0] == 'a' && t[1] == 'c' && t[2] == 'k') {
-        if (live && A->mycall[0] && same(to, A->mycall)) got_ack(from, t + 3, len - 3);
+        if (live && A->mycall[0] && same(to, A->mycall)) got_ack(from, t + 3, len - 3, 0);
         return;
     }
-    if (len >= 3 && t[0] == 'r' && t[1] == 'e' && t[2] == 'j') return;
+    if (len >= 3 && t[0] == 'r' && t[1] == 'e' && t[2] == 'j') {
+        if (live && A->mycall[0] && same(to, A->mycall)) got_ack(from, t + 3, len - 3, 1);
+        return;
+    }
+    /* The six message slots are the owner's inbox/outbox. Other traffic is
+     * still visible as stations without evicting a private conversation. */
+    if (!A->mycall[0] || (!same(to, A->mycall) && !same(from, A->mycall))) return;
+    unsigned id = 0;
     for (n = 0; n < len && n < MSG_TEXT - 1 && t[n] != '{'; n++) text[n] = t[n] >= ' ' && t[n] <= '~' ? (char)t[n] : ' ';
     text[n] = 0;
+    if (n < len && t[n] == '{') {
+        for (unsigned k = n + 1; k < len && digit(t[k]); ++k) {
+            id = id * 10 + (unsigned)(t[k] - '0');
+            if (id > 99) { id = 0; break; }
+        }
+    }
     for (unsigned i = 0; i < A->msgs; i++)
-        if (same(A->msg[i].from, from) && same(A->msg[i].text, text)) return;
+        if (same(A->msg[i].from, from) && same(A->msg[i].to, to) &&
+            ((id && A->msg[i].id == id) || (!id && same(A->msg[i].text, text)))) return;
     if (!live && A->msgs == MESSAGES) return;      /* stored: keep the newest */
     unsigned at = live ? 0 : A->msgs;
     if (live) for (unsigned i = MESSAGES - 1; i > 0; i--) A->msg[i] = A->msg[i - 1];
@@ -263,9 +284,11 @@ static void message(const char *from, const uint8_t *info, unsigned len, int liv
     copy(m->text, text, MSG_TEXT);
     m->live = live != 0;
     m->acked = 0;
-    m->id = 0;
+    m->rejected = 0;
+    m->id = (uint8_t)id;
     m->mine = A->mycall[0] && same(to, A->mycall);
     if (m->mine && live) A->unread++;
+    if (live) A->mail_dirty = 1;
     if (live && A->msg_sel) A->msg_sel = A->msg_sel + 1 < A->msgs ? A->msg_sel + 1 : A->msgs - 1;
 }
 
@@ -469,6 +492,7 @@ unsigned aprs_event(void)
 {
     for (;;) {
         poll_ring();
+        if (A->mail_dirty && A->mail_status == MAIL_READY) return EV_STORE;
         if (A->rx_flash && (uint32_t)(TICK - A->rx_flash) >= RX_FLASH_TICKS) { A->rx_flash = 0; A->dirty = 1; }
         if (A->dirty) { A->dirty = 0; return EV_REDRAW; }
         h9_delay(2);
@@ -514,6 +538,22 @@ int aprs_go(const struct h9_api *api, const char *name)
         A->switching = 1;
         return 1;
     }
+    return 0;
+}
+
+void aprs_close(void)
+{
+    aprs_side(A->home_side);
+    SPEAKER(A->home_speaker);
+}
+
+int aprs_store(const struct h9_api *api, unsigned page)
+{
+    A->mail_action = MAIL_OP_SAVE;
+    A->mail_return = (uint8_t)page;
+    if (aprs_go(api, APRS_STORE)) return 1;
+    A->mail_status = MAIL_UNAVAILABLE;
+    A->mail_dirty = 0;
     return 0;
 }
 
@@ -591,11 +631,16 @@ unsigned put_age(char *out, const struct station *s)
     return n + 1;
 }
 
-/* The tab bar: the screens' names with their digit keys (the title says which one this is). */
 void aprs_tabs(unsigned cur)
 {
+    static const char labels[] = "1LIST 2MAP 3MSG 4SEND 5BCN";
+    aprs_line(FOOT_Y, labels, UI_HINT, UI_BG);
+#ifdef H9_FLASH_HELPERS
+    static const uint8_t start[] = { 0, 6, 11, 16, 22 }, width[] = { 5, 4, 4, 5, 4 };
+    gfx_text(4 + 6 * start[cur], FOOT_Y, labels + start[cur], width[cur], 1, UI_BG, UI_ACCENT);
+#else
     (void)cur;
-    aprs_line(FOOT_Y, "1LIST 2MAP 3MSG 4SEND 5BCN", GFX_GREY, GFX_BLACK);
+#endif
 }
 
 int aprs_tab(const struct h9_api *api, unsigned ev, unsigned cur)
@@ -607,12 +652,12 @@ int aprs_tab(const struct h9_api *api, unsigned ev, unsigned cur)
 
 void aprs_title(const char *text)
 {
-    char b[12];
-    gfx_fill(0, 0, H9_WIDTH, TITLE_H, GFX_BLUE);
-    gfx_text(4, 1, text, 8, 2, GFX_WHITE, GFX_BLUE);
+    char b[16];
+    gfx_fill(0, 0, H9_WIDTH, TITLE_H, UI_BG);
+    gfx_text(UI_LEFT, UI_TITLE_Y, text, 17, 1, UI_ACCENT, UI_BG);
     unsigned n = put_str(b, "RX ");
     put_uint(b + n, A->rx);
-    gfx_text(112, 1, b, 8, 1, A->rx_flash ? GFX_GREEN : GFX_WHITE, GFX_BLUE);
+    gfx_text(112, 1, b, 8, 1, A->rx_flash ? UI_OK : UI_DIM, UI_BG);
     gfx_text(112, 10, A->my_fix ? "GPS OK" : A->gps_seen ? "NO FIX" : "NO GPS", 8, 1,
-             A->my_fix ? GFX_GREEN : GFX_YELLOW, GFX_BLUE);
+             A->my_fix ? UI_OK : UI_ACCENT, UI_BG);
 }

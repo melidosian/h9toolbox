@@ -52,3 +52,20 @@ test('rejects the wrong mode and duplicate channel numbers', () => {
   assert.throws(() => inspectChannelImport(before, {...document, mode:'GMRS'}), /same radio mode/);
   assert.throws(() => inspectChannelImport(before, {...document, channels:[channel(1, 'A', '146.52000'), channel(1, 'B', '147.00000')]}), /duplicate/);
 });
+
+test('a long-name-only channel import preserves short names and every raw byte', () => {
+  const original = writeChannel(image(), 1, channel(1, 'LOCAL', '146.52000'));
+  original[8 + 0x10 + 13] |= 0x1b;
+  const document = exportChannels(original, new Map([[1, 'Regional repeater calling']]));
+  const imported = importChannels(original, document);
+  assert.deepEqual(imported.image, original);
+  assert.deepEqual(imported.conflicts, [1]);
+  assert.equal(imported.longNames.get(1), 'Regional repeater calling');
+  const cleared = importChannels(imported.image, {...document, channels:[{...document.channels[0], longName: ''}]}, imported.longNames);
+  assert.deepEqual(cleared.image, original);
+  assert.deepEqual(cleared.conflicts, [1]);
+  assert.equal(cleared.longNames.get(1), '');
+  const shortOnly = importChannels(original, exportChannels(original), imported.longNames);
+  assert.equal(shortOnly.longNames.get(1), 'Regional repeater calling');
+  assert.deepEqual(shortOnly.unchanged, [1]);
+});

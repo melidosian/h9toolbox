@@ -1,0 +1,348 @@
+{
+ "format": 1,
+ "menu": {
+  "id": "menu",
+  "name": "MENU",
+  "title": "Toolbox menu",
+  "description": "Grouped Toolbox menu with keypad shortcuts and APRS Settings.",
+  "version": "2.0-dev",
+  "replaces": [
+   "ac00",
+   "f1a7",
+   "522b",
+   "f31f"
+  ],
+  "summary": "Hold Back to open Toolbox. Type a row number to jump to it.",
+  "controls": [
+   "Up and Down move or adjust. Menu opens or saves. Back returns one level."
+  ],
+  "notes": [
+   "Use the dev build of H9 Toolbox Firmware v0.1.5."
+  ],
+  "modules": [
+   {
+    "name": "MENU",
+    "bytes": 6246,
+    "ram": 6246,
+    "crc16": "ca4f"
+   }
+  ],
+  "file": "menu.h9mod",
+  "bytes": 6246,
+  "ram": 6246,
+  "crc16": "ca4f",
+  "sha256": "ebf0423e7dd741a2a76d906cfee0321f92bbff93cb7005ffe91bac83e185aee5"
+ },
+ "apps": [
+  {
+   "id": "brick_breaker",
+   "name": "BRICK BREAKER",
+   "title": "Brick Breaker",
+   "description": "A small game that runs from the app menu. Break 30 bricks with a bouncing ball; power-cycle the radio to leave it.",
+   "version": "1.0-dev",
+   "category": "Games",
+   "summary": "Break 30 bricks with a bouncing ball.",
+   "controls": [
+    "Menu moves the paddle left, Back moves it right.",
+    "Up restarts after GAME OVER."
+   ],
+   "notes": [
+    "There is no exit key: power-cycle the radio to leave."
+   ],
+   "modules": [
+    {
+     "name": "BRICK BREAKER",
+     "bytes": 1628,
+     "ram": 1628,
+     "crc16": "dc65"
+    }
+   ],
+   "file": "brick_breaker.h9mod",
+   "bytes": 1628,
+   "ram": 1628,
+   "crc16": "dc65",
+   "sha256": "8fa700d7ec49b3a2b01370c0bd13ff3a8b8b35c210689d7a7dac867ec721a9a8"
+  },
+  {
+   "id": "maze_chase",
+   "name": "MAZE CHASE",
+   "title": "Maze Chase",
+   "version": "0.3-dev",
+   "category": "Games",
+   "summary": "Eat every dot while four prowlers hunt you.",
+   "description": "An original maze game. Steer through a 25 by 19 maze eating every dot while four prowlers (red, pink, cyan and orange, each hunting a different way) chase you. A power pellet in each corner turns them blue for a few seconds so you can eat them for 200, 400, 800 and 1600 points. You have three lives; each level makes the prowlers faster. The tunnel in the middle row wraps from one side to the other. Sound effects play through the radio's speaker: dot munches, power pellets, eaten prowlers, a start jingle, level clear, defeat.",
+   "controls": [
+    "On the title screen, 5 turns sound on or off; any other key starts.",
+    "2, 4, 6, 8 steer (up, left, right, down); Up and Down also steer up and down.",
+    "The turn you choose is taken at the next opening.",
+    "Menu pauses and resumes. Back leaves to the menu.",
+    "After GAME OVER: Menu plays again, Back leaves."
+   ],
+   "notes": [
+    "Sound is experimental. It drives the speaker's DAC the way the Doom firmware does, and has not been tried inside the app loader yet. If the radio acts up, switch sound off on the title screen.",
+    "Score and best score are kept only until you leave the game.",
+    "Not tested on a radio yet."
+   ],
+   "modules": [
+    {
+     "name": "MAZE CHASE",
+     "bytes": 5412,
+     "ram": 5412,
+     "crc16": "907a"
+    }
+   ],
+   "file": "maze_chase.h9mod",
+   "bytes": 5412,
+   "ram": 5412,
+   "crc16": "907a",
+   "sha256": "d33fa0c0c4159ce1db96221036a8a4ce7243d09311c6dcce9f78a411085fd666"
+  },
+  {
+   "id": "aprs",
+   "name": "APRS",
+   "title": "APRS",
+   "description": "Browse stations and map, send APRS messages, and keep a six-message inbox/outbox across power cycles. Beacon Status shows the resident scheduler.",
+   "version": "1.0",
+   "category": "Radio",
+   "modules": [
+    {
+     "name": "APRS",
+     "bytes": 3303,
+     "ram": 3303,
+     "crc16": "a142"
+    },
+    {
+     "name": ".APRS LIST",
+     "bytes": 6108,
+     "ram": 6108,
+     "crc16": "a636"
+    },
+    {
+     "name": ".APRS INFO",
+     "bytes": 6172,
+     "ram": 6172,
+     "crc16": "1070"
+    },
+    {
+     "name": "APRS MAP",
+     "bytes": 6160,
+     "ram": 6160,
+     "crc16": "19a9"
+    },
+    {
+     "name": "APRS MSG",
+     "bytes": 6340,
+     "ram": 6340,
+     "crc16": "218f"
+    },
+    {
+     "name": "APRS SEND",
+     "bytes": 4638,
+     "ram": 4638,
+     "crc16": "6140"
+    },
+    {
+     "name": ".APRS STORE",
+     "bytes": 3831,
+     "ram": 3831,
+     "crc16": "03e4"
+    },
+    {
+     "name": "APRS BEACON",
+     "bytes": 1388,
+     "ram": 1388,
+     "crc16": "0339"
+    }
+   ],
+   "summary": "Stations, Map, persistent Messages, Send and Beacon Status.",
+   "controls": [
+    "Open APRS \u2192 Stations and use the keypad tabs for List, Map, Messages and Send.",
+    "In Messages, Menu reads the highlighted item; Menu again opens a reply with its station filled in. A Send draft survives APRS screen changes until reboot.",
+    "SENT means a packet was handed to the radio. ACK or REJ appears only after that reply is heard from the recipient. The six most recent messages and their reply state survive power cycles when mailbox storage is available.",
+    "Use APRS Settings in Toolbox to arm the schedule or change the mode, interval, symbol and mute.",
+    "Beacon Status shows the configured APRS VFO and the number of packets submitted to the modem."
+   ],
+   "notes": [
+    "Automatic beacons need a fresh GPS fix and send from the normal channel screen.",
+    "Persistent messages need the matching firmware guard and unclaimed sectors at 0x3FA000\u20130x3FBFFF. The radio reports when storage is unavailable."
+   ],
+   "retiredModules": [
+    ".APRS BG"
+   ],
+   "file": "aprs.h9mod",
+   "bytes": 37940,
+   "ram": 6340,
+   "crc16": "a142",
+   "sha256": "02cc0dcf4e078a5f1e3b62a12d8ee4740e6f13f5def8cafe15a57c7a88955ec8"
+  },
+  {
+   "id": "sat_pass",
+   "name": "SAT PASS",
+   "title": "FM Satellite Passes",
+   "description": "Predicts the next five passes of FM voice satellites over your GPS position, draws each pass on a sky plot, shows live Doppler-corrected frequencies, and can follow a pass by itself: it keeps VFO B on the downlink and VFO A on the uplink, sets the satellite's access tone, holds the squelch open and puts PF1 on PTT2, while the radio runs normally. Choose the satellites and refresh their orbital data in Satellite settings.",
+   "version": "0.25-dev",
+   "category": "Radio",
+   "modules": [
+    {
+     "name": "SAT PASS",
+     "bytes": 5432,
+     "ram": 5432,
+     "crc16": "38e2"
+    },
+    {
+     "name": ".SAT PLOT",
+     "bytes": 2752,
+     "ram": 2752,
+     "crc16": "a028"
+    },
+    {
+     "name": ".SAT TRACK",
+     "bytes": 4072,
+     "ram": 4072,
+     "crc16": "fac6"
+    },
+    {
+     "name": ".SAT TRACKER",
+     "bytes": 3704,
+     "ram": 3704,
+     "crc16": "b5a9"
+    },
+    {
+     "name": ".SAT DATA",
+     "bytes": 544,
+     "ram": 544,
+     "crc16": "58d7"
+    }
+   ],
+   "summary": "Next five FM satellite passes, a sky plot, and live Doppler tuning of VFO A and B.",
+   "controls": [
+    "Open it from the radio's menu (hold Back). It needs GPS time and a position (or a saved fix).",
+    "LIST: Up/Down pick a pass; Menu opens the sky plot; Back exits.",
+    "PLOT: Up/Down step through the passes; Menu goes to TRACK; Back returns to the list.",
+    "TRACK: live azimuth, elevation, range and the Doppler-corrected SEND (uplink) and LISTEN (downlink) frequencies; Up/Down change pass; Back returns to the list.",
+    "TRACK, then Menu: the start screen. Up: sending on/off. Down: swap which VFO listens. 2: squelch open during the pass. 3: only this pass. 4: PF1 = PTT2. Menu: start. 1: test now (acts at once, whatever the time). Back: cancel.",
+    "After you start, the radio goes back to its normal screen and follows the pass (on older firmware it restarts first). The status bar shows AOS (time to rise) or LOS (time left). Hold Back to stop: your VFO frequencies, tones, squelch and PF1 key are put back."
+   ],
+   "notes": [
+    "Times use the radio's own time zone setting.",
+    "Check amsat.org/status first: several FM satellites are intermittent or silent.",
+    "You are responsible for transmitting: low power, a suitable antenna, your licence. Try the uplink on a dummy load first.",
+    "Orbital data ages: refresh it in Satellite settings every week or two (needs a connection to CelesTrak).",
+    "If the radio loses power mid-pass, VFO A and B keep the last tracked values until you open the menu (hold Back)."
+   ],
+   "config": "satellites",
+   "data": [
+    ".SAT DATA"
+   ],
+   "file": "sat_pass.h9mod",
+   "bytes": 16504,
+   "ram": 5432,
+   "crc16": "38e2",
+   "sha256": "94c7b20f7f110951a3a8d6743958c7a2c0dc737bf298aa2fc077e6cb825ac955"
+  },
+  {
+   "id": "gps",
+   "name": "GPS",
+   "title": "GPS Info",
+   "description": "Everything the radio's GPS receiver reports, on four pages: position (latitude and longitude, altitude, speed, course, satellites used, HDOP, Maidenhead grid), a sky plot of every satellite in view, signal-to-noise bars per satellite (GPS, GLONASS, Galileo, BeiDou), and time and sentence counts. Read only.",
+   "version": "0.3-dev",
+   "category": "Radio",
+   "summary": "GPS position, sky plot, signal bars and UTC and local time.",
+   "controls": [
+    "Up: previous page. Menu or Down: next page. Back: exit."
+   ],
+   "notes": [
+    "The INFO page shows UTC and local time (from the radio's Time zone setting) and the last fix saved on the chip."
+   ],
+   "modules": [
+    {
+     "name": "GPS",
+     "bytes": 5668,
+     "ram": 5668,
+     "crc16": "3f49"
+    }
+   ],
+   "file": "gps.h9mod",
+   "bytes": 5668,
+   "ram": 5668,
+   "crc16": "3f49",
+   "sha256": "7dfeb62b8b801fea9d40a1eac8aa646b0349f74174814d55c83b613428ef022a"
+  },
+  {
+   "id": "aprs_monitor",
+   "name": "APRS MONITOR",
+   "title": "APRS Monitor (probe)",
+   "description": "First step towards an on-radio APRS client: reads packets and GPS straight from the APRS modem's serial ring and shows the last four stations heard. Receive only.",
+   "version": "0.1-dev",
+   "category": "Experimental",
+   "summary": "Receive-only probe of the APRS modem's packets and GPS.",
+   "controls": [
+    "Back returns to the menu."
+   ],
+   "notes": [],
+   "modules": [
+    {
+     "name": "APRS MONITOR",
+     "bytes": 1500,
+     "ram": 1500,
+     "crc16": "8ab6"
+    }
+   ],
+   "file": "aprs_monitor.h9mod",
+   "bytes": 1500,
+   "ram": 1500,
+   "crc16": "8ab6",
+   "sha256": "a4654d570c8f913307a2a1558cb1d3a219d0cb257bfea43274b92a71ab8a85af"
+  },
+  {
+   "id": "vfo_probe",
+   "name": "VFO PROBE",
+   "title": "VFO Probe (research)",
+   "description": "A read-only research tool. Page 1 shows the radio's tuning fields, page 2 scans RAM for frequency-like values, and page 3 shows the SAT PASS tracker's status (calls, reverts, flags, squelch and PF1 bytes). It writes nothing.",
+   "version": "0.6-dev",
+   "category": "Experimental",
+   "summary": "Research: where the radio keeps its VFO frequencies, and the tracker's status.",
+   "controls": [
+    "Menu: next page. On the scan page, Up/Down scroll. Back exits."
+   ],
+   "notes": [
+    "Set VFO A and B to two different frequencies (for example 145.800 and 435.000) before scanning."
+   ],
+   "modules": [
+    {
+     "name": "VFO PROBE",
+     "bytes": 2036,
+     "ram": 2036,
+     "crc16": "c08f"
+    }
+   ],
+   "file": "vfo_probe.h9mod",
+   "bytes": 2036,
+   "ram": 2036,
+   "crc16": "c08f",
+   "sha256": "aa6a2284f6dd884fe46e1082fd72646f0cd39174884c44126948500cb1e15e0e"
+  },
+  {
+   "id": "about",
+   "name": "ABOUT",
+   "title": "About",
+   "version": "1.0-dev",
+   "category": "Setup",
+   "description": "Show the Toolbox firmware and app loader version.",
+   "modules": [
+    {
+     "name": "ABOUT",
+     "bytes": 792,
+     "ram": 792,
+     "crc16": "9ba1"
+    }
+   ],
+   "file": "about.h9mod",
+   "bytes": 792,
+   "ram": 792,
+   "crc16": "9ba1",
+   "sha256": "a49e30575db05064a3189781540a0eb70ee66f13d2b3051543f9d78173a37731"
+  }
+ ],
+ "profile": "smartbeacon"
+}

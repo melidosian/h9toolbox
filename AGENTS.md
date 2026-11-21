@@ -22,6 +22,21 @@ Short version of the rules (details in the handbook, section 1):
   directory, so they can be restored.
 - Every custom firmware keeps a way back to USB update mode.
 
+## Firmware releases
+
+- Before calling a firmware PR to `main` ready to merge, state the intended
+  public release version and verify the default installer and App Manager
+  catalog from the PR's production deployment output. Use the normal URLs
+  without query parameters. Confirm the installer selects the intended
+  firmware payloads, the payloads are published by the production workflow,
+  and the catalog matches that firmware. A passing `dev` deployment only
+  verifies the dev build.
+- If production still defaults to an older release, report the exact version
+  and treat the promotion as incomplete. Use the intended public version in
+  the updater, firmware page, README, and PR description. Keep older builds
+  available for upgrade or recovery when needed, without making them the
+  default for the new release.
+
 Tests: `node --test test/*.test.mjs` (site, uploader and
 installer), plus the Python tests next
 to each research tool.

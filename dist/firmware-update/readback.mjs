@@ -1,5 +1,9 @@
 import { APP_START, FLASH_SIZE, IMAGE_SIZE, SECTOR_SIZE, crc16, scanRadio, sha256 } from './firmware.mjs?v=20261111g';
 
+export class BackupStoppedError extends Error {
+  constructor() { super('HID backup cancelled. No radio write was sent.'); }
+}
+
 const SECTORS = (FLASH_SIZE - APP_START) / SECTOR_SIZE;
 const BOUNDARIES = SECTORS - 1;
 const APP_SECTORS = (IMAGE_SIZE - APP_START) / SECTOR_SIZE;
@@ -103,7 +107,7 @@ async function collectWindows(hid, crcs, startBoundary, onProgress, cancelled) {
       rows[base + index][0] = crcs[base + index];
     }
     for (let shift = 1; shift < SECTOR_SIZE; shift++) {
-      if (cancelled()) throw new Error('HID backup cancelled. No radio write was sent.');
+      if (cancelled()) throw new BackupStoppedError();
       const values = await hid.windowCrcs(base * SECTOR_SIZE + shift, count);
       for (let index = 0; index < count; index++) rows[base + index][shift] = values[index];
       done++;

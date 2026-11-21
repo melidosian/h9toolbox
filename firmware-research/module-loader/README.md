@@ -36,6 +36,13 @@ is 1 MB). Music stays at `0xCE0000`.
              u32 size  u32 bss  u16 entry (offset from 0x29F00)  u16 CRC-16/XMODEM of the body
 ```
 
+An optional `H9MENU01` trailer after the module bodies contains one category
+byte per module, in entry order. The header length includes the trailer.
+The values are 0 for the default, 1 for Apps, 2 for Games, 3 for Radio
+Tools, 4 for Diagnostics, 5 for Setup and 6 for APRS. Apps can declare the
+category when they are packaged. Older loaders still read the original
+entry layout. The App Manager preserves this metadata when editing bundles.
+
 Module 0 is the menu. The stub accepts a bundle only if the directory
 (magic, one segment at `0xCC1000`, CRC-16) is valid, its `H9DATA-COMPLETE`
 marker is set (written only after the uploader reads everything back), the
@@ -77,6 +84,58 @@ python3 -I test_build.py
 On Windows, extract the toolchain outside OneDrive (it is large) and set
 `$env:JIELI_TOOLCHAIN`; Docker cannot mount the session temp folder, so build
 inside the repository.
+
+For the resident SmartBeacon dev build with shared app routines in main
+flash, use a dedicated output directory and these flags.
+
+```sh
+python3 -I build.py --stock-image <app.bin> --stock-package <TD-H9-V1.0.38.fw> \
+  --output build/dev-rebuild/flash-shared \
+  --aprs-mute --disable-morse --dev-kiss --resident-beacon --flash-shared
+```
+
+API 5 puts the LCD, drawing, font, key, delay and memory helpers at
+app+`0x85080` in the retired Morse range. Modules use the stable jump table
+there and check the loader version at entry. The bundle format and 8 KiB
+slot stay the same. Install the API 5 main firmware before loading its
+matching `h9_modules.bin`. The resident scheduler body is the separate
+`resident_0xFB000_OFFLINE.bin` recorded in the manifest.
+
+The API 5 Toolbox menu follows the [TD-H3 menu controls](https://github.com/limehawk/td-h3-fw/blob/73bcf2d60fb4417b4e4d18d524b5f459fc793fb1/docs/manual/Menu.md).
+Use Up and Down to move between rows, type a row number to jump, and press
+Menu to open a tool or edit a value. In edit mode, Up and Down change the
+value. Menu or Back ends the edit. Settings save after two seconds without
+an adjustment or as soon as you leave the edit. The menu remembers its row
+until reboot and returns to the radio after 20 seconds of inactivity.
+**APRS SETTINGS** contains Schedule, Beacon Mode, Interval, Symbol and APRS
+Mute. **APRS → BEACON STATUS** shows the live resident scheduler status.
+
+Add `--resident-tx` to those build flags for automatic transmit in the dev
+bench build. This variant has a matching `h9_modules.bin` and a separate
+`resident_0xFA000_OFFLINE.bin` body that spans two main-flash sectors.
+Use the [resident SmartBeacon bench instructions](resident-service/README.md)
+for the transmit settings, backups and hardware checks.
+
+Publish the matching app files for dev App Manager after rebuilding this
+variant.
+
+```sh
+python3 -I publish_catalog.py --smartbeacon --bundle build/<dev-build>/h9_modules.bin
+```
+
+Dev App Manager recognizes the matching menu or Beacon Status module in
+an installed bundle. For a radio already running the matching firmware
+whose apps were replaced by the classic catalog, choose **H3-style
+SmartBeacon bench apps**, then **Restore H3-style apps**. The restore
+updates the installed catalog apps, keeps custom modules and satellite
+data, and stages the bundle for **Write to radio**.
+
+See the [app styling guide](APP-STYLE.md) for the color palette, layout and
+APRS navigation used by the dev bundle.
+
+The pinned KISS helpers occupy the preceding flash range. The RX15 and
+unsigned-byte fixes run on the separate APRS processor. Rebuild that image
+with the [KISS build instructions](../kiss-tnc/README.md).
 
 The build checks: the base is the pinned H9 Toolbox app (`1334a32c…`) and
 its hook calls Brick Breaker's launcher; Brick Breaker's caves are erased in

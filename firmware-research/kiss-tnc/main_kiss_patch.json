@@ -1,0 +1,45 @@
+{
+  "stock_package_sha256": "c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6",
+  "base_package_sha256": "cd1bfd70d1d72c3290d554a397e0a325f6e6fd68827413a14227b389de02fb05",
+  "base_app_sha256": "2727d25d470f00086a2c201009d39ebde76dd9103ad39613d2a6f5326978663e",
+  "package_sha256": "0bede1c07c996d631ed7f2e584573f8fae4803e0cb3c0ccb5133bb80092c364a",
+  "app_sha256": "2662e5ee82a359f49798f3c27a77f0784a6112e24fec29281ff567a9aa3ab580",
+  "patches": [
+    {
+      "purpose": "Skip the port-zero command before decoding AX.25",
+      "offset": "0x5DB40",
+      "before": "462048e00100",
+      "after": "82eab3500000"
+    },
+    {
+      "purpose": "Validate the AX.25 address chain and retain the full raw frame",
+      "offset": "0x5DB6A",
+      "before": "bfea44ff",
+      "after": "82eaa450"
+    },
+    {
+      "purpose": "Hand the raw frame to the stock modem UART sender",
+      "offset": "0x5DB86",
+      "before": "bfea30ec",
+      "after": "82eaaf50"
+    },
+    {
+      "purpose": "Select automatic APRS receive channel in the packet callback",
+      "offset": "0x86328",
+      "before": "50ee930c",
+      "after": "40200000"
+    },
+    {
+      "purpose": "Forward raw modem packets to the BLE KISS queue",
+      "offset": "0x870E0",
+      "before": "beea89b4",
+      "after": "81ea0a06"
+    },
+    {
+      "purpose": "Raw AX.25 TX and RX helper code",
+      "offset": "0xA7C7C",
+      "before": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "after": "81f9131e0b4653e810027504432d3c8101e90740d8ee005355e805023b8783f9f68d432055044321550443208000462048e00100044113168000750411fc14ec619f03521b894420d8ee005415f8028095f803b63b8113fc07fe4c8181e9f441a060a9624021550440205504100409620060c3ffbeb4e501c30000047804e29f04161516261611fc2ef6c3ffb3c100003b4083f828025194134640e00002c3ff320fe301c300005f071640e0000280204020411652167316c8ff2eb4e501c800004d0816c3ffcad2e501c3000047821640397116c3ffe0d2e501c3007016c3ff6610e301c300401651166216c3fff6dae501c30002815804"
+    }
+  ]
+}

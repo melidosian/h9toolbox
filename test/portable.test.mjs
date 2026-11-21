@@ -88,3 +88,25 @@ test('malformed or incomplete JSON is rejected', () => {
   assert.throws(() => importPortable({...archive,memoryBlocks:[]}), /every 32-byte/);
   assert.throws(() => importPortable({...archive,memoryBlocks:[...archive.memoryBlocks.slice(0,1),'zz'.repeat(32),...archive.memoryBlocks.slice(2)]}), /hex/);
 });
+
+test('portable JSON preserves the working long label and archive baseline separately from the image', () => {
+  const tone = {type:'off', value:'', polarity:'N'};
+  const original = writeChannel(image(), 199, {
+    name:'SHORT', rx:'146.52000', tx:'', mode:'FM', power:1, offsetDirection:0,
+    pttId:0, scramble:0, used:true, scan:false, busyLock:false, hopping:false, rxTone:tone, txTone:tone,
+  });
+  const before = new Map([[199, 'Old name']]);
+  const after = new Map([[199, 'North County Repeater']]);
+  const archive = exportPortable(original, original, {archive:true, longNames:after, baseLongNames:before});
+  const restored = importPortable(archive);
+  assert.deepEqual(restored.original, original);
+  assert.deepEqual(restored.edited, original);
+  assert.deepEqual(restored.baselineLongNames, before);
+  assert.deepEqual(restored.longNames, after);
+  assert.equal(readChannel(restored.edited, 199).name, 'SHORT');
+
+  const cleared = exportPortable(original, original, {longNames:new Map([[199, '']])});
+  assert.equal(importPortable(cleared, original, before).longNames.get(199), '');
+  assert.equal(importPortable(exportPortable(original), original, before).longNames.get(199), 'Old name');
+  assert.throws(() => importPortable({...archive, originalLongNames:[...archive.originalLongNames, ...archive.originalLongNames]}), /duplicate original/);
+});

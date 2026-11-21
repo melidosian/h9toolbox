@@ -1,57 +1,87 @@
 # H9 Toolbox
 
-Free browser tools and custom firmware for the TIDRADIO TD-H9: https://h9toolbox.com/
+Free browser tools and custom firmware for the TIDRADIO TD-H9.
 
-## H9 Toolbox Firmware: apps on your radio
+[Open H9 Toolbox](https://h9toolbox.com/) · [Explore the firmware](https://h9toolbox.com/firmware/) · [Bluetooth programmer](https://h9toolbox.com/programmer/) · [App Manager](https://h9toolbox.com/apps/) · [Changelog](CHANGELOG.md)
 
-H9 Toolbox Firmware is stock v1.0.38 plus an **app loader**. Hold **Back** on
-the channel screen for a menu of apps; each loads into RAM from the radio's
-16 MB resource chip when you open it, and **RADIO** returns to the normal radio.
+## H9 Toolbox Firmware
 
-- **APRS** (experimental): an onboard APRS client. Station list with distance
-  and bearing, station details, a map around your GPS position, and messages;
-  it opens with the stations already in the radio's Beacon List. **APRS SEND**
-  transmits a status packet or a canned message from the callsign in the
-  radio's APRS settings, after a second confirming press (licence required).
-  While APRS runs it follows the APRS RX/TX channel settings and listens with
-  squelch open and the speaker muted.
-- **Brick Breaker**, the game that started this project, now one app among others.
-- **App Manager** (https://h9toolbox.com/apps/): adds, updates and removes apps
-  over Bluetooth, shows the space left, and changes the boot logo. Everything
-  is read back to verify.
+H9 Toolbox Firmware builds on the stock Type-C v1.0.38 firmware. It keeps
+your saved channels and settings and adds an app menu. On v0.1.6, press
+**Menu** from the channel screen to open Toolbox. On earlier versions,
+hold **Back**.
 
-Install it with the web flasher (https://h9toolbox.com/firmware-update/,
-USB-C, desktop Chrome or Edge): it backs up the radio first, upgrades stock,
-the original Brick Breaker or any earlier H9 Toolbox build, and restores stock
-at any time. Then open the App Manager. Source: the app loader and apps are in
-[firmware-research/module-loader](firmware-research/module-loader/).
+- **APRS.** View heard stations, distance and bearing, a map around your GPS
+  position, and messages. Use the keypad to send a status packet or canned
+  message. APRS transmission requires an amateur radio licence.
+- **FM Satellite Passes.** See the next five passes for your location, plot
+  them across the sky, and tune for Doppler shift during a pass.
+- **GPS Info.** Check coordinates, altitude, your Maidenhead grid square,
+  satellite signals, and UTC or local time.
+- **SmartBeacon and APRS Mute.** Send automatic APRS position reports with
+  SmartBeacon or on a timer, and mute incoming packet audio.
+- **Full KISS TNC.** The optional APRS modem update enables packet
+  connections over Bluetooth. The updater links to the bridge for KISS TCP
+  and AGWPE clients such as Pat and Paracon. [Bridge setup](firmware-research/kiss-tnc/host/README.md)
+- **Apps and boot logo.** Use App Manager to add or remove apps, check
+  available space, or change the startup image over Bluetooth or experimental
+  USB-C. The app catalog includes Brick Breaker and Maze Chase. [App Manager](https://h9toolbox.com/apps/)
 
-Firmware reverse-engineering notes, offline analysis, the Windows/Linux USB-C flasher, and the HID recovery tools are collected in [firmware-research](firmware-research/README.md). They are separate from the Bluetooth web programmer below.
+### Install and recover
+
+1. Open the firmware updater in Chrome or Edge on a computer. Connect a
+   data-capable USB-C cable and hold **PTT + 2** while powering on the
+   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [Dev firmware updater](https://dev.h9toolbox.com/firmware-update/)
+2. Choose your firmware, save the recommended `.h9hid` recovery backup,
+   and keep USB connected through verification. The updater requests a reboot
+   after verification and gives manual restart instructions if the radio
+   stays in update mode.
+3. With the radio on its normal channel screen, use the App Manager linked
+   from your updater to choose apps and select **Write to radio**.
+   [App Manager](https://h9toolbox.com/apps/) · [Dev App Manager](https://dev.h9toolbox.com/apps/)
+4. If you want full KISS TNC and the updater verifies that the modem
+   update was staged, follow **Optional: Unlock KISS TNC** on the restart
+   step. It includes the keypad instructions and bridge download.
+
+Keep the `.h9hid` file to recover the main firmware. The Bluetooth
+programmer’s `.img` backup is for channels and settings. To return to the
+factory main firmware, choose **Stock Type-C v1.0.38** in the updater. The
+APRS modem uses its own recovery procedure. [TD-H9 recovery guide](https://dev.h9toolbox.com/firmware-update/recovery/) · [APRS modem recovery](firmware-research/kiss-tnc/README.md#aprs-modem)
 
 ## Project files
 
-- [VFO control discovery](prototypes/vfo-control/README.md) contains the local Bluetooth remote-control experiment and its current hardware observations.
+- [Module loader and apps](firmware-research/module-loader/README.md) contains the Toolbox sources and build instructions.
 - [Firmware research](firmware-research/README.md) contains the analysis, replacement-source work, USB flasher, and HID recovery tools.
-- `private/downloads/` holds local radio backups, probe captures, and official firmware packages. It is ignored by Git because radio data can contain private settings. `private/downloads/migration-manifest.json` records the original download paths and SHA-256 hashes.
-- `archive/sites-source/` and `archive/sites-source-history.bundle` preserve the earlier Sites source and its Git history. The active H9 Toolbox site remains in `dist/`.
+- [VFO control discovery](prototypes/vfo-control/README.md) contains the Bluetooth remote-control experiment and hardware observations.
+- [Doom for the TD-H9](https://h9toolbox.com/doom/) uses separate experimental firmware to run Freedoom’s first level.
+- The active site lives in `dist/`. Keep radio backups, probe captures, and official firmware packages in the Git-ignored `private/downloads/` directory.
 
-The `htcommander` repository is a separate project; its TD-H9 integration remains there.
+The `htcommander` repository is a separate project with its own TD-H9 integration.
 
-A small, buildless Web Bluetooth programmer for the TIDRADIO TD-H9. Open the HTTPS site in Chrome or Edge on a computer with Bluetooth. No account is required. The radio image stays in browser memory until you download a backup.
+## Hosting
 
-The custom domain uses Google Analytics 4 for page views and automatic interaction events. Enhanced Measurement is enabled, and the tag runs only on `h9toolbox.com`, not on previews or localhost. H9 Toolbox does not send radio images, channel contents, or settings to Analytics.
+GitHub Pages builds `main` with `scripts/build-site.sh` for
+[h9toolbox.com](https://h9toolbox.com/). Cloudflare Pages builds `dev` with
+`scripts/build-dev-site.sh` for [dev.h9toolbox.com](https://dev.h9toolbox.com/)
+and records that commit at [`/dev-build.txt`](https://dev.h9toolbox.com/dev-build.txt).
+Both builds default to H9 Toolbox Firmware v0.1.6 over USB-C, including the
+main firmware and far-flash payload, and serve the matching App Manager catalog.
 
-TD-H9 owners report successful use of the Bluetooth programmer on several radios. Save an untouched backup and review your channels and settings before writing, particularly when using a radio or firmware version for the first time.
+The production site uses Google Analytics 4 for page views and automatic
+interaction events. The tag runs only on `h9toolbox.com`. H9 Toolbox keeps
+radio images, channels, and settings out of Analytics.
 
 **AI disclosure:** H9 Toolbox was entirely and responsibly AI generated under human direction.
 
-## GitHub Pages
+## Bluetooth programmer
 
-**Open H9 Toolbox:** https://h9toolbox.com/ · **Bluetooth programmer:** https://h9toolbox.com/programmer/ · **Firmware:** https://h9toolbox.com/firmware/ · **Install H9 Toolbox Firmware:** https://h9toolbox.com/firmware-update/ · **App Manager:** https://h9toolbox.com/apps/ · **Boot logo:** https://h9toolbox.com/boot-logo/
+Open the HTTPS programmer in Chrome or Edge on a computer with Bluetooth.
+The radio image stays in browser memory until you download a backup. TD-H9
+owners have reported successful programming on several radios. Save an
+untouched backup and review your channels and settings before writing.
+[Open the Bluetooth programmer](https://h9toolbox.com/programmer/)
 
-The checked-in workflow publishes `dist/` directly to GitHub Pages on each push to `main`, or when **Deploy GitHub Pages** is run manually. GitHub Pages serves the site over HTTPS. Web Bluetooth still requires a supported browser; hosting on Pages does not add iPhone Safari support.
-
-## Current workflow
+### Programming workflow
 
 1. Enable the TD-H9's Bluetooth programming mode.
 2. Connect and read the radio.

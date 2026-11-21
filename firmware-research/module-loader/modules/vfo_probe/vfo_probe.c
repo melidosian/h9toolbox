@@ -17,7 +17,7 @@
  * Keys: Menu switches page, Up/Down scroll the scan, Back leaves. */
 #include <stdint.h>
 
-#include "gfx.h"
+#include "app_theme.h"
 #include "h9mod.h"
 #include "../satpass/satshare.h"
 
@@ -69,34 +69,34 @@ static int plausible(uint32_t v)
 
 static void line(unsigned row, const char *text, uint16_t fg)
 {
-    gfx_text(0, 12 + row * 11, text, 26, 1, fg, GFX_BLACK);
+    gfx_text(UI_LEFT, 13 + row * 11, text, UI_CELLS, 1, fg, UI_BG);
 }
 
 static void fields(void)
 {
     static const uint16_t words[] = { 0x1BC, 0x1C0, 0x1C4, 0x1C8, 0x1CC, 0x1D0 };
     char b[32], *d;
-    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
-    gfx_text(0, 0, "VFO PROBE 1/3 FIELDS", 20, 1, GFX_YELLOW, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
+    gfx_text(UI_LEFT, 2, "VFO PROBE 1/3 FIELDS", 20, 1, UI_ACCENT, UI_BG);
     for (unsigned i = 0; i < 6; i++) {
         d = put(b, "+"); d = hex(d, words[i], 3); d = put(d, " ");
         mhz(d, RAM32(words[i]));
-        line(i, b, i == 0 ? GFX_GREEN : GFX_WHITE);
+        line(i, b, i == 0 ? UI_OK : UI_TEXT);
     }
     static const uint16_t bytes[] = { 0x1B, 0x1D, 0x789, 0x10CD, 0x10EA, 0x2A };
     d = b;
     for (unsigned i = 0; i < 6; i++) {
-        if (i == 3) { *d = 0; line(6, b, GFX_WHITE); d = b; }
+        if (i == 3) { *d = 0; line(6, b, UI_TEXT); d = b; }
         d = hex(d, bytes[i], 3); *d++ = '='; d = hex(d, RAM8(bytes[i]), 2); *d++ = ' ';
     }
     *d = 0;
-    line(7, b, GFX_WHITE);
+    line(7, b, UI_TEXT);
     /* stock's GPS fix (0x11AD0 + 0xA80 valid, +0xA88 lat, +0xA90 lon) */
     d = num(b, RAM8(0xA80), 1); *d++ = ' ';
     d = udeg(d, (int32_t)RAM32(0xA88)); *d++ = ' ';
     udeg(d, (int32_t)RAM32(0xA90));
-    line(8, b, GFX_YELLOW);
-    line(9, "MENU PAGE  BACK EXIT", GFX_GREY);
+    line(8, b, UI_ACCENT);
+    ui_footer("MENU PAGE  BACK TOOLBOX");
 }
 
 /* Page 3: the resident VFO tracker's status (SAT TRACK key 5) and two bytes that decide how it acts. */
@@ -104,33 +104,33 @@ static void resident(void)
 {
     volatile struct satshare *sh = SAT_SHARED;
     char b[32], *d;
-    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
-    gfx_text(0, 0, "VFO PROBE 3/3 TRACKER", 21, 1, GFX_YELLOW, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
+    gfx_text(UI_LEFT, 2, "VFO PROBE 3/3 TRACKER", 21, 1, UI_ACCENT, UI_BG);
     unsigned ran = sh->st_valid == RES_MAGIC;
     d = put(b, "MAGIC "); d = hex(d, sh->res_magic, 8); put(d, sh->res_magic == RES_MAGIC ? " ARMED" : "");
-    line(0, b, GFX_WHITE);
+    line(0, b, UI_TEXT);
     if (!ran) {
-        line(1, "NEVER ARMED SINCE POWER-ON", GFX_RED);
-        line(2, "(THE FIELDS ARE LEFTOVER RAM)", GFX_GREY);
+        line(1, "NEVER ARMED SINCE POWER-ON", UI_DANGER);
+        line(2, "(THE FIELDS ARE LEFTOVER RAM)", UI_DIM);
     } else {
         d = put(b, "ENTRY "); d = hex(d, sh->res_entry, 8); d = put(d, " CRC "); hex(d, sh->res_lencrc & 0xFFFF, 4);
-        line(1, b, GFX_WHITE);
+        line(1, b, UI_TEXT);
         d = put(b, "CALLS "); num(d, sh->st_ticks, 1);
-        line(2, b, GFX_GREEN);
+        line(2, b, UI_OK);
         d = put(b, "FLAGS "); d = hex(d, sh->st_flags, 2); put(d, " 2TX 8TEST 10BL 20SQ 200PF");
-        line(3, b, GFX_WHITE);
+        line(3, b, UI_TEXT);
         d = put(b, "A "); mhz(d, sh->st_down);
-        line(4, b, GFX_WHITE);
+        line(4, b, UI_TEXT);
         d = put(b, "B "); d = mhz(d, sh->st_up); d = put(d, "  REVERTS "); num(d, sh->st_reverts, 1);
-        line(5, b, GFX_WHITE);
+        line(5, b, UI_TEXT);
     }
     d = put(b, "SIDE 080="); d = hex(d, RAM8(0x80), 2); d = put(d, " REG30 "); hex(d, ((unsigned (*)(unsigned))0x01E505FE)(0x30), 4);
-    line(6, b, GFX_YELLOW);
+    line(6, b, UI_ACCENT);
     d = put(b, "SQUELCH 83C="); d = hex(d, *(const volatile uint16_t *)(BASE + 0x83C), 4); d = put(d, " ORIG "); hex(d, sh->orig_sq, 4);
-    line(7, b, GFX_YELLOW);
+    line(7, b, UI_ACCENT);
     d = put(b, "PF1 SHORT 10EC="); d = hex(d, RAM8(0x10EC), 2); d = put(d, " ORIG "); hex(d, sh->orig_pf1, 2);
-    line(8, b, GFX_YELLOW);
-    line(9, "MENU PAGE  BACK EXIT", GFX_GREY);
+    line(8, b, UI_ACCENT);
+    ui_footer("MENU PAGE  BACK TOOLBOX");
 }
 
 static unsigned scan(uint32_t *hits)
@@ -144,17 +144,18 @@ static unsigned scan(uint32_t *hits)
 static void scan_page(const uint32_t *hits, unsigned n, unsigned first)
 {
     char b[32], *d;
-    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
+    gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
     d = put(b, "VFO PROBE 2/3 HITS ");
     d = num(d, n, 1);
     if (n == MAX_HITS) put(d, "+");
-    gfx_text(0, 0, b, 26, 1, GFX_YELLOW, GFX_BLACK);
+    gfx_text(UI_LEFT, 2, b, UI_CELLS, 1, UI_ACCENT, UI_BG);
     for (unsigned r = 0; r < ROWS && first + r < n; r++) {
         uint32_t a = hits[first + r];
         d = hex(b, a, 5); d = put(d, " ");
         mhz(d, *(const volatile uint32_t *)a);
-        line(r, b, a >= BASE && a < BASE + 0x1200 ? GFX_GREEN : GFX_WHITE);
+        line(r, b, a >= BASE && a < BASE + 0x1200 ? UI_OK : UI_TEXT);
     }
+    gfx_text(UI_LEFT, 120, "MENU PAGE  UP/DN  BACK", UI_CELLS, 1, UI_HINT, UI_BG);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)

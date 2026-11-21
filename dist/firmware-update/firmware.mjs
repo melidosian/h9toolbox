@@ -3,78 +3,79 @@ export const APP_START = 0x5000;
 export const IMAGE_SIZE = 0xda000;
 export const FLASH_SIZE = 0x100000;
 export const SECTOR_SIZE = 4096;
+export const APRS_STAGE_START = 0xf4000;
+export const APRS_STAGE_END = 0xfa000;
+export const RESIDENT_START = 0xfa000;
+export const RESIDENT_END = 0xfc000;
 export const STOCK_PACKAGE_SHA256 = 'c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6';
 export const STOCK_IMAGE_SHA256 = '74243eaed19fe0c3e5fbb3ef3c46442f71ee8f7c216f214d322894d26ce4e648';
-// Hosted build: H9 Toolbox Firmware with the app (module) loader: stock
-// v1.0.38, the resource-flash service (boot logo, App Manager uploads) and the
-// loader that runs apps from the resource chip (hold Back), which also keeps
-// the last GPS fix on the resource chip (sector 0x3FF000) and can keep the SAT
-// TRACK module armed across a restart (resident VFO tracker). Built by
-// firmware-research/module-loader (build.py; installer files by
-// release_installer.mjs). Same file name as before: the Doom installer
-// fetches it as a reference image.
+// Hosted release combines the Toolbox app loader, the Bluetooth KISS hooks,
+// and the on-radio updater. Keep the original unversioned .fw as the pinned
+// v0.1.4 reference for Doom and the KISS patch builder.
 export const BUILD = {
-  label: 'H9 Toolbox Firmware v0.1.4',
-  version: '0.1.4',   // firmware-research/module-loader/VERSION; shown on the radio by ABOUT
-  packageFile: 'h9-toolbox-firmware-v1.0.38.fw',
-  packageSha256: 'cd1bfd70d1d72c3290d554a397e0a325f6e6fd68827413a14227b389de02fb05',
-  imageSha256: '7126059a9636d06192882f6c2c4faa96e405bb4e0228dace7190eb2b85e50c9b',
-  // Stock bytes of the sectors the build changes: rebuilds exact stock.
+  label: 'H9 Toolbox Firmware v0.1.5',
+  version: '0.1.5',
+  packageFile: 'h9-toolbox-firmware-v0.1.5.fw',
+  packageSha256: 'b1c26380caaf2e80e1c41835a1c7a5e839cc6d6957facf8c1c6b1e16128c3d01',
+  imageSha256: '9dc88f01a011430f9dfab1ea708cf572906dfb09269d5d11db5cf98a74a09991',
   stockSeedFile: 'h9-toolbox-firmware-stock-sectors.bin',
-  stockSeedSha256: 'dbfd634eb54f0c1c931c613ee5085ad3decd26da8db5b727448fb3b1aef217fe',
-  // Every sector any H9 Toolbox image differs from stock in; installs and
-  // restores write only these.
-  sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000],
+  stockSeedSha256: '9c6dbe4e561e01c6208eac0460d2f8f4b4570e3a6ac89a68862cd32ae20e2f29',
+  sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000],
+  aprsStageFile: 'h9-toolbox-aprs-v1.0.15x.bin',
+  aprsStageSha256: 'a180b40cd9903046c67b8e5495e77d20e0e871562a24fb64086c5de2d62f3282',
 };
-// Earlier builds, recognised so a radio running one is backed up quickly and
-// upgraded directly: each seed holds that image's bytes at the sectors where it
-// differs from BUILD.
+// Earlier images are reconstructed from their own sector seeds.
 export const PREVIOUS = [
   { id: 'toolbox1', label: 'Brick Breaker build of H9 Toolbox Firmware', file: 'H9-Toolbox-Firmware-1-',
     seedFile: 'h9-toolbox-firmware-1-sectors.bin',
-    seedSha256: 'e0437c2645bf0479bcfc7826286001f8ebe2d615df3bd3478544bf982a2b5299',
+    seedSha256: 'd55c4a149c4e8c7fb085c8636af7c5dba5bc6946c41ac87706e771b9246bdae0',
     imageSha256: '83f79fb3281c37ab22a4fd3f154a6c52a50d3cf0d8063b546eb47ce3c603bac6',
-    sectors: [0x5000, 0x64000, 0x7d000, 0x8d000, 0xac000, 0xae000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xac000, 0xae000, 0xd9000] },
   { id: 'original', label: 'original Brick Breaker', file: 'Brick-Breaker-',
     seedFile: 'brick-breaker-original-sectors.bin',
-    seedSha256: '43ccec9f1c68b93950ce0b5a80525d57ed67495d45993b9649050a348c94f336',
+    seedSha256: '20b68f5a1491797438bfe5bb267647e26a981127cb14602a7139e50d54e2a1d4',
     imageSha256: '741bbeb87eb84cd7c6988054c56a267bb73c89bbe5cc74dc4e5bc0d75ce7e193',
-    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xaa000, 0xac000, 0xae000, 0xaf000, 0xd9000] },
   { id: 'preview', label: 'H9 Toolbox Firmware app-loader preview', file: 'H9-Toolbox-Firmware-preview-',
     seedFile: 'h9-toolbox-firmware-preview-sectors.bin',
-    seedSha256: '2df19410a92af3202194fab11da6c39cca27a376263aa86db127b41f36ad01f8',
+    seedSha256: '989a28d5563e9039c761ed0a61737714230c4200d7b8ffa75615ebc91534af47',
     imageSha256: '79858310c73879a360e3f8c0cfb003a0043d74593a05421ddeb6f81b728bbcc1',
-    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xac000, 0xd9000] },
   { id: 'release1', label: 'H9 Toolbox Firmware (app loader, first release)', file: 'H9-Toolbox-Firmware-release1-',
     seedFile: 'h9-toolbox-firmware-release1-sectors.bin',
-    seedSha256: '624bf25b9dfbfaac1f66398ea7aa1a58d2717632b3efc940966fc0b3b56d099b',
+    seedSha256: '3fc81f00668f67c50e7aa42d48951c2f44cc624e9a11139d4ac0d007e05250a8',
     imageSha256: '08d2409af07979f46b1591e28c04e0c86c6575ef97150f23d153bf5832f9b160',
-    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xac000, 0xd9000] },
   { id: 'release2', label: 'H9 Toolbox Firmware (app loader with GPS recorder)', file: 'H9-Toolbox-Firmware-release2-',
     seedFile: 'h9-toolbox-firmware-release2-sectors.bin',
-    seedSha256: '3a8d30ce3288c8f33b920dbda9d5f3672533b68b24fca0779df0ecfb88517028',
+    seedSha256: 'b09d719e2dfab44a1aec48020630915b7e0e6864d4f85965912b36afe11fe460',
     imageSha256: '2f5e428d307a9f224cecbbd6c010ae84a70f9e7fc9c3be18c01f40d28ac97da6',
-    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xac000, 0xd9000] },
   { id: 'release3', label: 'H9 Toolbox Firmware (app loader with satellite tracker)', file: 'H9-Toolbox-Firmware-release3-',
     seedFile: 'h9-toolbox-firmware-release3-sectors.bin',
-    seedSha256: 'f8eab2841f28227100d5cd373356f84e57858dab495309859416136a7d6be987',
+    seedSha256: '5a3290a835aba9f8166d462ee8a3df39f841aa668890dc41d8cb7d785b6656a4',
     imageSha256: '6663c809b61d56d0b81c2f4f85225d61c77f124d1041e39c45769954a863c9dd',
-    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xac000, 0xd9000] },
   { id: 'release4', label: 'H9 Toolbox Firmware (app loader before return-to-radio)', file: 'H9-Toolbox-Firmware-release4-',
     seedFile: 'h9-toolbox-firmware-release4-sectors.bin',
-    seedSha256: 'f885740bdafb474cce0504aa1eb815a4595ad514a210bc402bcf5372d04eff01',
+    seedSha256: '744aa29d7ae264d25a694a21a095eec08b775e35cbb7bfb245d2569fe49d9e3f',
     imageSha256: 'a87fc7746bdf4e96538e443d6cc9c2db75ec0047c9ab00af3735e9ed937ce6c5',
-    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xac000, 0xd9000] },
   { id: 'release5', label: 'H9 Toolbox Firmware (return to radio from the menu)', file: 'H9-Toolbox-Firmware-release5-',
     seedFile: 'h9-toolbox-firmware-release5-sectors.bin',
-    seedSha256: 'f870327866e77580f3701ef25717a96a89240d2b9d3c204af17a7ec7f6b37454',
+    seedSha256: '2682ad71048fc0791a692ac6684070a0622df20cc6c29b9a884952d74b4fb2d9',
     imageSha256: '883dc4a750ab368fd0cbf7f5cc3aa34ee2689757549ffcef074ce9d2f54f417b',
-    sectors: [0x5000, 0x7d000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7d000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xac000, 0xd9000] },
   { id: 'release6', label: 'H9 Toolbox Firmware (leave for the radio, before version numbers)', file: 'H9-Toolbox-Firmware-release6-',
     seedFile: 'h9-toolbox-firmware-release6-sectors.bin',
-    seedSha256: '138a182d4a00f9806dc1a1d5d4842124d83219d62147aa77930ca2606cf8f202',
+    seedSha256: '8fde5fb26f00d1844384f6f11ccd942c6fb40afd8cc8c45f5aaf50a05fad0e64',
     imageSha256: 'da69389b2ab6462ada8cda26c194f2b900fb385da07643e8fda9543c6c4b6280',
-    sectors: [0x5000, 0xac000, 0xd9000] },
+    sectors: [0x5000, 0x62000, 0x64000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xac000, 0xd9000] },
+  { id: 'release7', label: 'H9 Toolbox Firmware v0.1.4', file: 'H9-Toolbox-Firmware-release7-',
+    seedFile: 'h9-toolbox-firmware-release7-sectors.bin',
+    seedSha256: 'afcd6860d335a35fc878b655a5d81263a6d25fe303b94561fc2c4f3df09a8fb1',
+    imageSha256: '7126059a9636d06192882f6c2c4faa96e405bb4e0228dace7190eb2b85e50c9b',
+    sectors: [0x5000, 0x62000, 0x64000, 0x7e000, 0x7f000, 0x8b000, 0x8c000, 0x8d000, 0xac000, 0xd9000] },
 ];
 const KEY = new Uint8Array([0x4e, 0x61, 0xbc, 0x00]); // 12345678, little endian
 
@@ -306,6 +307,27 @@ function u32(...values) {
 
 export class H9Hid {
   constructor(device) { this.device = device; }
+  async reboot({ events = navigator.hid, timeoutMs = 6000 } = {}) {
+    let onDisconnect, timer, sendError;
+    const disconnected = new Promise(resolve => {
+      onDisconnect = event => {
+        if (event.device === this.device) resolve(true);
+      };
+      events.addEventListener('disconnect', onDisconnect);
+      timer = setTimeout(() => resolve(false), timeoutMs);
+    });
+    // The reboot can tear down USB before sendReport completes. Wait for the
+    // radio's disconnect event instead of expecting a reply to command 0xCA.
+    try {
+      void this.device.sendReport(0, makePacket(0xca)).catch(error => { sendError = error; });
+      if (await disconnected) return true;
+      if (sendError) throw sendError;
+      return false;
+    } finally {
+      clearTimeout(timer);
+      events.removeEventListener('disconnect', onDisconnect);
+    }
+  }
   async exchange(command, body = new Uint8Array()) {
     const device = this.device;
     let cancel;
@@ -360,7 +382,23 @@ export class H9Hid {
   async sectorCrc(physical) { return (await this.crcs(physical - APP_START, 1))[0]; }
   async erase(physical) { requireValue(physical >= APP_START && physical < IMAGE_SIZE && physical % SECTOR_SIZE === 0, 'Erase outside firmware area.'); await this.exchange(0xc2, u32(physical - APP_START, 2)); }
   async write(physical, offset, bytes) {
-    requireValue(physical >= APP_START && physical < IMAGE_SIZE && offset >= 0 && offset + bytes.length <= SECTOR_SIZE && bytes.length >= 1 && bytes.length <= 40, 'Write outside firmware sector.');
+    requireValue(physical >= APP_START && physical < IMAGE_SIZE, 'Write outside firmware area.');
+    await this.#writeChunk(physical, offset, bytes);
+  }
+  async writeAprsStage(physical, offset, bytes) {
+    requireValue(physical >= APRS_STAGE_START && physical < APRS_STAGE_END, 'Write outside APRS staging area.');
+    await this.#writeChunk(physical, offset, bytes);
+  }
+  async writeFarFirmware(physical, offset, bytes) {
+    requireValue(physical >= 0xea000 && physical < RESIDENT_END, 'Write outside far firmware area.');
+    await this.#writeChunk(physical, offset, bytes);
+  }
+  async writeSmartBeaconResident(physical, offset, bytes) {
+    requireValue(physical >= RESIDENT_START && physical < RESIDENT_END, 'Write outside SmartBeacon resident area.');
+    await this.#writeChunk(physical, offset, bytes);
+  }
+  async #writeChunk(physical, offset, bytes) {
+    requireValue(physical % SECTOR_SIZE === 0 && Number.isInteger(offset) && offset >= 0 && offset + bytes.length <= SECTOR_SIZE && bytes.length >= 1 && bytes.length <= 40, 'Invalid sector write.');
     const body = new Uint8Array(8 + bytes.length);
     body.set(u32(physical - APP_START + offset, bytes.length)); body.set(bytes, 8);
     await this.exchange(0xc3, body);

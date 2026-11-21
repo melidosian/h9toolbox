@@ -1,12 +1,13 @@
 // H9 Toolbox App Manager: stage module changes, then write one verified
-// bundle to the modules slot over Bluetooth (dist/doom/upload.mjs).
+// bundle to the modules slot over Bluetooth or USB-C (dist/doom/upload.mjs).
+import { readCloneCapabilities } from '../channel-labels.mjs';
 import { crc16 } from '../boot-logo/resource.mjs';
-import { connectBluetooth } from '../boot-logo/radio.mjs?v=up2';
-import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=20261109b';
-import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=am5';
+import { connectBluetooth, connectUsb } from '../boot-logo/radio.mjs?v=usb3';
+import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=usb3';
+import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=usb1';
 import { CHIP_SLOT, buildBundle, checkModule, parseBundle, usage } from './bundle.mjs?v=am3';
 import { describeChanges } from './changes.mjs?v=am3';
-import { appState, fetchApp, fetchModule, loadCatalog, menuOutdated, partsOf, withApp, withModule, withModules, withoutApp } from './catalog.mjs?v=am4';
+import { appState, fetchApp, loadCatalog, menuState, partsOf, selectAppCatalog, withApp, withModule, withModules, withUpdatedMenu, withoutApp } from './catalog.mjs?v=am6';
 import { mountInfo } from './info.mjs?v=am5';
 
 // No stale files: the service worker (sw.js) fetches everything uncached.
@@ -18,11 +19,18 @@ let logoTool = null;    // the Boot logo section (boot-logo/logo-tool.mjs) on th
 let installed = null;   // modules on the radio (null: not read / none)
 let staged = [];        // the list "Write to radio" will install
 let catalog = null;     // catalog/catalog.json
-const downloaded = new Map();  // catalog id -> module
+const catalogs = { classic: null, bench: null };
+const catalogElement = $('catalog');
+const requestedCatalog = new URLSearchParams(location.search).get('catalog');
+const useLegacyDevCatalog = catalogElement.hasAttribute('data-legacy-dev-catalog') && requestedCatalog === 'smartbeacon';
+const usePreviewCatalog = catalogElement.hasAttribute('data-release-catalog') && !useLegacyDevCatalog;
+const benchCatalog = usePreviewCatalog ? 'rc5' : 'smartbeacon';
+const preferBench = usePreviewCatalog || useLegacyDevCatalog;
+const downloaded = new Map();  // catalog SHA-256 -> modules
 
 async function catalogApp(item) {
-  if (!downloaded.has(item.id)) downloaded.set(item.id, await fetchApp(catalog, item));
-  return downloaded.get(item.id);
+  if (!downloaded.has(item.sha256)) downloaded.set(item.sha256, await fetchApp(catalog, item));
+  return downloaded.get(item.sha256);
 }
 const catalogModule = async item => (await catalogApp(item))[0];
 
@@ -50,6 +58,15 @@ const infoDialog = mountInfo({
 
 function renderCatalog() {
   const box = $('catalog');
+  const bench = catalog?.profile === 'smartbeacon';
+  const menu = catalog && menuState(catalog, staged, preferBench);
+  $('menuUpdate').hidden = usePreviewCatalog || !menu?.canUpdate;
+  $('stageMenuUpdate').disabled = busy;
+  if (!usePreviewCatalog && menu?.canUpdate) {
+    let label = bench ? 'Update menu and apps' : 'Update menu';
+    if (menu.status === 'different') label = 'Use matching menu and apps';
+    $('stageMenuUpdate').textContent = label;
+  }
   if (!catalog) { box.replaceChildren(); return; }
   const cards = catalog.apps.map(item => {
     const state = appState(item, installed, staged);
@@ -80,20 +97,10 @@ function renderCatalog() {
     else button('Remove', async () => { staged = withoutApp(staged, item); log(`Staged: remove ${item.title}.`); });
     return card;
   });
-  if (menuOutdated(catalog, staged)) {
-    const card = document.createElement('div');
-    card.className = 'app';
-    card.innerHTML = '<h3><span></span><span class="tag">System</span></h3><p></p><div class="row"><span class="status outdated">Update available</span><span class="buttons"></span></div>';
-    card.querySelector('h3 span').textContent = catalog.menu.title;
-    card.querySelector('p').textContent = `${catalog.menu.description} The radio has a different version (v${catalog.menu.version} is available).`;
-    const b = document.createElement('button');
-    b.textContent = 'Update'; b.className = 'primary'; b.disabled = busy;
-    b.addEventListener('click', () => run(async () => { staged = [await catalogModule(catalog.menu), ...staged.slice(1)]; log('Staged: update the menu.'); }));
-    card.querySelector('.buttons').append(b);
-    cards.push(card);
-  }
   box.replaceChildren(...cards);
-  $('catalogNote').textContent = `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
+  $('catalogNote').textContent = bench
+    ? `Requires H9 Toolbox Firmware ${usePreviewCatalog ? 'v0.1.6' : 'v0.1.5 (development build)'}.`
+    : `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
 }
 
 function log(message, level = 'info') {
@@ -116,7 +123,6 @@ function render() {
   let buildError = null;
   try { if (staged.length) buildBundle(staged); } catch (error) { buildError = error.message; }
 
-  $('connect').disabled = busy || connected;
   $('disconnect').disabled = busy || !connected;
   $('reload').disabled = busy || !connected;
   $('apply').disabled = busy || !connected || !staged.length || !changes.any || Boolean(buildError);
@@ -125,12 +131,13 @@ function render() {
   $('exportBundle').disabled = !staged.length || Boolean(buildError);
   $('addButton').disabled = busy || (!staged.length && !catalog);
   $('bundleButton').disabled = busy;
-  // Connecting covers the Bluetooth pairing and the first read of the radio.
+  // Keep both connection buttons disabled until the first read completes.
   const stateText = connecting ? (session ? `Connecting · ${session.name} · reading the radio…` : 'Connecting…')
     : connected ? `Connected · ${session.name}` : 'Disconnected';
   $('state').classList.toggle('connecting', connecting);
   $('state').textContent = stateText;
   $('connect').disabled = busy || connected || connecting;
+  $('connectUsb').disabled = $('connect').disabled;
 
   const u = usage(staged);
   meter('chip', u.chipUsed, u.chipTotal, staged.length ? `${kib(u.chipUsed)} of ${kib(u.chipTotal)} (${kib(Math.max(0, u.chipFree))} free)` : '–');
@@ -145,7 +152,7 @@ function render() {
     const tr = document.createElement('tr');
     const { errors, warnings } = checkModule(m);
     const before = installed?.find(x => x.name === m.name);
-    const status = !installed || !before ? 'new' : before.crc !== m.crc || before.bss !== m.bss || before.entry !== m.entry ? 'changed' : '';
+    const status = !installed || !before ? 'new' : before.crc !== m.crc || before.bss !== m.bss || before.entry !== m.entry || before.category !== m.category ? 'changed' : '';
     const cells = [
       String(i),
       null,
@@ -219,15 +226,19 @@ function progress(began) {
 }
 
 // Fetch the app catalog again (uncached) so every read of the radio compares it with the newest apps.
+function pickCatalog() {
+  catalog = selectAppCatalog(catalogs.classic, catalogs.bench, session ? (installed ?? []) : staged, preferBench);
+}
+
 async function refreshCatalog() {
-  try {
-    const fresh = await loadCatalog();
-    const key = value => JSON.stringify([value.menu?.version, ...value.apps.map(a => [a.id, a.version, a.sha256])]);
-    if (catalog && key(fresh) !== key(catalog)) downloaded.clear();   // changed downloads: fetch them again when staged
-    catalog = fresh;
-  } catch (error) {
-    log(`Could not refresh the app catalog (${error.message}); using the one already loaded.`, 'error');
-  }
+  const sources = [['classic', undefined]];
+  if (preferBench) sources.push(['bench', new URL(`catalog/${benchCatalog}/`, import.meta.url)]);
+  await Promise.all(sources.map(async ([key, base]) => {
+    try { catalogs[key] = await loadCatalog(base); }
+    catch (error) { log(error.message, 'error'); }
+  }));
+  pickCatalog();
+  if (!catalog) $('catalogNote').textContent = preferBench ? 'The selected app catalog did not load.' : 'The app catalog did not load.';
 }
 // After reading the radio: which installed apps have a newer version in the catalog.
 function reportUpdates() {
@@ -236,16 +247,26 @@ function reportUpdates() {
     const here = (installed ?? []).slice(1).some(m => m.name === item.name);
     return here && appState(item, installed, installed).status === 'outdated';
   }).map(item => `${item.title} ${item.version}`);
-  if (menuOutdated(catalog, installed)) outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
-  log(outdated.length ? `Updates available: ${outdated.join(', ')}. Use Update on the app cards, then Write to radio.` : 'Every installed app is up to date.');
+  const menu = menuState(catalog, installed, preferBench);
+  if (menu.status === 'outdated') outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
+  if (outdated.length) log(`Updates available for ${outdated.join(', ')}.`);
+  if (menu.status === 'different' && !usePreviewCatalog) {
+    log(menu.canUpdate
+      ? 'A different Toolbox menu is installed. Select Use matching menu and apps to stage the version for the dev firmware.'
+      : 'The installed Toolbox menu differs from this catalog.');
+  } else if (!menu.canUpdate && !outdated.length) {
+    log('The Toolbox menu and installed catalog apps are up to date.');
+  }
 }
 
 async function readRadio() {
+  const opened = session;
   await refreshCatalog();
   $('progressText').textContent = 'Reading the modules slot…';
-  const { dir, pack } = await readPack(session.radio, SLOTS.modules, progress(performance.now()));
+  const { dir, pack } = await readPack(opened.radio, SLOTS.modules, progress(performance.now()));
   if (!pack) {
     installed = null;
+    pickCatalog();
     if (dir) log(`The modules slot holds an unfinished upload ("${dir.name}"); writing will replace it.`, 'error');
     else log('The modules slot is empty.');
     $('progressText').textContent = 'Idle.';
@@ -253,9 +274,35 @@ async function readRadio() {
   }
   installed = parseBundle(pack);
   staged = installed.map(m => ({ ...m }));
+  pickCatalog();
   log(`Read ${installed.length} module(s), ${pack.length.toLocaleString()} bytes: ${installed.map(m => m.name).join(', ')}.`);
   reportUpdates();
   $('progressText').textContent = 'Idle.';
+}
+
+async function applyPreviewBundle(opened) {
+  // Apply the bundle automatically only when the URL explicitly selects v0.1.6.
+  if (!usePreviewCatalog || !['0.1.6', 'rc5'].includes(requestedCatalog) ||
+      catalog?.profile !== 'smartbeacon' || !installed?.length ||
+      !menuState(catalog, installed, true).canUpdate) return;
+  const radio = opened.radio;
+  let capabilities;
+  await radio.enterProgramming();
+  try {
+    capabilities = await readCloneCapabilities(radio);
+  } finally {
+    await radio.leaveProgramming();
+  }
+  // RC3 and later use this catalog's firmware menu and module API.
+  if (!capabilities.sparseSerialWrites) {
+    log('The connected radio needs compatible firmware for the v0.1.6 app bundle.');
+    return;
+  }
+  const updated = await withUpdatedMenu(catalog, installed, { restoreBench: true });
+  if (session !== opened) throw new Error('Radio disconnected before applying the v0.1.6 app bundle.');
+  staged = updated;
+  log('Applying the v0.1.6 app bundle to your installed apps.');
+  await writeBundle();
 }
 
 async function readFile(file) {
@@ -263,27 +310,58 @@ async function readFile(file) {
   return parseBundle(bytes);
 }
 
-$('connect').addEventListener('click', () => run(async () => {
+const startConnection = connect => run(async () => {
+  $('result').textContent = '';
   connecting = true; render();
-  try { await connectAndRead(); } finally { connecting = false; }
+  let opened;
+  try {
+    opened = await connect({
+      log: (message, level) => { if (level !== 'debug') log(message, level); },
+      onDisconnect: () => {
+        if (session !== opened) return;
+        session = null;
+        log('Radio disconnected.');
+        render();
+      },
+    });
+    session = opened;
+    const service = await opened.radio.checkService();
+    if (service.version !== 2) throw new Error('This radio does not run H9 Toolbox Firmware (write service missing).');
+    if (!service.ready) throw new Error('The resource flash is still starting. Power-cycle the radio and connect again.');
+    log(`Connected to ${opened.name}. Resource flash ready.`);
+    logoTool?.reset();
+    render();
+    await readRadio();
+    await applyPreviewBundle(opened);
+  } catch (error) {
+    session = null;
+    await opened?.disconnect();
+    if (!opened && error.name === 'NotFoundError') {
+      log('No radio selected.');
+      return;
+    }
+    throw error;
+  } finally {
+    connecting = false;
+  }
+});
+$('connect').addEventListener('click', () => startConnection(connectBluetooth));
+$('connectUsb').addEventListener('click', () => startConnection(connectUsb));
+$('disconnect').addEventListener('click', () => run(async () => {
+  const opened = session;
+  session = null;
+  await opened?.disconnect();
 }));
-async function connectAndRead() {
-  session = await connectBluetooth({
-    log: (message, level) => { if (level !== 'debug') log(message, level); },
-    onDisconnect: () => { session = null; log('Radio disconnected.'); render(); },
-  });
-  const service = await session.radio.checkService();
-  if (service.version !== 2) throw new Error('This radio does not run H9 Toolbox Firmware (write service missing).');
-  log(`Connected (${service.ready ? 'flash ready' : 'flash not ready'}).`);
-  logoTool?.reset();
-  render();
-  await readRadio();
-}
-$('disconnect').addEventListener('click', () => { session?.disconnect(); session = null; render(); });
 $('reload').addEventListener('click', () => run(readRadio));
+
+$('stageMenuUpdate').addEventListener('click', () => run(async () => {
+  staged = await withUpdatedMenu(catalog, staged, { restoreBench: preferBench });
+  log('Staged the menu update.');
+}));
 
 $('addButton').addEventListener('click', () => $('addFile').click());
 $('addFile').addEventListener('change', () => run(async () => {
+  if (!staged.length && !catalog) throw new Error('Load a whole bundle or choose an available catalog first.');
   for (const file of $('addFile').files) {
     const modules = await readFile(file);
     if (modules.length !== 1) throw new Error(`${file.name} holds ${modules.length} modules; use Load whole bundle for bundles.`);
@@ -300,6 +378,7 @@ $('bundleFile').addEventListener('change', () => run(async () => {
   const file = $('bundleFile').files[0];
   if (!file) return;
   staged = await readFile(file);
+  pickCatalog();
   log(`Staged: whole bundle from ${file.name}: ${staged.map(m => m.name).join(', ')}.`);
   $('bundleFile').value = '';
 }));
@@ -310,29 +389,30 @@ $('exportBundle').addEventListener('click', () => {
   document.body.append(link); link.click(); link.remove();
 });
 
-$('discard').addEventListener('click', () => { staged = installed ? installed.map(m => ({ ...m })) : []; log('Changes discarded.'); render(); });
-$('apply').addEventListener('click', () => run(async () => {
+$('discard').addEventListener('click', () => { staged = installed ? installed.map(m => ({ ...m })) : []; pickCatalog(); log('Changes discarded.'); render(); });
+async function writeBundle() {
   const bundle = buildBundle(staged);
   if (bundle.length > CHIP_SLOT) throw new Error('The bundle does not fit the modules slot.');
   $('result').textContent = '';
   const manifest = await uploadPack(session.radio, bundle, { name: BUNDLE_NAME, slot: SLOTS.modules, onProgress: progress(performance.now()) });
-  $('result').innerHTML = `<span class="ok">Written and verified.</span> ${manifest.bytes.toLocaleString()} bytes, ${manifest.sectorsWritten} sector(s), ${manifest.totalSeconds.toFixed(0)} s. Hold Back on the radio for the menu.`;
+  $('result').innerHTML = `<span class="ok">Written and verified.</span> ${manifest.bytes.toLocaleString()} bytes, ${manifest.sectorsWritten} sector(s), ${manifest.totalSeconds.toFixed(0)} s. ${usePreviewCatalog ? 'Press Menu on the radio to open Toolbox.' : 'Hold Back on the radio for the menu.'}`;
   log(`Bundle written: ${staged.map(m => m.name).join(', ')} (${manifest.bytes} bytes).`);
   await readRadio();
-}));
+}
+$('apply').addEventListener('click', () => run(writeBundle));
 $('removeAll').addEventListener('click', () => run(async () => {
   const result = await restore(session.radio, { slot: SLOTS.modules, onProgress: progress(performance.now()) });
   $('result').textContent = result.note ?? `Removed: ${result.erased} sector(s) erased and read back as erased. Holding Back now does nothing.`;
   log($('result').textContent);
   installed = null;
   staged = [];
+  pickCatalog();
 }));
 
 render();
-loadCatalog().then(c => { catalog = c; render(); })
-  .catch(error => { $('catalogNote').textContent = error.message; log(error.message, 'error'); });
+refreshCatalog().then(render);
 
-// Boot logo: the shared logo tool on this page's Bluetooth link. While it
+// Boot logo: the shared logo tool on this page's radio connection. While it
 // writes, the module controls are busy, and it waits while they are.
 logoTool = mountLogoTool($('logoTool'), {
   onStatus: (message, error) => log(message, error ? 'error' : undefined),

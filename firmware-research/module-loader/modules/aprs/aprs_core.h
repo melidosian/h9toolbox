@@ -14,7 +14,7 @@
 #define APRS_CORE_H
 
 #include "h9mod.h"
-#include "gfx.h"
+#include "app_theme.h"
 
 /* Stock RAM the screens share. Each can be overridden (the host test does). */
 #ifndef RING
@@ -31,7 +31,10 @@
 
 enum { STATIONS = 16, CALL = 10, TEXT = 24, MESSAGES = 6, MSG_TEXT = 40, FRAME_MAX = 124, NMEA_MAX = 64 };
 enum { TITLE_H = 18, BODY_Y = 20, FOOT_Y = 120 };
-enum { EV_REDRAW = 1, EV_UP, EV_DOWN, EV_MENU, EV_HOLD, EV_BACK };
+enum { EV_REDRAW = 1, EV_UP, EV_DOWN, EV_MENU, EV_HOLD, EV_BACK, EV_STORE };
+enum { MAIL_UNKNOWN, MAIL_READY, MAIL_UNAVAILABLE, MAIL_BLOCKED, MAIL_OTHER_OWNER };
+enum { MAIL_OP_NONE, MAIL_OP_LOAD, MAIL_OP_SAVE };
+enum { MAIL_PAGE_LIST, MAIL_PAGE_INFO, MAIL_PAGE_MAP, MAIL_PAGE_MSG, MAIL_PAGE_SEND };
 /* Digit key d (stock key code d + 2): EV_DIGIT + d, on the press. */
 enum { EV_DIGIT = 16 };
 
@@ -46,7 +49,7 @@ struct station {
 struct message {
     char from[CALL], to[CALL];
     char text[MSG_TEXT];
-    uint8_t mine : 1, live : 1, acked : 1;   /* to me; heard live; (sent by me) acknowledged by the other station */
+    uint8_t mine : 1, live : 1, acked : 1, rejected : 1; /* own inbox, live, recipient's reply */
     uint8_t id;                              /* the {id of a message I sent: its ack carries it */
 };
 
@@ -63,12 +66,16 @@ struct aprs {
     uint8_t dirty, last_key, home_side, home_speaker;                  /* before APRS */
     uint8_t beacon;                                                    /* APRS BEACON's settings, kept across screens (BEACON_* below) */
     char mycall[CALL];
+    /* A compose draft survives switches between the APRS screen modules. */
+    char draft_to[CALL], draft_msg[40];
+    uint8_t draft_valid;
+    uint8_t mail_dirty, mail_status, mail_action, mail_return, msg_reading;
     uint8_t frame[FRAME_MAX];
     char nmea[NMEA_MAX];
 };
 
 #define APRS_BYTES ((sizeof(struct aprs) + 15u) & ~15u)
-#define APRS_SLOT_BYTES 0x570u   /* the state (sizeof, rounded up to 16) plus a little; build.py's APRS code limit follows it */
+#define APRS_SLOT_BYTES 0x5B0u   /* shared state, rounded up to 16; build.py's APRS code limit follows it */
 #define APRS_ADDR (H9_SHARED_TOP - APRS_SLOT_BYTES)
 #ifdef APRS_HOST_TEST
 extern struct aprs aprs_host;
@@ -76,7 +83,7 @@ extern struct aprs aprs_host;
 #else
 #define A ((struct aprs *)APRS_ADDR)
 #endif
-enum { APRS_MAGIC = 0x33525041 };  /* "APR3": layout of 2026-11-11 (0x570 slot) */
+enum { APRS_MAGIC = 0x35525041 };  /* "APR5": persistent mailbox state added */
 
 /* APRS BEACON settings byte: bit 0 mode (0 smart, 1 timed), bits 1-2 symbol (0 person, 1 bike, 2 car),
  * bits 3-5 the timed interval's index (aprs_beacon.c's table). A fresh state starts smart, person, 5 min. */
@@ -86,6 +93,7 @@ enum { BEACON_DEFAULT = 2 << 3 };
  * fresh start (from the menu): partial frames dropped, own callsign reread;
  * the station list then also reloads stock's Beacon List. */
 int aprs_open(void);
+void aprs_close(void);
 /* Stock Beacon List into the station table (aprs_stored.c; station list only). */
 void aprs_load_stored(const struct h9_api *api);
 /* Radio side 0 = A, 1 = B: put the radio there as stock's APRS beacon sender
@@ -105,6 +113,17 @@ unsigned aprs_event(void);
 /* If module `name` is installed, ask the loader to run it next and return 1
  * (module_main then returns 0); otherwise return 0. */
 int aprs_go(const struct h9_api *api, const char *name);
+/* Save the mailbox through its guarded module and return to this page. */
+int aprs_store(const struct h9_api *api, unsigned page);
+static inline int aprs_go_messages(const struct h9_api *api)
+{
+    if (api->version < 5 || !H9_HAS_MESSAGES) return 0;
+    volatile struct h9_request *rq = H9_REQUEST;
+    for (unsigned i = 0; i < sizeof H9_MESSAGE_CENTER; ++i) rq->name[i] = H9_MESSAGE_CENTER[i];
+    rq->magic = H9_REQUEST_MAGIC;
+    aprs_close();
+    return 1;
+}
 /* One decoded packet into the tables (used by aprs_stored.c). */
 void aprs_packet(const char *dest, const char *from, const uint8_t *info, unsigned len, int live);
 void aprs_call_of(const uint8_t *address, int raw, char *out);
@@ -140,5 +159,6 @@ void aprs_reset(void);
 #define APRS_MSG ((const char *)"APRS MSG")
 #define APRS_SEND ((const char *)"APRS SEND")
 #define APRS_BEACON ((const char *)"APRS BEACON")
+#define APRS_STORE ((const char *)".APRS STORE")
 
 #endif

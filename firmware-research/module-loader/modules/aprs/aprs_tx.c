@@ -28,9 +28,8 @@ static int address(uint8_t *out, const char *call, uint8_t flags)
     return 1;
 }
 
-unsigned aprs_tx_kiss(uint8_t *out, const char *src, const char *dest, const char *digi, const char *info)
+unsigned aprs_tx_frame(uint8_t *frame, const char *src, const char *dest, const char *digi, const char *info)
 {
-    uint8_t frame[7 * 3 + 2 + APRS_TX_INFO_MAX];
     unsigned n;
     if (!address(frame, dest, 0x80)) return 0;              /* command bit on dest */
     if (!address(frame + 7, src, digi ? 0 : 1)) return 0;
@@ -46,11 +45,18 @@ unsigned aprs_tx_kiss(uint8_t *out, const char *src, const char *dest, const cha
         if (i >= APRS_TX_INFO_MAX || info[i] < ' ' || info[i] > '~') return 0;
         frame[n++] = (uint8_t)info[i];
     }
-    if (!i) return 0;
+    return i ? n : 0;
+}
+
+unsigned aprs_tx_kiss(uint8_t *out, const char *src, const char *dest, const char *digi, const char *info)
+{
+    uint8_t frame[APRS_TX_FRAME_MAX];
+    unsigned n = aprs_tx_frame(frame, src, dest, digi, info);
+    if (!n) return 0;
     unsigned k = 0;
     out[k++] = 0xC0;
     out[k++] = 0x00;                                         /* port 0, data */
-    for (i = 0; i < n; i++) {
+    for (unsigned i = 0; i < n; i++) {
         if (frame[i] == 0xC0) { out[k++] = 0xDB; out[k++] = 0xDC; }
         else if (frame[i] == 0xDB) { out[k++] = 0xDB; out[k++] = 0xDD; }
         else out[k++] = frame[i];

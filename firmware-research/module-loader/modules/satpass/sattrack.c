@@ -17,7 +17,7 @@
 #include <stdint.h>
 
 #include "doppler.h"
-#include "gfx.h"
+#include "app_theme.h"
 #include "h9mod.h"
 #include "orbit.h"
 #include "satshare.h"
@@ -27,7 +27,7 @@
 #define TICK (*(const volatile uint32_t *)0x1D8B0)   /* 100 Hz */
 #endif
 
-enum { BG = GFX_BLACK, DIM = GFX_GREY };
+enum { BG = UI_BG, DIM = UI_DIM };
 
 static char *put(char *d, const char *s) { while (*s) *d++ = *s++; *d = 0; return d; }
 static char *num(char *d, uint32_t v, unsigned width)
@@ -49,7 +49,7 @@ static void row(unsigned y, const char *s, uint16_t fg)
 {
     char b[32];   /* the longest start-screen line is 28 characters: only 26 are shown */
     pad(put(b, s), b, 26);
-    gfx_text(0, y, b, 26, 1, fg, BG);
+    gfx_text(UI_LEFT, y, b, UI_CELLS, 1, fg, BG);
 }
 /* 10 Hz units -> "436.7952" (MHz, 100 Hz resolution) */
 static char *mhz(char *d, uint32_t f10)
@@ -91,33 +91,33 @@ static void draw(const struct satdata *data, const struct satshare *sh, unsigned
     char s[28], *d;
 
     d = put(s, sat->name); *d++ = ' '; d = num(d, n + 1, 1); *d++ = '/'; num(d, sh->count, 1);
-    row(2, s, GFX_YELLOW);
+    row(2, s, UI_ACCENT);
     if (now < aos) { d = put(s, "RISES IN "); mmss(d, aos - now); }
     else if (now <= los) { d = put(s, "IN VIEW, SETS IN "); mmss(d, los - now); }
     else put(s, "PASS OVER");
-    row(14, s, now >= aos && now <= los ? GFX_GREEN : GFX_WHITE);
+    row(14, s, now >= aos && now <= los ? UI_OK : UI_TEXT);
     d = put(s, now < aos ? "AT RISE AZ " : "AZ "); d = num(d, orbit_deg(a.az), 3);
     d = put(d, " EL "); d = num(d, a.el < 0 ? 0 : orbit_deg((uint32_t)a.el), 2);
-    row(26, s, GFX_WHITE);
+    row(26, s, UI_TEXT);
     d = put(s, "RANGE "); d = num(d, (uint32_t)a.range / 256u, 1); put(d, " KM");
     row(37, s, DIM);
 
     /* SEND on top (with its tone), LISTEN below */
     d = put(s, "SEND   "); mhz(d, (uint32_t)((int32_t)f->up10 + shift_up));
-    row(52, s, GFX_YELLOW);
+    row(52, s, UI_ACCENT);
     d = put(s, "  BASE "); d = mhz(d, f->up10); *d++ = ' '; *d++ = shift_up > 0 ? '+' : '-';
     khz(d, shift_up);
     row(62, s, DIM);
     if (f->tone10) { d = put(s, "  TONE "); d = num(d, f->tone10 / 10u, 1); *d++ = '.'; d = num(d, f->tone10 % 10u, 1); put(d, " HZ"); }
     else put(s, "  NO TONE");
-    row(72, s, GFX_WHITE);
+    row(72, s, UI_TEXT);
     d = put(s, "LISTEN "); mhz(d, (uint32_t)((int32_t)f->down10 - shift_dn));
-    row(88, s, GFX_GREEN);
+    row(88, s, UI_OK);
     d = put(s, "  BASE "); d = mhz(d, f->down10); *d++ = ' '; *d++ = shift_dn > 0 ? '-' : '+';
     khz(d, shift_dn);
     row(98, s, DIM);
     sat_tabs(2);
-    gfx_text(96, 119, "MENU:VFO", 8, 1, GFX_WHITE, BG);
+    gfx_text(96, UI_FOOT_Y, "MENU VFO", 8, 1, UI_HINT, BG);
 }
 
 /* Leave the choices where .SAT TRACKER finds them and ask the loader for it (it arms and returns to the radio; older loaders restart it). */
@@ -153,20 +153,20 @@ static void confirm(const struct h9_api *api, const struct satdata *data, const 
         struct satentry entry;
         satdata_get(data, s->dur_sat[n] >> 12, &entry);
         d = put(b, "VFO TRACKING "); d = put(d, entry.sat.name);
-        row(2, b, GFX_YELLOW);
+        row(2, b, UI_ACCENT);
         /* VFO A on top, VFO B below, whatever each one does */
         const char *send = transmit ? "SEND (UP) ON" : "SEND (UP) OFF";
         d = put(b, "VFO A = "); put(d, swap ? send : "LISTEN (DOWN)");
-        row(16, b, swap ? (transmit ? GFX_RED : DIM) : GFX_GREEN);
+        row(16, b, swap ? (transmit ? UI_DANGER : DIM) : UI_OK);
         d = put(b, "VFO B = "); put(d, swap ? "LISTEN (DOWN)" : send);
-        row(28, b, swap ? GFX_GREEN : (transmit ? GFX_RED : DIM));
+        row(28, b, swap ? UI_OK : (transmit ? UI_DANGER : DIM));
         row(40, "UP: SEND  DOWN: SWAP A/B", DIM);
-        row(50, open ? "2: SQUELCH OPEN IN PASS ON" : "2: SQUELCH OPEN IN PASS OFF", open ? GFX_GREEN : DIM);
-        row(62, only ? "3: ONLY THIS PASS  ON" : "3: ONLY THIS PASS  OFF", only ? GFX_GREEN : DIM);
-        row(73, ptt2 ? "4: PF1 = PTT2 (TX ON A) ON" : "4: PF1 = PTT2 (TX ON A) OFF", ptt2 ? GFX_GREEN : DIM);
-        row(84, api->version >= 2 ? "HOLD BACK = STOP" : "RESTARTS. HOLD BACK = STOP", GFX_WHITE);
-        row(95, "1 = TEST NOW (ABOVE CHOICES)", GFX_GREEN);
-        row(106, "MENU START   BACK CANCEL", GFX_YELLOW);
+        row(50, open ? "2: SQUELCH OPEN IN PASS ON" : "2: SQUELCH OPEN IN PASS OFF", open ? UI_OK : DIM);
+        row(62, only ? "3: ONLY THIS PASS  ON" : "3: ONLY THIS PASS  OFF", only ? UI_OK : DIM);
+        row(73, ptt2 ? "4: PF1 = PTT2 (TX ON A) ON" : "4: PF1 = PTT2 (TX ON A) OFF", ptt2 ? UI_OK : DIM);
+        row(84, api->version >= 2 ? "HOLD BACK = STOP" : "RESTARTS. HOLD BACK = STOP", UI_TEXT);
+        row(95, "1 = TEST NOW (ABOVE CHOICES)", UI_OK);
+        ui_footer("MENU START   BACK CANCEL");
         unsigned k = gfx_wait_key();
         if (k == H9_KEY_UP) transmit ^= 1;
         else if (k == H9_KEY_DOWN) swap ^= 1;

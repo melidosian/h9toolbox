@@ -3,9 +3,11 @@
     python3 -I -m unittest test_build.py   (from this folder)
 """
 from pathlib import Path
+import json
 import re
 import struct
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parent
@@ -38,6 +40,14 @@ class Bundle(unittest.TestCase):
             self.assertEqual(p["offset"] % 4, 0)
         self.assertEqual(struct.unpack_from("<I", data, 12)[0], len(data))
 
+    def test_bundle_menu_category_round_trip(self):
+        mod = {"name": "GAME", "body": b"\0\1", "bss": 0, "entry": 0, "category": "games"}
+        data = build.bundle([mod])
+        self.assertEqual(build.parse_bundle(data)[0]["category"], "games")
+        self.assertEqual(build.parse_bundle(build.bundle(build.parse_bundle(data)))[0]["category"], "games")
+        with self.assertRaisesRegex(ValueError, "menu metadata"):
+            build.parse_bundle(data[:-1] + b"\xff")
+
     def test_limits(self):
         build.bundle([module("A", 0x2000)])
         with self.assertRaises(ValueError):
@@ -57,15 +67,15 @@ class Bundle(unittest.TestCase):
 
 
 class SerialCloneWrite(unittest.TestCase):
-    """The patch that sends serial / USB clone writes at 0x2000-0x3FFF through Bluetooth's sector-aware routine."""
+    """USB clone writes use sector-aware writes, including channels in unified builds."""
 
     def test_shim_routes_the_range_and_keeps_the_stock_path(self):
         shim = STUB[STUB.index("ml_serial_write:"):STUB.index("/* ---- what a module gets in r0")]
-        self.assertIn("if (r0 < 0x2000) goto mlsw_stock", shim)
+        self.assertIn(".ifndef ML_LABELS_LOOP\n    if (r0 < 0x2000) goto mlsw_stock\n    .endif", shim)
         self.assertIn("if (r0 >= 0x4000) goto mlsw_stock", shim)
         self.assertIn("r3 = 0x01e5027c", shim)                 # Bluetooth's write: it overwrites r3, so r3 may be clobbered
         self.assertIn("goto r3", shim)
-        stock = shim[shim.index("mlsw_stock:"):]
+        stock = shim[shim.index("mlsw_stock:"):shim.index("ml_aprs_boot:")]
         self.assertIn("[--sp] = {rets, r4}", stock)            # r3 (the first-block flag) must survive for the stock routine
         self.assertIn("r4 = 0x01e78348", stock)
         self.assertIn("call r4", stock)
@@ -78,6 +88,172 @@ class SerialCloneWrite(unittest.TestCase):
 
     def test_documented_in_the_loader_source(self):
         self.assertIn("CHIRP issue 12216", STUB)
+
+
+class ResourceWriteProtection(unittest.TestCase):
+    def test_s2_control_and_data_check_the_same_reserved_range(self):
+        from pi32v2isa import objdump, table
+
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            obj = build.assemble(ROOT / "src" / "stub.s", out)
+            origin = build.IMAGE_BASE + build.CAVE
+            stub = build.link([obj], origin, "ml_hotkey", out, "stub")
+        image = build.text_of(stub, origin)
+        decoder = objdump.decoder_for(table.load(), mcpu="r3")
+
+        def instructions(name, count):
+            offset = build.symbol(stub, name) - origin
+            for _ in range(count):
+                _, _, size, instruction = decoder.decode(image, offset)
+                yield offset, size, instruction
+                offset += size
+
+        for _, target, name in build.S2_WRITE_GUARDS:
+            self.assertEqual(next(instructions(name, 1))[2], f"r3 = {build.IMAGE_BASE + target}")
+        shift, low, high, deny, ret, allow = instructions("ml_s2_guard", 6)
+        self.assertEqual(shift[2], "r2 = r0 >> 12")
+        for branch in (low, high):
+            match = re.fullmatch(r"if \(r2 (?:< 1014|>= 1024)\) goto (-?\d+)", branch[2])
+            self.assertIsNotNone(match, branch[2])
+            self.assertEqual(branch[0] + branch[1] + int(match[1]), allow[0])
+        self.assertEqual((deny[2], ret[2], allow[2]), ("r0 = 0", "rts", "goto r3"))
+        self.assertEqual((0x3f6 << 12, 0x400 << 12), (0x3F6000, 0x400000))
+
+
+class FirmwareVersion(unittest.TestCase):
+    def test_version_word_keeps_low_bytes_and_records_release_candidate(self):
+        self.assertEqual(build.firmware_version_word("0.1.6"), 0x00000106)
+        self.assertEqual(build.firmware_version_word("0.1.6-rc.1"), 0x01000106)
+        for invalid in ("0.1", "0.1.256", "0.1.6-rc.0", "0.1.6-rc.256"):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                build.firmware_version_word(invalid)
+
+
+class DevKiss(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        manifest = json.loads(build.KISS_MANIFEST.read_text())
+        cls.app = bytearray(b"\xff" * build.TABLES)
+        for entry in manifest["patches"]:
+            site = int(entry["offset"], 16)
+            before = bytes.fromhex(entry["before"])
+            cls.app[site:site + len(before)] = before
+        cls.helper = bytes.fromhex(manifest["patches"][-1]["after"])
+
+    def test_relocates_calls_and_keeps_loader_and_helper_bytes(self):
+        from pi32v2isa import objdump, table
+
+        app = self.app.copy()
+        end = build.KISS_HELPER + 166
+        app[build.CAVE:end] = b"\x5a" * (end - build.CAVE)
+        original_stub = app[build.CAVE:end]
+        report, sectors = build.apply_dev_kiss(app, end)
+        destination = int(report["helper_app_offset"], 16)
+        self.assertEqual(destination, end + 2)
+        self.assertEqual(app[build.CAVE:end], original_stub)
+        self.assertEqual(app[destination:destination + len(self.helper)], self.helper)
+        self.assertEqual(app[0x86328:0x8632C], bytes.fromhex("40200000"))
+        self.assertEqual(app[0x5DB44:0x5DB46], b"\0\0")
+        decode = objdump.decoder_for(table.load(), mcpu="r3").decode
+        for site, target in build.KISS_CALLS.items():
+            _, _, size, call = decode(app, site)
+            self.assertEqual(size, 4)
+            self.assertTrue(call.startswith("call "))
+            self.assertEqual(site + size + int(call[5:]), destination + target - build.KISS_HELPER)
+        self.assertEqual(sectors, {0x62000, 0x8B000, 0x8C000, 0xAC000})
+
+    def test_rejects_existing_patch_and_cave_overflow_before_applying(self):
+        app = self.app.copy()
+        app[0x870E0] ^= 1
+        before = app.copy()
+        with self.assertRaisesRegex(ValueError, "overlaps changed bytes"):
+            build.apply_dev_kiss(app, build.KISS_HELPER)
+        self.assertEqual(app, before)
+        with self.assertRaisesRegex(ValueError, "do not fit"):
+            build.apply_dev_kiss(self.app, build.TABLES - 4)
+
+
+class FlashHelpers(unittest.TestCase):
+    # These addresses are part of ABI 5 and are already embedded in modules.
+    origin = 0x01E85180
+    exports = (
+        "gfx_fill", "gfx_text", "gfx_wait_release", "gfx_wait_key",
+        "h9_lcd_window", "h9_lcd_write", "h9_key", "h9_delay",
+        "h9_led", "h9_usb_loader", "h9_reset", "memcpy", "memset",
+    )
+
+    def test_far_menu_trampoline_targets_plain_flash(self):
+        from pi32v2isa import objdump, table
+
+        self.assertEqual((build.FAR_MENU_FLASH, build.FAR_MENU_CPU), (0xEA000, 0x01EE5000))
+        self.assertEqual(build.FAR_MENU_END, build.RESIDENT_TX_FLASH)
+        with tempfile.TemporaryDirectory() as folder:
+            body = build.far_menu_trampoline(Path(folder))
+        decode = objdump.decoder_for(table.load(), mcpu="r3").decode
+        first = decode(body, 0)
+        second = decode(body, first[2])
+        self.assertEqual(len(body), 8)
+        self.assertEqual(first[3], f"r3 = {build.FAR_MENU_CPU}")
+        self.assertEqual(second[3], "goto r3")
+
+    @classmethod
+    def setUpClass(cls):
+        from pi32v2isa import objdump, table
+
+        folder = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(folder.cleanup)
+        out = Path(folder.name)
+        fake = out / "fake_library.s"
+        fake.write_text('    .section .text,"ax",@progbits\n' +
+                        "".join(f"    .globl {name}\n{name}:\n    rts\n" for name in cls.exports))
+        cls.flash, bridges = build.build_flash_helpers([build.assemble(fake, out)], out)
+        cls.helpers = build.elf.read((out / "flash_helpers.elf").read_bytes())
+        module = out / "test_module.s"
+        module.write_text('    .section .text,"ax",@progbits\n    .globl module_main\nmodule_main:\n' +
+                          "".join(f"    call {name}\n" for name in cls.exports) + "    rts\n")
+        cls.module = build.link([build.assemble(module, out), bridges], build.LOAD,
+                                "module_flash_entry", out, "test_module")
+        cls.body = build.text_of(cls.module, build.LOAD)
+        cls.decode = objdump.decoder_for(table.load(), mcpu="r3").decode
+
+    def instructions(self, name, count):
+        address = build.symbol(self.module, name)
+        result = []
+        for _ in range(count):
+            _, _, step, instruction = self.decode(self.body, address - build.LOAD)
+            address += step
+            result.append((address, instruction))
+        return result
+
+    def test_stable_flash_jump_targets(self):
+        self.assertEqual(self.helpers.entry, self.origin)
+        for index, name in enumerate(self.exports):
+            off = 4 * index
+            _, _, size, op = self.decode(self.flash, off)
+            self.assertEqual(size, 4)
+            self.assertTrue(op.startswith("goto "))
+            self.assertEqual(self.origin + off + size + int(op[5:]), build.symbol(self.helpers, name))
+
+    def test_module_checks_loader_before_entering(self):
+        self.assertEqual(self.module.entry, build.symbol(self.module, "module_flash_entry"))
+        read, branch, run, zero, ret = self.instructions("module_flash_entry", 5)
+        self.assertEqual(read[1], "r2 = [r0+4]")
+        mismatch = re.fullmatch(r"if \(r2 != 5\) goto (-?\d+)", branch[1])
+        self.assertIsNotNone(mismatch)
+        self.assertEqual(branch[0] + int(mismatch[1]), run[0])
+        self.assertEqual(run[0] + int(run[1].removeprefix("goto ")), build.symbol(self.module, "module_main"))
+        self.assertEqual((zero[1], ret[1]), ("r0 = 0", "rts"))
+
+    def test_tail_calls_preserve_fourth_and_stack_arguments(self):
+        for index, name in enumerate(self.exports):
+            target = self.origin + 4 * index
+            if name in ("gfx_fill", "gfx_text", "h9_lcd_window"):
+                instructions = [op for _, op in self.instructions(name, 7)]
+                self.assertEqual(instructions, ["sp += -8", "[sp] = r4", f"r4 = {target}",
+                                                "[sp+4] = r4", "r4 = [sp]", "sp += 4", "pc = [sp++]"])
+            else:
+                self.assertEqual([op for _, op in self.instructions(name, 2)], [f"r3 = {target}", "goto r3"])
 
 
 class StubMatchesLayout(unittest.TestCase):
