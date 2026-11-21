@@ -1,5 +1,6 @@
 // H9 Toolbox App Manager: stage module changes, then write one verified
 // bundle to the modules slot over Bluetooth or USB-C (dist/doom/upload.mjs).
+import { readCloneCapabilities } from '../channel-labels.mjs';
 import { crc16 } from '../boot-logo/resource.mjs';
 import { connectBluetooth, connectUsb } from '../boot-logo/radio.mjs?v=usb3';
 import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=usb3';
@@ -22,7 +23,7 @@ const catalogs = { classic: null, bench: null };
 const benchLink = $('smartbeaconCatalogLink');
 const requestedCatalog = new URLSearchParams(location.search).get('catalog');
 const benchCatalog = requestedCatalog === 'rc5' ? 'rc5' : 'smartbeacon';
-const previewBundleLabel = 'Use RC5 app bundle';
+const usePreviewCatalog = Boolean(benchLink && requestedCatalog === 'rc5');
 const preferBench = Boolean(benchLink && ['smartbeacon', 'rc5'].includes(requestedCatalog));
 const downloaded = new Map();  // catalog SHA-256 -> modules
 
@@ -59,12 +60,11 @@ function renderCatalog() {
   const bench = catalog?.profile === 'smartbeacon';
   if (benchLink) benchLink.hidden = bench;
   const menu = catalog && menuState(catalog, staged, preferBench);
-  $('menuUpdate').hidden = !menu?.canUpdate;
+  $('menuUpdate').hidden = usePreviewCatalog || !menu?.canUpdate;
   $('stageMenuUpdate').disabled = busy;
-  if (menu?.canUpdate) {
+  if (!usePreviewCatalog && menu?.canUpdate) {
     let label = bench ? 'Update menu and apps' : 'Update menu';
     if (menu.status === 'different') label = 'Use matching menu and apps';
-    if (bench && benchCatalog === 'rc5') label = previewBundleLabel;
     $('stageMenuUpdate').textContent = label;
   }
   if (!catalog) { box.replaceChildren(); return; }
@@ -250,13 +250,11 @@ function reportUpdates() {
   const menu = menuState(catalog, installed, preferBench);
   if (menu.status === 'outdated') outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
   if (outdated.length) log(`Updates available for ${outdated.join(', ')}.`);
-  if (menu.canUpdate && catalog.profile === 'smartbeacon' && benchCatalog === 'rc5') {
-    log(`Select ${previewBundleLabel} to stage compatible versions of your installed catalog apps.`);
-  } else if (menu.status === 'different') {
+  if (menu.status === 'different' && !usePreviewCatalog) {
     log(menu.canUpdate
       ? 'A different Toolbox menu is installed. Select Use matching menu and apps to stage the version for the dev firmware.'
       : 'The installed Toolbox menu differs from this catalog.');
-  } else if (!outdated.length) {
+  } else if (!menu.canUpdate && !outdated.length) {
     log('The Toolbox menu and installed catalog apps are up to date.');
   }
 }
@@ -280,6 +278,29 @@ async function readRadio() {
   log(`Read ${installed.length} module(s), ${pack.length.toLocaleString()} bytes: ${installed.map(m => m.name).join(', ')}.`);
   reportUpdates();
   $('progressText').textContent = 'Idle.';
+}
+
+async function applyPreviewBundle(opened) {
+  if (!usePreviewCatalog || catalog?.profile !== 'smartbeacon' || !installed?.length ||
+      !menuState(catalog, installed, true).canUpdate) return;
+  const radio = opened.radio;
+  let capabilities;
+  await radio.enterProgramming();
+  try {
+    capabilities = await readCloneCapabilities(radio);
+  } finally {
+    await radio.leaveProgramming();
+  }
+  // RC3 and later use this catalog's firmware menu and module API.
+  if (!capabilities.sparseSerialWrites) {
+    log('The connected radio needs compatible v0.1.6 firmware for the RC5 app bundle.');
+    return;
+  }
+  const updated = await withUpdatedMenu(catalog, installed, { restoreBench: true });
+  if (session !== opened) throw new Error('Radio disconnected before applying the RC5 app bundle.');
+  staged = updated;
+  log('Applying the RC5 app bundle to your installed apps.');
+  await writeBundle();
 }
 
 async function readFile(file) {
@@ -309,6 +330,7 @@ const startConnection = connect => run(async () => {
     logoTool?.reset();
     render();
     await readRadio();
+    await applyPreviewBundle(opened);
   } catch (error) {
     session = null;
     await opened?.disconnect();
@@ -332,9 +354,7 @@ $('reload').addEventListener('click', () => run(readRadio));
 
 $('stageMenuUpdate').addEventListener('click', () => run(async () => {
   staged = await withUpdatedMenu(catalog, staged, { restoreBench: preferBench });
-  log(catalog.profile === 'smartbeacon' && benchCatalog === 'rc5'
-    ? 'Staged the RC5 app bundle. Select Write to radio to apply it.'
-    : 'Staged the menu update.');
+  log('Staged the menu update.');
 }));
 
 $('addButton').addEventListener('click', () => $('addFile').click());
@@ -368,15 +388,16 @@ $('exportBundle').addEventListener('click', () => {
 });
 
 $('discard').addEventListener('click', () => { staged = installed ? installed.map(m => ({ ...m })) : []; pickCatalog(); log('Changes discarded.'); render(); });
-$('apply').addEventListener('click', () => run(async () => {
+async function writeBundle() {
   const bundle = buildBundle(staged);
   if (bundle.length > CHIP_SLOT) throw new Error('The bundle does not fit the modules slot.');
   $('result').textContent = '';
   const manifest = await uploadPack(session.radio, bundle, { name: BUNDLE_NAME, slot: SLOTS.modules, onProgress: progress(performance.now()) });
-  $('result').innerHTML = `<span class="ok">Written and verified.</span> ${manifest.bytes.toLocaleString()} bytes, ${manifest.sectorsWritten} sector(s), ${manifest.totalSeconds.toFixed(0)} s. Hold Back on the radio for the menu.`;
+  $('result').innerHTML = `<span class="ok">Written and verified.</span> ${manifest.bytes.toLocaleString()} bytes, ${manifest.sectorsWritten} sector(s), ${manifest.totalSeconds.toFixed(0)} s. ${usePreviewCatalog ? 'Press Menu on the radio to open Toolbox.' : 'Hold Back on the radio for the menu.'}`;
   log(`Bundle written: ${staged.map(m => m.name).join(', ')} (${manifest.bytes} bytes).`);
   await readRadio();
-}));
+}
+$('apply').addEventListener('click', () => run(writeBundle));
 $('removeAll').addEventListener('click', () => run(async () => {
   const result = await restore(session.radio, { slot: SLOTS.modules, onProgress: progress(performance.now()) });
   $('result').textContent = result.note ?? `Removed: ${result.erased} sector(s) erased and read back as erased. Holding Back now does nothing.`;
