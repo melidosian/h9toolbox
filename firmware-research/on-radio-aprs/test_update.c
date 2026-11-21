@@ -9,11 +9,26 @@ static uint8_t image[APRS_IMAGE_SIZE];
 #ifdef APRS_IMAGE_PART_1_ADDRESS
 uint8_t first[APRS_IMAGE_PART_1_SIZE];
 uint8_t second[APRS_IMAGE_PART_2_SIZE];
+#ifdef APRS_IMAGE_PART_3_ADDRESS
+uint8_t third[APRS_IMAGE_PART_3_SIZE];
+#endif
+#ifdef APRS_IMAGE_PART_4_ADDRESS
+uint8_t fourth[APRS_IMAGE_PART_4_SIZE];
+#endif
 static uint8_t *transfer_image(void)
 {
     memcpy(first, image, sizeof(first));
     memcpy(second, image + sizeof(first), sizeof(second));
-    return image + sizeof(first) + sizeof(second);
+    unsigned offset = sizeof(first) + sizeof(second);
+#ifdef APRS_IMAGE_PART_3_ADDRESS
+    memcpy(third, image + offset, sizeof(third));
+    offset += sizeof(third);
+#endif
+#ifdef APRS_IMAGE_PART_4_ADDRESS
+    memcpy(fourth, image + offset, sizeof(fourth));
+    offset += sizeof(fourth);
+#endif
+    return image + offset;
 }
 #else
 static uint8_t *transfer_image(void) { return image; }

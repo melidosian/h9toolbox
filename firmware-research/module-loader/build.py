@@ -53,6 +53,9 @@ HEAP_END_SITE, HEAP_END_OLD = 0x05FA9E, bytes.fromhex("c5ff00bf0200")
 # The serial / USB clone transport's write routine pointer (the literal 0x01E78348 loaded into the ops table in
 # app+0x78A9E, "c2ff 4883 e701"): retargeted to the stub's ml_serial_write (src/stub.s explains why).
 SERIAL_WRITE_SITE, SERIAL_WRITE_OLD = 0x78AA0, bytes.fromhex("4883e701")
+STOCK_DISPATCH = 0x818F0
+STOCK_DISPATCH_PROLOGUE = bytes.fromhex("7f04e292")
+BACK_ACTION_CALL, STOCK_GNSS = 0x81FCA, 0x7E078
 LOAD, SLOT_END = 0x29F00, 0x2BF00
 APRS_BOOT_SITE = 0x88186
 APRS_SERVICE_RAM = 0x29C00
@@ -345,7 +348,7 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
                 "radio_settings.c", "radio_storage.c", "radio_editor.c", "radio_channels.c", "radio_channel_editor.c",
                 "radio_actions.c", "radio_actions_catalog.c", "radio_bluetooth.c", "radio_scan.c",
                 "radio_system.c", "radio_system_native.c", "radio_aprs.c", "channel_labels.c",
-                "channel_labels_native.c", "channel_name_scroll.c", "channel_name_view.c"))
+                "channel_labels_native.c", "channel_name_scroll.c", "channel_name_view.c", "radio_quick.c"))
         sources = (menu_dir / "menu.c", *menu_sources)
         menu_flags = flags + ("-DH9_GROUPED_MENU",)
         if radio_menu_preview:
@@ -359,7 +362,7 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
         # The RAM trampoline targets the first far byte. Put the API gate
         # before the C objects and reject any linker layout that moves it.
         program = link([*lib, *objects], FAR_MENU_CPU, entry, out, "far_menu",
-                       keep=tuple(CHANNEL_LABEL_EXPORTS.values()) if unified_menu else ())
+                       keep=(*CHANNEL_LABEL_EXPORTS.values(), "radio_quick_menu") if unified_menu else ())
         if program.entry != FAR_MENU_CPU:
             raise ValueError("Far menu API gate is not at the trampoline target")
         far_menu_body = text_of(program, FAR_MENU_CPU)
@@ -627,7 +630,14 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         if unified_menu:
             if not far_menu_body:
                 raise ValueError("Unified loader requires its far body")
-            definitions += (f".equ ML_LABELS_LOOP, {IMAGE_BASE + CHANNEL_LABEL_SHIMS:#x}\n"
+            far_program = elf.read((out / "far_menu.elf").read_bytes())
+            quick_entry = symbol(far_program, "radio_quick_menu")
+            if not FAR_MENU_CPU <= quick_entry < FAR_MENU_CPU + len(far_menu_body):
+                raise ValueError("Quick Change entry exceeds the verified far-menu body")
+            definitions += (f".equ ML_QUICK_ENTRY, {quick_entry:#x}\n"
+                            f".equ ML_STOCK_GNSS, {IMAGE_BASE + STOCK_GNSS:#x}\n"
+                            f".equ ML_STOCK_DISPATCH, {IMAGE_BASE + STOCK_DISPATCH + len(STOCK_DISPATCH_PROLOGUE):#x}\n"
+                            f".equ ML_LABELS_LOOP, {IMAGE_BASE + CHANNEL_LABEL_SHIMS:#x}\n"
                             f".equ ML_UNIFIED_MENU, 1\n.equ ML_UNIFIED_CPU, {FAR_MENU_CPU:#x}\n"
                             f".equ ML_UNIFIED_BYTES, {len(far_menu_body)}\n.equ ML_UNIFIED_CRC, {crc16(far_menu_body)}\n")
         if resident:
@@ -727,6 +737,21 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         import radio_menu_patch
         def raw_assembly(source):
             return bytes(next(s for s in elf.read(asm.assemble_source(source)).sections if s.name == ".text").data)
+        site = STOCK_DISPATCH
+        end = site + len(STOCK_DISPATCH_PROLOGUE)
+        if stock[site:end] != STOCK_DISPATCH_PROLOGUE or patched[site:end] != STOCK_DISPATCH_PROLOGUE:
+            raise ValueError("Stock keypad dispatch prologue differs from the pinned bytes")
+        quick_dispatch = symbol(stub_prog, "ml_quick_dispatch") - IMAGE_BASE
+        redirect = raw_assembly(f"goto {quick_dispatch - end}\n")
+        if len(redirect) != len(STOCK_DISPATCH_PROLOGUE):
+            raise ValueError("Quick Change redirect must replace exactly the stock prologue")
+        patched[site:end] = redirect
+        stock_back = call_bytes(STOCK_GNSS, BACK_ACTION_CALL)
+        if stock[BACK_ACTION_CALL:BACK_ACTION_CALL + 4] != stock_back or patched[BACK_ACTION_CALL:BACK_ACTION_CALL + 4] != stock_back:
+            raise ValueError("Stock Back action call differs from pinned call")
+        quick_back = symbol(stub_prog, "ml_quick_back") - IMAGE_BASE
+        patched[BACK_ACTION_CALL:BACK_ACTION_CALL + 4] = call_bytes(quick_back, BACK_ACTION_CALL)
+
         menu_patch = radio_menu_patch.apply(stock, patched, symbol(stub_prog, "ml_main"),
                                            symbol(stub_prog, "ml_crc"), FAR_MENU_CPU,
                                            len(far_menu_body), crc16(far_menu_body), raw_assembly,
@@ -755,6 +780,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
     if auto_tx:
         expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in RESIDENT_TX_CALLS}
     if menu_patch:
+        expected |= {(site + 0x5100) & ~0xFFF for site in (STOCK_DISPATCH, BACK_ACTION_CALL)}
         for _, start, end in radio_menu_patch.REMOVED_UI:
             expected.update(range((start + 0x5100) & ~0xFFF, ((end - 1 + 0x5100) & ~0xFFF) + 0x1000, 0x1000))
     if label_patch:

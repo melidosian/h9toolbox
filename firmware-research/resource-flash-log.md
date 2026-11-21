@@ -5507,3 +5507,191 @@ result yet.**
 - With USB unplugged, the operator booted into PTT+7 APRS update mode,
   ran the bundled keypad update, and reported APRS BOOT VERIFIED
   (V1.0.15X). The version reply passed after the modem restarted.
+
+## 2026-11-20 Quick Change menu
+
+- The v1.0.38 keypad table at app+0xAF050 maps raw key 19 to hold
+  event 34. The normal keypad dispatch at app+0x8890E now opens the
+  Quick Change grid for that event on the unlocked home screen.
+  The Lock tile re-queues event 34 for the native handler. Locked or
+  busy contexts and a failed far-menu CRC take the stock dispatch path.
+- Offline host tests exercised key release, digit and Menu shortcuts,
+  cancellation, PTT exit, native lock routing, VFO and memory targeting,
+  and readback of a saved value. The 160×128 host render used the firmware
+  font and drawing code.
+- The unified image is 57,412 bytes and reaches main flash 0xF8044.
+  The RC6 bench package puts the modem updater there and moves 428 bytes
+  of the modem image to 0xFB6AC, after the resident payload. Package
+  staging verified the modem image round trip and preserved the
+  byte-for-byte RC5 reproduction path. The new split passed the full
+  136-block host test.
+- RC6 bench package SHA-256
+  `4bbbce3119b1acc7cd3eaa0f6c057afbf49bad1bfd70a947f1be3db9e8b6be65`.
+  Matching far payload SHA-256
+  `5e0bf850bfc0b888878b3677b40cd6076a671fd15495e21a8c8048cd864b1118`.
+  Quick Change and the relocated modem stage await radio validation.
+
+### Quick Change hold-`#` revision
+
+- Stock raw key 20 produces hold event 35 and short event 16. The short
+  event inserts DTMF code 15 (`#`), and the hold event reaches the
+  `DTMF-%d` preset list. Quick Change takes event 35 on the unlocked home
+  screen. Tile 4 returns event 35 to that native preset handler, and
+  event 34 still goes straight to the native keypad lock handler.
+- The grid uses thin dividers, small numbered labels and 8×16 value cells.
+  The host render verified that both CTCSS frequencies and full DCS codes
+  fit. The keypad and storage tests and the 136-block modem staging
+  transfer test passed. On-radio validation remains pending.
+- The revised RC6 package SHA-256 is
+  `79cf8332806965ea1e4a9891752cdff96abec94adfb821edbf5c31838d203ffb`.
+  Its matching far payload SHA-256 is
+  `9fe6deb1c4196a9cbf00f6ad8c2182cda949c423a112b2461ec0ef539cda0253`.
+  The modem stage starts at 0xF8374 and the resident payload is byte-identical.
+
+### Quick Change FM shortcut mapping
+
+- Tile 3 now edits TX, RX or both tones. Tile 5 calls the native Cancel
+  Squelch press/release functions for a memory. Their dispatch reaches
+  app+0x7E340 to set RAM 0x11CC8 and app+0x7E394 to clear it. In VFO mode
+  tile 5 edits TX frequency and uses the stock shift direction and offset.
+  The stock VFO loader reads the offsets from partition 4 at 0xCB0 and
+  0xCB4. Tile 6 toggles VOX and key 0 opens Radio Settings.
+- The 60,140-byte unified menu fits in the combined build. The updater
+  starts at 0xF8AEC and uses 1,584 bytes. The modem image packs 500 bytes
+  into the reclaimed category body after the native entry redirect. The
+  four-part modem layout passed the host 136-block transfer test.
+- The revised RC6 package SHA-256 is
+  `303d1b822ffd738d134de8a3604d1e090b9bd4140a50ecda5063ff1de6bfbc97`.
+  Its matching far payload SHA-256 is
+  `b228e8a3af7cba430e248de309d9cb8d98de62d7c8fb48428fedff83054d4051`.
+  Host tests and package verification passed. On-radio validation is pending.
+
+## 2026-11-21 Quick Change RC6 flash
+
+- Flashed RC6 over the TD-H9's BR23 USB Update mode (4C4A:2342) on
+  macOS. The loader identified SPI NOR 0x856014 and chip key 0xF181.
+- Saved the prior RC5 main and far regions in the local
+  `~/h9-backups/quick-change-rc6-20261121.x008kKju` directory with the
+  recovery manifest and flash log. Their hashes match the RC5 release.
+- The flasher changed 13 main sectors and 17 far sectors. Full main
+  readback matched SHA-256
+  `7b337fa2fc57085546d8d02433df2098651f6ef75b92502dd82b6c09927c0315`.
+  Full far readback matched SHA-256
+  `b228e8a3af7cba430e248de309d9cb8d98de62d7c8fb48428fedff83054d4051`.
+  Normal boot and keypad behavior are pending operator confirmation.
+
+## 2026-11-21 Quick Change and scan shortcuts for RC7
+
+- The operator confirmed that RC6 booted, hold-`#` opened Quick Change,
+  hold-`*` locked and unlocked the keypad, and shortcuts worked.
+- RC7 uses the existing Back hold timer for Quick Change and translates
+  the isolated home-screen hold-`#` event into stock event 24 (hold 3).
+  The stock table identifies RAM 0xC3C4 as Back's pending short action.
+- Tile 4 cycles Scan Resume. Tile 9 saves and repaints the next brightness
+  level immediately. Stock app+0x50392 applies the live backlight level
+  from RAM 0x12BAA. Host tests cover the wrap from level 5 to level 1.
+- The RC7 package SHA-256 is
+  `cf0e9fb1f0f17f8e974cb1dde56d6ea2bcaf67c2a53e4b2c46fa585f88ec8ca4`.
+  Its matching far payload SHA-256 is
+  `96deae0c4d3f596eb7ec4269038f6ddf4199e0349cf718f1d85e66449fd1713c`.
+  Combined packaging and host tests passed. RC7 awaits on-radio testing.
+
+## 2026-11-21 Quick Change RC7 flash
+
+- Flashed RC7 through BR23 USB Update on macOS. The loader reported SPI NOR
+  0x856014 and chip key 0xF181. The previous RC6 main and far regions,
+  recovery manifest and flash log are in
+  `~/h9-backups/quick-change-rc7-20261121.NQukfF05`.
+- The flasher changed 17 main sectors and 17 far sectors. Full main
+  readback matched SHA-256
+  `8bde13d74a580702beb69c5ed4c22d6e7926eb1a6387790eff9912f780b700da`.
+  Full far readback matched SHA-256
+  `96deae0c4d3f596eb7ec4269038f6ddf4199e0349cf718f1d85e66449fd1713c`.
+  Normal boot and keypad behavior await operator confirmation.
+
+## 2026-11-21 Quick Change RC8 keypad dispatch
+
+- The operator confirmed normal RC7 boot. Hold Back still showed the
+  stock GNSS screen and hold `#` still opened DTMF presets.
+- RC8 uses stock's decoded Back hold event 33 to enter Quick Change
+  through the verified far-menu call. Hold `#` event 35 is translated
+  directly to the native scan event 24 on an unlocked operating screen.
+  The scan dispatch no longer shares the far menu entry. The native
+  keypad table confirms these event IDs and retains event 34 for lock.
+- Host tests and the linked keypad dispatch check passed. Flashed RC8
+  via BR23 USB Update and verified full main and far readbacks against
+  the release manifest. RC7 is backed up in
+  `~/h9-backups/quick-change-rc8-20261121.tqQjHYCm`.
+
+## 2026-11-21 Quick Change while receiving
+
+- The operator confirmed that RC8 opened Quick Change when squelch was
+  closed. With squelch open or Monitor latched, hold Back still opened GNSS.
+- The stock receive loop at app+0x88C30 has its own dispatch call at
+  app+0x88C38 and repeats while RAM 0x11AFE is nonzero. RC9 hooks that
+  call as well as the idle dispatcher at app+0x8890E. The overlay can
+  open and turn Monitor off during receive. RF configuration writes
+  that require a reload retain the receive guard.
+- The host regression passed for open squelch, Monitor off and RF-save
+  refusal during receive. Both patched main calls were checked against the
+  compiled dispatcher. Flashed RC9 via BR23 USB Update. Both full
+  readbacks matched the release manifest. RC8 is backed up in
+  `~/h9-backups/quick-change-rc9-20261121.rSQtI7sN`.
+
+## 2026-11-21 Quick Change RC10 dispatcher entry
+
+- The operator still saw GNSS on RC9 with Monitor on. A direct-transfer
+  scan found 11 callers of the stock keypad dispatcher at app+0x818F0.
+  The GNSS action called by hold Back at app+0x81FCA has one direct caller.
+- RC10 redirects the shared dispatcher entry and replays the original
+  four-byte prologue before continuing stock dispatch. Quick Change
+  accepts an unlocked home screen during receive or with Monitor latched,
+  including transient receive flags. The transmit and RF-save checks
+  still apply. The queue keeps subsequent stock events when Back is consumed.
+- Verified the linked redirect and byte-exact prologue replay. The host
+  menu regression and the modem stage's 136-block test passed. Flashed
+  RC10 via BR23 USB Update. Both full readbacks matched the release
+  manifest. RC9 is backed up in
+  `~/h9-backups/quick-change-rc10-20261121.tuoCZ5Ae`.
+
+## 2026-11-21 Quick Change RC11 Back-action hook
+
+- The operator still saw GNSS with Monitor on in RC10. The stock Back
+  event calls GNSS from app+0x81FCA. Its dispatcher later removes the
+  processed event at app+0x822F0 through the queue helper at app+0x5E0CA.
+- RC11 hooks the GNSS call itself and leaves Back dequeueing to stock.
+  Quick Change accepts the receive or Monitor state even when the stock
+  screen byte differs from idle. It retains the keypad lock and physical
+  and stock transmit checks. The settings shortcut appends a Menu event.
+- Separating overlay rendering and editors reduced the Quick Change
+  entry frame to 192 bytes of locals. The host regression covers open
+  squelch with a non-idle stock screen byte and checks queue ownership.
+- Flashed RC11 through BR23 USB Update and verified both regions by full
+  readback. The RC10 backups and recovery log are in
+  `~/h9-backups/quick-change-rc11-20261121.w8pwr0w1`.
+
+## 2026-11-21 Quick Change RC12 squelch apply
+
+- The operator confirmed that RC11 opens Quick Change with Monitor on.
+  Selecting squelch 1 from level 0 instead hit the receive guard and
+  showed RADIO BUSY.
+- The native squelch setter at app+0x7357C updates the live level byte
+  at 0x12B9E, saves partition offset 0xCA9 and calls the RF refresh at
+  CPU 0x01E58E3E. RC12 uses the same live level and RF refresh after a
+  verified squelch save. Physical PTT, transmit state and the resident
+  RF reservation still guard the apply.
+- The host regression covers a 0-to-1 edit in the open-squelch receive
+  state and checks the saved byte, live byte and native refresh call.
+- Flashed RC12 through BR23 USB Update. Both readbacks match the release
+  manifest. RC11's backup and the flash log are in
+  `~/h9-backups/quick-change-rc12-20261121.zxAD0nf5`. The combined layout
+  also passed the modem updater's 136-block host test.
+- After normal boot, the operator confirmed that level 1 saves from
+  Quick Change at squelch 0 without RADIO BUSY.
+
+## 2026-11-21 Quick Change v0.1.7 package verification
+
+- Rebuilt the unified image and combined modem stage with version 0.1.7.
+  The decoded main app differs from the USB-verified RC12 app only in the
+  four-byte Toolbox version word at app+0xA7D54. The far flash image and
+  source module bundle match RC12 byte for byte.

@@ -107,6 +107,37 @@ python -I menu-replacement/run_host_tests.py
 The C harnesses use the `h9-hostcc` Docker image. The coverage JSON generated
 alongside the firmware lists every stock row and its corresponding endpoint.
 
+## Quick Change
+
+Hold **Back** on the unlocked radio home screen to open a 3×3 grid,
+including when the squelch is open. Press
+`1`–`9` to choose the matching tile, or use Up/Down and Menu.
+Back or `#` closes the grid. PTT exits to the radio. Hold `*` on the home
+screen to lock or unlock the keypad. Hold `#` on the home screen to start
+the radio’s normal scan. Press `0` in the grid to open Radio Settings.
+
+| Key | Setting | Action |
+| --- | --- | --- |
+| 1 | TX power | Cycle Low, Mid and High |
+| 2 | Squelch | Pick 0–9 with the keypad or arrows |
+| 3 | Tone | Choose Off, CTCSS or DCS. Press `#` to select TX, RX or both |
+| 4 | Resume | Cycle the scan resume policy through Time, Carrier and Stop |
+| 5 | Monitor / TX Freq | Toggle the squelch latch on a memory. Edit the TX frequency in VFO mode |
+| 6 | VOX | Toggle voice-operated transmit. Reuses the last active gain during this session |
+| 7 | Dual watch | Toggle |
+| 8 | Width | Toggle 12.5 or 25 kHz |
+| 9 | Bright | Cycle levels 1–5 and apply the level immediately on the grid |
+
+In an editor, Menu saves and Back cancels. Enter a VFO TX frequency as
+eight digits (for example, 14560000 for 145.60000 MHz). Enter the receive
+frequency to return to simplex. Split frequencies must be in the same
+supported transmit band. Power, tones, split and bandwidth changes are
+saved for the selected memory or VFO. Squelch, VOX, dual watch and
+brightness are saved as radio-wide preferences. Monitor is a live latch.
+With the squelch open, Squelch, Monitor and Bright are available. Other
+RF settings that require a reload can be saved when the squelch is closed.
+The keypad layout follows [RadioFoundry's FM quick settings](https://radiofoundry.org/docs/user/08-fm).
+
 ## Findings from the pinned factory image
 
 `inventory.py` verifies the factory v1.0.38 app SHA-256 before reporting any

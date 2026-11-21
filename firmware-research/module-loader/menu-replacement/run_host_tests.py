@@ -8,6 +8,8 @@ REPO = Path(__file__).resolve().parents[3]
 MODULE = "firmware-research/module-loader"
 RADIO = f"{MODULE}/menu-replacement"
 cases = [
+    ("quick-change", [], [f"{RADIO}/test_radio_quick.c", f"{RADIO}/radio_channels.c",
+                          f"{RADIO}/radio_settings.c"]),
     ("channel-label-storage", [], [f"{RADIO}/test_channel_labels.c", f"{RADIO}/channel_labels.c",
                                     f"{MODULE}/modules/common/toolbox_settings_pair.c"]),
     ("channel-label-clone", [], [f"{RADIO}/test_channel_label_clone.c", f"{RADIO}/channel_labels.c",

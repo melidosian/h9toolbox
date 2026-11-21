@@ -189,6 +189,13 @@ static void add_option(struct menu_list *list, unsigned group, unsigned index)
 #ifdef H9_RADIO_SETTINGS
 static int same_text(const char *a, const char *b)
 { while (*a && *a == *b) { ++a; ++b; } return *a == *b; }
+const struct radio_setting *radio_setting_by_id(const char *id)
+{
+    for (unsigned i = 0; i < RADIO_SETTING_COUNT; ++i)
+        if (same_text(id, radio_settings[i].id)) return &radio_settings[i];
+    return 0;
+}
+
 static const char *const message_labels[] = { "NEW MESSAGE", "INBOX", "SENT", "DRAFTS" };
 static const char *const message_help[] = {
     "Compose an APRS message", "Read received messages", "Read sent messages", "Open the APRS draft"
@@ -642,6 +649,11 @@ static void select_number(struct menu_state *state, unsigned count, unsigned num
 }
 
 #ifdef H9_RADIO_SETTINGS
+void toolbox_open_radio_settings(void)
+{
+    MENU_SELECTION = MENU_POSITION_MAGIC | RADIO_FOLDER << 8;
+}
+
 void toolbox_open_messages(void)
 {
     MENU_SELECTION = MENU_POSITION_MAGIC | MESSAGES << 8;

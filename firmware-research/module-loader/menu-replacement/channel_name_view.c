@@ -37,7 +37,7 @@ struct name_row {
 #ifndef NAME_ROWS
 #define NAME_ROWS ((struct name_row *)0x29980u)
 #endif
-_Static_assert(2 * sizeof(struct name_row) <= 0x80, "channel name display RAM");
+_Static_assert(2 * sizeof(struct name_row) <= 0x7C, "channel name display RAM");
 
 static unsigned memory_channel(unsigned side)
 {

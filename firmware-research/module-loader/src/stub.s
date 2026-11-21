@@ -4,7 +4,8 @@
  * game used (app+0xA77F0, before the S2 tables at app+0xA7E50) and is entered
  * from the same my_app loop hook (app+0x088906) Brick Breaker's launcher used.
  *
- * Hold Back about 0.4 s (40 stock hold ticks, as Brick Breaker):
+ * Hold Back about 0.4 s (40 stock hold ticks, as Brick Breaker).
+ * Unified builds handle Back through stock keypad dispatch. Other builds use the app launcher:
  *   1. ml_check validates the module bundle on the resource chip while the
  *      stock my_app frame is still intact. No valid bundle: the stock loop
  *      continues as if nothing happened (the radio stays usable).
@@ -46,6 +47,7 @@ ml_hotkey:
     r3 = ML_RUNTIME_BOOT
     call r3
     .endif
+    .ifndef ML_UNIFIED_MENU
     r3 = 0x0000c3af
     r0 = b[r3+0] (u)
     if (r0 != 15) goto ml_back_released
@@ -83,6 +85,7 @@ ml_arm_back_hold:
 ml_back_released:
     r0 = 0
     [sp+76] = r0
+    .endif
 
 ml_stock_loop_call:
     call res_tick
@@ -357,6 +360,55 @@ ml_main_return:
     {pc, r14-r4} = [sp++]
 
     .ifdef ML_UNIFIED_MENU
+/* Translate hold-# before the native dispatcher handles it. */
+    .globl ml_quick_dispatch
+ml_quick_dispatch:
+    r3 = 0x0000c3b4
+    r0 = b[r3+0] (u)
+    if (r0 == 0) goto ml_stock_dispatch
+    r0 = b[r3+1] (u)
+    if (r0 == 35) goto ml_quick_scan
+ml_stock_dispatch:
+    /* Replay the four bytes replaced at app+0x818F0. */
+    [--sp] = {rets, r15-r4}
+    sp += -56
+    r3 = ML_STOCK_DISPATCH
+    goto r3
+
+ml_quick_scan:
+    r2 = 0x00011ab0
+    r0 = b[r2+0] (u)
+    if (r0 > 1) goto ml_stock_dispatch
+    r0 = b[r2+22] (u)
+    if (r0 != 3) goto ml_stock_dispatch
+    r0 = b[r2+18] (u)
+    if (r0 != 0) goto ml_stock_dispatch
+    r0 = b[r2+75] (u)
+    if (r0 != 0) goto ml_stock_dispatch
+    r0 = 24
+    b[r3+1] = r0
+    goto ml_stock_dispatch
+
+/* The native dispatcher has selected Back's GNSS action. It still owns
+ * the queue and its current event. Keep GNSS as the fallback. */
+    .globl ml_quick_back
+ml_quick_back:
+    [--sp] = {rets, r14-r4}
+    r0 = ML_UNIFIED_CPU
+    r1 = ML_UNIFIED_BYTES
+    call ml_crc
+    r1 = ML_UNIFIED_CRC
+    if (r0 != r1) goto ml_quick_gnss
+    r0 = ml_api
+    r3 = ML_QUICK_ENTRY
+    call r3
+    if (r0 == 0) goto ml_quick_gnss
+    {pc, r14-r4} = [sp++]
+ml_quick_gnss:
+    {rets, r14-r4} = [sp++]
+    r3 = ML_STOCK_GNSS
+    goto r3
+
 ml_unified_menu:
     r0 = ML_UNIFIED_CPU
     r1 = ML_UNIFIED_BYTES
