@@ -7,8 +7,9 @@ Free browser tools and custom firmware for the TIDRADIO TD-H9.
 ## H9 Toolbox Firmware
 
 H9 Toolbox Firmware builds on the stock Type-C v1.0.38 firmware. It keeps
-your saved channels and settings and adds an app menu. Hold **Back** on the
-channel screen to open Toolbox, then choose **RADIO** to return.
+your saved channels and settings and adds an app menu. On v0.1.6, press
+**Menu** from the channel screen to open Toolbox. On earlier versions,
+hold **Back**.
 
 - **APRS.** View heard stations, distance and bearing, a map around your GPS
   position, and messages. Use the keypad to send a status packet or canned
@@ -19,7 +20,7 @@ channel screen to open Toolbox, then choose **RADIO** to return.
   satellite signals, and UTC or local time.
 - **SmartBeacon and APRS Mute.** Send automatic APRS position reports with
   SmartBeacon or on a timer, and mute incoming packet audio.
-- **Full KISS TNC.** The optional APRS modem update in v0.1.5 enables packet
+- **Full KISS TNC.** The optional APRS modem update enables packet
   connections over Bluetooth. The updater links to the bridge for KISS TCP
   and AGWPE clients such as Pat and Paracon. [Bridge setup](firmware-research/kiss-tnc/host/README.md)
 - **Apps and boot logo.** Use App Manager to add or remove apps, check
@@ -30,15 +31,15 @@ channel screen to open Toolbox, then choose **RADIO** to return.
 
 1. Open the firmware updater in Chrome or Edge on a computer. Connect a
    data-capable USB-C cable and hold **PTT + 2** while powering on the
-   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [v0.1.5 on the dev site](https://dev.h9toolbox.com/firmware-update/)
+   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [v0.1.6 firmware updater](https://dev.h9toolbox.com/firmware-update/)
 2. Choose your firmware, save the recommended `.h9hid` recovery backup,
    and keep USB connected through verification. The current updater on
    `dev` requests a reboot after verification and gives manual restart
    instructions if the radio stays in update mode.
-3. With the radio on its normal channel screen, use App Manager to choose
-   apps and select **Write to radio**. Hold **Back** on the radio to open
-   the menu. [App Manager](https://h9toolbox.com/apps/)
-4. If you want full KISS TNC and the v0.1.5 updater verifies that the modem
+3. With the radio on its normal channel screen, use the App Manager linked
+   from your updater to choose apps and select **Write to radio**.
+   [App Manager](https://h9toolbox.com/apps/) · [v0.1.6 App Manager](https://dev.h9toolbox.com/apps/)
+4. If you want full KISS TNC and the updater verifies that the modem
    update was staged, follow **Optional: Unlock KISS TNC** on the restart
    step. It includes the keypad instructions and bridge download.
 
@@ -62,8 +63,9 @@ The `htcommander` repository is a separate project with its own TD-H9 integratio
 GitHub Pages publishes `dist/` from `main` to [h9toolbox.com](https://h9toolbox.com/).
 Cloudflare Pages builds `dev` with `scripts/build-dev-site.sh` for
 [dev.h9toolbox.com](https://dev.h9toolbox.com/). The dev build serves H9
-Toolbox Firmware v0.1.5 with its matching APRS scheduler, modem stage, and
-App Manager catalog. It records the deployed commit at
+Toolbox Firmware v0.1.6 over USB-C, including the main firmware and far-flash
+payload, and defaults to the matching App Manager catalog. It records the
+deployed commit at
 [`/dev-build.txt`](https://dev.h9toolbox.com/dev-build.txt).
 
 The production site uses Google Analytics 4 for page views and automatic

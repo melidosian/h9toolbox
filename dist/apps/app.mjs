@@ -20,11 +20,11 @@ let installed = null;   // modules on the radio (null: not read / none)
 let staged = [];        // the list "Write to radio" will install
 let catalog = null;     // catalog/catalog.json
 const catalogs = { classic: null, bench: null };
-const benchLink = $('smartbeaconCatalogLink');
+const devCatalog = $('catalog').hasAttribute('data-dev-catalog');
 const requestedCatalog = new URLSearchParams(location.search).get('catalog');
-const benchCatalog = requestedCatalog === 'rc5' ? 'rc5' : 'smartbeacon';
-const usePreviewCatalog = Boolean(benchLink && requestedCatalog === 'rc5');
-const preferBench = Boolean(benchLink && ['smartbeacon', 'rc5'].includes(requestedCatalog));
+const usePreviewCatalog = devCatalog && requestedCatalog !== 'smartbeacon';
+const benchCatalog = usePreviewCatalog ? 'rc5' : 'smartbeacon';
+const preferBench = devCatalog;
 const downloaded = new Map();  // catalog SHA-256 -> modules
 
 async function catalogApp(item) {
@@ -58,7 +58,6 @@ const infoDialog = mountInfo({
 function renderCatalog() {
   const box = $('catalog');
   const bench = catalog?.profile === 'smartbeacon';
-  if (benchLink) benchLink.hidden = bench;
   const menu = catalog && menuState(catalog, staged, preferBench);
   $('menuUpdate').hidden = usePreviewCatalog || !menu?.canUpdate;
   $('stageMenuUpdate').disabled = busy;
@@ -99,7 +98,7 @@ function renderCatalog() {
   });
   box.replaceChildren(...cards);
   $('catalogNote').textContent = bench
-    ? 'Requires the dev build of H9 Toolbox Firmware v0.1.5.'
+    ? `Requires H9 Toolbox Firmware ${usePreviewCatalog ? 'v0.1.6' : 'v0.1.5 (development build)'}.`
     : `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
 }
 
@@ -232,7 +231,7 @@ function pickCatalog() {
 
 async function refreshCatalog() {
   const sources = [['classic', undefined]];
-  if (benchLink) sources.push(['bench', new URL(`catalog/${benchCatalog}/`, import.meta.url)]);
+  if (devCatalog) sources.push(['bench', new URL(`catalog/${benchCatalog}/`, import.meta.url)]);
   await Promise.all(sources.map(async ([key, base]) => {
     try { catalogs[key] = await loadCatalog(base); }
     catch (error) { log(error.message, 'error'); }
@@ -281,7 +280,9 @@ async function readRadio() {
 }
 
 async function applyPreviewBundle(opened) {
-  if (!usePreviewCatalog || catalog?.profile !== 'smartbeacon' || !installed?.length ||
+  // Apply the bundle automatically only when the URL explicitly selects v0.1.6.
+  if (!usePreviewCatalog || !['0.1.6', 'rc5'].includes(requestedCatalog) ||
+      catalog?.profile !== 'smartbeacon' || !installed?.length ||
       !menuState(catalog, installed, true).canUpdate) return;
   const radio = opened.radio;
   let capabilities;
@@ -293,13 +294,13 @@ async function applyPreviewBundle(opened) {
   }
   // RC3 and later use this catalog's firmware menu and module API.
   if (!capabilities.sparseSerialWrites) {
-    log('The connected radio needs compatible v0.1.6 firmware for the RC5 app bundle.');
+    log('The connected radio needs compatible firmware for the v0.1.6 app bundle.');
     return;
   }
   const updated = await withUpdatedMenu(catalog, installed, { restoreBench: true });
-  if (session !== opened) throw new Error('Radio disconnected before applying the RC5 app bundle.');
+  if (session !== opened) throw new Error('Radio disconnected before applying the v0.1.6 app bundle.');
   staged = updated;
-  log('Applying the RC5 app bundle to your installed apps.');
+  log('Applying the v0.1.6 app bundle to your installed apps.');
   await writeBundle();
 }
 

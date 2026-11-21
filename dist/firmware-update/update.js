@@ -37,7 +37,7 @@ const priorDevBuild = {
 const useDevBuild = $('optBuild').hasAttribute('data-dev-firmware');
 const useRc = useDevBuild && new URLSearchParams(location.search).get('release') !== '0.1.5';
 const previewBuild = {
-  label: 'H9 Toolbox Firmware v0.1.6 RC5',
+  label: 'H9 Toolbox Firmware v0.1.6',
   file: 'dev/h9-toolbox-firmware-v0.1.6-rc.5.fw',
   packageSha256: '395fbc94aeca54eb130b0bf811107bdf06b7c524972b0ca064e26a827a7b3c76',
   imageSha256: 'fa79bef5fa13e6cbaccd0d4b39eb7a24b51b2ef565ea84503e2e7d08e1e24ac0',
@@ -48,7 +48,7 @@ const devBuild = useRc ? previewBuild : legacyDevBuild;
 const release = useDevBuild ? devBuild : BUILD;
 if (useRc) {
   $('optBuild').querySelector('strong').textContent = previewBuild.label;
-  $('loadBuild').textContent = 'Load H9 Toolbox v0.1.6 RC5';
+  $('loadBuild').textContent = 'Load H9 Toolbox v0.1.6';
   $('optBuild').querySelector('small').textContent = 'Includes the new Menu-key interface, long channel names, persistent APRS messages and the optional modem fix.';
   $('bundledModemSetup').hidden = false;
   $('legacyStageNote').hidden = true;
@@ -681,7 +681,7 @@ const toolboxRestart = [
     : 'Use the App Manager over Bluetooth or experimental USB-C to add apps or a boot logo.',
 ];
 const appManagerLink = {
-  href: useRc ? '../apps/?catalog=rc5' : useDevBuild ? '../apps/?catalog=smartbeacon' : '../apps/',
+  href: useRc ? '../apps/?catalog=0.1.6' : useDevBuild ? '../apps/?catalog=smartbeacon' : '../apps/',
   label: 'Open the App Manager',
 };
 

@@ -30,20 +30,21 @@ cp "$preview_release"/{h9-toolbox-firmware-v0.1.6-rc.5.fw,h9-toolbox-v0.1.6-rc.5
 mkdir -p dist/apps/catalog/rc5
 cp "$preview_release"/apps/* dist/apps/catalog/rc5/
 
-sed -e 's|<h1 id="firmware-title">.*</h1>|<h1 id="firmware-title">H9 Toolbox Firmware v0.1.6 RC5</h1>|' \
+sed -e 's|<h1 id="firmware-title">.*</h1>|<h1 id="firmware-title">H9 Toolbox Firmware v0.1.6</h1>|' \
   -e 's|hold <strong>Back</strong> to open Toolbox|press <strong>Menu</strong> to open Toolbox|' \
   -e 's|Hold <strong>Back</strong> on the channel screen, then select an app with <strong>Menu</strong>.|Press <strong>Menu</strong> on the channel screen, then choose an app.|' \
   -e 's|Use the optional APRS modem update in v0.1.5|Use the included optional APRS modem stage|' \
-  -e 's|H9 Toolbox Firmware v0.1.5 offers|H9 Toolbox Firmware v0.1.6 RC5 includes|' \
+  -e 's|H9 Toolbox Firmware v0.1.5 offers|H9 Toolbox Firmware v0.1.6 includes|' \
   -e 's|after the v0.1.5 updater confirms that the modem update was staged|after the installer verifies both firmware regions|' \
-  -e 's|href="/apps/">App Manager|href="/apps/?catalog=rc5">App Manager|g' \
+  -e 's|href="/apps/">App Manager|href="/apps/?catalog=0.1.6">App Manager|g' \
   dist/firmware/index.html > dist/firmware/index.html.tmp
 mv dist/firmware/index.html.tmp dist/firmware/index.html
 
 # Offer the catalog built for the dev firmware.
 test -s dist/apps/catalog/smartbeacon/catalog.json
 test -s dist/apps/catalog/rc5/catalog.json
-sed 's|<!-- dev-smartbeacon-catalog -->|<p class="note" id="smartbeaconCatalogLink"><a href="?catalog=smartbeacon">v0.1.5 development catalog</a> · <a href="?catalog=rc5">v0.1.6 preview catalog</a>.</p>|' \
+sed -e 's|id="catalog"|id="catalog" data-dev-catalog|' \
+  -e 's|hold <b>Back</b> on the radio for the menu|press <b>Menu</b> on the radio with v0.1.6|' \
   dist/apps/index.html > dist/apps/index.html.tmp
 mv dist/apps/index.html.tmp dist/apps/index.html
 
