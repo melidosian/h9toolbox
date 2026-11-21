@@ -22,6 +22,7 @@ const catalogs = { classic: null, bench: null };
 const benchLink = $('smartbeaconCatalogLink');
 const requestedCatalog = new URLSearchParams(location.search).get('catalog');
 const benchCatalog = requestedCatalog === 'rc5' ? 'rc5' : 'smartbeacon';
+const previewBundleLabel = 'Use RC5 app bundle';
 const preferBench = Boolean(benchLink && ['smartbeacon', 'rc5'].includes(requestedCatalog));
 const downloaded = new Map();  // catalog SHA-256 -> modules
 
@@ -63,6 +64,7 @@ function renderCatalog() {
   if (menu?.canUpdate) {
     let label = bench ? 'Update menu and apps' : 'Update menu';
     if (menu.status === 'different') label = 'Use matching menu and apps';
+    if (bench && benchCatalog === 'rc5') label = previewBundleLabel;
     $('stageMenuUpdate').textContent = label;
   }
   if (!catalog) { box.replaceChildren(); return; }
@@ -248,7 +250,9 @@ function reportUpdates() {
   const menu = menuState(catalog, installed, preferBench);
   if (menu.status === 'outdated') outdated.unshift(`${catalog.menu.title} ${catalog.menu.version}`);
   if (outdated.length) log(`Updates available for ${outdated.join(', ')}.`);
-  if (menu.status === 'different') {
+  if (menu.canUpdate && catalog.profile === 'smartbeacon' && benchCatalog === 'rc5') {
+    log(`Select ${previewBundleLabel} to stage compatible versions of your installed catalog apps.`);
+  } else if (menu.status === 'different') {
     log(menu.canUpdate
       ? 'A different Toolbox menu is installed. Select Use matching menu and apps to stage the version for the dev firmware.'
       : 'The installed Toolbox menu differs from this catalog.');
@@ -328,7 +332,9 @@ $('reload').addEventListener('click', () => run(readRadio));
 
 $('stageMenuUpdate').addEventListener('click', () => run(async () => {
   staged = await withUpdatedMenu(catalog, staged, { restoreBench: preferBench });
-  log('Staged the menu update.');
+  log(catalog.profile === 'smartbeacon' && benchCatalog === 'rc5'
+    ? 'Staged the RC5 app bundle. Select Write to radio to apply it.'
+    : 'Staged the menu update.');
 }));
 
 $('addButton').addEventListener('click', () => $('addFile').click());
