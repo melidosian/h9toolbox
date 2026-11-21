@@ -104,6 +104,8 @@
               <label>Or choose a local stock .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label>
             </div>
           </div>
+          <p id="bundledModemSetup" hidden>The installer includes the redesigned menu and the optional APRS modem stage. If APRS Info already shows <strong>V1.0.15X</strong>, you can skip the keypad modem update after installation.</p>
+          <p id="rcPreviewLink" hidden><a href="./">Return to the v0.1.6 preview installer</a>.</p>
           <p class="selection-state" id="firmwareState" aria-live="polite">No firmware selected</p>
           <details class="guide-help" id="firmwareHelp" hidden>
             <summary>The download or file check failed</summary>
@@ -114,7 +116,8 @@
         <section class="guide-slide" aria-labelledby="write-title" hidden>
           <p class="guide-count">Step 4 of 5</p>
           <h2 id="write-title" tabindex="-1">Install and verify</h2>
-          <p>Keep USB connected and the radio powered on until verification finishes. H9 Toolbox Firmware also stages the optional APRS modem update if space is available.</p>
+          <p>Keep USB connected and the radio powered on until verification finishes. <span id="legacyStageNote">H9 Toolbox Firmware also stages the optional APRS modem update if space is available.</span></p>
+          <p id="rcInstallNote" hidden>The install saves a complete recovery backup and can take several minutes or longer. To retry or roll back, select that original <strong>.h9hid</strong> file.</p>
           <p>By default, the updater saves a recovery backup before it installs. Keep the downloaded <strong>.h9hid</strong> file. A known firmware image can take seconds to back up. An unfamiliar image can take about an hour.</p>
           <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may leave my radio unable to start.</span></label>
           <label class="confirm"><input id="skipBackup" type="checkbox" disabled><span>Skip creating a recovery backup for this install.</span></label>
@@ -131,7 +134,7 @@
             <p>You can choose a compatible <strong>.h9hid</strong> or raw <strong>.bin</strong> backup to restore. Known H9 Toolbox builds use verified stock v1.0.38 as the default restore point.</p>
             <label class="backup-file">Recovery backup<input id="backupFile" type="file" accept=".h9hid,.bin,application/octet-stream"></label>
             <p class="fine" id="backupState" aria-live="polite">No recovery backup selected.</p>
-            <p class="fine">Restore writes the main firmware from your backup. The staged file and APRS modem stay as they are.</p>
+            <p class="fine">An archive from the v0.1.6 preview updater includes both firmware regions. Restoring an older backup writes the main firmware only.</p>
             <div class="controls"><button class="button ghost" id="restore" disabled>Restore backup</button></div>
           </details>
           <p id="planState" class="plan-state" aria-live="polite"></p>
@@ -140,7 +143,7 @@
           <details class="guide-help" id="writeHelp" hidden>
             <summary>The update stopped or the check failed</summary>
             <p>Keep the selected firmware and original backup. If the radio disconnected, go back to step 2 and reconnect using <strong>PTT + 2</strong>, then return here. If the preflight check says the backup does not match, use <strong>Use a saved restore point</strong> above to select the original backup from this radio.</p>
-            <p>The updater checks the radio again before writing. If you reconnect after an interrupted write, select your original backup and check <strong>Skip creating a recovery backup for this install</strong> before retrying. If you skipped the backup the first time, check the same box again. To restore a saved backup instead, select it and choose <strong>Restore backup</strong>. If the radio still won’t connect or start, see the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
+            <p>The updater checks the radio again before writing. If you reconnect after an interrupted write, select your original backup before retrying. <span id="legacyRetryNote">For a v0.1.5 retry, also check <strong>Skip creating a recovery backup for this install</strong>.</span> To restore a saved backup instead, select it and choose <strong>Restore backup</strong>. If the radio still won’t connect or start, see the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
           </details>
         </section>
 
@@ -151,7 +154,7 @@
           <p class="fine" id="kissGate" hidden>The APRS staging area is occupied. Its contents were preserved, so the keypad update is unavailable.</p>
           <details class="guide-help" id="unlock-kiss" hidden>
             <summary>Optional: Unlock KISS TNC</summary>
-            <p>Use this step after Install confirms that the APRS update was staged.</p>
+            <p>Use this step after Install confirms that the APRS update was staged. Skip this step if APRS Info already shows V1.0.15X.</p>
             <ol class="instructions">
               <li>When the USB install finishes, unplug the cable and turn the radio off.</li>
               <li>Hold the side <strong>PTT</strong> (talk) button and the keypad <strong>7</strong> together while turning the radio on. Let go when the screen says <strong>APRS Update</strong>.</li>
@@ -187,6 +190,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The full browser install and restore flow has been tested on one TD-H9 from macOS.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=20261119m"></script>
+  <script type="module" src="./update.js?v=20261120rc4"></script>
 </body>
 </html>

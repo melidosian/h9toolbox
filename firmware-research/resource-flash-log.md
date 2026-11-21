@@ -5482,3 +5482,18 @@ result yet.**
   The flasher exited zero and reported UNIFIED_MENU_FLASH_VERIFIED. The
   original RC2 main and far backups are retained. The Classic transmit
   display and the RC3 USB-C write behavior await on-radio testing.
+
+## Combined v0.1.6 preview and V1.0.15X modem stage
+
+- Reproduced RC4's pinned package, installed main image and combined far
+  payload from source. The menu and resident APRS payload are unchanged.
+- The combined candidate places the modem stage at physical 0xF7A00. The
+  1,544-byte updater fits in its 2,048-byte code window. The pinned modem
+  image spans two retired stock menu bodies and the unused space before
+  the scheduler. The entry redirects in the retired stock menus remain.
+- The browser installs one main package and one matching far payload in
+  PTT+2 HID mode, with the original far area saved in the recovery archive.
+  The modem update remains a keypad-confirmed operation in PTT+7 mode.
+- Host tests passed for the contiguous and split modem image, including all
+  136 blocks, a corrupted image, modem timeouts and the version reply.
+  The combined binary has not been flashed to a radio.

@@ -1,10 +1,23 @@
 #include "update.h"
+#include "stage-config.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
 static uint8_t image[APRS_IMAGE_SIZE];
+#ifdef APRS_IMAGE_PART_1_ADDRESS
+uint8_t first[APRS_IMAGE_PART_1_SIZE];
+uint8_t second[APRS_IMAGE_PART_2_SIZE];
+static uint8_t *transfer_image(void)
+{
+    memcpy(first, image, sizeof(first));
+    memcpy(second, image + sizeof(first), sizeof(second));
+    return image + sizeof(first) + sizeof(second);
+}
+#else
+static uint8_t *transfer_image(void) { return image; }
+#endif
 static unsigned blocks;
 static unsigned exits;
 static unsigned fail_block;
@@ -68,19 +81,19 @@ int main(int argc, char **argv)
     assert(aprs_crc32((const uint8_t *)"123456789", 9) == 0xcbf43926);
     const uint32_t checksum = aprs_crc32(image, sizeof(image));
 
-    assert(aprs_program(image, checksum, check_command) == APRS_OK);
+    assert(aprs_program(transfer_image(), checksum, check_command) == APRS_OK);
     assert(blocks == 136 && exits == 1);
     blocks = exits = 0;
     image[127] ^= 1;
-    assert(aprs_program(image, checksum, check_command) == APRS_BAD_IMAGE);
+    assert(aprs_program(transfer_image(), checksum, check_command) == APRS_BAD_IMAGE);
     assert(blocks == 0 && exits == 0);
     image[127] ^= 1;
     fail_block = 3;
-    assert(aprs_program(image, checksum, check_command) == APRS_BLOCK_TIMEOUT);
+    assert(aprs_program(transfer_image(), checksum, check_command) == APRS_BLOCK_TIMEOUT);
     assert(blocks == 3 && exits == 0);
     blocks = fail_block = 0;
     fail_exit = 1;
-    assert(aprs_program(image, checksum, check_command) == APRS_EXIT_TIMEOUT);
+    assert(aprs_program(transfer_image(), checksum, check_command) == APRS_EXIT_TIMEOUT);
     assert(blocks == 136 && exits == 1);
 
     check_version();

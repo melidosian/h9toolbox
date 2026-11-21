@@ -80,13 +80,17 @@ def inline(source: str) -> bytes:
     return bytes(text_section(elf.read(asm.assemble_source(source + "\n"))).data)
 
 
-def compile_stage(output: Path, image: bytes, state: int) -> bytes:
+def compile_stage(output: Path, image: bytes, state: int, *, entry=STAGE_XIP,
+                  image_offset=IMAGE_OFFSET, split=()) -> bytes:
     relative = output.relative_to(ROOT)
     (output / "stage-config.h").write_text(
         f"#define APRS_UPDATE_STATE {state:#x}u\n"
-        f"#define APRS_STAGE_IMAGE 0x{STAGE_XIP + IMAGE_OFFSET:08x}u\n"
+        f"#define APRS_STAGE_IMAGE 0x{entry + image_offset:08x}u\n"
         f'#define APRS_MODEM_VERSION "{MODEM_VERSION}"\n'
-        f"#define APRS_STAGE_CRC32 0x{crc32(image):08x}u\n")
+        f"#define APRS_STAGE_CRC32 0x{crc32(image):08x}u\n"
+        + "".join(f"#define APRS_IMAGE_PART_{i}_ADDRESS {address:#x}u\n"
+                  f"#define APRS_IMAGE_PART_{i}_SIZE {size}u\n"
+                  for i, (address, size) in enumerate(split, 1)))
     objects = []
     for source in (ROOT / "update.c", ROOT / "target.c"):
         obj = relative / f"{source.stem}.o"
@@ -97,19 +101,25 @@ def compile_stage(output: Path, image: bytes, state: int) -> bytes:
                 raise ValueError(f"Stage requires writable storage in {section.name}")
         objects.append(ROOT / obj)
     api = assemble((ROOT / "target-api.s").read_text(), output / "target-api.o")
-    program = link(ROOT / "stage.ld", output / "aprs-stage.elf", [*objects, api])
+    script = ROOT / "stage.ld"
+    if entry != STAGE_XIP:
+        script = output / "stage.ld"
+        script.write_text((ROOT / "stage.ld").read_text().replace(f"0x{STAGE_XIP:08X}", f"0x{entry:08X}"))
+    program = link(script, output / "aprs-stage.elf", [*objects, api])
     code = text_section(program)
-    if code.addr != STAGE_XIP or program.entry != STAGE_XIP or not 0 < len(code.data) <= IMAGE_OFFSET:
+    if code.addr != entry or program.entry != entry or not 0 < len(code.data) <= image_offset:
         raise ValueError("Unexpected stage entry or size")
     return bytes(code.data)
 
 
 def patch_app(original: bytes, code: bytes, output: Path, old_heap: int,
-              version_at: int, version_word: int) -> tuple[bytes, int, list[dict]]:
-    stub_base = APP_BASE + CAVE_OFFSET
+              version_at: int, version_word: int, *, stage_entry=STAGE_XIP,
+              cave_offset=CAVE_OFFSET, cave_end=CAVE_END, cave_fill=b"\xff",
+              old_version=0x000104, heap_opcode=None) -> tuple[bytes, int, list[dict]]:
+    stub_base = APP_BASE + cave_offset
     source = (ROOT / "stub.s.in").read_text()
-    source = (source.replace("@ENTRY@", hex(STAGE_XIP))
-              .replace("@END@", hex(STAGE_XIP + len(code)))
+    source = (source.replace("@ENTRY@", hex(stage_entry))
+              .replace("@END@", hex(stage_entry + len(code)))
               .replace("@CRC_STATE@", hex(crc32(code) ^ 0xFFFFFFFF))
               .replace("@STATE@", hex(old_heap - 0x100)))
     obj = assemble(source, output / "stub.o")
@@ -118,9 +128,9 @@ def patch_app(original: bytes, code: bytes, output: Path, old_heap: int,
     stub = link(script, output / "aprs-hook.elf", [obj])
     text = text_section(stub)
     cave = bytes(text.data)
-    if text.addr != stub_base or not 0 < len(cave) <= CAVE_END - CAVE_OFFSET:
-        raise ValueError(f"Stub is {len(cave)} bytes in the {CAVE_END - CAVE_OFFSET}-byte cave")
-    if original[CAVE_OFFSET:CAVE_END] != b"\xff" * (CAVE_END - CAVE_OFFSET):
+    if text.addr != stub_base or not 0 < len(cave) <= cave_end - cave_offset:
+        raise ValueError(f"Stub is {len(cave)} bytes in the {cave_end - cave_offset}-byte cave")
+    if original[cave_offset:cave_end] != cave_fill * (cave_end - cave_offset):
         raise ValueError("Main application code cave is already occupied")
     symbols = {symbol.name: symbol.value for symbol in stub.symbols if symbol.name}
     patched = bytearray(original)
@@ -135,11 +145,15 @@ def patch_app(original: bytes, code: bytes, output: Path, old_heap: int,
     for offset, old, operation, name in HOOKS:
         displacement = symbols[name] - (APP_BASE + offset + 4)
         replace(offset, bytes.fromhex(old), inline(f"{operation} {displacement}"))
-    replace(HEAP_OFFSET, inline(f"r5 = {old_heap:#x}"), inline(f"r5 = {old_heap - 0x100:#x}"))
+    if heap_opcode is None:
+        replace(HEAP_OFFSET, inline(f"r5 = {old_heap:#x}"), inline(f"r5 = {old_heap - 0x100:#x}"))
+    else:
+        replace(HEAP_OFFSET, heap_opcode + old_heap.to_bytes(4, "little"),
+                heap_opcode + (old_heap - 0x100).to_bytes(4, "little"))
     if original[version_at - 24:version_at - 20] != b"H9AP":
         raise ValueError("Missing H9 Toolbox version table")
-    replace(version_at, bytes.fromhex("04010000"), version_word.to_bytes(4, "little"))
-    replace(CAVE_OFFSET, b"\xff" * len(cave), cave)
+    replace(version_at, old_version.to_bytes(4, "little"), version_word.to_bytes(4, "little"))
+    replace(cave_offset, cave_fill * len(cave), cave)
     return bytes(patched), len(cave), changes
 
 

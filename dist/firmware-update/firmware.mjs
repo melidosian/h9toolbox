@@ -389,6 +389,10 @@ export class H9Hid {
     requireValue(physical >= APRS_STAGE_START && physical < APRS_STAGE_END, 'Write outside APRS staging area.');
     await this.#writeChunk(physical, offset, bytes);
   }
+  async writeFarFirmware(physical, offset, bytes) {
+    requireValue(physical >= 0xea000 && physical < RESIDENT_END, 'Write outside far firmware area.');
+    await this.#writeChunk(physical, offset, bytes);
+  }
   async writeSmartBeaconResident(physical, offset, bytes) {
     requireValue(physical >= RESIDENT_START && physical < RESIDENT_END, 'Write outside SmartBeacon resident area.');
     await this.#writeChunk(physical, offset, bytes);

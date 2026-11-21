@@ -1,6 +1,10 @@
 #include "update.h"
 #include "stage-config.h"
 
+#ifndef APRS_IMAGE_PART_1_ADDRESS
+#define aprs_image_crc32(image) aprs_crc32(image, APRS_IMAGE_SIZE)
+#endif
+
 #define BYTE_AT(address)  (*(volatile uint8_t *)(uintptr_t)(address))
 #define HALF_AT(address)  (*(volatile uint16_t *)(uintptr_t)(address))
 #define WORD_AT(address)  (*(volatile uint32_t *)(uintptr_t)(address))
@@ -124,7 +128,7 @@ void aprs_stage_entry(void)
         return;
     }
     const uint8_t *image = (const uint8_t *)(uintptr_t)APRS_STAGE_IMAGE;
-    if (aprs_crc32(image, APRS_IMAGE_SIZE) != APRS_STAGE_CRC32) {
+    if (aprs_image_crc32(image) != APRS_STAGE_CRC32) {
         UPDATE_MODE = MODE_BAD_STAGE;
         status("STAGED IMAGE BAD", "Press Back");
         return;

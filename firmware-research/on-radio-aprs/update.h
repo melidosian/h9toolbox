@@ -17,6 +17,7 @@ enum aprs_result {
 
 typedef int (*aprs_transact)(uint8_t command, unsigned size, const uint8_t *payload);
 
+uint32_t aprs_image_crc32(const uint8_t *tail);
 uint32_t aprs_crc32(const uint8_t *data, size_t size);
 enum aprs_result aprs_program(const uint8_t *image, uint32_t checksum, aprs_transact transact);
 

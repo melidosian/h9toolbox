@@ -20,7 +20,9 @@ let staged = [];        // the list "Write to radio" will install
 let catalog = null;     // catalog/catalog.json
 const catalogs = { classic: null, bench: null };
 const benchLink = $('smartbeaconCatalogLink');
-const preferBench = Boolean(benchLink && new URLSearchParams(location.search).get('catalog') === 'smartbeacon');
+const requestedCatalog = new URLSearchParams(location.search).get('catalog');
+const benchCatalog = requestedCatalog === 'rc5' ? 'rc5' : 'smartbeacon';
+const preferBench = Boolean(benchLink && ['smartbeacon', 'rc5'].includes(requestedCatalog));
 const downloaded = new Map();  // catalog SHA-256 -> modules
 
 async function catalogApp(item) {
@@ -228,7 +230,7 @@ function pickCatalog() {
 
 async function refreshCatalog() {
   const sources = [['classic', undefined]];
-  if (benchLink) sources.push(['bench', new URL('catalog/smartbeacon/', import.meta.url)]);
+  if (benchLink) sources.push(['bench', new URL(`catalog/${benchCatalog}/`, import.meta.url)]);
   await Promise.all(sources.map(async ([key, base]) => {
     try { catalogs[key] = await loadCatalog(base); }
     catch (error) { log(error.message, 'error'); }

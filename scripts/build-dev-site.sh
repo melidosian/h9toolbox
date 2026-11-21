@@ -19,14 +19,32 @@ rm -f dist/firmware-update/smartbeacon/index.html
 sed -e 's|id="optBuild"|id="optBuild" data-dev-firmware|' \
   -e 's|Includes the app loader, Bluetooth packet support, and an optional APRS modem update.|Includes the Toolbox app loader, Bluetooth packet support, SmartBeacon, timed APRS beacons, and APRS Mute.|' \
   -e 's|<!-- dev-before-install -->|<p class="fine">If you have an armed APRS schedule, disarm it on the radio before entering update mode. An armed schedule can resume on restart.</p>|' \
-  -e 's|<!-- dev-skip-backup-note -->|<p class="fine">With Skip backup selected, the updater can install H9 Toolbox on an unfamiliar build after verifying the TD-H9 model data. It writes only main firmware sectors that differ from the selected package.</p>|' \
+  -e 's|<!-- dev-skip-backup-note -->|<p class="fine" id="legacySkipNote">With Skip backup selected, the updater can install H9 Toolbox on an unfamiliar build after verifying the TD-H9 model data. It writes only main firmware sectors that differ from the selected package.</p>|' \
   -e 's|H9 Toolbox Firmware also stages the optional APRS modem update if space is available.|The updater verifies the APRS scheduler and stages the optional modem update when space is available.|' \
   dist/firmware-update/index.html > dist/firmware-update/index.html.tmp
 mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
 
+# Publish the combined preview and its matching app catalog on dev only.
+preview_release=firmware-research/module-loader/combined-preview-release
+(cd "$preview_release" && sha256sum -c SHA256SUMS)
+cp "$preview_release"/{h9-toolbox-firmware-v0.1.6-rc.5.fw,h9-toolbox-v0.1.6-rc.5-far.bin} dist/firmware-update/dev/
+mkdir -p dist/apps/catalog/rc5
+cp "$preview_release"/apps/* dist/apps/catalog/rc5/
+
+sed -e 's|<h1 id="firmware-title">.*</h1>|<h1 id="firmware-title">H9 Toolbox Firmware v0.1.6 RC5</h1>|' \
+  -e 's|hold <strong>Back</strong> to open Toolbox|press <strong>Menu</strong> to open Toolbox|' \
+  -e 's|Hold <strong>Back</strong> on the channel screen, then select an app with <strong>Menu</strong>.|Press <strong>Menu</strong> on the channel screen, then choose an app.|' \
+  -e 's|Use the optional APRS modem update in v0.1.5|Use the included optional APRS modem stage|' \
+  -e 's|H9 Toolbox Firmware v0.1.5 offers|H9 Toolbox Firmware v0.1.6 RC5 includes|' \
+  -e 's|after the v0.1.5 updater confirms that the modem update was staged|after the installer verifies both firmware regions|' \
+  -e 's|href="/apps/">App Manager|href="/apps/?catalog=rc5">App Manager|g' \
+  dist/firmware/index.html > dist/firmware/index.html.tmp
+mv dist/firmware/index.html.tmp dist/firmware/index.html
+
 # Offer the catalog built for the dev firmware.
 test -s dist/apps/catalog/smartbeacon/catalog.json
-sed 's|<!-- dev-smartbeacon-catalog -->|<p class="note" id="smartbeaconCatalogLink"><a href="?catalog=smartbeacon">Development app catalog</a> · For the dev build of H9 Toolbox Firmware v0.1.5.</p>|' \
+test -s dist/apps/catalog/rc5/catalog.json
+sed 's|<!-- dev-smartbeacon-catalog -->|<p class="note" id="smartbeaconCatalogLink"><a href="?catalog=smartbeacon">v0.1.5 development catalog</a> · <a href="?catalog=rc5">v0.1.6 preview catalog</a>.</p>|' \
   dist/apps/index.html > dist/apps/index.html.tmp
 mv dist/apps/index.html.tmp dist/apps/index.html
 

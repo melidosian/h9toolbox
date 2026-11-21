@@ -43,6 +43,13 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
         "notes": ["Use the dev build of H9 Toolbox Firmware v0.1.5."],
         "replaces": ["ac00", *meta["menu"].get("replaces", [])],
     }
+    if firmware.get("unified_menu"):
+        menu.update(
+            version="2.1-dev",
+            description="Unified Menu-key interface with settings, channels and APRS.",
+            summary="Press Menu to open Toolbox from the channel screen.",
+            notes=["Use matching H9 Toolbox Firmware v0.1.6 preview."],
+        )
     apps = []
     for classic in meta["apps"]:
         app = {key: value for key, value in classic.items() if key != "screenshots"}
@@ -119,6 +126,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", type=Path, default=BUNDLE)
     parser.add_argument("--smartbeacon", action="store_true", help="Publish the matching API 5 bench catalog")
+    parser.add_argument("--output", type=Path, help="Override the catalog output directory")
     args = parser.parse_args()
-    c = publish(args.bundle, OUT / "smartbeacon" if args.smartbeacon else OUT, smartbeacon=args.smartbeacon)
+    out = args.output or (OUT / "smartbeacon" if args.smartbeacon else OUT)
+    c = publish(args.bundle, out, smartbeacon=args.smartbeacon)
     print(json.dumps({"menu": c["menu"]["file"], "apps": [a["file"] for a in c["apps"]]}, indent=1))
