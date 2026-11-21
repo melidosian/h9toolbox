@@ -15,6 +15,7 @@ typedef void (*stock_classic)(unsigned x, unsigned y, unsigned side, unsigned fr
 typedef void (*stock_ascii)(unsigned x, unsigned y, const char *text, unsigned color, unsigned font, unsigned bg);
 typedef void (*stock_window)(unsigned x, unsigned y, const char *text, unsigned color,
                              unsigned font, unsigned left, unsigned right);
+typedef void (*stock_frequency)(unsigned x, unsigned y, unsigned frequency, unsigned color, unsigned font);
 
 #ifndef STOCK_DRAW_A
 #define STOCK_DRAW_A ((stock_name)0x01e5a486u)
@@ -22,6 +23,8 @@ typedef void (*stock_window)(unsigned x, unsigned y, const char *text, unsigned 
 #define STOCK_DRAW_CLASSIC ((stock_classic)0x01e59a08u)
 #define STOCK_DRAW_ASCII ((stock_ascii)0x01e4f01cu)
 #define STOCK_DRAW_WINDOW ((stock_window)0x01e53952u)
+#define STOCK_DISPLAY_SIDE ((unsigned (*)(void))0x01e50f58u)
+#define STOCK_DRAW_FREQUENCY ((stock_frequency)0x01e5977cu)
 #endif
 
 struct name_row {
@@ -110,6 +113,17 @@ void radio_label_draw_classic(unsigned x, unsigned y, unsigned side, unsigned fr
 {
     if (side > 1 || !draw_name(side, x, y, CLASSIC_FONT, frequency, color))
         STOCK_DRAW_CLASSIC(x, y, side, frequency, color);
+}
+
+void radio_label_draw_tx_frequency(unsigned x, unsigned y, unsigned frequency, unsigned color, unsigned font)
+{
+    /* The Classic TX routine draws the other row normally, then sends the
+     * red frequency draw straight to the active row. Keep Name + number. */
+    unsigned side = STOCK_DISPLAY_SIDE();
+    if (side < 2 && DISPLAY_LAYOUT == CLASSIC && font == CLASSIC_FONT && memory_channel(side))
+        radio_label_draw_classic(x, y, side, frequency, color);
+    else
+        STOCK_DRAW_FREQUENCY(x, y, frequency, color, font);
 }
 
 void radio_label_display_tick(void)

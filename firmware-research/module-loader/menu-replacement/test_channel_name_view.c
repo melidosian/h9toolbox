@@ -6,11 +6,15 @@
 static uint8_t ram[0x20000];
 static unsigned tick, revision, omit_a, windows, ascii, fallbacks;
 static unsigned last_y, last_side, last_frequency, last_color, last_right;
+static unsigned tx_side, frequency_draws, tx_windows, tx_stock_names;
+enum { NAME_TX_RED = 0xf800 };
 static char last_text[10];
 static struct name_row *fixture_rows(void);
 static void stock_a(unsigned x, unsigned y, unsigned font);
 static void stock_b(unsigned x, unsigned y, unsigned font);
 static void stock_classic_draw(unsigned x, unsigned y, unsigned side, unsigned frequency, unsigned color);
+static unsigned stock_display_side(void);
+static void stock_frequency_draw(unsigned x, unsigned y, unsigned frequency, unsigned color, unsigned font);
 static void ascii_draw(unsigned x, unsigned y, const char *text, unsigned color, unsigned size, unsigned bg);
 static void window_draw(unsigned x, unsigned y, const char *text, unsigned color,
                         unsigned size, unsigned left, unsigned right);
@@ -21,6 +25,8 @@ static void window_draw(unsigned x, unsigned y, const char *text, unsigned color
 #define STOCK_DRAW_A stock_a
 #define STOCK_DRAW_B stock_b
 #define STOCK_DRAW_CLASSIC stock_classic_draw
+#define STOCK_DISPLAY_SIDE stock_display_side
+#define STOCK_DRAW_FREQUENCY stock_frequency_draw
 #define STOCK_DRAW_ASCII ascii_draw
 #define STOCK_DRAW_WINDOW window_draw
 #include "channel_name_view.c"
@@ -45,6 +51,24 @@ static void stock_classic_draw(unsigned x, unsigned y, unsigned side, unsigned f
     last_frequency = frequency;
     last_color = color;
     ++fallbacks;
+    if (color == NAME_TX_RED) ++tx_stock_names;
+}
+
+static unsigned stock_display_side(void) { return tx_side; }
+
+static void stock_classic_tx(unsigned frequency)
+{
+    /* Match the pinned caller, which refreshes the opposite row first. */
+    unsigned y = tx_side ? 76 : 22;
+    radio_label_draw_classic(12, tx_side ? 22 : 76, tx_side ^ 1, 14652000, NAME_WHITE);
+    radio_label_draw_tx_frequency(12, y, frequency, NAME_TX_RED, CLASSIC_FONT);
+}
+
+static void stock_frequency_draw(unsigned x, unsigned y, unsigned frequency, unsigned color, unsigned font)
+{
+    assert(x == 12 && y == 76 && color == NAME_TX_RED && font == CLASSIC_FONT);
+    last_frequency = frequency;
+    ++frequency_draws;
 }
 
 static void ascii_draw(unsigned x, unsigned y, const char *text, unsigned color, unsigned size, unsigned bg)
@@ -64,6 +88,7 @@ static void window_draw(unsigned x, unsigned y, const char *text, unsigned color
     last_right = right;
     strcpy(last_text, text);
     ++windows;
+    if (color == NAME_TX_RED) ++tx_windows;
 }
 
 void gfx_fill(unsigned x, unsigned y, unsigned w, unsigned h, uint16_t color)
@@ -117,5 +142,33 @@ int main(void)
     omit_a = 0;
     radio_label_draw_a(4, 24, 8);
     assert(ascii == 1 && !strcmp(last_text, "01234567"));
-    puts("Classic long names, clipping, A/B timing and stock fallbacks passed.");
+
+    ram[0x12BAD] = CLASSIC;
+    ram[0x12BB3] = 1;
+    stock_classic_tx(14612000);
+    assert(last_y == 22 && last_color == NAME_TX_RED && tx_windows == 1 && !frequency_draws);
+    tick += 100;
+    radio_label_display_tick();
+    assert(tx_windows == 2 && fixture_rows()[0].color == NAME_TX_RED);
+    radio_label_draw_classic(12, 22, 0, 14652000, NAME_WHITE);
+    assert(last_color == NAME_WHITE);
+
+    tx_side = 1;
+    ++revision;
+    stock_classic_tx(14500000);
+    assert(last_y == 76 && last_color == NAME_TX_RED && tx_windows == 3 &&
+           !frequency_draws && !strncmp(last_text, "MOUNTAIN", 8));
+    radio_label_draw_classic(12, 76, 1, 14439000, 0x07e0);
+    assert(last_color == 0x07e0);
+
+    tx_side = 0;
+    omit_a = 1;
+    ++revision;
+    stock_classic_tx(14612000);
+    assert(last_side == 0 && last_color == NAME_TX_RED && tx_stock_names == 1 && !frequency_draws);
+    tx_side = 1;
+    ram[0x12BB3] = 0;
+    stock_classic_tx(14500000);
+    assert(last_frequency == 14500000 && frequency_draws == 1 && tx_stock_names == 1);
+    puts("Classic long and short names, A/B transmit colors, scrolling, and frequency fallback passed.");
 }

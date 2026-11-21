@@ -5439,3 +5439,46 @@ result yet.**
   `b852e3884ee4c5f8520849602479087dc1a48036ace132820ad253446cfafd30`.
   This firmware has been verified offline. USB-C writes on hardware are
   pending.
+
+## 2026-11-20 — 0.1.6-rc.4 Classic transmit name display
+
+- The user reported a transient frequency and white channel name during
+  transmit. The pinned Classic TX routine at app+0x5A12C refreshes the
+  opposite row normally and calls the numeric renderer at app+0x5A232
+  with red (0xF800) on the transmitting row, bypassing the name renderer.
+- The new hook keeps the original color and font arguments and uses the
+  same stock side selector (app+0x50E58). In Name + number view it paints
+  the long or stock short name in red. The scrolling row retains that
+  color until the next stock redraw. Numeric and VFO paths still use the
+  original frequency renderer.
+- The host tests covered A/B transmit, scrolling in red, return to the
+  stock white and green redraws, short names and numeric fallback. The
+  built call and its five-argument fallback were decoded and verified.
+  The app bundle matches RC3 byte for byte.
+- The offline RC4 package verified with SHA-256
+  `8e7cb1fc97605704665bb7fa0add10fb83ef4c0950189e0920200193a6e189ce`.
+  The combined far payload SHA-256 is
+  `83228873b940b95d39adb8150bd42add25799be05e6567749816922dd9019445`.
+  The transmit display check on the radio is pending.
+
+## 2026-11-20 — 0.1.6-rc.4 hardware flash
+
+- The first BR23 session saved the original RC2 main image and recovery
+  manifest in ignored `private/downloads/release-0.1.6-rc.4-trial-20261120-181351`.
+  The 892,928-byte backup matches the RC2 readback SHA-256
+  `b132b8ccdacebd8a82027bc10c0a6b230e0393f3a84716b681ac263fc785f007`.
+- The session wrote and verified all nine changed main sectors. USB
+  returned Windows error 31 during the full main readback, before the
+  flasher backed up or wrote any far sectors. The next attempt must read
+  back the entire RC4 main image before it proceeds to the far region.
+- The completed retry in
+  `private/downloads/release-0.1.6-rc.4-trial-20261120-185708` read the
+  entire main region and confirmed it already matched RC4, SHA-256
+  `7589d63f7b7eee83908a00852cfef0538b920364d71e0e532085ab62ae34fc43`.
+  It then saved the complete RC2 far region, which matches the padded
+  RC2 build byte for byte, and wrote 14 of 18 far sectors.
+- Full far readback matched the RC4 combined payload
+  `83228873b940b95d39adb8150bd42add25799be05e6567749816922dd9019445`.
+  The flasher exited zero and reported UNIFIED_MENU_FLASH_VERIFIED. The
+  original RC2 main and far backups are retained. The Classic transmit
+  display and the RC3 USB-C write behavior await on-radio testing.

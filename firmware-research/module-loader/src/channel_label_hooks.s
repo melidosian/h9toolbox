@@ -115,3 +115,23 @@ labels_classic_call:
     call r4
     sp += 4
     {pc, r4} = [sp++]
+
+/* The TX frequency renderer also has five arguments. Preserve its original
+ * font argument if the far payload is unavailable. */
+    .globl ml_labels_draw_tx_frequency
+ml_labels_draw_tx_frequency:
+    [--sp] = {rets, r4}
+    r4 = [sp+8]
+    sp += -4
+    [sp] = r4
+    r4 = 0x29900
+    r4 = b[r4+0] (u)
+    if (r4 != 2) goto labels_stock_tx_frequency
+    r4 = LABEL_FAR_DRAW_TX_FREQUENCY
+    goto labels_tx_frequency_call
+labels_stock_tx_frequency:
+    r4 = 0x01e5977c
+labels_tx_frequency_call:
+    call r4
+    sp += 4
+    {pc, r4} = [sp++]

@@ -67,13 +67,15 @@ CHANNEL_NAME_CALLS = ((0x6758E, 0x5A386, "ml_labels_draw_a"),
                       (0x59B24, 0x59908, "ml_labels_draw_classic"),
                       (0x59DEC, 0x59908, "ml_labels_draw_classic"),
                       (0x7AEAE, 0x59908, "ml_labels_draw_classic"),
-                      (0x7AEDA, 0x59908, "ml_labels_draw_classic"))
+                      (0x7AEDA, 0x59908, "ml_labels_draw_classic"),
+                      (0x5A232, 0x5967C, "ml_labels_draw_tx_frequency"))
 CHANNEL_CLONE_CALLS = ((0x5D018, 0xA51A8, "ml_labels_read"),
                        (0x5D122, 0xA5200, "ml_labels_write"))
 CHANNEL_LABEL_EXPORTS = {
     "LABEL_FAR_TICK": "radio_label_display_tick", "LABEL_FAR_DRAW_A": "radio_label_draw_a",
     "LABEL_FAR_DRAW_B": "radio_label_draw_b", "LABEL_FAR_READ": "radio_label_clone_read",
     "LABEL_FAR_DRAW_CLASSIC": "radio_label_draw_classic",
+    "LABEL_FAR_DRAW_TX_FREQUENCY": "radio_label_draw_tx_frequency",
     "LABEL_FAR_WRITE": "radio_label_clone_write",
 }
 RESIDENT_FLASH, RESIDENT_CPU = 0xFB000, 0x01EF6000
