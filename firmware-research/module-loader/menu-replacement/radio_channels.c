@@ -17,11 +17,12 @@ int radio_channel_field(unsigned target, unsigned field, struct radio_setting *s
     switch (field) {
     case 0: case 1:
         s->label = field ? "TX (MHz)" : "RX (MHz)";
-        s->offset += field * 4; s->length = 4; s->kind = RADIO_FREQUENCY;
+        s->offset += field * 4; s->length = 4; s->kind = RADIO_CHANNEL_FREQUENCY;
         s->min = 1800000; s->max = 60000000;
         if (field == 1 && target > 199) {
             s->label = "TX OFFSET (10Hz)";
             s->offset = radio_vfo_offset(target - 200);
+            s->kind = RADIO_FREQUENCY;
             s->min = 0;
         }
         break;
@@ -88,9 +89,10 @@ int radio_channel_copy(const struct radio_storage *storage, unsigned channel, un
     struct radio_edit edit;
     radio_channel_field(200 + vfo, 0, &frequency);
     edit.setting = &frequency;
+    edit.channel_33cm = radio_33cm_enabled(storage);
     for (unsigned i = 0; i < 4; ++i) edit.value[i] = record[i];
     unsigned rx = radio_value(&edit);
-    if (rx < frequency.min || rx > frequency.max) return RADIO_INVALID;
+    if (radio_set_number(&edit, rx)) return RADIO_INVALID;
     unsigned direction = record[14] & 3;
     if (direction) {
         if (direction > 2) return RADIO_INVALID;

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "radio_settings_catalog.h"
+#include "radio_33cm.h"
 
 static unsigned char image[0x6100];
 static unsigned writes, fail_write, corrupt_write;
@@ -23,7 +24,13 @@ static const struct radio_storage storage = { read_image, write_image };
 
 int main(void)
 {
-    assert(RADIO_SETTING_COUNT == 122);
+    assert(RADIO_SETTING_COUNT == 123);
+    unsigned tx500 = 0;
+    while (tx500 < RADIO_SETTING_COUNT && strcmp(radio_settings[tx500].id, "tx500")) ++tx500;
+    assert(tx500 + 1 < RADIO_SETTING_COUNT);
+    const struct radio_setting *band = &radio_settings[tx500 + 1];
+    assert(!strcmp(band->label, "900TX") && band->group == radio_settings[tx500].group);
+    assert(band->offset == RADIO_33CM_SETTING && band->choice_count == 2);
     for (unsigned i = 0; i < RADIO_SETTING_COUNT; ++i) {
         const struct radio_setting *s = &radio_settings[i];
         struct radio_edit edit, reloaded;
@@ -108,5 +115,5 @@ int main(void)
             assert(radio_set_number(&edit, (unsigned)-32769) == RADIO_INVALID);
         }
     }
-    puts("122 stored radio fields: round trips, calibration, DTMF, coordinates, shared bits and I/O failures passed.");
+    puts("123 radio fields: round trips, calibration, DTMF, coordinates, shared bits and I/O failures passed.");
 }

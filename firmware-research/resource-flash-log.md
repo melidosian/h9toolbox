@@ -5800,3 +5800,37 @@ result yet.**
   passed aligned and shifted CRC checks. Backup and flash log:
   `~/h9-backups/channel-mhz-hid-20261121.tWeD2FP1`.
 - Confirmed on the radio that the MHz-entry trial works.
+
+## 2026-11-22 — Experimental 33 cm transmit
+
+- The v1.0.33 community build extends tuning and reports that PTT enters
+  transmit. The equivalent v1.0.38 validation call is at app+0x5AD64 and
+  checks the frequency after the repeater shift. It sits behind the
+  stock 500TX and region gates. The v1.0.38 counterpart to the
+  community classifier literal is at app+0x8332A in the RSSI
+  calibration routine. [Community patch notes](https://github.com/mjwgeek/TIDRADIO_TD-H9/blob/main/PATCH_NOTES.md)
+- Hooked the checked instructions at app+0x56616 and app+0x5ACC2.
+  The 902–928 MHz TX path requires the session setting and a permitted
+  region mode, then rejoins stock validation and RF setup. It preserves
+  the stack frequency, band selector, and RF table base. Other
+  frequencies use the existing gates and range tables. The boot
+  clear covers the word at RAM 0x299F0.
+- The combined bench package retains the optional APRS update. Two
+  additional modem fragments fit verified zeroed stock CW spans.
+  The modem image round-tripped through the package and all 136
+  blocks passed the host transfer test.
+- The menu and loader host suites passed. Instruction tracing from
+  the packaged app checked both redirects across 108 combinations of
+  frequency, setting state, and region.
+- Bench package SHA-256
+  `77bb5b7d2d4f504790956c3fb1ae1101667d18eb8c70f4cf1a9cf7fbddc7b5bb`.
+  Far payload SHA-256
+  `84f605b75770fb8776603befc1069b78f3f45ab0da63e74ed04e35a54a222da5`.
+  Radio boot and RF output on 33 cm await a physical trial.
+
+- Renamed the row to **900TX** in v0.1.8-rc.2. The rebuilt menu
+  contains the new label, and the 108 instruction-trace cases passed.
+  Main package SHA-256
+  `cc07e27e763097e453b44d51f705923df0b26377e33789a32bf71e3f3dc02471`.
+  Far payload SHA-256
+  `eb2399ac6c88466b802e234560e3d49a256691783ede558d59bb284076420e16`.

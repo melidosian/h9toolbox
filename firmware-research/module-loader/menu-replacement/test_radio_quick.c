@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 
-static unsigned char ram[0x29A00], image[0x2000];
+#include "radio_33cm.h"
+
+static unsigned char ram[0x29A00], image[RADIO_33CM_SETTING + 1];
 static unsigned tick, redraws, reads, writes, reloads, busy, settings_opens, backlight_updates, squelch_refreshes;
 static const unsigned char *keys;
 
@@ -216,6 +218,15 @@ int main(void)
     assert(begin_split(201, &draft) == RADIO_OK && draft.tx == 14440000);
     draft.tx = draft.rx;
     assert(save_split(&draft) == RADIO_OK && (image[0x196e] & 3) == 0);
+    image[0x1963] = 0x91;
+    assert(begin_split(201, &draft) == RADIO_OK && draft.rx == 91500000);
+    draft.tx = 92700000;
+    assert(save_split(&draft) == RADIO_INVALID);
+    image[RADIO_33CM_SETTING] = 1;
+    assert(save_split(&draft) == RADIO_OK && (image[0x196e] & 3) == 2);
+    assert(begin_split(201, &draft) == RADIO_OK && draft.tx == 92700000);
+    draft.tx = 90199999;
+    assert(save_split(&draft) == RADIO_INVALID);
     image[3233] = 0x15;
     run(resume);
     assert(image[3233] == 0x55 && !ram[KEY_QUEUE_COUNT]);

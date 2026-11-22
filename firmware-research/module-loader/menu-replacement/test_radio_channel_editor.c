@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "radio_channels.h"
+#include "radio_33cm.h"
 #include "channel_labels_native.h"
 #include "h9mod.h"
 
@@ -12,7 +13,7 @@ enum { TEST_ACCENT = 0x001f };
 static char selected_number[4];
 static unsigned full_fills, row_fills, header_draws, footer_draws, notice_clears;
 static unsigned saw_short_mhz, saw_precise_mhz;
-static uint8_t image[0x6000];
+static uint8_t image[RADIO_33CM_SETTING + 1];
 static unsigned writes, separate_editors, check_value, saw_vfo, saw_name, saw_long_name, saw_color;
 static int read_image(unsigned offset, void *dst, unsigned n) { memcpy(dst, image + offset, n); return 0; }
 static int write_image(unsigned offset, const void *src, unsigned n) { memcpy(image + offset, src, n); ++writes; return 0; }
