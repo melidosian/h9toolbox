@@ -11,7 +11,7 @@ and the matching far firmware image. Use the matching catalog at
 - `apps/` contains the App Manager catalog and modules.
 - Run `sha256sum -c SHA256SUMS` from this directory to verify the files.
 
-The decoded main firmware matches the radio-tested RC12 except for the
-version word. The far image and the source module bundle match RC12
-byte for byte. See the [changelog](../../../../CHANGELOG.md) for controls
-and release notes.
+The main and far files are the paired images verified over HID and checked
+on the radio with the updated channel picker, accelerated scrolling and
+MHz entry. The app catalog comes from the same build. See the
+[changelog](../../../../CHANGELOG.md) for controls and release notes.

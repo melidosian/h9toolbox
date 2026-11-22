@@ -6,9 +6,9 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT.parent / "far-hello"))
+sys.path.insert(0, str(ROOT.parent / "archive" / "far-hello"))
 sys.path.insert(0, str(ROOT.parent / "brick-breaker" / "tools" / "pi32v2-isa"))
-from build import flash_form  # noqa: E402  (far-hello/build.py)
+from build import flash_form  # noqa: E402  (archive/far-hello/build.py)
 from pi32v2isa import asm, elf  # noqa: E402
 
 

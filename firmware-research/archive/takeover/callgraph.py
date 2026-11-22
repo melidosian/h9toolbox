@@ -46,8 +46,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-ISA = ROOT.parent / "brick-breaker" / "tools" / "pi32v2-isa"
-INDEX = ROOT.parent / "h9-firmware-research" / "evidence" / "stock" / "pi32-call-index-v2.json"
+ISA = ROOT.parents[1] / "brick-breaker" / "tools" / "pi32v2-isa"
+INDEX = ROOT.parents[1] / "h9-firmware-research" / "evidence" / "stock" / "pi32-call-index-v2.json"
 BASE = 0x01E00100
 MY_APP = 0x088180
 RAMCODE = (0xC618C, 0xC618C + 0xDA78)

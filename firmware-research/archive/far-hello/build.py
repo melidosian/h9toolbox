@@ -31,7 +31,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
-RESEARCH = ROOT.parent
+RESEARCH = ROOT.parents[1]
 TOOLS = RESEARCH / "brick-breaker" / "tools"
 ISA = TOOLS / "pi32v2-isa"
 H9CC = RESEARCH / "toolchain" / "h9cc"
@@ -62,8 +62,8 @@ C_FLAGS = ["-target", "pi32v2", "-mcpu=r3", "-Oz", "-integrated-as",
 # Brick Breaker launcher also enters (the radio has already run that setup).
 SPLIT = "    r0 = 1\n    r3 = 0x01e4c2da\n    call r3\n"
 # Programs that can be placed in the far region (C source, relative to RESEARCH).
-PROGRAMS = {"hello": "c-hello/main.c", "logo": "far-hello/logo.c", "keys": "far-hello/keys.c",
-            "audio": "far-hello/audio.c"}
+PROGRAMS = {"hello": "c-hello/main.c", "logo": "archive/far-hello/logo.c", "keys": "archive/far-hello/keys.c",
+            "audio": "archive/far-hello/audio.c"}
 # Extra C API for far programs (JieLi clang ABI: r0-r3 arguments, r0 result).
 FAR_API = """
 /* int h9_res_read(partition, offset, buffer, length): stock resource-flash

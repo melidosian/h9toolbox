@@ -15,7 +15,8 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-TOOLS = ROOT.parent / "brick-breaker" / "tools"
+RESEARCH = ROOT.parents[1]
+TOOLS = RESEARCH / "brick-breaker" / "tools"
 VENDOR_DIR = TOOLS / "h9-flasher" / "vendor"
 ISA = TOOLS / "pi32v2-isa"
 

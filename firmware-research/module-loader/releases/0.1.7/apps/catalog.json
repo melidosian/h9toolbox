@@ -108,45 +108,45 @@
    "modules": [
     {
      "name": "APRS",
-     "bytes": 3410,
-     "ram": 3410,
-     "crc16": "f88d"
+     "bytes": 3426,
+     "ram": 3426,
+     "crc16": "c4ca"
     },
     {
      "name": ".APRS LIST",
-     "bytes": 6228,
-     "ram": 6228,
-     "crc16": "b4d4"
+     "bytes": 6348,
+     "ram": 6348,
+     "crc16": "216b"
     },
     {
      "name": ".APRS INFO",
-     "bytes": 6172,
-     "ram": 6172,
-     "crc16": "1070"
+     "bytes": 6292,
+     "ram": 6292,
+     "crc16": "f479"
     },
     {
      "name": "APRS MAP",
-     "bytes": 6160,
-     "ram": 6160,
-     "crc16": "19a9"
+     "bytes": 6280,
+     "ram": 6280,
+     "crc16": "ec36"
     },
     {
      "name": "APRS MSG",
-     "bytes": 6624,
-     "ram": 6624,
-     "crc16": "12ae"
+     "bytes": 6668,
+     "ram": 6668,
+     "crc16": "2ae5"
     },
     {
      "name": "APRS SEND",
-     "bytes": 4746,
-     "ram": 4746,
-     "crc16": "8b6b"
+     "bytes": 4862,
+     "ram": 4862,
+     "crc16": "bdc4"
     },
     {
      "name": ".APRS STORE",
-     "bytes": 3831,
-     "ram": 3831,
-     "crc16": "03e4"
+     "bytes": 3847,
+     "ram": 3847,
+     "crc16": "ad93"
     },
     {
      "name": "APRS BEACON",
@@ -171,10 +171,10 @@
     ".APRS BG"
    ],
    "file": "aprs.h9mod",
-   "bytes": 38735,
-   "ram": 6624,
-   "crc16": "f88d",
-   "sha256": "360dc0750f43272dc5ae83c91994af41ad8651d0fa1748f2da48dcf39067ed12"
+   "bytes": 39287,
+   "ram": 6668,
+   "crc16": "c4ca",
+   "sha256": "bcc1ea30d07ec235e33715a6ecd5c105b64107ba8f9fb17d672430e7c8a7bbc1"
   },
   {
    "id": "sat_pass",
@@ -186,21 +186,21 @@
    "modules": [
     {
      "name": "SAT PASS",
-     "bytes": 5432,
-     "ram": 5432,
-     "crc16": "38e2"
+     "bytes": 5504,
+     "ram": 5504,
+     "crc16": "008c"
     },
     {
      "name": ".SAT PLOT",
-     "bytes": 2752,
-     "ram": 2752,
-     "crc16": "a028"
+     "bytes": 2884,
+     "ram": 2884,
+     "crc16": "18be"
     },
     {
      "name": ".SAT TRACK",
-     "bytes": 4072,
-     "ram": 4072,
-     "crc16": "fac6"
+     "bytes": 4180,
+     "ram": 4180,
+     "crc16": "d0e9"
     },
     {
      "name": ".SAT TRACKER",
@@ -236,10 +236,10 @@
     ".SAT DATA"
    ],
    "file": "sat_pass.h9mod",
-   "bytes": 16504,
-   "ram": 5432,
-   "crc16": "38e2",
-   "sha256": "94c7b20f7f110951a3a8d6743958c7a2c0dc737bf298aa2fc077e6cb825ac955"
+   "bytes": 16816,
+   "ram": 5504,
+   "crc16": "008c",
+   "sha256": "f9b92dc5a628182a4480a5c2c0fe5074cc5125e9d4ff106c1dcbdcd9a519b093"
   },
   {
    "id": "gps",
@@ -258,16 +258,16 @@
    "modules": [
     {
      "name": "GPS",
-     "bytes": 5668,
-     "ram": 5668,
-     "crc16": "3f49"
+     "bytes": 5692,
+     "ram": 5692,
+     "crc16": "1b88"
     }
    ],
    "file": "gps.h9mod",
-   "bytes": 5668,
-   "ram": 5668,
-   "crc16": "3f49",
-   "sha256": "7dfeb62b8b801fea9d40a1eac8aa646b0349f74174814d55c83b613428ef022a"
+   "bytes": 5692,
+   "ram": 5692,
+   "crc16": "1b88",
+   "sha256": "bacb54b4e965ec77de484e804bf2c138402213d0b1cdbd9e73e25cae0fb6503a"
   },
   {
    "id": "aprs_monitor",

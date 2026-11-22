@@ -20,6 +20,17 @@
 - The Type-C TD-H9 release includes the optional on-radio APRS modem
   update and a matching App Manager catalog.
 
+### Channel Settings and scrolling
+
+- Open **Channel Settings** to pick a memory directly from **001–199**.
+  The list uses the Toolbox menu colors and shows long channel names
+  when available. Scrolling redraws just the channel rows.
+- Frequencies display at least three decimal places and keep up to five
+  fractional digits. Enter **14223** and press **Menu** to save **142.230 MHz**.
+- A tap of **Up** or **Down** moves one item. Hold for half a second to
+  repeat, then keep holding to scroll faster. The same behavior applies
+  across Toolbox menus and the APRS, GPS and satellite apps.
+
 ### APRS app v1.0
 
 - The six-message on-radio inbox and outbox now survive power cycles in a

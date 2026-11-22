@@ -45,7 +45,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
-RESEARCH = ROOT.parent
+RESEARCH = ROOT.parents[1]
 TOOLS = RESEARCH / "brick-breaker" / "tools"
 ISA = TOOLS / "pi32v2-isa"
 H9CC = RESEARCH / "toolchain" / "h9cc"
@@ -182,7 +182,7 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     entry_obj = output / "monitor_entry.o"
     entry_obj.write_bytes(asm.assemble_source(entry, filename="monitor_entry.s"))
     c_obj = output / "monitor.o"
-    result = subprocess.run([str(H9CC), "clang", *C_FLAGS, "-c", "trap-test/monitor.c",
+    result = subprocess.run([str(H9CC), "clang", *C_FLAGS, "-c", str(ROOT / "monitor.c"),
                              "-o", str(c_obj.relative_to(RESEARCH))], cwd=RESEARCH, capture_output=True, text=True)
     if result.returncode:
         raise RuntimeError(f"JieLi clang failed:\n{result.stdout}{result.stderr}")
@@ -190,7 +190,7 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     if [s.name for s in c_program.sections if s.name.startswith((".data", ".bss", ".sdata", ".sbss")) and len(s.data or b"")]:
         raise ValueError("C code has data sections")
     linked = output / "h9_trap_monitor.elf"
-    script = ROOT / "cave.ld" if cave_mode else RESEARCH / "far-hello" / "far.ld"
+    script = ROOT / "cave.ld" if cave_mode else ROOT.parent / "far-hello" / "far.ld"
     state, data = ld.link(ld.parse_args(["-T", str(script), "-o", str(linked), str(entry_obj), str(c_obj)]))
     if data is None or state.errors:
         raise RuntimeError(f"Pi32 linker failed: {state.errors}")
@@ -217,7 +217,7 @@ def build(stock_image: Path, stock_package: Path, output: Path, mode: str = "red
     blob.write_bytes(plain)
     # Same bytes in the app-area cipher (key 0xF181 ^ ((flash - 0x5000) >> 2)):
     # runs 1-3 showed plain far code does not run when started at boot.
-    sys.path.insert(0, str(RESEARCH / "far-hello"))
+    sys.path.insert(0, str(ROOT.parent / "far-hello"))
     from build import flash_form  # noqa: E402
     encrypted = flash_form(plain, 0xEA000)
     if flash_form(encrypted, 0xEA000)[:len(plain)] != plain:

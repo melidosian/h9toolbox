@@ -48,7 +48,7 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
             version="2.1-dev",
             description="Unified Menu-key interface with settings, channels and APRS.",
             summary="Press Menu to open Toolbox from the channel screen.",
-            notes=["Use matching H9 Toolbox Firmware v0.1.6 preview."],
+            notes=["Use H9 Toolbox Firmware v0.1.6."],
         )
         version = firmware["firmware_version"]
         if (build.firmware_version_word(version) & 0xffffff) >= 0x000107:
