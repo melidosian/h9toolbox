@@ -1,3 +1,4 @@
+#include "key_ramp.h"
 /* H9 Toolbox module menu (module 0 of the bundle).
  *
  * Lists the bundle's other modules, then USB UPDATE (the BR23 USB loader, as
@@ -146,8 +147,12 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     draw_list(api, items, modules, vis, top, selected);
 
     gfx_wait_release();
+    struct h9_key_ramp keys = {0};
     for (;;) {
-        unsigned key = gfx_wait_key();
+        h9_delay(20);
+        uint32_t tick = *(const volatile uint32_t *)0x1D8B0u;
+        unsigned key = h9_key_ramp(&keys, h9_key(), tick, 1);
+        if (!key) continue;
         unsigned previous = selected;
         if (key == H9_KEY_UP) {
             selected = selected ? selected - 1 : items - 1;

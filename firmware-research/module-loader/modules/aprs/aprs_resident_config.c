@@ -1,5 +1,6 @@
 #include "aprs_resident_config.h"
 #include "app_theme.h"
+#include "key_ramp.h"
 
 enum { SET_A = 0x3FC000, SET_B = 0x3FD000, GAME_DIRECTORY = 0xA1F000 };
 #define NOR_READY (*(const volatile uint16_t *)0x12234u == 0x5AA5u)
@@ -181,6 +182,7 @@ unsigned module_main(const struct h9_api *loader, unsigned self)
     gfx_wait_release();
     struct h9_runtime_status latest;
     unsigned selected = RUN, previous = 0, held = 0;
+    struct h9_key_ramp keys = {0};
     uint32_t last_draw = TICK - 100u;
     const char *notice = 0;
     for (;;) {
@@ -188,8 +190,9 @@ unsigned module_main(const struct h9_api *loader, unsigned self)
         held = key == previous ? held + (held < 100) : 0;
         previous = key;
         if (held == 2 && key == H9_KEY_BACK) return 0;
-        if (held == 2 && (key == H9_KEY_UP || key == H9_KEY_DOWN)) {
-            selected = (selected + (key == H9_KEY_UP ? ROW_COUNT - 1 : 1)) % ROW_COUNT;
+        unsigned arrow = h9_key_ramp(&keys, key, TICK, 1);
+        if (arrow == H9_KEY_UP || arrow == H9_KEY_DOWN) {
+            selected = (selected + (arrow == H9_KEY_UP ? ROW_COUNT - 1 : 1)) % ROW_COUNT;
             notice = 0;
             last_draw -= 100u;
         }

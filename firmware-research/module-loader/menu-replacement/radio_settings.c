@@ -1,3 +1,5 @@
+#define H9_KEY_RAMP_IMPLEMENTATION
+#include "key_ramp.h"
 #include "radio_settings.h"
 
 static void copy(uint8_t *dst, const uint8_t *src, unsigned n)
@@ -194,6 +196,20 @@ int radio_save(const struct radio_storage *storage, struct radio_edit *edit)
     return RADIO_OK;
 }
 
+const char *radio_frequency_label(unsigned f, char text[10])
+{
+    if (f > 99999999) return "--";
+    for (unsigned i = 9, place = 1; i;) {
+        --i;
+        if (i == 3) text[i] = '.';
+        else { text[i] = '0' + f / place % 10; place *= 10; }
+    }
+    unsigned end = 9;
+    while (end > 7 && text[end - 1] == '0') --end;
+    text[end] = 0;
+    return text;
+}
+
 const char *radio_value_label(const struct radio_edit *edit, char buffer[RADIO_MAX_VALUE + 1])
 {
     const struct radio_setting *s = edit->setting;
@@ -207,7 +223,10 @@ const char *radio_value_label(const struct radio_edit *edit, char buffer[RADIO_M
         return buffer;
     }
     unsigned n = radio_value(edit);
-    if (s->kind == RADIO_FREQUENCY && !valid_number(s, n)) return "UNSET";
+    if (s->kind == RADIO_FREQUENCY) {
+        if (!valid_number(s, n)) return "UNSET";
+        if (s->min) return radio_frequency_label(n, buffer);
+    }
     if (s->kind == RADIO_CHOICE) {
         for (unsigned i = 0; i < s->choice_count; ++i) if (s->choices[i].value == n) return s->choices[i].label;
         return "UNSET";
@@ -237,4 +256,15 @@ const char *radio_number_label(unsigned n, char *buffer)
     while (i) buffer[j++] = digits[--i];
     buffer[j] = 0;
     return buffer;
+}
+
+__attribute__((noinline)) unsigned menu_luma(uint16_t rgb)
+{
+    return 26 * (rgb >> 11) + 26 * ((rgb >> 5) & 63) + 10 * (rgb & 31);
+}
+
+uint16_t menu_ink(uint16_t accent)
+{
+    /* Lighten dark colors for small text on the black LCD background. */
+    return menu_luma(accent) < 1050 ? ((accent >> 1) & 0x7BEF) + 0x8410 : accent;
 }

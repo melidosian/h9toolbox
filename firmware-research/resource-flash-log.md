@@ -5695,3 +5695,108 @@ result yet.**
   The decoded main app differs from the USB-verified RC12 app only in the
   four-byte Toolbox version word at app+0xA7D54. The far flash image and
   source module bundle match RC12 byte for byte.
+
+## 2026-11-21 Channel Settings editor
+
+- The VFO editor's TX row wrote the memory-style TX field in each VFO
+  record. Stock split uses the BCD magnitude at partition offsets
+  `0xCB0` (A) and `0xCB4` (B) and the direction bits in the VFO record.
+  The editor now exposes the native TX Offset field. Quick Change reads
+  it through the same field definition, and Store VFO uses the same
+  address calculation when resolving TX into a memory record.
+- Host keypad tests cover changing the VFO B offset without overwriting
+  its former TX field, completing a numeric entry after an early save
+  attempt, and choosing a tone with the arrow keys.
+- Flashed the separate Channel Settings trial through PTT+2 USB HID. Both
+  firmware regions matched RC12 before writing and the trial after writing
+  by aligned and shifted CRCs. Backups and the flash log are in
+  `~/h9-backups/channel-editor-hid-20261121.pwdpq4dh`.
+
+## 2026-11-21 Direct Channel Settings list
+
+- Channel Settings opens a five-row viewport over VFO A, VFO B, and
+  memories 001–199. It shows stored short names where present. Keypad
+  jumps, arrow navigation, and returning to the same list row passed the
+  host editor tests. The menu integration test opens the action directly
+  from the top-level Channel Settings row.
+- The 60,552-byte far menu needs part of the APRS modem image in the
+  unused tail of the retired list-builder function. The combiner checks
+  the stub and fragment boundaries and reconstructs the original modem
+  bytes from the combined package. The previous layout still produces
+  its original files byte for byte. The five-fragment stage passed the
+  136-block host test. This channel-list trial has not been flashed.
+- Flashed the channel-list trial through PTT+2 USB HID. The pre-write
+  CRCs matched the earlier Channel Editor trial. Six main sectors and
+  17 far sectors changed, and both regions passed aligned and shifted
+  CRC verification. The backup and flash log are in
+  `~/h9-backups/channel-list-hid-20261121.KjW0ukEm`.
+
+## 2026-11-21 Channel Settings list styling and keypad repeat
+
+- The list now contains memories 001–199. Each row shows a three-digit
+  channel number, then an optional long name or the native short name.
+  The existing Toolbox palette supplies the title, selection and contrast.
+- Up and Down advance once on a stable press, then repeat after about
+  360 ms and every 100 ms while held in the list or field navigation.
+  Host tests cover both directions, name fallback, color and editing.
+- Built the 60,516-byte far menu and verified the matching main and far
+  trial files. The five-part APRS layout passed the 136-block host test.
+- Flashed the styled channel list trial over PTT+2 USB HID. The previous
+  channel-list trial matched both pre-write CRC scans and was backed up.
+  All six main sectors and 17 far sectors written passed sector checks,
+  and both full regions passed aligned and shifted CRC verification.
+  Backup and flash log: `~/h9-backups/channel-list-final-hid-20261121.eHoyvBm2`.
+
+## 2026-11-21 Shared keypad scroll ramp
+
+- The channel list's old repeat delay counted `h9_delay(2)` polls.
+  This API takes milliseconds, so repeat began much sooner than intended.
+  The shared keypad code now uses the 100 Hz radio clock. A tap advances
+  once, then a hold repeats from 500 ms at 160 ms intervals, improving
+  to 80 ms after one second and 40 ms after 1.8 seconds.
+- Toolbox menus, Channel Settings, Quick Change, Bluetooth device lists,
+  and the APRS, GPS and satellite app navigation share the same ramp.
+  Host tests cover taps, long holds, release, reversal and timer wrap.
+- Built and verified the paired trial images and matching app bundle.
+  The APRS modem stage passed the 136-block transfer test. The host
+  screenshot harness also rendered the APRS, GPS and satellite pages.
+- Flashed the scroll-ramp trial through PTT+2 USB HID. Both pre-write
+  regions matched the styled channel-list trial and were backed up.
+  All 17 main sectors and 17 far sectors written passed sector checks,
+  and both regions passed aligned and shifted CRC verification. Backup
+  and flash log: `~/h9-backups/scroll-ramp-hid-20261121.Bfjt4X5C`.
+
+## 2026-11-21 Channel list redraw
+
+- Scrolling the memory picker redraws its five visible rows and leaves
+  the header, prompt and key hints on the LCD. Returning from the
+  channel editor repaints the frame. A stale jump warning clears only
+  its eight-pixel message band.
+- Host draw tests verify one frame draw through arrow navigation and
+  scrolling the viewport. Built and verified the 60,592-byte far menu
+  with a tighter aligned modem-stage reservation. The relocated modem
+  passed the 136-block host test and the app bundle is byte-identical
+  to the scroll-ramp trial.
+- Flashed the channel-redraw trial through PTT+2 USB HID. Both pre-write
+  regions matched the scroll-ramp trial and were backed up. Each of the
+  17 main and 17 far sectors written passed sector checks. Both full
+  regions passed aligned and shifted CRC verification. Backup and flash
+  log: `~/h9-backups/channel-redraw-hid-20261121.neIegCYu`.
+
+## 2026-11-21 Channel frequency entry in MHz
+
+- Channel Settings accepts three MHz digits followed by up to five
+  fractional digits. A short entry is padded on the right before
+  native BCD encoding. The display keeps at least three decimal places
+  and shows additional nonzero precision. Host tests save 142.230 MHz
+  and 142.23456 MHz and reject a ninth digit.
+- Verified the main and far trial images. The combined package keeps the
+  optional APRS stage by storing one additional modem fragment in the
+  verified zeroed CW span at app+0x76BCE–0x76CDC. The six-part layout
+  passed the 136-block host test.
+- Flashed the MHz-entry trial through PTT+2 USB HID. Both pre-write
+  regions matched the channel-redraw trial and were backed up. Seven
+  main sectors and 17 far sectors changed, and both full regions
+  passed aligned and shifted CRC checks. Backup and flash log:
+  `~/h9-backups/channel-mhz-hid-20261121.tWeD2FP1`.
+- Confirmed on the radio that the MHz-entry trial works.

@@ -5,7 +5,7 @@
 
 enum { LIST_Y = BODY_Y, ITEM_H = 22, ITEMS = 4, INFO_Y = FOOT_Y - 10 };
 
-static int own_call(const char *call)
+static __attribute__((noinline)) int own_call(const char *call)
 {
     const char *mine = A->mycall;
     while (*call && *call == *mine) { ++call; ++mine; }
@@ -61,9 +61,7 @@ static void draw_list(const uint8_t *order, unsigned count, unsigned selected, u
         if (sent)
             gfx_text(H9_WIDTH - 28, y, m->acked ? "ACK" : m->rejected ? "REJ" : "SENT",
                      4, 1, sel ? UI_BG : m->acked ? UI_OK : m->rejected ? UI_DANGER : UI_DIM, bg);
-        for (n = 0; n < 26 && m->text[n]; n++) b[n] = m->text[n];
-        b[n] = 0;
-        aprs_line(y + 10, b, sel ? UI_BG : m->live ? UI_TEXT : UI_DIM, bg);
+        aprs_line(y + 10, m->text, sel ? UI_BG : m->live ? UI_TEXT : UI_DIM, bg);
     }
     const char *footer = A->mail_status == MAIL_BLOCKED ? "MAILBOX USED BY GAME" :
                          A->mail_status == MAIL_OTHER_OWNER ? "MAILBOX: OTHER CALL" :
@@ -118,7 +116,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             if (ev == EV_MENU) {
                 prepare_reply(&A->msg[A->msg_sel]);
                 if (aprs_go(api, APRS_SEND)) return 0;
-                aprs_line(FOOT_Y, "SEND NOT INSTALLED", UI_DANGER, UI_BG);
+                aprs_line(FOOT_Y, "NO SEND APP", UI_DANGER, UI_BG);
             }
             else if (ev == EV_BACK) { A->msg_reading = 0; A->dirty = 1; }
             else if (ev == EV_REDRAW) draw_message();

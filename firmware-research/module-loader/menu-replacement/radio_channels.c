@@ -16,9 +16,15 @@ int radio_channel_field(unsigned target, unsigned field, struct radio_setting *s
     s->offset = record;
     switch (field) {
     case 0: case 1:
-        s->label = field ? "TX FREQ (10 Hz)" : "RX FREQ (10 Hz)";
+        s->label = field ? "TX (MHz)" : "RX (MHz)";
         s->offset += field * 4; s->length = 4; s->kind = RADIO_FREQUENCY;
-        s->min = 1800000; s->max = 60000000; break;
+        s->min = 1800000; s->max = 60000000;
+        if (field == 1 && target > 199) {
+            s->label = "TX OFFSET (10Hz)";
+            s->offset = radio_vfo_offset(target - 200);
+            s->min = 0;
+        }
+        break;
     case 2: case 3:
         s->label = field == 2 ? "RX SUB-AUDIO" : "TX SUB-AUDIO";
         s->offset += field == 2 ? 8 : 10; s->length = 2;
@@ -90,7 +96,7 @@ int radio_channel_copy(const struct radio_storage *storage, unsigned channel, un
         if (direction > 2) return RADIO_INVALID;
         /* The native Store CHL handler resolves a VFO's repeater shift into
          * an actual TX frequency before copying its record to a memory. */
-        if (storage->read(vfo ? 0xcb4 : 0xcb0, edit.value, 4)) return RADIO_IO_ERROR;
+        if (storage->read(radio_vfo_offset(vfo), edit.value, 4)) return RADIO_IO_ERROR;
         unsigned shift = radio_value(&edit);
         if (shift > 60000000 || (direction == 1 && shift > rx)) return RADIO_INVALID;
         unsigned tx = direction == 1 ? rx - shift : rx + shift;

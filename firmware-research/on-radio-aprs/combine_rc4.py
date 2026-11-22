@@ -15,6 +15,12 @@ FAR_START, STAGE_START, RESIDENT_START, FAR_END = 0xEA000, 0xF7A00, 0xFA000, 0xF
 STAGE_CODE_LIMIT = 0x800
 # Reclaimed native menu functions. Preserve the redirect at each entry point.
 STUB_START, STUB_END = 0x6812E, 0x682CC
+# Reserve the checked entry before using the rest of its retired function.
+STUB_SPILL_START = STUB_START + 0xD0
+SPILL_CODE_LIMIT = 0x660
+FIVE_PART_STAGE_BYTES = 0x644
+# A complete CW-only span cleared by morse_disable.py on unified builds.
+MORSE_SPILL = (0x76BCE, 0x76CDC - 0x76BCE)
 IMAGE_PARTS = ((0x6F368, 4800), (0x734A6, 6000))
 RC4_HEAP_END = 0x29900
 RC4_VERSION = 0x04000106
@@ -79,13 +85,33 @@ def build_combined(base: Path, stock_path: Path, output: Path, version: str | No
         raise ValueError("Unified payload exceeds the far flash window")
     stage_start = stage_address - FAR_START
     stage_end = RESIDENT_START - FAR_START
+    image = patch_modem((KISS / "APRS-1.0.15-rx15-rxff.bin").read_bytes())
+    extra_start = (len(far) + 3) & ~3
+    image_offset = sum(size for _, size in image_parts)
     tail_start = stage_start + code_limit
+    overflow = max(0, len(image) - image_offset - (stage_end - tail_start))
+    cave_end = STUB_END
+    if version is not None and extra_start + overflow > FAR_END - FAR_START:
+        cave_end = STUB_SPILL_START
+        spill_size = STUB_END - cave_end
+        image_parts += ((cave_end, spill_size),)
+        image_offset += spill_size
+        # Keep the usual staging reservation if it fits. Otherwise give
+        # its unused aligned tail to the remaining modem bytes.
+        available_code = stage_end - stage_start + image_offset + FAR_END - FAR_START - extra_start - len(image)
+        code_limit = SPILL_CODE_LIMIT
+        if available_code < FIVE_PART_STAGE_BYTES:
+            image_parts += (MORSE_SPILL,)
+            image_offset += MORSE_SPILL[1]
+            available_code += MORSE_SPILL[1]
+            code_limit = 0x680
+        code_limit = min(code_limit, available_code & ~3)
+        if code_limit <= 0:
+            raise ValueError("No aligned space remains for the relocated modem stage")
+        tail_start = stage_start + code_limit
+        overflow = max(0, len(image) - image_offset - (stage_end - tail_start))
     if tail_start > stage_end or far[stage_start:stage_end] != b"\xff" * (stage_end - stage_start):
         raise ValueError("The relocated modem stage overlaps the unified menu")
-    image = patch_modem((KISS / "APRS-1.0.15-rx15-rxff.bin").read_bytes())
-    image_offset = sum(size for _, size in image_parts)
-    overflow = max(0, len(image) - image_offset - (stage_end - tail_start))
-    extra_start = (len(far) + 3) & ~3
     if extra_start + overflow > FAR_END - FAR_START:
         raise ValueError("Modem image does not fit alongside the unified menu and scheduler")
     if overflow:
@@ -103,7 +129,7 @@ def build_combined(base: Path, stock_path: Path, output: Path, version: str | No
     version_at = original.index(b"H9AP") + 24
     patched, stub_size, hooks = patch_app(
         original, code, output, heap_end, version_at, version_word(version_parts(version)),
-        stage_entry=stage_entry, cave_offset=STUB_START, cave_end=STUB_END,
+        stage_entry=stage_entry, cave_offset=STUB_START, cave_end=cave_end,
         cave_fill=b"\x00", old_version=old_version, heap_opcode=bytes.fromhex("c5ff"),
     )
     app = bytearray(patched)

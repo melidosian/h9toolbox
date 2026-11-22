@@ -11,6 +11,11 @@ static int write_image(unsigned offset, const void *src, unsigned n)
 static const struct radio_storage storage = { read_image, write_image };
 int main(void)
 {
+    char label[10];
+    assert(!strcmp(radio_frequency_label(14223000, label), "142.230"));
+    assert(!strcmp(radio_frequency_label(14223450, label), "142.2345"));
+    assert(!strcmp(radio_frequency_label(14223456, label), "142.23456"));
+    assert(!strcmp(radio_frequency_label(1800000, label), "018.000"));
     for (unsigned target = 1; target <= RADIO_CHANNEL_TARGETS; ++target) {
         unsigned count = target <= 199 ? RADIO_CHANNEL_FIELDS : 12;
         for (unsigned field = 0; field < count; ++field) {
@@ -22,6 +27,10 @@ int main(void)
                 memcpy(image + target * 16, rx, 4);
             }
             assert(radio_channel_field(target, field, &setting) == RADIO_OK);
+            if (target > 199 && field == 1) {
+                assert(setting.offset == (target == 200 ? 0xcb0 : 0xcb4));
+                assert(setting.min == 0);
+            }
             assert(radio_begin(&storage, &setting, &edit) == RADIO_OK);
             if (setting.kind == RADIO_TEXT) assert(radio_set_text(&edit, "TEST", 4) == RADIO_OK);
             else if (setting.kind == RADIO_FREQUENCY) assert(radio_set_number(&edit, 14552500) == RADIO_OK);

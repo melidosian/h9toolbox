@@ -39,9 +39,10 @@ int radio_set_number(struct radio_edit *edit, unsigned number);
 int radio_set_text(struct radio_edit *edit, const char *text, unsigned length);
 int radio_save(const struct radio_storage *storage, struct radio_edit *edit);
 const char *radio_value_label(const struct radio_edit *edit, char buffer[RADIO_MAX_VALUE + 1]);
+const char *radio_frequency_label(unsigned frequency, char text[10]);
 const char *radio_number_label(unsigned number, char *buffer); /* at most 11 bytes */
 const struct radio_setting *radio_setting_by_id(const char *id);
 int radio_editor(const struct radio_storage *storage, const struct radio_setting *setting);
-int radio_channel_editor(const struct radio_storage *storage);
+int radio_channel_editor(const struct radio_storage *storage, uint16_t accent);
 extern const struct radio_storage radio_stock_storage;
 #endif

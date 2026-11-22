@@ -20,7 +20,7 @@ static max_align_t preview_list_storage[2048 / sizeof(max_align_t) + 1];
 static unsigned applies, radio_edits, radio_writes, action_calls, last_action, fail_apply;
 static unsigned has_categories, omit_aprs, saw_aprs_unavailable;
 static unsigned saw_home, saw_radio, saw_general, saw_aprs, saw_blue, saw_yellow, saw_pink;
-static uint16_t last_title_color;
+static uint16_t last_title_color, last_action_accent;
 static uint8_t radio_image[0x6100];
 static int radio_read(unsigned offset, void *dst, unsigned n)
 { assert(offset + n <= sizeof radio_image); memcpy(dst, radio_image + offset, n); return 0; }
@@ -30,11 +30,11 @@ const struct radio_storage radio_stock_storage = { .read = radio_read, .write = 
 int aprs_select_tx(struct ts_settings *next) { next->tx_frequency = 14439000; return 1; }
 int radio_editor(const struct radio_storage *storage, const struct radio_setting *setting)
 { assert(storage == &radio_stock_storage && setting->kind == RADIO_TEXT); ++radio_edits; return -1; }
-int radio_channel_editor(const struct radio_storage *storage) { assert(storage); return 0; }
+int radio_channel_editor(const struct radio_storage *storage, uint16_t accent) { (void)accent; assert(storage); return 0; }
 void h9_reset(void) { assert(!"unified menu must apply without CPU reset"); }
 int radio_apply_pending(const struct h9_api *api) { assert(api); ++applies; return fail_apply ? RADIO_BUSY : RADIO_OK; }
-int radio_action(const struct h9_api *api, unsigned action)
-{ assert(api && action < RADIO_ACTION_COUNT); last_action = action; ++action_calls; return 0; }
+int radio_action(const struct h9_api *api, unsigned action, uint16_t accent)
+{ assert(api && action < RADIO_ACTION_COUNT); last_action = action; last_action_accent = accent; ++action_calls; return 0; }
 #endif
 
 #define BEACON_TICK tick
@@ -237,13 +237,13 @@ static void test_unified(const struct menu_list *list)
     assert(radio_image[radio_settings[0].offset] == 5 && radio_writes == 1);
 
     const struct press hold_down[] = {{16, H9_KEY_DOWN, 72}, {0, 0}};
-    assert(run_menu(hold_down) == 0 && menu_selection == row_position(MENU_HOME, 5));
+    assert(run_menu(hold_down) == 0 && menu_selection == row_position(MENU_HOME, 3));
     const struct press hold_up[] = {{16, H9_KEY_UP, 72}, {0, 0}};
     assert(run_menu(hold_up) == 0 && menu_selection == row_position(MENU_HOME, 0));
     const struct press reverse[] = {{16, H9_KEY_DOWN, 72}, {88, H9_KEY_UP}, {106, H9_KEY_BACK}, {0, 0}};
-    assert(run_menu(reverse) == 0 && menu_selection == row_position(MENU_HOME, 4));
+    assert(run_menu(reverse) == 0 && menu_selection == row_position(MENU_HOME, 2));
     const struct press short_up[] = {{16, H9_KEY_UP}, {36, H9_KEY_BACK}, {0, 0}};
-    assert(run_menu(short_up) == 0 && menu_selection == row_position(MENU_HOME, 3));
+    assert(run_menu(short_up) == 0 && menu_selection == row_position(MENU_HOME, 1));
     const struct press single_app[] = {{16, H9_KEY_MENU}, {36, H9_KEY_MENU}, {0, 0}};
     menu_selection = row_position(MENU_HOME, 5);
     assert(run_menu(single_app) == 6 && menu_selection == row_position(APPS, 0));
@@ -320,11 +320,12 @@ static void test_unified(const struct menu_list *list)
     assert(last_title_color == menu_ink(menu_color(12)));
     assert(run_menu(idle) == 0 && last_title_color == menu_ink(menu_color(12)));
     for (unsigned action = 0; action < RADIO_ACTION_COUNT; ++action) {
-        menu_selection = position_of(list, action, 1);
+        menu_selection = action == RADIO_ACT_CHANNELS ? row_position(MENU_HOME, 1) : position_of(list, action, 1);
         const struct press activate[] = {
             {16, H9_KEY_MENU}, {56, H9_KEY_BACK}, {76, H9_KEY_BACK}, {96, H9_KEY_BACK}, {0, 0}
         };
         assert(run_menu(activate) == 0 && last_action == action && action_calls == action + 1);
+        assert(last_action_accent == menu_color(12));
     }
     const struct press beacon[] = {{30, H9_KEY_MENU}, {60, H9_KEY_UP}, {90, H9_KEY_BACK}, {0, 0}};
     keys = beacon;

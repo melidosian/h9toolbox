@@ -8,6 +8,7 @@ REPO = Path(__file__).resolve().parents[3]
 MODULE = "firmware-research/module-loader"
 RADIO = f"{MODULE}/menu-replacement"
 cases = [
+    ("key-ramp", [], [f"{MODULE}/modules/common/test_key_ramp.c"]),
     ("quick-change", [], [f"{RADIO}/test_radio_quick.c", f"{RADIO}/radio_channels.c",
                           f"{RADIO}/radio_settings.c"]),
     ("channel-label-storage", [], [f"{RADIO}/test_channel_labels.c", f"{RADIO}/channel_labels.c",
@@ -23,7 +24,7 @@ cases = [
     ("settings", [], [f"{RADIO}/test_radio_settings.c", f"{RADIO}/radio_settings.c"]),
     ("editor", [], [f"{RADIO}/test_radio_editor.c", f"{RADIO}/radio_editor.c", f"{RADIO}/radio_settings.c"]),
     ("channels", [], [f"{RADIO}/test_radio_channels.c", f"{RADIO}/radio_channels.c", f"{RADIO}/radio_settings.c"]),
-    ("channel-editor", [], [f"{RADIO}/test_radio_channel_editor.c", f"{RADIO}/radio_channel_editor.c",
+    ("channel-editor", [], [f"{RADIO}/test_radio_channel_editor.c",
                             f"{RADIO}/radio_channels.c", f"{RADIO}/radio_settings.c"]),
     ("bluetooth", [], [f"{RADIO}/test_radio_bluetooth.c"]),
     ("scan", [], [f"{RADIO}/test_radio_scan.c"]),

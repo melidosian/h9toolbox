@@ -15,6 +15,7 @@
 
 #include "h9mod.h"
 #include "app_theme.h"
+#include "key_ramp.h"
 
 /* Stock RAM the screens share. Each can be overridden (the host test does). */
 #ifndef RING
@@ -72,6 +73,7 @@ struct aprs {
     uint8_t mail_dirty, mail_status, mail_action, mail_return, msg_reading;
     uint8_t frame[FRAME_MAX];
     char nmea[NMEA_MAX];
+    struct h9_key_ramp arrows;
 };
 
 #define APRS_BYTES ((sizeof(struct aprs) + 15u) & ~15u)

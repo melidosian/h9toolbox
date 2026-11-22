@@ -1,4 +1,5 @@
 #include "app_theme.h"
+#include "key_ramp.h"
 #include "font.h"
 #include "radio_channels.h"
 #include "radio_system.h"
@@ -106,18 +107,6 @@ static void draw_grid_value(unsigned x, unsigned y, unsigned width, const char *
     }
 }
 
-static const char *mhz(unsigned f, char text[10])
-{
-    if (f > 99999999) return "--";
-    for (unsigned i = 9, place = 1; i;) {
-        --i;
-        if (i == 3) text[i] = '.';
-        else { text[i] = '0' + f / place % 10; place *= 10; }
-    }
-    text[9] = 0;
-    return text[0] == '0' ? text + 1 : text;
-}
-
 struct split_edit {
     struct radio_setting frequency, direction;
     struct radio_edit offset, shift;
@@ -131,8 +120,7 @@ static int begin_split(unsigned target, struct split_edit *split)
     int result = radio_begin(&radio_stock_storage, &split->frequency, &split->offset);
     if (result) return result;
     split->rx = radio_value(&split->offset);
-    split->frequency.offset = target == 200 ? 0xCB0 : 0xCB4;
-    split->frequency.min = 0;
+    radio_channel_field(target, TX_FREQ, &split->frequency);
     result = radio_begin(&radio_stock_storage, &split->frequency, &split->offset);
     if (result) return result;
     result = radio_begin(&radio_stock_storage, &split->direction, &split->shift);
@@ -189,7 +177,7 @@ static __attribute__((noinline)) void draw_grid(unsigned selected, unsigned targ
     ui_footer("0 SETTINGS  MENU  BACK");
 }
 
-struct quick_input { uint32_t last, repeat; unsigned sample, stable; };
+struct quick_input { uint32_t last; struct h9_key_ramp keys; };
 
 static unsigned next_key(struct quick_input *input, int repeat)
 {
@@ -198,19 +186,9 @@ static unsigned next_key(struct quick_input *input, int repeat)
         unsigned key = h9_key();
         uint32_t now = QUICK_TICK;
         if (ptt_down() || now - input->last >= IDLE_TICKS) return KEY_EXIT;
-        if (key == input->sample && key != input->stable) {
-            input->stable = key;
-            if (key != H9_KEY_NONE) {
-                input->last = now;
-                input->repeat = now + 35;
-                return key;
-            }
-        }
-        input->sample = key;
-        if (repeat && key == input->stable && (key == H9_KEY_UP || key == H9_KEY_DOWN) &&
-            (int32_t)(now - input->repeat) >= 0) {
+        key = h9_key_ramp(&input->keys, key, now, repeat);
+        if (key) {
             input->last = now;
-            input->repeat = now + 10;
             return key;
         }
     }
@@ -295,7 +273,7 @@ static __attribute__((noinline)) unsigned edit_split(const struct h9_api *api, u
     for (;;) {
         char label[11];
         gfx_fill(3, 49, H9_WIDTH - 6, 16, UI_BG);
-        const char *text = digits && digits < 8 ? radio_number_label(split.tx, label) : mhz(split.tx, label);
+        const char *text = digits && digits < 8 ? radio_number_label(split.tx, label) : radio_frequency_label(split.tx, label);
         gfx_text(3, 49, text, 13, 2, UI_ACCENT, UI_BG);
         unsigned key = next_key(input, 1);
         if (key == KEY_EXIT || key == H9_KEY_BACK || key == KEY_HASH) return key;
@@ -408,13 +386,13 @@ int radio_quick_menu(const struct h9_api *api)
 {
     if (!quick_allowed()) return 0;
 
-    struct quick_input input = { .last = QUICK_TICK, .sample = H9_KEY_BACK, .stable = H9_KEY_BACK };
+    struct quick_input input = { .last = QUICK_TICK, .keys = { .sample = H9_KEY_BACK, .stable = H9_KEY_BACK } };
     unsigned target = active_target(), selected = 0, stock_event = 0;
     const char *notice = 0;
     for (;;) {
         draw_grid(selected, target, notice);
         notice = 0;
-        unsigned key = next_key(&input, 0);
+        unsigned key = next_key(&input, 1);
         if (key == H9_KEY_BACK || key == KEY_HASH || key == KEY_EXIT) break;
         if (key == 2) { stock_event = STOCK_MENU; break; }
         if (key == H9_KEY_UP) selected = (selected + 8) % 9;
