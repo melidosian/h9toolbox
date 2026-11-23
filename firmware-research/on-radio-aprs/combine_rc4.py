@@ -20,10 +20,13 @@ STUB_SPILL_START = STUB_START + 0xD0
 SPILL_CODE_LIMIT = 0x660
 FIVE_PART_STAGE_BYTES = 0x644
 SIX_PART_STAGE_BYTES = 0x658
+EIGHT_PART_STAGE_BYTES = 0x684
 # A complete CW-only span cleared by morse_disable.py on unified builds.
 MORSE_SPILL = (0x76BCE, 0x76CDC - 0x76BCE)
 # Additional retired CW spans before the KISS helper and native mode dispatch.
 EXTRA_MORSE_SPILL = ((0x84E98, 0x84F88 - 0x84E98), (0x76AA6, 0x76B52 - 0x76AA6))
+# Retired CW tail after the relocated dev KISS helper.
+FINAL_MORSE_SPILL = (0x85586, 0x85666 - 0x85586)
 IMAGE_PARTS = ((0x6F368, 4800), (0x734A6, 6000))
 RC4_HEAP_END = 0x29900
 RC4_VERSION = 0x04000106
@@ -114,6 +117,13 @@ def build_combined(base: Path, stock_path: Path, output: Path, version: str | No
                 image_offset += extra_size
                 available_code += extra_size
                 code_limit = 0x6C0
+                if available_code < EIGHT_PART_STAGE_BYTES:
+                    # Replace the smaller retired span to keep the same
+                    # number of modem fragments when the far menu grows.
+                    extra = FINAL_MORSE_SPILL[1] - image_parts[-1][1]
+                    image_parts = image_parts[:-1] + (FINAL_MORSE_SPILL,)
+                    image_offset += extra
+                    available_code += extra
         code_limit = min(code_limit, available_code & ~3)
         if code_limit <= 0:
             raise ValueError("No aligned space remains for the relocated modem stage")

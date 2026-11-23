@@ -66,6 +66,7 @@ TX_33CM_SHIMS, TX_33CM_SHIMS_END = 0x87E76, 0x87F64
 TX_33CM_HOOKS = (
     (0x56616, bytes.fromhex("c5fff0c00000"), "ml_33cm_validate"),
     (0x5ACC2, bytes.fromhex("c0ff0085cf00"), "ml_33cm_tx_range"),
+    (0x7DEDA, bytes.fromhex("04ec1630"), "ml_33cm_vfo_entry"),
 )
 # Pinned A/B Name + number row calls in all stock layouts.
 CHANNEL_NAME_CALLS = ((0x6758E, 0x5A386, "ml_labels_draw_a"),
@@ -601,9 +602,9 @@ def apply_channel_labels(app: bytearray, stock: bytes, base: bytes, far: bytes, 
             "storage_start": "0x3f6000", "storage_end_exclusive": "0x3fa000",
             "heap_end": hex(CHANNEL_LABEL_RAM)}
 
-def apply_33cm(app: bytearray, stock: bytes, out: Path, raw_assembly) -> dict:
+def band_33cm_constants() -> str:
     header = (ROOT / "menu-replacement/radio_33cm.h").read_text()
-    names = {"LOW", "HIGH", "STATE", "MAGIC", "REGION"}
+    names = {"LOW", "HIGH", "STATE", "MAGIC", "OFF", "REGION", "VM_KEY"}
     constants = {}
     for line in header.splitlines():
         fields = line.split()
@@ -611,9 +612,12 @@ def apply_33cm(app: bytearray, stock: bytes, out: Path, raw_assembly) -> dict:
             constants[fields[1]] = int(fields[2], 0)
     if len(constants) != len(names):
         raise ValueError("33 cm hooks are missing shared constants")
+    return "".join(f".equ {name}, {value:#x}\n" for name, value in constants.items())
+
+
+def apply_33cm(app: bytearray, stock: bytes, out: Path, raw_assembly) -> dict:
     source = out / "tx_33cm_hooks.s"
-    source.write_text("".join(f".equ {name}, {value:#x}\n" for name, value in constants.items())
-                      + (ROOT / "src/tx_33cm_hooks.s").read_text())
+    source.write_text(band_33cm_constants() + (ROOT / "src/tx_33cm_hooks.s").read_text())
     origin = IMAGE_BASE + TX_33CM_SHIMS
     shim = link([assemble(source, out)], origin, "ml_33cm_validate", out, "tx_33cm_hooks")
     code = text_of(shim, origin)
@@ -626,7 +630,7 @@ def apply_33cm(app: bytearray, stock: bytes, out: Path, raw_assembly) -> dict:
         if stock[site:end_site] != expected or app[site:end_site] != expected:
             raise ValueError(f"33 cm hook at {site:#x} differs from the pinned v1.0.38 bytes")
         target = symbol(shim, name) - IMAGE_BASE
-        redirect = raw_assembly(f"goto {target - site - 4}\nnop\n")
+        redirect = raw_assembly(f"goto {target - site - 4}\n" + "nop\n" * ((len(expected) - 4) // 2))
         instruction = decoder.decode(redirect, 0)
         if (len(redirect) != len(expected) or not instruction or
                 instruction[2:] != (4, f"goto {target - site - 4}")):
@@ -675,7 +679,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
             quick_entry = symbol(far_program, "radio_quick_menu")
             if not FAR_MENU_CPU <= quick_entry < FAR_MENU_CPU + len(far_menu_body):
                 raise ValueError("Quick Change entry exceeds the verified far-menu body")
-            definitions += (f".equ ML_QUICK_ENTRY, {quick_entry:#x}\n"
+            definitions += band_33cm_constants() + (f".equ ML_QUICK_ENTRY, {quick_entry:#x}\n"
                             f".equ ML_STOCK_GNSS, {IMAGE_BASE + STOCK_GNSS:#x}\n"
                             f".equ ML_STOCK_DISPATCH, {IMAGE_BASE + STOCK_DISPATCH + len(STOCK_DISPATCH_PROLOGUE):#x}\n"
                             f".equ ML_LABELS_LOOP, {IMAGE_BASE + CHANNEL_LABEL_SHIMS:#x}\n"

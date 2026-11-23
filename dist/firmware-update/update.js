@@ -1,4 +1,4 @@
-import { rc5Build, quickChangeBuild } from './combined-builds.mjs?v=20261121channels';
+import { rc5Build, quickChangeBuild, band33cmBuild } from './combined-builds.mjs?v=20261122';
 import { APP_START, IMAGE_SIZE, SECTOR_SIZE, RESIDENT_START, RESIDENT_END, BUILD, PREVIOUS, classifyRadio, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, verifyStockBackup, verifyStockCompatible, looksLikeH9, stockCompatible, stockDifferences, writeSector } from './firmware.mjs?v=20261119m';
 import { BackupStoppedError, createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash } from './readback.mjs?v=20261120skip';
 import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
@@ -38,11 +38,16 @@ const priorDevBuild = {
 const firmwareOption = $('optBuild');
 const requestedRelease = new URLSearchParams(location.search).get('release');
 const hasNextRelease = firmwareOption.hasAttribute('data-next-firmware');
+const hasBand33cmRelease = firmwareOption.hasAttribute('data-33cm-firmware');
 const useLegacyDevBuild = firmwareOption.hasAttribute('data-legacy-dev-firmware') && requestedRelease === '0.1.5';
 const useCombined = firmwareOption.hasAttribute('data-release-firmware') && !useLegacyDevBuild;
 const usePackagedRelease = useCombined || useLegacyDevBuild;
 const useNextRelease = hasNextRelease && !['0.1.6', rc5Build.id].includes(requestedRelease);
-const packagedBuild = useCombined ? (useNextRelease ? quickChangeBuild : rc5Build) : legacyDevBuild;
+let packagedBuild = legacyDevBuild;
+if (useCombined) {
+  if (useNextRelease && hasBand33cmRelease && requestedRelease !== quickChangeBuild.id) packagedBuild = band33cmBuild;
+  else packagedBuild = useNextRelease ? quickChangeBuild : rc5Build;
+}
 const release = usePackagedRelease ? packagedBuild : BUILD;
 if (useCombined) {
   firmwareOption.querySelector('strong').textContent = packagedBuild.label;
@@ -56,7 +61,7 @@ if (useCombined) {
   firmwareOption.querySelector('small').textContent = 'Includes the Toolbox app loader, Bluetooth packet support, SmartBeacon, timed APRS beacons, and APRS Mute.';
   $('loadBuild').textContent = 'Load H9 Toolbox v0.1.5';
 }
-if (useLegacyDevBuild || (hasNextRelease && !useNextRelease)) {
+if (useLegacyDevBuild || (hasNextRelease && !useNextRelease) || (hasBand33cmRelease && packagedBuild === quickChangeBuild)) {
   $('rcPreviewLink').hidden = false;
 }
 class BackupRequiredError extends Error {}
@@ -300,6 +305,7 @@ async function loadHostedBuild() {
   if (usePackagedRelease) {
     const knownBuilds = [earlierDevBuild, priorDevBuild, legacyDevBuild, rc5Build];
     if (hasNextRelease) knownBuilds.push(quickChangeBuild);
+    if (hasBand33cmRelease) knownBuilds.push(band33cmBuild);
     const otherDevBuilds = knownBuilds.filter(info => info !== packagedBuild);
     const [current, ...others] = await Promise.all([packagedBuild, ...otherDevBuilds].map(loadPackagedImage));
     packaged = current;
@@ -581,7 +587,7 @@ async function createBackup() {
   $('cancelBackup').disabled = true;
   $('skipBackup').disabled = true;
   const sourceName = source === 'build' || source === packagedBuild.label ? 'H9-Toolbox-Firmware-'
-    : [earlierDevBuild.id, priorDevBuild.id, legacyDevBuild.id, rc5Build.id, quickChangeBuild.id].includes(source) ? 'H9-Toolbox-Earlier-Dev-'
+    : [earlierDevBuild.id, priorDevBuild.id, legacyDevBuild.id, rc5Build.id, quickChangeBuild.id, band33cmBuild.id].includes(source) ? 'H9-Toolbox-Earlier-Dev-'
       : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
   const sourceLabel = source === 'build' ? BUILD.label : source === packagedBuild.label ? packagedBuild.label : previousInfo(source)?.label;
   const date = new Date().toISOString().slice(0, 10);

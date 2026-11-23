@@ -22,3 +22,15 @@ export const quickChangeBuild = {
   farFile: 'dev/h9-toolbox-v0.1.7-far.bin',
   farSha256: 'fcb9039e197d53849b6b976eec2128178255cf8c5ca899041b8c4bd7fc04c8d4',
 };
+export const band33cmBuild = {
+  id: '0.1.8',
+  version: '0.1.8',
+  catalog: '0.1.8',
+  label: 'H9 Toolbox Firmware v0.1.8',
+  summary: 'Adds experimental 33 cm tuning and a 900TX setting that saves across power cycles.',
+  file: 'dev/h9-toolbox-firmware-v0.1.8.fw',
+  packageSha256: 'f63eb09cb7b7ece0134f85be28ff3a79b78874346b995c7827bc709295af15a6',
+  imageSha256: 'b238c0384d6425da590efa3ff09f791eae84b6b4333743de325ae9fbe07a4ab4',
+  farFile: 'dev/h9-toolbox-v0.1.8-far.bin',
+  farSha256: '263707b65e149f016d3144951711c4ecb38fc205094b322f96f21fd1507063d1',
+};

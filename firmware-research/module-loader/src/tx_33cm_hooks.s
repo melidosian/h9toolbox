@@ -43,9 +43,38 @@ ml_33cm_tx_range:
     r3 = 0x01e5ae60
     goto r3
 tx_reject:
-    r3 = 0x01e5ae8a
-    goto r3
+    /* The stock reject path still writes RF register 0x30. Clear the
+     * caller's TX-active byte and return before touching the RF chip. */
+    r0 = 600
+    r4 = 0
+    b[r9+r0] = r4
+    r0 = 0
+    sp += 28
+    {pc, r9-r4} = [sp++]
 tx_stock:
     r0 = 13600000
     r3 = 0x01e5adc8
     goto r3
+
+    .globl ml_33cm_vfo_entry
+ml_33cm_vfo_entry:
+    /* r0 holds the keyed frequency. The original unsigned range check
+     * compares frequency minus 18 MHz with the 582 MHz span. */
+    if (r3 <= r4) goto vfo_save
+    r3 = RADIO_33CM_LOW
+    if (r0 < r3) goto vfo_reject
+    r3 = RADIO_33CM_HIGH
+    if (r0 > r3) goto vfo_reject
+    r3 = RADIO_33CM_STATE
+    r3 = [r3+0]
+    r4 = RADIO_33CM_MAGIC
+    if (r3 != r4) goto vfo_reject
+    r3 = RADIO_33CM_REGION
+    r3 = b[r3+0] (u)
+    if (r3 > 1) goto vfo_reject
+vfo_save:
+    r4 = 0x01e7dfde
+    goto r4
+vfo_reject:
+    r4 = 0x01e7e00a
+    goto r4

@@ -150,9 +150,9 @@ The keypad layout follows [RadioFoundry's FM quick settings](https://radiofoundr
 
 In **Radio Settings → Radio**, **900TX** follows **500TX**. It enables
 902–928 MHz on the H9 Toolbox v1.0.38 base in Ham or unlocked mode. It
-starts Off after a reboot. With it enabled, Channel Settings accepts 33 cm
-RX and TX frequencies and Quick Change accepts repeater splits within
-the band.
+defaults to Off and remembers the saved preference across reboots. With it enabled, the home-screen VFO keypad
+accepts 33 cm frequencies, Channel Settings accepts 33 cm RX and TX
+frequencies, and Quick Change accepts repeater splits within the band.
 
 The bench build has passed offline checks. Measure output power,
 synthesizer lock, and spurious emissions into a dummy load before using

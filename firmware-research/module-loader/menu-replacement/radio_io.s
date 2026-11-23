@@ -8,6 +8,22 @@ radio_partition_read:
     r4 = 0x01e52cb2
     call r4
     {pc, r14-r4} = [sp++]
+
+    .globl radio_vm_read
+radio_vm_read:
+    [--sp] = {rets, r14-r4}
+    /* Direct VM read preserves the missing-record status. The syscfg
+     * dispatcher replaces it with the result of a read-only fallback. */
+    r4 = 0x01e6285e
+    call r4
+    {pc, r14-r4} = [sp++]
+
+    .globl radio_vm_write
+radio_vm_write:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e62b56
+    call r4
+    {pc, r14-r4} = [sp++]
     .globl radio_partition_write
 radio_partition_write:
     [--sp] = {rets, r14-r4}
