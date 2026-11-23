@@ -270,7 +270,15 @@ static void test_unified(const struct menu_list *list)
     assert(run_menu(mute) == 0 && saves == 2 && stored.mute && saw_failure);
     fail_save = 0;
     const struct press idle[] = {{0, 0}};
+    menu_selection = mute_position;
     assert(run_menu(idle) == 0 && tick == IDLE_WAIT);
+    assert(menu_selection == mute_position && saves == 2);
+
+    /* The native dispatcher reopens the saved page after an idle exit. */
+    saw_settings = 0;
+    const struct press reopen[] = {{16, H9_KEY_BACK}, {0, 0}};
+    assert(run_menu(reopen) == 0 && saw_settings);
+    assert(menu_selection != mute_position && saves == 2);
 
     const struct press settings_inline[] = {
         {16, H9_KEY_MENU}, {36, H9_KEY_UP, 70}, {116, H9_KEY_MENU},
