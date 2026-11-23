@@ -8,6 +8,7 @@ const settings = SETTINGS.filter(s => s.section !== 'SMS & Morse' && !['pttLink'
 settings.push(
   ...[['tx200',0x10,'200TX'],['tx350',8,'350TX'],['tx500',4,'500TX']].map(([id,mask,label]) =>
     ({id,label,mask,shift:Math.log2(mask),section:'Radio',offset:0xcb3,type:'select',options:[[0,'OFF'],[1,'ON']]})),
+  {id:'tx33cm',label:'900TX',section:'Radio',offset:0x6002+8,type:'select',options:[[0,'OFF'],[1,'ON']]},
   {id:'amVolume',label:'AM volume level',section:'Radio',offset:0x538f+8,type:'select',
     options:Array.from({length:5},(_,i)=>[i,`Level ${i+1}`])},
   {id:'ani',label:'ANI code',section:'DTMF',offset:0x1828,type:'dtmf-fixed',length:3},

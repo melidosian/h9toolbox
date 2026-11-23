@@ -26,9 +26,10 @@ const useLegacyDevCatalog = catalogElement.hasAttribute('data-legacy-dev-catalog
 const usePreviewCatalog = catalogElement.hasAttribute('data-release-catalog') && !useLegacyDevCatalog;
 const useNextCatalog = usePreviewCatalog && catalogElement.hasAttribute('data-next-catalog') &&
   !['0.1.6', 'rc5'].includes(requestedCatalog);
-const benchCatalog = useNextCatalog ? '0.1.7' : usePreviewCatalog ? 'rc5' : 'smartbeacon';
-const combinedVersion = useNextCatalog ? 'v0.1.7' : 'v0.1.6';
-const explicitlySelected = useNextCatalog ? requestedCatalog === '0.1.7' : ['0.1.6', 'rc5'].includes(requestedCatalog);
+const useBand33cmCatalog = useNextCatalog && catalogElement.hasAttribute('data-33cm-catalog') && requestedCatalog !== '0.1.7';
+const combinedVersion = useBand33cmCatalog ? 'v0.1.8' : useNextCatalog ? 'v0.1.7' : 'v0.1.6';
+const benchCatalog = useNextCatalog ? combinedVersion.slice(1) : usePreviewCatalog ? 'rc5' : 'smartbeacon';
+const explicitlySelected = useNextCatalog ? requestedCatalog === benchCatalog : ['0.1.6', 'rc5'].includes(requestedCatalog);
 const preferBench = usePreviewCatalog || useLegacyDevCatalog;
 const downloaded = new Map();  // catalog SHA-256 -> modules
 

@@ -21,6 +21,12 @@ uint8_t fifth[APRS_IMAGE_PART_5_SIZE];
 #ifdef APRS_IMAGE_PART_6_ADDRESS
 uint8_t sixth[APRS_IMAGE_PART_6_SIZE];
 #endif
+#ifdef APRS_IMAGE_PART_7_ADDRESS
+uint8_t seventh[APRS_IMAGE_PART_7_SIZE];
+#endif
+#ifdef APRS_IMAGE_PART_8_ADDRESS
+uint8_t eighth[APRS_IMAGE_PART_8_SIZE];
+#endif
 static uint8_t *transfer_image(void)
 {
     memcpy(first, image, sizeof(first));
@@ -41,6 +47,14 @@ static uint8_t *transfer_image(void)
 #ifdef APRS_IMAGE_PART_6_ADDRESS
     memcpy(sixth, image + offset, sizeof(sixth));
     offset += sizeof(sixth);
+#endif
+#ifdef APRS_IMAGE_PART_7_ADDRESS
+    memcpy(seventh, image + offset, sizeof(seventh));
+    offset += sizeof(seventh);
+#endif
+#ifdef APRS_IMAGE_PART_8_ADDRESS
+    memcpy(eighth, image + offset, sizeof(eighth));
+    offset += sizeof(eighth);
 #endif
     return image + offset;
 }

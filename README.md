@@ -64,9 +64,9 @@ GitHub Pages builds `main` with `scripts/build-site.sh` for
 [h9toolbox.com](https://h9toolbox.com/). Cloudflare Pages builds `dev` with
 `scripts/build-dev-site.sh` for [dev.h9toolbox.com](https://dev.h9toolbox.com/)
 and records that commit at [`/dev-build.txt`](https://dev.h9toolbox.com/dev-build.txt).
-The production and development installers default to H9 Toolbox Firmware
-v0.1.7. Both serve the main firmware, far-flash payload and matching App
-Manager catalog.
+The production installer defaults to H9 Toolbox Firmware v0.1.7.
+The development installer defaults to v0.1.8 with experimental 33 cm support.
+Each serves the main firmware, far-flash payload and matching App Manager catalog.
 
 The production site uses Google Analytics 4 for page views and automatic
 interaction events. The tag runs only on `h9toolbox.com`. H9 Toolbox keeps

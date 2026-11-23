@@ -43,6 +43,9 @@
     .globl ml_hotkey
 ml_hotkey:
     [--sp] = {rets, r4}
+    .ifdef ML_UNIFIED_MENU
+    call ml_33cm_restore
+    .endif
     .ifdef ML_RUNTIME_BOOT
     r3 = ML_RUNTIME_BOOT
     call r3
@@ -711,6 +714,34 @@ ml_aprs_clear:
     if (r1 != r3) goto ml_aprs_clear
     r3 = 0x01e516c6
     goto r3
+
+    .ifdef ML_UNIFIED_MENU
+/* First stock task loop, after VM init. A missing or invalid record is Off. */
+ml_33cm_restore:
+    r4 = RADIO_33CM_STATE
+    r0 = [r4+0]
+    if (r0 != 0) goto ml_33cm_restored
+    [--sp] = {rets, r14-r4}
+    sp += -4
+    r0 = RADIO_33CM_VM_KEY
+    r1 = sp + 0
+    r2 = 4
+    r3 = 0x01e6285e
+    call r3
+    r3 = RADIO_33CM_OFF
+    if (r0 != 4) goto ml_33cm_cache
+    r1 = [sp+0]
+    r2 = RADIO_33CM_MAGIC
+    if (r1 != r2) goto ml_33cm_cache
+    r3 = r2
+ml_33cm_cache:
+    r4 = RADIO_33CM_STATE
+    [r4+0] = r3
+    sp += 4
+    {pc, r14-r4} = [sp++]
+ml_33cm_restored:
+    rts
+    .endif
 
 /* ---- what a module gets in r0 ---------------------------------------- */
     .balign 4

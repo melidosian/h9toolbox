@@ -129,9 +129,9 @@ int radio_channel_editor(const struct radio_storage *storage, uint16_t accent)
                 } else {
                     number = value;
                     ++have_number;
-                    if (active_setting.kind == RADIO_FREQUENCY)
+                    if (radio_is_frequency(&active_setting))
                         for (unsigned digits = have_number; digits < 8; ++digits) value *= 10;
-                    number_invalid = (active_setting.kind == RADIO_FREQUENCY && have_number < 3) ||
+                    number_invalid = (radio_is_frequency(&active_setting) && have_number < 3) ||
                         radio_set_number(&draft, value) != RADIO_OK;
                 }
             } else if (key == H9_KEY_MENU) {

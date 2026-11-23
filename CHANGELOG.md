@@ -1,5 +1,15 @@
 # Changelog
 
+## H9 Toolbox Firmware v0.1.8
+
+- **Radio Settings → Radio → 900TX** enables experimental 902–928 MHz
+  transmit in Ham or unlocked mode. The setting defaults to Off and
+  saves across power cycles.
+- Enter a 33 cm frequency from the home-screen VFO or Channel Settings
+  with 900TX enabled. Quick Change supports splits within the band.
+- With 900TX Off, a 33 cm transmit request exits before the RF chip is
+  switched to transmit mode.
+
 ## H9 Toolbox Firmware v0.1.7
 
 ### Quick Change

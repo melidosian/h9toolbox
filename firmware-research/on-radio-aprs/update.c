@@ -41,6 +41,16 @@ static uint8_t image_byte(const uint8_t *tail, unsigned offset)
         return ((const uint8_t *)(uintptr_t)APRS_IMAGE_PART_6_ADDRESS)[offset];
     offset -= APRS_IMAGE_PART_6_SIZE;
 #endif
+#ifdef APRS_IMAGE_PART_7_ADDRESS
+    if (offset < APRS_IMAGE_PART_7_SIZE)
+        return ((const uint8_t *)(uintptr_t)APRS_IMAGE_PART_7_ADDRESS)[offset];
+    offset -= APRS_IMAGE_PART_7_SIZE;
+#endif
+#ifdef APRS_IMAGE_PART_8_ADDRESS
+    if (offset < APRS_IMAGE_PART_8_SIZE)
+        return ((const uint8_t *)(uintptr_t)APRS_IMAGE_PART_8_ADDRESS)[offset];
+    offset -= APRS_IMAGE_PART_8_SIZE;
+#endif
     return tail[offset];
 }
 

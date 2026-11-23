@@ -35,7 +35,7 @@ RESEARCH = ROOT.parent
 TOOLS = RESEARCH / "brick-breaker" / "tools"
 ISA = TOOLS / "pi32v2-isa"
 sys.path.insert(0, str(ISA))
-from pi32v2isa import asm, elf, ld  # noqa: E402
+from pi32v2isa import asm, elf, ld, objdump, table  # noqa: E402
 
 STOCK_SHA256 = "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3"
 STOCK_PACKAGE_SHA256 = "c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6"
@@ -62,6 +62,12 @@ APRS_SERVICE_RAM = 0x29C00
 RESIDENT_RAM = 0x29A00
 CHANNEL_LABEL_RAM = 0x29900
 CHANNEL_LABEL_SHIMS, CHANNEL_LABEL_SHIMS_END = 0x87C80, 0x87E38
+TX_33CM_SHIMS, TX_33CM_SHIMS_END = 0x87E76, 0x87F64
+TX_33CM_HOOKS = (
+    (0x56616, bytes.fromhex("c5fff0c00000"), "ml_33cm_validate"),
+    (0x5ACC2, bytes.fromhex("c0ff0085cf00"), "ml_33cm_tx_range"),
+    (0x7DEDA, bytes.fromhex("04ec1630"), "ml_33cm_vfo_entry"),
+)
 # Pinned A/B Name + number row calls in all stock layouts.
 CHANNEL_NAME_CALLS = ((0x6758E, 0x5A386, "ml_labels_draw_a"),
                       (0x67642, 0x5A44E, "ml_labels_draw_b"),
@@ -596,6 +602,45 @@ def apply_channel_labels(app: bytearray, stock: bytes, base: bytes, far: bytes, 
             "storage_start": "0x3f6000", "storage_end_exclusive": "0x3fa000",
             "heap_end": hex(CHANNEL_LABEL_RAM)}
 
+def band_33cm_constants() -> str:
+    header = (ROOT / "menu-replacement/radio_33cm.h").read_text()
+    names = {"LOW", "HIGH", "STATE", "MAGIC", "OFF", "REGION", "VM_KEY"}
+    constants = {}
+    for line in header.splitlines():
+        fields = line.split()
+        if len(fields) == 3 and fields[0] == "#define" and fields[1].removeprefix("RADIO_33CM_") in names:
+            constants[fields[1]] = int(fields[2], 0)
+    if len(constants) != len(names):
+        raise ValueError("33 cm hooks are missing shared constants")
+    return "".join(f".equ {name}, {value:#x}\n" for name, value in constants.items())
+
+
+def apply_33cm(app: bytearray, stock: bytes, out: Path, raw_assembly) -> dict:
+    source = out / "tx_33cm_hooks.s"
+    source.write_text(band_33cm_constants() + (ROOT / "src/tx_33cm_hooks.s").read_text())
+    origin = IMAGE_BASE + TX_33CM_SHIMS
+    shim = link([assemble(source, out)], origin, "ml_33cm_validate", out, "tx_33cm_hooks")
+    code = text_of(shim, origin)
+    end = TX_33CM_SHIMS + len(code)
+    if end > TX_33CM_SHIMS_END or app[TX_33CM_SHIMS:end] != bytes(len(code)):
+        raise ValueError("33 cm hooks overlap existing instructions")
+    decoder = objdump.decoder_for(table.load(), mcpu="r3")
+    for site, expected, name in TX_33CM_HOOKS:
+        end_site = site + len(expected)
+        if stock[site:end_site] != expected or app[site:end_site] != expected:
+            raise ValueError(f"33 cm hook at {site:#x} differs from the pinned v1.0.38 bytes")
+        target = symbol(shim, name) - IMAGE_BASE
+        redirect = raw_assembly(f"goto {target - site - 4}\n" + "nop\n" * ((len(expected) - 4) // 2))
+        instruction = decoder.decode(redirect, 0)
+        if (len(redirect) != len(expected) or not instruction or
+                instruction[2:] != (4, f"goto {target - site - 4}")):
+            raise ValueError(f"33 cm redirect at {site:#x} has the wrong width or destination")
+        app[site:end_site] = redirect
+    app[TX_33CM_SHIMS:end] = code
+    return {"hook_sites": [hex(site) for site, _, _ in TX_33CM_HOOKS],
+            "shims_app_offset": hex(TX_33CM_SHIMS), "shims_bytes": len(code),
+            "hardware_tested": False}
+
 
 def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool = False,
                    disable_morse: bool = False, dev_kiss: bool = False,
@@ -634,7 +679,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
             quick_entry = symbol(far_program, "radio_quick_menu")
             if not FAR_MENU_CPU <= quick_entry < FAR_MENU_CPU + len(far_menu_body):
                 raise ValueError("Quick Change entry exceeds the verified far-menu body")
-            definitions += (f".equ ML_QUICK_ENTRY, {quick_entry:#x}\n"
+            definitions += band_33cm_constants() + (f".equ ML_QUICK_ENTRY, {quick_entry:#x}\n"
                             f".equ ML_STOCK_GNSS, {IMAGE_BASE + STOCK_GNSS:#x}\n"
                             f".equ ML_STOCK_DISPATCH, {IMAGE_BASE + STOCK_DISPATCH + len(STOCK_DISPATCH_PROLOGUE):#x}\n"
                             f".equ ML_LABELS_LOOP, {IMAGE_BASE + CHANNEL_LABEL_SHIMS:#x}\n"
@@ -728,7 +773,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
     if auto_tx:
         tx_limit = next(end for start, end, _ in morse_disable.REMOVED if start == RESIDENT_TX_HOOKS)
         tx_hooks = apply_resident_tx(patched, stock, resident, out, tx_limit)
-    menu_patch = label_patch = None
+    menu_patch = label_patch = band_33cm_patch = None
     if unified_menu:
         if not far_menu_body:
             raise ValueError("Unified menu needs its matching far body")
@@ -737,6 +782,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         import radio_menu_patch
         def raw_assembly(source):
             return bytes(next(s for s in elf.read(asm.assemble_source(source)).sections if s.name == ".text").data)
+        band_33cm_patch = apply_33cm(patched, stock, out, raw_assembly)
         site = STOCK_DISPATCH
         end = site + len(STOCK_DISPATCH_PROLOGUE)
         if stock[site:end] != STOCK_DISPATCH_PROLOGUE or patched[site:end] != STOCK_DISPATCH_PROLOGUE:
@@ -785,6 +831,8 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
             expected.update(range((start + 0x5100) & ~0xFFF, ((end - 1 + 0x5100) & ~0xFFF) + 0x1000, 0x1000))
     if label_patch:
         expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in CHANNEL_NAME_CALLS + CHANNEL_CLONE_CALLS}
+    if band_33cm_patch:
+        expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in TX_33CM_HOOKS}
     if changed != expected:
         raise ValueError(f"changed sectors {sorted(map(hex, changed))}, expected {sorted(map(hex, expected))}")
     return {
@@ -813,6 +861,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         "resident_tx_hooks": tx_hooks,
         "unified_menu": menu_patch,
         "channel_labels": label_patch,
+        "band_33cm": band_33cm_patch,
         "dev_kiss": kiss,
         "flash_helpers": {"app_offset": hex(FLASH_HELPERS), "bytes": len(flash),
                           "sha256": sha256(flash).hexdigest(), "exports": [name for name, _ in FLASH_EXPORTS]}

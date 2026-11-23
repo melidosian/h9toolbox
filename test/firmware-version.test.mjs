@@ -5,7 +5,7 @@ import { cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { quickChangeBuild, rc5Build } from '../dist/firmware-update/combined-builds.mjs';
+import { band33cmBuild, quickChangeBuild, rc5Build } from '../dist/firmware-update/combined-builds.mjs';
 import { FAR_START, FAR_END } from '../dist/firmware-update/far-region.mjs';
 import { BUILD, decodePackage, sha256 } from '../dist/firmware-update/firmware.mjs';
 
@@ -28,7 +28,7 @@ test('the updater retains the pinned v0.1.5 recovery package', async () => {
     assert.ok(publishedVersion < loaderVersion);
   } else {
     assert.ok(publishedVersion <= loaderVersion);
-    if (publishedVersion < loaderVersion) assert.equal(quickChangeBuild.version, text);
+    if (publishedVersion < loaderVersion) assert.equal(band33cmBuild.version, text);
   }
   assert.ok(BUILD.label.endsWith(`v${BUILD.version}`), 'the label names the published version');
   assert.equal(BUILD.packageFile, `h9-toolbox-firmware-v${BUILD.version}.fw`);
@@ -51,9 +51,11 @@ test('the GitHub Pages build publishes v0.1.7 as the default firmware with its a
   assert.match(updater, /id="optBuild" data-release-firmware data-next-firmware/);
   assert.match(updater, /Load H9 Toolbox v0\.1\.7/);
   assert.doesNotMatch(updater, /data-legacy-dev-firmware/);
+  assert.doesNotMatch(updater, /data-33cm-firmware/);
   const apps = await readFile(join(site, 'dist/apps/index.html'), 'utf8');
   assert.match(apps, /id="catalog" data-release-catalog data-next-catalog/);
   assert.doesNotMatch(apps, /data-legacy-dev-catalog/);
+  assert.doesNotMatch(apps, /data-33cm-catalog/);
   const firmwarePage = await readFile(join(site, 'dist/firmware/index.html'), 'utf8');
   assert.match(firmwarePage, /V0\.1\.7/);
   assert.doesNotMatch(firmwarePage, /\/apps\/\?catalog=0\.1\.6/);
@@ -78,30 +80,38 @@ test('the GitHub Pages build publishes v0.1.7 as the default firmware with its a
   assert.ok(olderCatalog.menu.notes.includes('Use H9 Toolbox Firmware v0.1.6.'));
 });
 
-test('the dev site stages the matching v0.1.7 firmware and app catalog by default', async t => {
+test('the dev site stages v0.1.8 firmware and its matching app catalog by default', async t => {
   const site = await mkdtemp(join(tmpdir(), 'h9-dev-'));
   t.after(() => rm(site, { recursive: true, force: true }));
-  const release = `firmware-research/module-loader/releases/${quickChangeBuild.version}`;
   for (const source of ['dist', 'scripts', 'prototypes/kiss-tnc', 'prototypes/aprs-update',
     'firmware-research/module-loader/smartbeacon-release',
     'firmware-research/module-loader/combined-preview-release',
-    'firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.bin', release]) {
+    'firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.bin',
+    ...[quickChangeBuild, band33cmBuild].map(build => `firmware-research/module-loader/releases/${build.version}`)]) {
     await cp(new URL(source, root), join(site, source), { recursive: true });
   }
   await promisify(execFile)('bash', ['scripts/build-dev-site.sh'], {
     cwd: site, env: { ...process.env, CF_PAGES_COMMIT_SHA: 'test' },
   });
   const updater = await readFile(join(site, 'dist/firmware-update/index.html'), 'utf8');
-  assert.match(updater, /id="optBuild" data-release-firmware data-next-firmware data-legacy-dev-firmware/);
-  assert.match(updater, /Load H9 Toolbox v0\.1\.7/);
+  assert.match(updater, /id="optBuild" data-release-firmware data-next-firmware data-legacy-dev-firmware data-33cm-firmware/);
+  assert.match(updater, /Load H9 Toolbox v0\.1\.8/);
   const apps = await readFile(join(site, 'dist/apps/index.html'), 'utf8');
-  assert.match(apps, /id="catalog" data-release-catalog data-next-catalog data-legacy-dev-catalog/);
-  const catalog = JSON.parse(await readFile(join(site, 'dist/apps/catalog/0.1.7/catalog.json'), 'utf8'));
-  assert.ok(catalog.menu.notes.includes(`Use matching H9 Toolbox Firmware v${quickChangeBuild.version}.`));
+  assert.match(apps, /id="catalog" data-release-catalog data-next-catalog data-legacy-dev-catalog data-33cm-catalog/);
+  const firmwarePage = await readFile(join(site, 'dist/firmware/index.html'), 'utf8');
+  assert.match(firmwarePage, /V0\.1\.8/);
   const load = async file => new Uint8Array(await readFile(join(site, 'dist/firmware-update', file)));
-  const [pack, far] = await Promise.all([load(quickChangeBuild.file), load(quickChangeBuild.farFile)]);
-  assert.equal(await sha256(pack), quickChangeBuild.packageSha256);
-  assert.equal(await sha256(decodePackage(pack)), quickChangeBuild.imageSha256);
-  assert.equal(await sha256(far), quickChangeBuild.farSha256);
-  assert.equal(far.length, FAR_END - FAR_START);
+  for (const build of [band33cmBuild, quickChangeBuild]) {
+    const [pack, far] = await Promise.all([load(build.file), load(build.farFile)]);
+    assert.equal(await sha256(pack), build.packageSha256);
+    assert.equal(await sha256(decodePackage(pack)), build.imageSha256);
+    assert.equal(await sha256(far), build.farSha256);
+    assert.equal(far.length, FAR_END - FAR_START);
+    const catalogPath = join(site, 'dist/apps/catalog', build.catalog);
+    const catalog = JSON.parse(await readFile(join(catalogPath, 'catalog.json'), 'utf8'));
+    assert.ok(catalog.menu.notes.includes(`Use matching H9 Toolbox Firmware v${build.version}.`));
+    for (const item of [catalog.menu, ...catalog.apps]) {
+      assert.equal(await sha256(await readFile(join(catalogPath, item.file))), item.sha256);
+    }
+  }
 });

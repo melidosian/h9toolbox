@@ -2,8 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 #include "radio_channels.h"
+#include "radio_33cm.h"
 
-static uint8_t image[0x3140];
+static uint8_t image[RADIO_33CM_SETTING + 1];
 static int read_image(unsigned offset, void *dst, unsigned n)
 { assert(offset + n <= sizeof image); memcpy(dst, image + offset, n); return 0; }
 static int write_image(unsigned offset, const void *src, unsigned n)
@@ -33,12 +34,12 @@ int main(void)
             }
             assert(radio_begin(&storage, &setting, &edit) == RADIO_OK);
             if (setting.kind == RADIO_TEXT) assert(radio_set_text(&edit, "TEST", 4) == RADIO_OK);
-            else if (setting.kind == RADIO_FREQUENCY) assert(radio_set_number(&edit, 14552500) == RADIO_OK);
+            else if (radio_is_frequency(&setting)) assert(radio_set_number(&edit, 14552500) == RADIO_OK);
             else assert(radio_adjust(&edit, 1) == RADIO_OK);
             assert(radio_save(&storage, &edit) == RADIO_OK);
             assert(radio_begin(&storage, &setting, &readback) == RADIO_OK);
             assert(!memcmp(edit.value, readback.value, setting.length));
-            if (setting.kind == RADIO_FREQUENCY) {
+            if (radio_is_frequency(&setting)) {
                 const uint8_t expected[] = {0, 0x25, 0x55, 0x14};
                 assert(!memcmp(image + setting.offset, expected, 4));
                 assert(radio_value(&readback) == 14552500);
@@ -50,6 +51,31 @@ int main(void)
     assert(radio_channel_field(0, 0, &setting) == RADIO_INVALID);
     assert(radio_channel_field(202, 0, &setting) == RADIO_INVALID);
     assert(radio_channel_field(200, 12, &setting) == RADIO_INVALID);
+    struct radio_edit edit;
+    for (unsigned field = 0; field < 2; ++field) {
+        image[RADIO_33CM_SETTING] = 0;
+        assert(radio_channel_field(1, field, &setting) == RADIO_OK);
+        assert(radio_begin(&storage, &setting, &edit) == RADIO_OK);
+        assert(radio_set_number(&edit, 91500000) == RADIO_INVALID);
+        image[RADIO_33CM_SETTING] = 1;
+        assert(radio_begin(&storage, &setting, &edit) == RADIO_OK);
+        assert(radio_set_number(&edit, RADIO_33CM_LOW - 1) == RADIO_INVALID);
+        assert(radio_set_number(&edit, RADIO_33CM_HIGH + 1) == RADIO_INVALID);
+        assert(radio_set_number(&edit, RADIO_33CM_LOW) == RADIO_OK);
+        assert(radio_set_number(&edit, RADIO_33CM_HIGH) == RADIO_OK);
+        assert(radio_adjust(&edit, 1) == RADIO_OK && radio_value(&edit) == RADIO_33CM_LOW);
+        assert(radio_save(&storage, &edit) == RADIO_OK);
+        assert(radio_set_number(&edit, 91500000) == RADIO_OK);
+        image[RADIO_33CM_SETTING] = 0;
+        assert(radio_save(&storage, &edit) == RADIO_INVALID);
+    }
+    assert(radio_channel_field(1, 14, &setting) == RADIO_OK);
+    assert(radio_begin(&storage, &setting, &edit) == RADIO_OK);
+    assert(radio_set_number(&edit, 1) == RADIO_OK);
+    assert(radio_save(&storage, &edit) == RADIO_INVALID);
+    image[RADIO_33CM_SETTING] = 1;
+    assert(radio_save(&storage, &edit) == RADIO_OK);
+
     memset(image, 0, sizeof image);
     const uint8_t vfo[] = {0, 0x25, 0x55, 0x14, 0, 0x25, 0x55, 0x14, 0xff, 0xff, 0xff, 0xff, 0, 0, 0x20, 0};
     memcpy(image + 0x1950, vfo, sizeof vfo);

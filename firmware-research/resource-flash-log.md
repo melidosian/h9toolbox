@@ -5800,3 +5800,146 @@ result yet.**
   passed aligned and shifted CRC checks. Backup and flash log:
   `~/h9-backups/channel-mhz-hid-20261121.tWeD2FP1`.
 - Confirmed on the radio that the MHz-entry trial works.
+
+## 2026-11-22 — Experimental 33 cm transmit
+
+- The v1.0.33 community build extends tuning and reports that PTT enters
+  transmit. The equivalent v1.0.38 validation call is at app+0x5AD64 and
+  checks the frequency after the repeater shift. It sits behind the
+  stock 500TX and region gates. The v1.0.38 counterpart to the
+  community classifier literal is at app+0x8332A in the RSSI
+  calibration routine. [Community patch notes](https://github.com/mjwgeek/TIDRADIO_TD-H9/blob/main/PATCH_NOTES.md)
+- Hooked the checked instructions at app+0x56616 and app+0x5ACC2.
+  The 902–928 MHz TX path requires the session setting and a permitted
+  region mode, then rejoins stock validation and RF setup. It preserves
+  the stack frequency, band selector, and RF table base. Other
+  frequencies use the existing gates and range tables. The boot
+  clear covers the word at RAM 0x299F0.
+- The combined bench package retains the optional APRS update. Two
+  additional modem fragments fit verified zeroed stock CW spans.
+  The modem image round-tripped through the package and all 136
+  blocks passed the host transfer test.
+- The menu and loader host suites passed. Instruction tracing from
+  the packaged app checked both redirects across 108 combinations of
+  frequency, setting state, and region.
+- Bench package SHA-256
+  `77bb5b7d2d4f504790956c3fb1ae1101667d18eb8c70f4cf1a9cf7fbddc7b5bb`.
+  Far payload SHA-256
+  `84f605b75770fb8776603befc1069b78f3f45ab0da63e74ed04e35a54a222da5`.
+  Radio boot and RF output on 33 cm await a physical trial.
+
+- Renamed the row to **900TX** in v0.1.8-rc.2. The rebuilt menu
+  contains the new label, and the 108 instruction-trace cases passed.
+  Main package SHA-256
+  `cc07e27e763097e453b44d51f705923df0b26377e33789a32bf71e3f3dc02471`.
+  Far payload SHA-256
+  `eb2399ac6c88466b802e234560e3d49a256691783ede558d59bb284076420e16`.
+
+### 900TX bench installation over USB HID
+
+- Rebuilt commit `bf74416` and matched the documented v0.1.8-rc.2 main
+  package and far payload SHA-256 hashes. The menu host suite passed and
+  the packaged modem layout passed the 136-block host transfer test.
+- The live main and far regions matched the menu text size RC2 trial.
+  Saved verified rollback copies in `~/h9-backups/900tx-bench-hid-20261122.BlpCTVrH`.
+- Wrote and verified 11 main sectors and 17 far sectors. Both full regions
+  matched the bench image in the aligned and shifted HID CRC scans.
+- Sent the HID reboot command. The radio returned to normal USB serial
+  mode and responded to the read-only channel clone check. The 33 cm RF
+  measurements are pending.
+
+### 900TX home-screen frequency entry
+
+- The user saw the radio return to the prior 2 m frequency after entering
+  910.000 MHz with 900TX on. The stock VFO keypad handler at app+0x7DEDA
+  rejected values outside its 18–600 MHz save range and reloaded the old
+  VFO record.
+- The v0.1.8-rc.3 bench build hooks that branch. An in-band 33 cm entry
+  reaches the native save path when 900TX is enabled in Ham or unlocked
+  mode. A trace of the packaged instructions matched the expected save or
+  reject branches in 130 frequency, setting and region combinations.
+  The 20 loader unit tests passed.
+- The main package SHA-256 is
+  `091dd0868ef8a6b8faf138e988203b913544688f867b3bb793bebb04ff29b247`.
+  The far payload matches RC2 byte for byte. Hardware keypad testing is
+  pending.
+
+- Flashed RC3 over USB HID. The RC2 main and far regions were verified
+  and backed up before writing. All five changed main sectors passed
+  verification, and both full regions matched RC3 using aligned and
+  shifted HID CRC scans. The radio rebooted and answered a read-only
+  serial clone check. Backups and flash log are in
+  `~/h9-backups/900tx-vfo-hid-20261122.arh9piSY`.
+
+### Persistent 900TX preference
+
+- The user measured 909.932 MHz with the VFO set to 910.000 MHz.
+  Switching off the 67 Hz CTCSS tone left the observed offset unchanged.
+  A 75 ppm correction on the old RTL-SDR aligned the measurement.
+- RC4 stores the 900TX preference in native VM key 250. The menu checks
+  the existing record and verifies the write before updating the cached
+  flag. The first my_app loop restores the flag. Offline tests covered
+  missing, foreign, saved-on, and saved-off states and write failure.
+- The larger menu required relocating one APRS image fragment into
+  the checked retired span at app+0x85586. The packed modem image
+  round-tripped and passed the 136-block host transfer test.
+- Main package SHA-256
+  `6f6d25296ccf75f2e9aff4b2bb28c526afcb4d9ca116c308018f20ff10da97a8`.
+  Far payload SHA-256
+  `6e2997e3186b1b27131e0c86f235d6930b920ea05439e49510ee77215f50c73e`.
+- Verified the live RC3 image, backed it up, and flashed 16 main and
+  17 far sectors over USB HID. Both complete regions verified. After
+  reboot the radio answered a read-only serial check. The on-radio
+  save and power-cycle test remains pending. Backups and flash log:
+  `~/h9-backups/900tx-persist-hid-20261122.JlcRXcw7`.
+
+### 900TX first-save correction
+
+- The user reported `Setting save failed` on RC4. The public settings
+  dispatcher replaces a missing VM record's status with the result of a
+  read-only configuration lookup. RC5 calls the direct pinned VM read
+  and write entries so the menu can distinguish a new key from an
+  invalid record. The boot restore uses the same read entry.
+- Reproduced the RC4 far menu and verified the two VM call targets were
+  the only changes in the rebuilt menu body. The APRS stage configuration
+  matched RC4 and the packaged modem data round-tripped.
+- Main package SHA-256
+  `c4e9cb6cf627d1feec13c800d1474efa26d6a00ffc663cd4fc65ea71cf9b6502`.
+  Far payload SHA-256
+  `263707b65e149f016d3144951711c4ecb38fc205094b322f96f21fd1507063d1`.
+- Verified and backed up the live RC4 image, then flashed five main
+  sectors and one far sector. Both full regions passed HID CRC
+  verification. The radio rebooted and answered a read-only serial
+  check. The on-radio first-save and power-cycle test is pending.
+  Backups and flash log: `~/h9-backups/900tx-vm-hid-20261122.AUDvLych`.
+
+### 33 cm carrier with 900TX off
+
+- The user confirmed RC5 saves 900TX and reported a weak carrier when
+  pressing PTT at 910.000 MHz with the setting off.
+- The old 33 cm rejection jumped to app+0x5AD8A. That stock branch clears
+  the TX-active flag but then writes RF register 0x30 with 0xC1FE. RC6
+  clears the same flag and returns directly from TX setup before the
+  RF-register writes.
+- Traced 84 frequency, setting, and region cases in the packaged image.
+  Blocked 33 cm requests returned without an RF call. Main package SHA-256
+  `4ba7ed6f95b89ef293e77e329b5e67f5f1d38b0dda72ac8dd6360ba7d886c867`.
+  The far payload matches RC5. The on-radio carrier test is pending.
+
+- Backed up RC5, flashed six changed main sectors, and verified both full
+  flash regions using aligned and shifted HID CRCs. The radio rebooted
+  and responded to a read-only USB serial check. Backups and flash log:
+  `~/h9-backups/900tx-rx-only-hid-20261122.PTSZT2PY`.
+
+### Dev v0.1.8 release preparation
+
+- Built the v0.1.8 release with the RC6 application code and far payload.
+  Only the version marker differs in the decoded main application.
+- Generated the matching App Manager catalog from the RC6 module bundle.
+  The Dev build serves v0.1.8 at the default updater and App Manager URLs,
+  with older versions available for explicit selection. Verified those
+  paths in a local Chrome run.
+- The release package SHA-256 is
+  `f63eb09cb7b7ece0134f85be28ff3a79b78874346b995c7827bc709295af15a6`.
+  The far payload SHA-256 is
+  `263707b65e149f016d3144951711c4ecb38fc205094b322f96f21fd1507063d1`.

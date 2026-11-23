@@ -1,6 +1,7 @@
 #include "app_theme.h"
 #include "key_ramp.h"
 #include "font.h"
+#include "radio_33cm.h"
 #include "radio_channels.h"
 #include "radio_system.h"
 
@@ -233,10 +234,12 @@ static int save_split(void *context)
     struct split_edit *split = context;
     if (RADIO_BYTE(RECEIVE_ACTIVE) || !home_ready() || ptt_down()) return RADIO_BUSY;
     const unsigned bands[][2] = {{13600000,17400000}, {22000000,26000000},
-                                  {35000000,39000000}, {40000000,52000000}};
+                                  {35000000,39000000}, {40000000,52000000},
+                                  {RADIO_33CM_LOW,RADIO_33CM_HIGH}};
+    unsigned count = 4 + radio_33cm_enabled(&radio_stock_storage);
     unsigned band = 0;
-    while (band < 4 && (split->rx < bands[band][0] || split->rx > bands[band][1])) ++band;
-    if (band == 4 || split->tx < bands[band][0] || split->tx > bands[band][1]) return RADIO_INVALID;
+    while (band < count && (split->rx < bands[band][0] || split->rx > bands[band][1])) ++band;
+    if (band == count || split->tx < bands[band][0] || split->tx > bands[band][1]) return RADIO_INVALID;
 
     unsigned direction = split->tx == split->rx ? 0 : split->tx < split->rx ? 1 : 2;
     unsigned delta = direction == 1 ? split->rx - split->tx : split->tx - split->rx;
@@ -287,8 +290,10 @@ static __attribute__((noinline)) unsigned edit_split(const struct h9_api *api, u
             split.tx = (digits++ ? split.tx * 10 : 0) + key - 2;
         } else if (key == H9_KEY_UP || key == H9_KEY_DOWN) {
             if (digits && digits < 8) split.tx = split.rx;
-            if (key == H9_KEY_UP && split.tx < 60000000) split.tx += 500;
-            if (key == H9_KEY_DOWN && split.tx >= 500) split.tx -= 500;
+            unsigned high = radio_33cm_contains(split.rx) ? RADIO_33CM_HIGH : 60000000;
+            unsigned low = radio_33cm_contains(split.rx) ? RADIO_33CM_LOW : 0;
+            if (key == H9_KEY_UP && split.tx <= high - 500) split.tx += 500;
+            if (key == H9_KEY_DOWN && split.tx >= low + 500) split.tx -= 500;
             digits = 0;
         }
     }
