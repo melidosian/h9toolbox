@@ -4207,7 +4207,9 @@ result yet.**
 - **`0x01E4EC74(ch)` is not a hardware read** [STATIC]: it looks the channel up in a cache the ADC driver keeps, ten entries of
   8 bytes from RAM **0x12A30** (word channel id, halfword value at +4), special cases for id 0x0F (returns halfword 0x11B96) and
   0x50000F (the mean of sixteen halfwords at 0x12338). Earlier text here that called it an ADC read and guessed channel 0 (the
-  sampler at 0x895C8, which averages ten values into 0x12D24) was **wrong about channel 0 being VBAT**: the battery is channel 4.
+  sampler inside the callback at app+0x895C8, which averages ten values and
+  keeps the result at RAM 0x11D24) was **wrong about channel 0 being VBAT**.
+  The battery is channel 4.
   What channel 0 is, is not known. Keypad ladders stay channels 13 and 10.
 - **Battery level state machine `0x055A0E`** [STATIC]: level byte **0xC0F5** (0-3); compares 0x11B80 with RAM halfwords at
   0x1213A (idx 0x335; 0xFFFF = disabled, compared at 0x55B14 to decide a power-off), 0x1213E, 0x12140, 0x12142 (idx 0x337-0x339),
@@ -5507,3 +5509,185 @@ result yet.**
 - With USB unplugged, the operator booted into PTT+7 APRS update mode,
   ran the bundled keypad update, and reported APRS BOOT VERIFIED
   (V1.0.15X). The version reply passed after the modem restarted.
+
+## 2026-11-23 — TD-H9 transmit SWR feasibility
+
+An inline VHF/UHF directional meter can measure SWR while the H9 transmits.
+The Type-C v1.0.38 analysis found no verified source for an on-radio SWR
+reading. The remaining question is whether the specific PCB revision has an
+RF detector output routed to a readable input. No radio was connected or
+transmitted during this investigation.
+
+### Stock firmware evidence
+
+The Type-C update ZIP matched SHA-256
+`1d1b6f87705f026dc5c5b118786d133cbc7f0589f606c8572581df981492155a`.
+`setup/fetch_stock.py` verified the .fw package and extracted the 867,372-byte
+`app.bin`, SHA-256
+`11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3`.
+The analysis used `pi32v2-isa` at `9a06ab98808e1c368dea1741f4eeb5aa1b388615`
+and cross-checked the antenna-string and ADC 0 paths with JieLi's
+20260730.1 Pi32v2 objdump. Code offsets below use app+ values unless a
+virtual or RAM address is given. [Pinned extractor](setup/fetch_stock.py)
+
+- **Antenna status strings belong to GNSS.** The GPS parser loads the string
+  table at virtual `0x01EB16A0` at app+`0x0866FE`. Its `GPTXT`/`GNTXT` branch
+  at app+`0x086E82` compares field 4 with `ANTENNA OPEN`, `ANTENNA SHORT`,
+  `ANTENNA OK` and `ANTENNA NORMAL` at app+`0x086EAE` through `0x086EE0`.
+  It saves the status to RAM `0x12556`. A separate ASCII and UTF-16LE string
+  search found no SWR/VSWR or forward/reflected-power labels. [Stock GPS
+  parser entry](h9-firmware-research/evidence/stock/main-gps-fix.md)
+- **The main ADC cache has five registered pin/channel pairs in radio
+  startup.** App+`0x08818A..0x0881AE` calls the registration helper at
+  app+`0x079BE4` with the pairs below. The helper writes IDs at RAM
+  `0x12A30` in eight-byte slots. Each slot's sample is a halfword at
+  offset 4. App+`0x08A7D0..0x08A7E8` selects the next entry and stores the
+  previous conversion. The cache reader is virtual `0x01E4EC74`.
+
+  | ADC ID | Stock GPIO ID | Observed use |
+  | --- | --- | --- |
+  | 4 | 12 | Battery voltage at app+`0x04EBD0` |
+  | 13 | 37 | Keypad ladder at app+`0x0514B0` |
+  | 10 | 36 | Keypad ladder at app+`0x051528` |
+  | 3 | 10 | Threshold buckets and counters at app+`0x0523CA` in an input-processing path. Electrical source unverified. |
+  | 0 | 1 | Timer path at app+`0x089906` accumulates batches at RAM `0x11D20`, divides by ten and updates the stored average at `0x11D24` for changes of at least 34 counts. Electrical source unverified. |
+
+  The even-offset call-encoding scan found five direct callers of the
+  cache reader and five direct callers of the registration helper. The
+  five registration calls are the consecutive startup calls above. The
+  cache's special mode IDs `0x0F` and `0x50000F` use the separate
+  `app_core` sample buffers. Their initialization does not identify an RF
+  detector. Indirect calls, embedded RAM code and unmapped circuit
+  paths limit this audit. [Core sample capture](h9-firmware-research/evidence/stock/main-core-adc-samples.md)
+- **TX state and drive level are software controls.** Stock TX setup at
+  app+`0x05AC68` writes BK4819 `0x30 = 0xC1FE` and selects a preset byte
+  at RAM `0x11AF1..0x11AF3`. The call at app+`0x05AF12` passes that byte
+  to the PWM writer at app+`0x058E80`. The candidate TX-state signals
+  used by Toolbox are RAM `0x11D28` and BK4819 register `0x30` bit 14.
+  Beken documents `0x36` as a PA bias/gain output and `0x67` as receive
+  RSSI. Stock also reads `0x64` in a transmit loop at app+`0x088AB0`.
+  Beken identifies that register as voice amplitude. The scan found 44
+  direct calls to the BK4819 read wrapper and no documented forward,
+  reverse or return-loss telemetry in the consulted register list.
+  [Stock RF output controls](h9-firmware-research/evidence/stock/main-rf-output-controls.md)
+  · [Beken register list](https://alfaexploit.com/files/BK4819V3Registers_List_20201218.pdf)
+  · [Beken product specification](https://www.bekencorp.com/en/goods/detail/cid/50.html)
+- The known APRS MCU ADC path uses PA1/channel 1 for its modem samples.
+  That path contributes no verified power measurements. [Stock APRS
+  sample path](h9-firmware-research/evidence/stock/aprs-wave-output.md)
+
+The direct-call counts are reproducible with the repository's read-only
+scanner. `analyze_app.py disasm` can decode the surrounding code at the
+listed offsets with the same decoder.
+
+```sh
+python3 firmware-research/h9-firmware-research/scan_pi32_calls.py app.bin \
+  --isa-repo /path/to/pi32v2-isa \
+  --target 0x04EB74 --target 0x079BE4 --target 0x0504FE
+```
+
+### Board evidence
+
+Viva-Telecom's full-resolution photos show `H9PLUS-V1.0 25/09/13` on the
+screen side, a BK4819 on the rear and a discrete RF network near the antenna
+feed. A directional detector pair and its connection to the BR23 ADC 0 or
+3 inputs remain unconfirmed. The photos leave inner-layer traces,
+components under pads and the user's PCB revision unverified.
+The public `2A4FB-H9` filing includes comparative internal photos and
+covers a low-power FRS test sample. Its schematic, block diagram and parts
+list are withheld. [TD-H9 front PCB](https://viva-telecom.org/17705/tidradio/td-h9/fotos/28929/)
+· [TD-H9 rear PCB](https://viva-telecom.org/17705/tidradio/td-h9/fotos/28930/)
+· [FCC exhibit list and grant](https://fccid.io/2A4FB-H9)
+
+### How to obtain or validate a reading
+
+- **Measure now.** Put a 50 Ω directional meter between the H9 SMA output
+  and a rated 50 Ω dummy load to check the fixture, then substitute the
+  antenna and use a brief transmission on Low. The Surecom SW-33 Plus is
+  one inline example rated for 125–525 MHz and low-power handheld use.
+  Use a calibrated one-port VNA with the antenna disconnected from the
+  transmitter when the goal is an antenna frequency sweep. The fixture
+  and counterpoise affect a handheld whip. In its own setup Viva-Telecom
+  measured 2.35:1 near 144.6 MHz on one supplied antenna. Record the
+  reference plane and antenna configuration with any readings.
+  [Inline meter specs](https://www.surecom.com.hk/product-page/sw-33plus-vhf-uhf-100w-power-s-w-r-meter)
+  · [VNA calibration](https://helpfiles.keysight.com/csg/B_Series_FieldFox_WebHelp/Chapter_3_CAT_%28Cable_and_Antenna_Test%29_Mode.htm)
+  · [Viva-Telecom bench report](https://viva-telecom.org/SHOP/FILES/TIDRADIO/tidradio-td-h9-pi.pdf)
+- **Check the existing board.** On the exact radio revision, trace any
+  detector at the antenna feed through its DC output to an ADC input or
+  fault comparator. Use a read-only RAM logger for raw cache IDs and
+  samples, TX state, frequency and selected power. The stock timer callback
+  at app+`0x0895C8` is registered at app+`0x088728..0x088734` and already
+  reads ADC 0. It is a candidate for capture across PTT, pending a timing
+  check. The `my_app` loop has a synchronous TX path, so test the capture
+  cadence during a held PTT. Capture reference forward and reflected
+  power at the same time. Start with the matched load, then use a
+  characterized RF-power-rated
+  mismatch around 1.5:1 or 2:1 at Low on each band. A pair of nominal 25 Ω
+  and 100 Ω standards can provide opposite reflection phases at 2:1
+  when verified at the actual frequencies. Repeat by load, band and
+  power, and include battery voltage and key/knob movement as controls.
+  Use rated terminations for powered tests. Open and short standards
+  belong to low-level VNA calibration. Only classify a sample as an RF
+  detector when it follows the reference power across these controls.
+  A verified comparator would support a mismatch warning. A numeric
+  readout requires calibrated forward/reverse samples or calibrated
+  return loss at the same reference plane.
+- **Add an external sensor if needed.** A two-direction coupler at the
+  SMA port and two calibrated RF detectors can feed an accessory MCU.
+  A 50 dB sample coupling factor puts 10 W (+40 dBm) at roughly −10 dBm at
+  the forward detector, before fixture and board losses. Select the
+  through-path rating, detector input range, and directivity for both
+  bands and expected power levels. The ADL5920 carries a 33 dBm maximum
+  with a matched load and 30 dBm with an open or short, below the H9's
+  nominal +40 dBm. It cannot serve as the bare inline through-path part.
+  A first telemetry prototype can report to a host over USB or BLE.
+  Displaying it on the H9 needs an explicit receiver and firmware
+  integration. The current Toolbox programmer is a host-to-radio client.
+  [Coupler datasheet](https://www.minicircuits.com/pdfs/DDCH-50-13%2B.pdf)
+  · [Detector calibration reference](https://www.analog.com/en/resources/reference-designs/circuits-from-the-lab/CN0150.html)
+  · [ADL5920 ratings](https://www.analog.com/media/en/technical-documentation/data-sheets/ADL5920.pdf)
+  · [Toolbox transports](../dist/boot-logo/radio.mjs)
+
+For powers in the same linear units, `g = sqrt(P_reverse / P_forward)`
+and `SWR = (1 + g) / (1 - g)`. A 1.5:1 load reflects 4% and a 2:1
+load reflects about 11.1%. A coupler with 20 dB directivity can show
+roughly 1.22:1 on a perfect load from leakage alone. At 30 dB the same
+calculation gives about 1.07:1. Calibrate each band, account for the
+measurement floor, and qualify the result only while the transmitter
+has stable, in-range forward power. The channel screen can show the
+`S` meter on receive and the `TX` state until a current, valid SWR
+sample is available. [Bird directivity and VSWR application note](https://birdrf.com/hubfs/learning-center/technical-docs/Bird-Effects-of-Directivity-on-Power-VSWR-and-Return-Loss-Measurement-Accuracy-App-Note.pdf)
+
+## 2026-11-23 — First SWR bench recorder build
+
+- Added a Type-C stock v1.0.38 diagnostic under [swr-bench](swr-bench/README.md).
+  The boot hook at app+`0x088734` registers a wrapper around stock callback
+  `0x01E896C8`. The wrapper retains the callback and records cached ADC
+  IDs 0, 3, 4, 10 and 13, ADC cursor `0x11B39`, TX byte `0x11D28`,
+  and 100 Hz clock ticks at up to 25 samples per second. The primary
+  heap ends at `0x2B700`, a 2 KiB reduction. Capture state and timing
+  fit below `0x2BE04`, clear of the stock literal references near
+  `0x2BEE0`. The recorder leaves RF control to stock firmware.
+- The first TX event freezes after 12 post-release samples or the
+  100-slot capacity. The Bluetooth clone read hook at app+`0x05D018`
+  serves that capture over `0x3C00..0x425F`. Other reads use the stock
+  partition reader. The local page exports only the frozen trace to CSV.
+- The 514-byte recorder fit in the stock app cave at app+`0x0A77F0`.
+  The stock-derived package SHA-256 is
+  `1c68b798ac884c409ffa04ae804a5f5eca3acce3691a5adc8f05669edbf2bc52`.
+  The main image SHA-256 is
+  `aae129cf1590cf9323f9acd2d2ffe50320810b4254a18766ed533eeff57d474a`.
+  Exactly six main sectors differ from stock (`0x05000`, `0x62000`,
+  `0x64000`, `0x8D000`, `0xAC000` and `0xD9000`).
+  The BR23 flasher's offline inspect rebuilt and verified the package.
+- The native capture and Node reader tests passed. A capture emitted by
+  the compiled C engine decoded and exported as CSV in JavaScript.
+  Hardware boot, normal PTT, ADC activity during TX and actual Bluetooth
+  readback remain unverified.
+- First bench reference uses the operator's MFJ analyzer to characterize
+  a rated 50 Ω load and the fixture with the radio disconnected. The
+  initial H9 trace establishes whether the stock timer and ADC scan
+  keep updating through PTT. A separate analyzer-characterized mismatch
+  can then exercise the candidate inputs at the same frequency and
+  Low power. The MFJ analyzer stays disconnected during H9 TX.

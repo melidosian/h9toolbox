@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TD-H9 SWR Bench</title>
+  <style>
+    :root { color-scheme: light dark; font: 16px/1.55 system-ui, sans-serif; }
+    body { max-width: 42rem; margin: 3rem auto; padding: 0 1.25rem; }
+    h1 { font-size: clamp(1.85rem, 5vw, 2.45rem); margin-bottom: .5rem; }
+    h2 { font-size: 1.2rem; margin-top: 0; }
+    p { margin: 0 0 1rem; }
+    section { border-top: 1px solid color-mix(in srgb, currentColor 28%, transparent); padding: 1.4rem 0; }
+    label { display: block; margin-bottom: .25rem; }
+    input, button { font: inherit; padding: .55rem .7rem; border-radius: .4rem; border: 1px solid ButtonBorder; }
+    input { width: min(100%, 21rem); box-sizing: border-box; }
+    button { cursor: pointer; }
+    button:disabled { cursor: default; }
+    #read { background: #156150; color: white; border-color: #156150; }
+    #read:disabled { opacity: .55; }
+    .actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: .9rem 0 1rem; }
+    #status { min-height: 1.55em; margin-bottom: 0; }
+    table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; border-bottom: 1px solid color-mix(in srgb, currentColor 24%, transparent); padding: .45rem .35rem; }
+    :focus-visible { outline: 2px solid #228c78; outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>TD-H9 SWR Bench</h1>
+    <p>Record one short push-to-talk on Low with a rated test load connected to the H9. Disconnect the MFJ analyzer before attaching the load to the radio.</p>
+    <section aria-labelledby="capture-title">
+      <h2 id="capture-title">Read the capture</h2>
+      <label for="label">Test label</label>
+      <input id="label" type="text" maxlength="70" placeholder="145.000 MHz · 50 Ω load">
+      <div class="actions">
+        <button id="read" type="button">Read via Bluetooth</button>
+        <button id="save" type="button" disabled>Download CSV</button>
+      </div>
+      <p id="status" role="status">Release PTT before connecting. The radio captures one test per power cycle.</p>
+    </section>
+    <section id="review" aria-labelledby="review-title" hidden>
+      <h2 id="review-title">ADC counts</h2>
+      <p id="summary"></p>
+      <table>
+        <thead><tr><th scope="col">Input</th><th scope="col">Before PTT</th><th scope="col">During TX</th></tr></thead>
+        <tbody id="ranges"></tbody>
+      </table>
+    </section>
+  </main>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
