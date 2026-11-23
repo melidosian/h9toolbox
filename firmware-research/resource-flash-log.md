@@ -6046,3 +6046,51 @@ result yet.**
   verified the text for the six combined variants, both v0.1.5 staging
   files, an erased staging region, and unknown hook/version cases.
   LCD behavior on a physical radio remains unverified.
+
+## 2026-11-23 — white screen after repeated Back on v0.1.6
+
+- The production installer ships the RC5 main and far images under the
+  v0.1.6 label. The reporter's exact build and menu path are unknown.
+- Disassembly of the shipped main image shows that its unified root at
+  app+`0x6D326` returns from the loader while the native dispatcher still
+  has view 5 and its menu callback installed. The next stock short Back can
+  follow the root's Back link through app+`0x827DE` to view 9 at
+  app+`0x6EC96`, which expects the original stock menu state. The legacy
+  RF refresh and row redraw in the Toolbox menu do not restore that state.
+- The root wrapper now restores view 0 and its callback at
+  `0x11AD0+54` and `0x11AD0+524`, then tail-calls the native repaint
+  at CPU `0x01E55D44`. The decoded assembly test also checks that a bad far
+  CRC still goes to USB recovery.
+- The unified source build passed. Applying the root patch to the shipped
+  RC5 image round-tripped as an app-only rebuild. The main package SHA-256
+  is `a3402982df0c90b1d5cdc25ea53ba87e8f735e637c7faeeddcc8559185546a13`.
+  The matching production far payload still passes the menu CRC. The
+  white-screen symptom and the fix await on-radio testing.
+
+### Follow-up observation on a second radio
+
+- The operator saw white for about 5–10 seconds in APRS Settings, then
+  black. USB was connected after the display went black. No boot image
+  was observed. One MENU press brought up the same menu area.
+- The unified menu remembers the current folder and row across an idle
+  return. A host check starting on APRS Mute confirmed it exits after
+  2,000 ticks and reopens the same page and row. The idle path returns
+  through the same native root as an explicit Back exit.
+- The factory 10 ms timer is installed from app+`0x88728`. Its callback
+  counts down the separate backlight timer and queues app+`0x894E2`
+  when it expires. That callback switches off the backlight and sends
+  LCD display-off (0x28). The stock `my_app` loop drains the callback
+  queue through app+`0x79F04` once the synchronous menu returns. The
+  Toolbox keypad loop reads the ADC scan directly and does not run the
+  stock key-to-display-wake path. This explains how the display can
+  go black after an idle exit and a MENU press can reopen the same
+  page. The timing of the start of the white phase relative to the
+  last key is still unknown.
+
+- Rebuilt from production `main` at `f069889` in the separate
+  `fix/white-screen` worktree. The emitted handoff matches the source
+  build byte for byte. The RC5-derived bench package and its matching
+  far image are in `module-loader/build/back-handoff/`. The main
+  package differs from RC5 in the native menu wrapper and its package
+  checksums. The APRS Settings host test covers timeout, reopening
+  the saved row and backing up one level without a settings write.
