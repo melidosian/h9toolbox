@@ -9,20 +9,15 @@
 #define DISPLAY_LAYOUT RADIO_BYTE(0x12BADu)
 #define ACTIVE_SIDE (RADIO_BYTE(0x11B50u) >> 7)
 
-enum { CLASSIC = 2, CLASSIC_FONT = 24, CLASSIC_CELL = 12, NAME_WHITE = 0xffff };
+enum { CLASSIC = 2, CLASSIC_FONT = 24, NAME_WHITE = 0xffff };
 typedef void (*stock_name)(unsigned x, unsigned y, unsigned font);
 typedef void (*stock_classic)(unsigned x, unsigned y, unsigned side, unsigned frequency, unsigned color);
-typedef void (*stock_ascii)(unsigned x, unsigned y, const char *text, unsigned color, unsigned font, unsigned bg);
-typedef void (*stock_window)(unsigned x, unsigned y, const char *text, unsigned color,
-                             unsigned font, unsigned left, unsigned right);
 typedef void (*stock_frequency)(unsigned x, unsigned y, unsigned frequency, unsigned color, unsigned font);
 
 #ifndef STOCK_DRAW_A
 #define STOCK_DRAW_A ((stock_name)0x01e5a486u)
 #define STOCK_DRAW_B ((stock_name)0x01e5a54eu)
 #define STOCK_DRAW_CLASSIC ((stock_classic)0x01e59a08u)
-#define STOCK_DRAW_ASCII ((stock_ascii)0x01e4f01cu)
-#define STOCK_DRAW_WINDOW ((stock_window)0x01e53952u)
 #define STOCK_DISPLAY_SIDE ((unsigned (*)(void))0x01e50f58u)
 #define STOCK_DRAW_FREQUENCY ((stock_frequency)0x01e5977cu)
 #endif
@@ -30,7 +25,7 @@ typedef void (*stock_frequency)(unsigned x, unsigned y, unsigned frequency, unsi
 struct name_row {
     uint32_t start, revision, frequency;
     uint16_t color;
-    uint8_t memory, x, y, font, layout, position, cells;
+    uint8_t memory, x, y, font, layout, position, last;
     char label[33];
 };
 
@@ -41,8 +36,7 @@ _Static_assert(2 * sizeof(struct name_row) <= 0x70, "channel name display RAM be
 
 static unsigned memory_channel(unsigned side)
 {
-    return RADIO_BYTE(0x11AE9u + side) && RADIO_BYTE(0x12BB2u + side) == 1
-        ? RADIO_BYTE(0x11AEFu + side) : 0;
+    return radio_memory_channel(RADIO_BYTE, side);
 }
 
 static unsigned classic_right(unsigned x)
@@ -50,12 +44,22 @@ static unsigned classic_right(unsigned x)
     return x <= H9_WIDTH - 108 ? x + 108 : H9_WIDTH;
 }
 
-static void paint(const struct name_row *row, const char *text)
+static unsigned name_width(unsigned x, unsigned classic)
 {
-    if (row->layout == CLASSIC)
-        STOCK_DRAW_WINDOW(row->x, row->y, text, row->color, CLASSIC_FONT, row->x, classic_right(row->x));
-    else
-        STOCK_DRAW_ASCII(row->x, row->y, text, row->color, 8, 0);
+    unsigned right = classic ? classic_right(x) : x + (x <= H9_WIDTH - 72 ? 72 : 64);
+    return right - x;
+}
+
+static void paint(const struct name_row *row)
+{
+    unsigned classic = row->layout == CLASSIC;
+    unsigned width = name_width(row->x, classic);
+    unsigned scale = classic ? 2 : 1, height = 8 * scale;
+    unsigned x = gfx_label(row->x, row->y + 4, row->label + row->position,
+                           width, scale, row->color, UI_BG);
+    gfx_fill(row->x, row->y, width, 4, UI_BG);
+    gfx_fill(x, row->y + 4, row->x + width - x, height, UI_BG);
+    gfx_fill(row->x, row->y + 4 + height, width, 4, UI_BG);
 }
 
 static int draw_name(unsigned side, unsigned x, unsigned y, unsigned font,
@@ -64,8 +68,8 @@ static int draw_name(unsigned side, unsigned x, unsigned y, unsigned font,
     struct name_row *row = &NAME_ROWS[side];
     unsigned memory = memory_channel(side), layout = DISPLAY_LAYOUT, revision = radio_label_revision();
     unsigned classic = font == CLASSIC_FONT;
-    unsigned cells = classic && x < H9_WIDTH ? (classic_right(x) - x) / CLASSIC_CELL : CHANNEL_NAME_CELLS;
-    if (!memory || memory > 199 || x >= H9_WIDTH || !cells ||
+    if (!memory || memory > 199 || x >= H9_WIDTH ||
+        (classic && classic_right(x) - x < 12) ||
         (classic ? layout != CLASSIC || y > H9_HEIGHT - CLASSIC_FONT :
          layout >= CLASSIC || (font != 8 && font != 16) ||
          x > H9_WIDTH - CHANNEL_NAME_CELLS * 8 || y > H9_HEIGHT - 16)) {
@@ -86,16 +90,17 @@ static int draw_name(unsigned side, unsigned x, unsigned y, unsigned font,
         row->layout = layout;
         row->revision = revision;
         row->start = now;
-        row->cells = cells;
+        unsigned budget = name_width(x, classic) >> classic;
+        unsigned last = 0;
+        while (row->label[last + gfx_label_fit(row->label + last, budget)]) ++last;
+        row->last = last;
     }
     row->color = color;
     row->frequency = frequency;
     if (!row->label[0]) return 0;
 
-    char text[CHANNEL_NAME_MAX_CELLS + 1];
-    row->position = channel_name_window_width(row->label, now - row->start, row->cells, text);
-    if (font == 8 && x <= H9_WIDTH - 72u) gfx_fill(x + 64, y, 8, 16, UI_BG);
-    paint(row, text);
+    row->position = channel_name_scroll_start(now - row->start, row->last);
+    paint(row);
     return 1;
 }
 
@@ -152,11 +157,10 @@ void radio_label_display_tick(void)
             else if (side) radio_label_draw_b(row->x, row->y, row->font);
             else radio_label_draw_a(row->x, row->y, row->font);
         } else if (row->label[0]) {
-            char text[CHANNEL_NAME_MAX_CELLS + 1];
-            unsigned position = channel_name_window_width(row->label, now - row->start, row->cells, text);
+            unsigned position = channel_name_scroll_start(now - row->start, row->last);
             if (position != row->position) {
-                paint(row, text);
                 row->position = position;
+                paint(row);
             }
         }
     }

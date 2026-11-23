@@ -1,3 +1,4 @@
+#define H9_GFX_TEST_STUB 1
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -55,6 +56,11 @@ unsigned gfx_text(unsigned x,unsigned y,const char *s,unsigned max,unsigned scal
 }
 void h9_lcd_window(unsigned x0,unsigned y0,unsigned x1,unsigned y1)
 { assert(x0==45 && y0==23 && x1==114 && y1==92); }
+void radio_manual_read(unsigned page, unsigned offset, uint8_t *dst, unsigned count)
+{
+    assert(page < 3 && offset + count <= 9800);
+    memset(dst, 0xff, count);
+}
 void h9_lcd_write(const void *p,unsigned n) { assert(p && n && n<=128 && !(n&1)); }
 int main(void)
 {

@@ -1,44 +1,42 @@
-"""Preserve the pinned stock manual QR images losslessly in a compact palette."""
+"""Reference the stock manual QR pixels and restore their reused white margins."""
 from hashlib import sha256
 from pathlib import Path
 import sys
 
 STOCK_SHA256 = "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3"
-def encode(image):
-    colors = list(dict.fromkeys(int.from_bytes(image[i:i+2], "big") for i in range(0, len(image), 2)))
-    bits = (len(colors) - 1).bit_length()
-    packed = bytearray((len(image) // 2 * bits + 7) // 8)
-    for pixel in range(len(image) // 2):
-        index = colors.index(int.from_bytes(image[pixel*2:pixel*2+2], "big"))
-        bit = pixel * bits
-        packed[bit // 8] |= (index << (bit % 8)) & 255
-        if bit % 8 + bits > 8: packed[bit // 8 + 1] |= index >> (8 - bit % 8)
-    # Decode every pixel as the firmware does; no threshold or lossy resizing.
-    for pixel in range(len(image) // 2):
-        bit = pixel * bits
-        index = packed[bit // 8] >> (bit % 8)
-        if bit % 8 + bits > 8: index |= packed[bit // 8 + 1] << (8 - bit % 8)
-        assert colors[index & ((1 << bits) - 1)] == int.from_bytes(image[pixel*2:pixel*2+2], "big")
-    return colors, bits, packed
+APP_BASE = 0x01E00100
+IMAGE_BYTES = 70 * 70 * 2
+# Each tuple gives the asset start and the bounds of its unpatched pixels.
+PAGES = (
+    (0xA2EB2, 0xA2EB2, 0xA51A8),
+    (0xA54FA, 0xA54FA, 0xA77F0),
+    (0xA7B42, 0xA7E98, 0xA9D9E),
+)
+
+
+def verify_pixels(stock, patched):
+    for start, first, last in PAGES:
+        end = start + IMAGE_BYTES
+        restored = b"\xff" * (first - start) + patched[first:last] + b"\xff" * (end - last)
+        if restored != stock[start:end]:
+            raise ValueError(f"Manual QR at app+{start:#x} differs after margin restoration")
+
 
 def generate(stock):
-    if sha256(stock).hexdigest() != STOCK_SHA256: raise ValueError("Expected pinned factory v1.0.38")
-    lines = ['/* Generated from the three factory manual QR assets, losslessly. */',
-             '#ifndef RADIO_MANUAL_IMAGES_H', '#define RADIO_MANUAL_IMAGES_H', '#include <stdint.h>']
-    pages = [('GMRS MANUAL',0xA2EB2),('HAM MANUAL',0xA54FA),('VIDEO GUIDE',0xA7B42)]
-    for n, (_, offset) in enumerate(pages):
-        colors, bits, packed = encode(stock[offset:offset+9800])
-        lines.append(f'static const uint16_t manual_palette_{n}[] = {{'+','.join(hex(c) for c in colors)+'};')
-        lines.append(f'static const uint8_t manual_pixels_{n}[] = {{')
-        for at in range(0, len(packed), 24): lines.append('    '+','.join(hex(c) for c in packed[at:at+24])+',')
-        lines.append('};')
-    lines += ['struct radio_manual_image { const char *name; const uint16_t *palette; const uint8_t *pixels; unsigned bits; };',
-              'static const struct radio_manual_image manual_images[] = {']
-    for n, (name, offset) in enumerate(pages):
-        _, bits, _ = encode(stock[offset:offset+9800])
-        lines.append(f'    {{"{name}", manual_palette_{n}, manual_pixels_{n}, {bits}}},')
-    lines += ['};', '#endif', '']
-    return '\n'.join(lines)
+    if sha256(stock).hexdigest() != STOCK_SHA256:
+        raise ValueError("Expected pinned factory v1.0.38")
+    verify_pixels(stock, stock)
+    lines = [
+        "/* Generated from the three factory manual QR assets. */",
+        "#ifndef RADIO_MANUAL_IMAGES_H",
+        "#define RADIO_MANUAL_IMAGES_H",
+        "static const struct { unsigned address, first, last; } manual_images[] = {",
+    ]
+    for start, first, last in PAGES:
+        lines.append(f"    {{ {APP_BASE + start:#010x}u, {first - start}, {last - start} }},")
+    return "\n".join([*lines, "};", "#endif", ""])
 
-if __name__ == '__main__':
-    Path(__file__).with_name('radio_manual_images.h').write_text(generate(Path(sys.argv[1]).read_bytes()), encoding='utf-8')
+
+if __name__ == "__main__":
+    Path(__file__).with_name("radio_manual_images.h").write_text(
+        generate(Path(sys.argv[1]).read_bytes()), encoding="utf-8")

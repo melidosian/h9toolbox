@@ -195,7 +195,7 @@ static void banner(const char *text, uint16_t color)
     while (text[n]) n++;
     unsigned w = n * 6 + 8, x = (H9_WIDTH - w) / 2;
     gfx_fill(x, OY + 9 * T + 14, w, 12, GFX_BLACK);
-    gfx_text(x + 4, OY + 9 * T + 16, text, 20, 1, color, GFX_BLACK);
+    gfx_label(x + 4, OY + 9 * T + 16, text, 120, 1, color, GFX_BLACK);
 }
 
 /* ---- game ---- */
@@ -366,9 +366,9 @@ static void title(const struct game *m)
 {
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
     ui_title("MAZE CHASE");
-    gfx_text(UI_LEFT, 37, "2 4 6 8 OR UP/DOWN STEER", UI_CELLS, 1, UI_TEXT, UI_BG);
-    gfx_text(UI_LEFT, 51, "MENU PAUSE  BACK EXIT", UI_CELLS, 1, UI_TEXT, UI_BG);
-    gfx_text(UI_LEFT, 80, "5 SOUND", 7, 1, UI_DIM, UI_BG);
+    gfx_label(UI_LEFT, 37, "2 4 6 8 OR UP/DOWN STEER", 154, 1, UI_TEXT, UI_BG);
+    gfx_label(UI_LEFT, 51, "MENU PAUSE  BACK EXIT", 154, 1, UI_TEXT, UI_BG);
+    gfx_label(UI_LEFT, 80, "5 SOUND", 42, 1, UI_DIM, UI_BG);
     gfx_text(m->sound ? 145 : 139, 80, m->sound ? "ON" : "OFF", 3, 1, UI_ACCENT, UI_BG);
     ui_footer("ANY OTHER KEY  START");
 }
@@ -434,7 +434,7 @@ static void run(struct game *m)
         put_num(d, m->hi, 6);
         banner("GAME OVER", GFX_RED);
         gfx_text(40, OY + 9 * T + 32, b, 14, 1, GFX_WHITE, GFX_BLACK);
-        gfx_text(24, OY + 9 * T + 44, "MENU AGAIN  BACK EXIT", 22, 1, UI_HINT, UI_BG);
+        gfx_label(24, OY + 9 * T + 44, "MENU AGAIN  BACK EXIT", 132, 1, UI_HINT, UI_BG);
         fx(m, FX_OVER);
         release(m);
         for (;;) {

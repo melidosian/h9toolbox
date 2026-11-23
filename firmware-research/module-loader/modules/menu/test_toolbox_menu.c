@@ -1,3 +1,4 @@
+#define H9_GFX_TEST_STUB
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -21,6 +22,7 @@ static unsigned applies, radio_edits, radio_writes, action_calls, last_action, f
 static unsigned has_categories, omit_aprs, saw_aprs_unavailable;
 static unsigned saw_home, saw_radio, saw_general, saw_aprs, saw_blue, saw_yellow, saw_pink;
 static uint16_t last_title_color, last_action_accent;
+static unsigned saw_daylight;
 static uint8_t radio_image[0x6100];
 static int radio_read(unsigned offset, void *dst, unsigned n)
 { assert(offset + n <= sizeof radio_image); memcpy(dst, radio_image + offset, n); return 0; }
@@ -155,6 +157,8 @@ unsigned gfx_text(unsigned x, unsigned y, const char *text, unsigned max, unsign
         if (!strcmp(text, "APRS SETTINGS")) saw_settings = 1;
         if (!strcmp(text, "APRS")) saw_aprs = 1;
         last_title_color = fg;
+        const struct radio_theme *daylight = radio_theme(RADIO_THEME_DAYLIGHT);
+        saw_daylight |= fg == daylight->accent && bg == daylight->panel;
     }
     if (y >= ROW_Y && y < ROW_Y + VISIBLE * ROW_H && x == 3 && !strcmp(text, "Menu color")) {
         if (bg && bg != UI_BG) {
@@ -327,6 +331,22 @@ static void test_unified(const struct menu_list *list)
         assert(run_menu(activate) == 0 && last_action == action && action_calls == action + 1);
         assert(last_action_accent == menu_color(12));
     }
+    unsigned theme_position = position_of(list, RADIO_INTERFACE_THEME, 0);
+    unsigned writes_before_theme = radio_writes;
+    menu_selection = theme_position;
+    saw_daylight = 0;
+    assert(run_menu(color_cancel) == 0 && saw_daylight);
+    assert(radio_image[RADIO_THEME_SETTING] == RADIO_THEME_STOCK && radio_writes == writes_before_theme);
+    const struct press save_theme[] = {
+        {16, H9_KEY_MENU}, {36, H9_KEY_3}, {56, H9_KEY_MENU},
+        {76, H9_KEY_BACK}, {96, H9_KEY_BACK}, {116, H9_KEY_BACK}, {0, 0}
+    };
+    menu_selection = theme_position;
+    assert(run_menu(save_theme) == 0);
+    assert(radio_image[RADIO_THEME_SETTING] == RADIO_THEME_DAYLIGHT && radio_writes == writes_before_theme + 1);
+    saw_daylight = 0;
+    assert(run_menu(idle) == 0 && saw_daylight);
+
     const struct press beacon[] = {{30, H9_KEY_MENU}, {60, H9_KEY_UP}, {90, H9_KEY_BACK}, {0, 0}};
     keys = beacon;
     tick = 0;

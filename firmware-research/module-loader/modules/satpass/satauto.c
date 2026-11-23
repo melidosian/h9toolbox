@@ -263,7 +263,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     volatile struct satshare *sh = SAT_SHARED;
     if (sh->magic != SAT_MAGIC || !sh->count || sh->count > 5) return 0;   /* not asked for by .SAT TRACK */
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);
-    gfx_text(0, 50, "STARTING VFO TRACKING", 21, 1, GFX_WHITE, GFX_BLACK);
+    gfx_label(0, 50, "STARTING VFO TRACKING", 126, 1, GFX_WHITE, GFX_BLACK);
     arm(api, self);
     if (api->version < 2) return 0;
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, GFX_BLACK);   /* stock redraws only what it thinks changed */

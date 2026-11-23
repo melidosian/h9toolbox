@@ -626,6 +626,14 @@ static const struct radio_choice radio_choices_122[] = {
     { 0, "Off" },
     { 1, "On" },
 };
+static const struct radio_choice radio_choices_123[] = {
+    { 0, "Stock" },
+    { 1, "Focus" },
+    { 2, "Split" },
+    { 3, "Daylight" },
+    { 4, "Focus Light" },
+    { 5, "Daylight Dark" },
+};
 enum {
     RADIO_GROUP_RADIO = 0,
     RADIO_GROUP_VFO_SCAN = 1,
@@ -636,7 +644,8 @@ enum {
     RADIO_GROUP_APRS_IDENTITY = 6,
     RADIO_GROUP_APRS_BEACON = 7,
     RADIO_GROUP_APRS_RELAY_ROUTING = 8,
-    RADIO_MENU_COLOR = 37
+    RADIO_MENU_COLOR = 37,
+    RADIO_INTERFACE_THEME = 123
 };
 static const char *const radio_setting_groups[] = {
     "Radio",
@@ -773,6 +782,7 @@ static const struct radio_setting radio_settings[] = {
     { "bOffset", "VFO B offset (10 Hz)", 3252, 4, RADIO_FREQUENCY, RADIO_GROUP_VFO_SCAN, 255, 0, 0, 60000000, 0, 0, 0 },
     { "btInternalMic", "Bluetooth internal mic", 24576, 1, RADIO_CHOICE, RADIO_GROUP_BLUETOOTH, 255, 0, 0, 0, radio_choices_121, 2, 0 },
     { "btInternalSpeaker", "Bluetooth internal speaker", 24577, 1, RADIO_CHOICE, RADIO_GROUP_BLUETOOTH, 255, 0, 0, 0, radio_choices_122, 2, 0 },
+    { "interfaceTheme", "Toolbox theme", 24579, 1, RADIO_CHOICE, RADIO_GROUP_DISPLAY_BUTTONS, 255, 0, 0, 0, radio_choices_123, 6, 0 },
 };
 enum { RADIO_SETTING_COUNT = sizeof radio_settings / sizeof *radio_settings,
        RADIO_SETTING_GROUP_COUNT = sizeof radio_setting_groups / sizeof *radio_setting_groups };

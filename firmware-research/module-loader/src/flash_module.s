@@ -1,4 +1,5 @@
-/* Flash-dependent modules check the loader before touching the jump table.
+/* Flash-dependent modules check the loader and proportional text support
+ * before passing flagged drawing requests to the jump table.
  * r0 is the loader API pointer and r1 is the module index. The tail jump
  * preserves both arguments and the original return address. */
     .section .text.module_flash_entry,"ax",@progbits
@@ -6,6 +7,10 @@
 module_flash_entry:
     r2 = [r0+4]
     if (r2 != MODULE_FLASH_API) goto unsupported_loader
+    r2 = MODULE_TEXT_SIGNATURE_ADDRESS
+    r2 = [r2+0]
+    r3 = MODULE_TEXT_SIGNATURE
+    if (r2 != r3) goto unsupported_loader
     goto module_main
 unsupported_loader:
     r0 = 0

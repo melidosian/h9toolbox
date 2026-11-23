@@ -1,3 +1,4 @@
+#define H9_GFX_TEST_STUB
 /* Host test of the APRS BEACON screen's behaviour: key handling (a keypad glitch must not start or stop it;
  * a hold does), what it transmits with and without a GPS fix, the saved-position fallback, timed mode.
  *   cc -std=c11 -fsanitize=address,undefined -Wno-missing-braces -I. -I../common test_beacon_screen.c \

@@ -16,7 +16,7 @@ static void draw_editor(const struct radio_edit *edit, unsigned selected,
     ui_title(edit->setting->label);
     char buffer[RADIO_MAX_VALUE + 1];
     const char *value = radio_value_label(edit, buffer);
-    gfx_text(3, 26, "VALUE", 5, 1, selected == 0 ? UI_ACCENT : UI_DIM, UI_BG);
+    gfx_label(3, 26, "VALUE", 30, 1, selected == 0 ? UI_ACCENT : UI_DIM, UI_BG);
     if (radio_is_text(edit->setting)) {
         for (unsigned i = 0; i < radio_text_length(edit->setting); ++i) {
             unsigned c = edit->value[i];
@@ -26,9 +26,9 @@ static void draw_editor(const struct radio_edit *edit, unsigned selected,
                      active ? UI_BG : UI_TEXT, active ? UI_ACCENT : UI_BG);
         }
     } else gfx_text(3, 40, value, 26, 1, editing ? UI_ACCENT : UI_TEXT, UI_BG);
-    gfx_text(3, 78, "SAVE", 4, 1, selected == 1 ? UI_ACCENT : UI_DIM, UI_BG);
-    gfx_text(3, 92, "CANCEL", 6, 1, selected == 2 ? UI_ACCENT : UI_DIM, UI_BG);
-    if (notice) gfx_text(3, 105, notice, 26, 1, UI_DANGER, UI_BG);
+    gfx_label(3, 78, "SAVE", 24, 1, selected == 1 ? UI_ACCENT : UI_DIM, UI_BG);
+    gfx_label(3, 92, "CANCEL", 36, 1, selected == 2 ? UI_ACCENT : UI_DIM, UI_BG);
+    if (notice) gfx_label(3, 105, notice, 156, 1, UI_DANGER, UI_BG);
     ui_footer(editing ? "UP/DN EDIT MENU NEXT BACK" : "MENU PICK    BACK CANCEL");
 }
 

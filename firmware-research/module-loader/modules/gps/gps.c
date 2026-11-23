@@ -83,17 +83,10 @@ static char *fixed(char *d, int32_t v, unsigned frac)
     if (frac) { *d++ = '.'; d = num(d, m % scale, frac); }
     return d;
 }
-static void pad(char *d, char *start, unsigned width)   /* blank to `width` so text redraws in place */
-{
-    while ((unsigned)(d - start) < width) *d++ = ' ';
-    *d = 0;
-}
 static void row(unsigned y, const char *s, uint16_t fg)
 {
-    char b[28];
-    char *d = put(b, s);
-    pad(d, b, 26);
-    gfx_text(UI_LEFT, y, b, UI_CELLS, 1, fg, BG);
+    unsigned x = gfx_label(UI_LEFT, y, s, H9_WIDTH - UI_LEFT, 1, fg, BG);
+    gfx_fill(x, y, H9_WIDTH - x, 8, BG);
 }
 
 /* ---- NMEA --------------------------------------------------------------- */
@@ -264,8 +257,8 @@ static void header(const struct state *st, uint32_t now)
     static const char *const NAME[PAGES] = { "POSITION", "SKY", "SIGNALS", "INFO" };
     char b[28], *d = put(b, "GPS ");
     d = num(d, st->page + 1, 1); d = put(d, "/4 "); d = put(d, NAME[st->page]);
-    pad(d, b, 16);
-    gfx_text(UI_LEFT, 2, b, 16, 1, UI_ACCENT, BG);
+    unsigned x = gfx_label(UI_LEFT, 2, b, 96, 1, UI_ACCENT, BG);
+    gfx_fill(x, 2, UI_LEFT + 96 - x, 8, BG);
     uint32_t age = st->rmcs ? (now - st->last_rmc) / 100u : 99;
     const char *s = !st->lines ? "NO DATA" : age > 3 ? "STALE" : st->status == 'A' ? (st->quality > 1 ? "FIX DGPS" : "FIX") : "NO FIX";
     uint16_t c = !st->lines || age > 3 ? DIM : st->status == 'A' ? UI_OK : UI_ACCENT;
@@ -321,11 +314,11 @@ static void page_sky(const struct state *st)
     gfx_text(108, 24, b, 10, 1, UI_TEXT, BG);
     d = put(b, "USED "); num(d, st->used, 1);
     gfx_text(108, 35, b, 10, 1, UI_TEXT, BG);
-    gfx_text(108, 52, "SIGNAL", 6, 1, DIM, BG);
+    gfx_label(108, 52, "SIGNAL", 36, 1, DIM, BG);
     gfx_text(108, 63, ">=30", 4, 1, UI_OK, BG);
     gfx_text(108, 74, ">=20", 4, 1, UI_ACCENT, BG);
     gfx_text(108, 85, "<20", 3, 1, UI_DANGER, BG);
-    gfx_text(108, 96, "NONE", 4, 1, DIM, BG);
+    gfx_label(108, 96, "NONE", 24, 1, DIM, BG);
 }
 
 static void page_signals(const struct state *st)
@@ -340,14 +333,14 @@ static void page_signals(const struct state *st)
     }
     gfx_fill(0, 103, H9_WIDTH, 1, UI_RULE);
     gfx_text(3, 108, "G", 1, 1, UI_OK, BG);
-    gfx_text(11, 108, "GPS", 3, 1, DIM, BG);
+    gfx_label(11, 108, "GPS", 18, 1, DIM, BG);
     gfx_text(37, 108, "R", 1, 1, UI_DANGER, BG);
-    gfx_text(45, 108, "GLO", 3, 1, DIM, BG);
+    gfx_label(45, 108, "GLO", 18, 1, DIM, BG);
     gfx_text(71, 108, "E", 1, 1, CYAN, BG);
-    gfx_text(79, 108, "GAL", 3, 1, DIM, BG);
+    gfx_label(79, 108, "GAL", 18, 1, DIM, BG);
     gfx_text(105, 108, "B", 1, 1, UI_ACCENT, BG);
-    gfx_text(113, 108, "BDS", 3, 1, DIM, BG);
-    gfx_text(UI_LEFT, 14, "SIGNAL 0-50 DB", 16, 1, DIM, BG);
+    gfx_label(113, 108, "BDS", 18, 1, DIM, BG);
+    gfx_label(UI_LEFT, 14, "SIGNAL 0-50 DB", 96, 1, DIM, BG);
 }
 
 static void page_info(const struct state *st, uint32_t now)

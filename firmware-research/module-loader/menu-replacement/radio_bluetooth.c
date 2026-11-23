@@ -25,14 +25,14 @@ int radio_bt_info(void)
     int result = radio_bt_platform.identity(name);
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
     ui_title("BLUETOOTH IDENTITY");
-    gfx_text(3, 25, "NAME", 4, 1, UI_DIM, UI_BG);
-    if (result) gfx_text(3, 39, "NAME READ FAILED", 26, 1, UI_DANGER, UI_BG);
+    gfx_label(3, 25, "NAME", 24, 1, UI_DIM, UI_BG);
+    if (result) gfx_label(3, 39, "NAME READ FAILED", 156, 1, UI_DANGER, UI_BG);
     else {
-        gfx_text(3, 39, name, 26, 1, UI_TEXT, UI_BG);
-        unsigned length = 0; while (name[length] && length < 32) ++length;
-        if (length > 26) gfx_text(3, 49, name + 26, 6, 1, UI_TEXT, UI_BG);
+        gfx_label(3, 39, name, 156, 1, UI_TEXT, UI_BG);
+        unsigned fit = gfx_label_fit(name, 156);
+        if (name[fit]) gfx_label(3, 49, name + fit, 156, 1, UI_TEXT, UI_BG);
     }
-    gfx_text(3, 72, "PAIRING PIN", 11, 1, UI_DIM, UI_BG);
+    gfx_label(3, 72, "PAIRING PIN", 66, 1, UI_DIM, UI_BG);
     /* The native BT PIN Code row displays this fixed ROM value, not a saved
      * editable setting (app+0x6CB68 -> ROM string app+0xB1741). */
     gfx_text(3, 86, "000000", 6, 1, UI_TEXT, UI_BG);
@@ -56,7 +56,7 @@ static void pairing_draw(unsigned saved, unsigned count, unsigned selected, unsi
         uint16_t bg = chosen ? UI_ACCENT : UI_BG;
         gfx_fill(0, 23 + row * 13, H9_WIDTH, 13, bg);
         if (radio_bt_platform.device(index, &device)) {
-            gfx_text(3, 26 + row * 13, "DEVICE READ FAILED", 26, 1, chosen ? UI_BG : UI_DANGER, bg);
+            gfx_label(3, 26 + row * 13, "DEVICE READ FAILED", 156, 1, chosen ? UI_BG : UI_DANGER, bg);
         } else {
             if (!device.name[0]) {
                 static const char hex[] = "0123456789ABCDEF";
@@ -66,11 +66,11 @@ static void pairing_draw(unsigned saved, unsigned count, unsigned selected, unsi
                     device.name[i * 3 + 2] = i < 5 ? ':' : 0;
                 }
             }
-            gfx_text(3, 26 + row * 13, device.name, 26, 1, chosen ? UI_BG : UI_TEXT, bg);
+            gfx_label(3, 26 + row * 13, device.name, 156, 1, chosen ? UI_BG : UI_TEXT, bg);
         }
     }
-    if (!count) gfx_text(3, 42, saved ? "NO PAIRED DEVICES" : "SEARCHING...", 26, 1, UI_DIM, UI_BG);
-    if (notice) gfx_text(3, 105, notice, 26, 1, UI_HINT, UI_BG);
+    if (!count) gfx_label(3, 42, saved ? "NO PAIRED DEVICES" : "SEARCHING...", 156, 1, UI_DIM, UI_BG);
+    if (notice) gfx_label(3, 105, notice, 156, 1, UI_HINT, UI_BG);
     ui_footer(phase == 2 ? "MENU / BACK RETURN" : !count ? "MENU RETRY  BACK RETURN" : "MENU CONNECT  BACK RETURN");
 }
 
@@ -80,7 +80,7 @@ int radio_bt_pairing(void)
     for (;;) {
         gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
         ui_title("BLUETOOTH PAIRING");
-        gfx_text(3, 30, "SEARCH DEVICES", 26, 1, source == 0 ? UI_ACCENT : UI_TEXT, UI_BG);
+        gfx_label(3, 30, "SEARCH DEVICES", 156, 1, source == 0 ? UI_ACCENT : UI_TEXT, UI_BG);
         gfx_text(3, 47, "PAIRED DEVICES", 26, 1, source == 1 ? UI_ACCENT : UI_TEXT, UI_BG);
         ui_footer("UP/DN  MENU PICK  BACK");
         unsigned key = gfx_wait_key();

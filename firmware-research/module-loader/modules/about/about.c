@@ -16,7 +16,7 @@ static void line(unsigned row, const char *label, const char *value)
 {
     unsigned y = 24 + row * 13, n = 0;
     while (value[n]) ++n;
-    gfx_text(UI_LEFT, y, label, 14, 1, UI_DIM, UI_BG);
+    gfx_label(UI_LEFT, y, label, 84, 1, UI_DIM, UI_BG);
     gfx_text(H9_WIDTH - UI_LEFT - n * 6, y, value, n, 1, UI_TEXT, UI_BG);
 }
 

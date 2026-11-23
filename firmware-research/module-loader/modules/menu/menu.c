@@ -71,7 +71,7 @@ static void draw_row(const struct h9_api *api, unsigned item, unsigned modules, 
     }
     /* 2x text (12 x 16 px cells), up to 12 characters after a 4 px margin,
      * inside an 18 px row: one line above and below the text. */
-    unsigned x = gfx_text(4, y + 1, name, 12, 2, fg, bg);
+    unsigned x = gfx_label(4, y + 1, name, 144, 2, fg, bg);
     gfx_fill(0, y, H9_WIDTH, 1, bg);
     gfx_fill(0, y + 17, H9_WIDTH, 1, bg);
     gfx_fill(0, y + 1, 4, 16, bg);
@@ -90,7 +90,7 @@ static void draw_list(const struct h9_api *api, unsigned items, unsigned modules
 static void message(const char *text)
 {
     gfx_fill(0, ROW_Y, H9_WIDTH, ROWS * ROW_H, GFX_BLACK);
-    gfx_text(4, ROW_Y + 8, text, 12, 2, GFX_YELLOW, GFX_BLACK);
+    gfx_label(4, ROW_Y + 8, text, 144, 2, GFX_YELLOW, GFX_BLACK);
 }
 #endif
 
@@ -139,10 +139,10 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     unsigned items = modules + 1, selected = 0, top = 0;
 
     gfx_fill(0, 0, H9_WIDTH, TITLE_H, GFX_BLUE);
-    gfx_text(8, 3, "H9 TOOLBOX", 12, 2, GFX_WHITE, GFX_BLUE);
+    gfx_label(8, 3, "H9 TOOLBOX", 144, 2, GFX_WHITE, GFX_BLUE);
     gfx_fill(0, TITLE_H, H9_WIDTH, ROW_Y - TITLE_H, GFX_BLACK);
     gfx_fill(0, ROW_Y + ROWS * ROW_H, H9_WIDTH, FOOT_Y - (ROW_Y + ROWS * ROW_H), GFX_BLACK);
-    gfx_text(4, FOOT_Y, "MENU: RUN   BACK: RADIO", 26, 1, GFX_GREY, GFX_BLACK);
+    gfx_label(4, FOOT_Y, "MENU: RUN   BACK: RADIO", 156, 1, GFX_GREY, GFX_BLACK);
     gfx_fill(0, FOOT_Y + 8, H9_WIDTH, H9_HEIGHT - FOOT_Y - 8, GFX_BLACK);
     draw_list(api, items, modules, vis, top, selected);
 

@@ -1,3 +1,4 @@
+#define H9_GFX_TEST_STUB
 /* Host render of .SAT PLOT to a PPM (see main for the arguments).
  * A development aid (no assertions): look at the picture. */
 #include <stdio.h>

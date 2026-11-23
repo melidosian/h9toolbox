@@ -1,3 +1,4 @@
+#define H9_GFX_TEST_STUB
 /* Host render of the SAT PASS list page to a PPM: a GPS fix and time are fed through the modem ring.
  *   render_satlist <out.ppm> <tz option>   (SATDATA=build/satdata.bin) */
 #include <stdio.h>

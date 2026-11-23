@@ -116,7 +116,8 @@ static void draw_row(unsigned i, int editing, const struct edit *to, const struc
     if (editing) b[n++] = '_', b[n] = 0;
     else if ((i == I_TO || i == I_MSG) && !vlen) put_str(b + n, "-");
     gfx_fill(0, y, H9_WIDTH, ROW_H, bg);
-    gfx_text(4, y + 2, b, 25, 1, sel || editing ? UI_BG : UI_TEXT, bg);
+    if (editing) gfx_text(4, y + 2, b, 25, 1, UI_BG, bg);
+    else gfx_label(4, y + 2, b, H9_WIDTH - 4, 1, sel ? UI_BG : UI_TEXT, bg);
 }
 
 static void draw_choose(int editing, const struct edit *to, const struct edit *msg)

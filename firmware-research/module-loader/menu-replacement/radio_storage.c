@@ -1,6 +1,10 @@
 #include "radio_settings.h"
 #include "radio_bluetooth.h"
 #include "radio_33cm.h"
+#include "radio_theme.h"
+
+/* Session preference in the boot-cleared area, between 900TX and quick VOX. */
+#define THEME_STATE (*(volatile uint8_t *)0x299F4u)
 
 /* The main-image TX hooks use the cached VM setting. */
 #define BAND_STATE (*(volatile uint32_t *)RADIO_33CM_STATE)
@@ -38,6 +42,11 @@ static int read_setting(unsigned offset, void *dst, unsigned length)
         *(uint8_t *)dst = BAND_REGION <= 1 && BAND_STATE == RADIO_33CM_MAGIC;
         return RADIO_OK;
     }
+    if (offset == RADIO_THEME_SETTING) {
+        if (length != 1) return RADIO_INVALID;
+        *(uint8_t *)dst = THEME_STATE;
+        return RADIO_OK;
+    }
     if (offset >= 0x6000) return radio_bt_read(offset, dst, length);
     return radio_partition_read(4, offset, dst, length);
 }
@@ -46,6 +55,11 @@ static int write_setting(unsigned offset, const void *src, unsigned length)
     if (offset == RADIO_33CM_SETTING) {
         if (length != 1) return RADIO_INVALID;
         return write_33cm(*(const uint8_t *)src);
+    }
+    if (offset == RADIO_THEME_SETTING) {
+        if (length != 1 || *(const uint8_t *)src >= RADIO_THEME_COUNT) return RADIO_INVALID;
+        THEME_STATE = *(const uint8_t *)src;
+        return RADIO_OK;
     }
     if (offset >= 0x6000) return radio_bt_write(offset, src, length);
     return radio_partition_write(4, offset, src, length);

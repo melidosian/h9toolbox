@@ -8,17 +8,13 @@ static unsigned tick, revision, omit_a, windows, ascii, fallbacks;
 static unsigned last_y, last_side, last_frequency, last_color, last_right;
 static unsigned tx_side, frequency_draws, tx_windows, tx_stock_names;
 enum { NAME_TX_RED = 0xf800 };
-static char last_text[10];
+static char last_text[16];
 static struct name_row *fixture_rows(void);
 static void stock_a(unsigned x, unsigned y, unsigned font);
 static void stock_b(unsigned x, unsigned y, unsigned font);
 static void stock_classic_draw(unsigned x, unsigned y, unsigned side, unsigned frequency, unsigned color);
 static unsigned stock_display_side(void);
 static void stock_frequency_draw(unsigned x, unsigned y, unsigned frequency, unsigned color, unsigned font);
-static void ascii_draw(unsigned x, unsigned y, const char *text, unsigned color, unsigned size, unsigned bg);
-static void window_draw(unsigned x, unsigned y, const char *text, unsigned color,
-                        unsigned size, unsigned left, unsigned right);
-
 #define RADIO_BYTE(address) ram[address]
 #define RADIO_TICK tick
 #define NAME_ROWS fixture_rows()
@@ -27,8 +23,6 @@ static void window_draw(unsigned x, unsigned y, const char *text, unsigned color
 #define STOCK_DRAW_CLASSIC stock_classic_draw
 #define STOCK_DISPLAY_SIDE stock_display_side
 #define STOCK_DRAW_FREQUENCY stock_frequency_draw
-#define STOCK_DRAW_ASCII ascii_draw
-#define STOCK_DRAW_WINDOW window_draw
 #include "channel_name_view.c"
 
 static struct name_row *fixture_rows(void)
@@ -71,24 +65,24 @@ static void stock_frequency_draw(unsigned x, unsigned y, unsigned frequency, uns
     ++frequency_draws;
 }
 
-static void ascii_draw(unsigned x, unsigned y, const char *text, unsigned color, unsigned size, unsigned bg)
+unsigned gfx_text(unsigned x, unsigned y, const char *text, unsigned pixels,
+                  unsigned scale, uint16_t color, uint16_t bg)
 {
-    assert(x + 64 <= 160 && y + 16 <= 128 && size == 8 && !bg && color == 0xffff);
-    strcpy(last_text, text);
-    ++ascii;
-}
-
-static void window_draw(unsigned x, unsigned y, const char *text, unsigned color,
-                        unsigned size, unsigned left, unsigned right)
-{
-    assert(y + 24 <= 128 && size == 24 && x == left && right <= 160);
-    assert(strlen(text) * 12 <= right - left);
-    last_y = y;
+    assert((scale & GFX_PROPORTIONAL) && !bg);
+    unsigned cell = (scale & 255) * 6;
+    unsigned n = 0;
+    while (n < pixels / cell && text[n]) ++n;
+    if (scale & GFX_MEASURE) return n;
+    assert(x + pixels <= 160 && y >= 4 && n < sizeof last_text);
+    memcpy(last_text, text, n);
+    last_text[n] = 0;
+    last_y = y - 4;
     last_color = color;
-    last_right = right;
-    strcpy(last_text, text);
-    ++windows;
+    last_right = x + pixels;
+    if (cell == 12) ++windows;
+    else ++ascii;
     if (color == NAME_TX_RED) ++tx_windows;
+    return x + n * cell;
 }
 
 void gfx_fill(unsigned x, unsigned y, unsigned w, unsigned h, uint16_t color)
@@ -141,7 +135,7 @@ int main(void)
     ram[0x12BAD] = 1;
     omit_a = 0;
     radio_label_draw_a(4, 24, 8);
-    assert(ascii == 1 && !strcmp(last_text, "01234567"));
+    assert(ascii == 1 && !strcmp(last_text, "0123456789AB"));
 
     ram[0x12BAD] = CLASSIC;
     ram[0x12BB3] = 1;

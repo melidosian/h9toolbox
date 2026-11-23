@@ -1,3 +1,4 @@
+#define H9_GFX_TEST_STUB
 /* Host test for the APRS core: compiles aprs_core.c itself with the screen,
  * keys and chip read stubbed, and checks its parsers against APRS spec
  * formats, plus messages and the screen-switch mailbox.
@@ -351,11 +352,11 @@ int main(void)
     A->st[0].live = 0;
     CHECK(put_age(age, &A->st[0]) == 0 && !age[0]);
 
-    /* Reading a message on a 26-character display keeps words together. */
+    /* The LCD stub uses six-pixel cells. A whole word can touch the right edge. */
     draw_count = 0;
     CHECK(aprs_wrap(20, "Meet at 3pm at the park by the lake", 60, UI_TEXT) == 40);
-    CHECK(draw_count == 2 && !strcmp(draw_lines[0], "Meet at 3pm at the park") &&
-          !strcmp(draw_lines[1], "by the lake"));
+    CHECK(draw_count == 2 && !strcmp(draw_lines[0], "Meet at 3pm at the park by") &&
+          !strcmp(draw_lines[1], "the lake"));
 
     /* Tab keys: a digit names a screen; the current one and missing ones do nothing. */
     reset();

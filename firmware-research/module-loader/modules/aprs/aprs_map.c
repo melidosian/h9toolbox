@@ -49,7 +49,7 @@ static void draw(void)
     if (sel_ok && project(A->st[A->map_sel].lat, A->st[A->map_sel].lon, &x, &y)) {
         gfx_fill(x - 2, y - 2, 5, 5, UI_ACCENT);
         unsigned lx = x + 5 + 6 * 9 > H9_WIDTH ? x - 5 - 6 * 9 : x + 5;
-        gfx_text(lx, y > MAP_Y + 10 ? y - 4 : y, A->st[A->map_sel].call, CALL, 1, UI_ACCENT, UI_BG);
+        gfx_label(lx, y > MAP_Y + 10 ? y - 4 : y, A->st[A->map_sel].call, (CALL) * 1 * 6, 1, UI_ACCENT, UI_BG);
     }
     unsigned n = put_str(b, "R ");
     n += put_uint(b + n, RADIUS_KM[A->map_zoom]);

@@ -615,7 +615,7 @@ unsigned put_range(char *out, const struct station *s)
 
 void aprs_line(unsigned y, const char *text, uint16_t fg, uint16_t bg)
 {
-    unsigned x = gfx_text(4, y, text, 26, 1, fg, bg);
+    unsigned x = gfx_label(4, y, text, H9_WIDTH - 4, 1, fg, bg);
     gfx_fill(0, y, 4, 8, bg);
     if (x < H9_WIDTH) gfx_fill(x, y, H9_WIDTH - x, 8, bg);
 }
@@ -636,7 +636,8 @@ unsigned put_age(char *out, const struct station *s)
 void aprs_tabs(unsigned cur)
 {
     static const char labels[] = "1LIST 2MAP 3MSG 4SEND 5BCN";
-    aprs_line(FOOT_Y, labels, UI_HINT, UI_BG);
+    gfx_fill(0, FOOT_Y, H9_WIDTH, 8, UI_BG);
+    gfx_text(4, FOOT_Y, labels, 26, 1, UI_HINT, UI_BG);
 #ifdef H9_FLASH_HELPERS
     static const uint8_t start[] = { 0, 6, 11, 16, 22 }, width[] = { 5, 4, 4, 5, 4 };
     gfx_text(4 + 6 * start[cur], FOOT_Y, labels + start[cur], width[cur], 1, UI_BG, UI_ACCENT);
@@ -656,7 +657,7 @@ void aprs_title(const char *text)
 {
     char b[16];
     gfx_fill(0, 0, H9_WIDTH, TITLE_H, UI_BG);
-    gfx_text(UI_LEFT, UI_TITLE_Y, text, 17, 1, UI_ACCENT, UI_BG);
+    gfx_label(UI_LEFT, UI_TITLE_Y, text, 104, 1, UI_ACCENT, UI_BG);
     unsigned n = put_str(b, "RX ");
     put_uint(b + n, A->rx);
     gfx_text(112, 1, b, 8, 1, A->rx_flash ? UI_OK : UI_DIM, UI_BG);

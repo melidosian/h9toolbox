@@ -1,6 +1,5 @@
 #include "app_theme.h"
 #include "radio_system.h"
-#include "radio_manual_images.h"
 #include "../modules/aprs/aprs_resident_config.h"
 
 struct guarded_call { radio_rf_action action; void *context; int result; };
@@ -62,7 +61,7 @@ int radio_version_feed(struct radio_version_parser *p, unsigned byte)
 static void line(unsigned row, const char *label, const char *value)
 {
     unsigned y = 24 + row * 12;
-    gfx_text(3, y, label, 10, 1, UI_DIM, UI_BG);
+    gfx_label(3, y, label, 60, 1, UI_DIM, UI_BG);
     gfx_text(67, y, value, 15, 1, UI_TEXT, UI_BG);
 }
 static void wait_back(void)
@@ -130,12 +129,12 @@ static int modem_information(void)
         if (redraw || (!parser.module[0] && expired)) {
             gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
             ui_title("APRS INFORMATION");
-            gfx_text(3, 23, "CALLSIGN", 26, 1, UI_DIM, UI_BG);
-            gfx_text(3, 34, station, 26, 1, UI_TEXT, UI_BG);
-            gfx_text(3, 51, "MODEM VERSION", 26, 1, UI_DIM, UI_BG);
-            gfx_text(3, 62, parser.module[0] ? parser.module : expired ? "NO REPLY" : "QUERYING...", 26, 1, UI_TEXT, UI_BG);
-            gfx_text(3, 79, "PROTOCOL VERSION", 26, 1, UI_DIM, UI_BG);
-            gfx_text(3, 90, parser.protocol[0] ? parser.protocol : "--", 26, 1, UI_TEXT, UI_BG);
+            gfx_label(3, 23, "CALLSIGN", 156, 1, UI_DIM, UI_BG);
+            gfx_label(3, 34, station, 156, 1, UI_TEXT, UI_BG);
+            gfx_label(3, 51, "MODEM VERSION", 156, 1, UI_DIM, UI_BG);
+            gfx_label(3, 62, parser.module[0] ? parser.module : expired ? "NO REPLY" : "QUERYING...", 156, 1, UI_TEXT, UI_BG);
+            gfx_label(3, 79, "PROTOCOL VERSION", 156, 1, UI_DIM, UI_BG);
+            gfx_label(3, 90, parser.protocol[0] ? parser.protocol : "--", 156, 1, UI_TEXT, UI_BG);
             ui_footer("MENU QUERY   BACK RETURN");
             redraw = 0;
             if (expired) started += 300; /* keep the idle display responsive */
@@ -159,23 +158,19 @@ static int manuals(void)
 {
     unsigned selected = 0;
     for (;;) {
-        const struct radio_manual_image *page = &manual_images[selected];
+        static const char *const pages[] = {"GMRS MANUAL", "HAM MANUAL", "VIDEO GUIDE"};
         gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
-        ui_title(page->name);
+        ui_title(pages[selected]);
         h9_lcd_window(45, 23, 114, 92);
         uint8_t pixels[128];
-        for (unsigned at = 0; at < 4900;) {
-            unsigned count = 4900 - at; if (count > 64) count = 64;
-            for (unsigned i = 0; i < count; ++i) {
-                unsigned bit = (at + i) * page->bits, shift = bit % 8;
-                unsigned index = page->pixels[bit/8] >> shift;
-                if (shift + page->bits > 8) index |= (unsigned)page->pixels[bit/8+1] << (8-shift);
-                unsigned color = page->palette[index & ((1u << page->bits) - 1)];
-                pixels[i*2] = color >> 8; pixels[i*2+1] = color;
-            }
-            h9_lcd_write(pixels, count*2); at += count;
+        for (unsigned at = 0; at < 9800;) {
+            unsigned count = 9800 - at;
+            if (count > sizeof pixels) count = sizeof pixels;
+            radio_manual_read(selected, at, pixels, count);
+            h9_lcd_write(pixels, count);
+            at += count;
         }
-        gfx_text(3, 103, "SCAN QR WITH YOUR PHONE", 26, 1, UI_HINT, UI_BG);
+        gfx_label(3, 103, "SCAN QR WITH YOUR PHONE", 156, 1, UI_HINT, UI_BG);
         ui_footer("UP/DN PAGE    BACK RETURN");
         unsigned key = gfx_wait_key();
         if (key == H9_KEY_BACK) return RADIO_OK;
@@ -202,10 +197,10 @@ static int reset(const struct h9_api *loader, unsigned action)
     unsigned kind = action - RADIO_SYS_RESET_VFO;
     if (kind >= sizeof titles / sizeof *titles) return RADIO_INVALID;
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
-    ui_title(titles[kind]);
+    gfx_text(UI_LEFT, UI_TITLE_Y, titles[kind], UI_CELLS, 1, UI_ACCENT, UI_BG);
     gfx_text(3, 36, "RESTORE FACTORY SETTINGS", 26, 1, UI_TEXT, UI_BG);
     gfx_text(3, 55, "THIS CANNOT BE UNDONE", 26, 1, UI_HINT, UI_BG);
-    ui_footer("MENU CONFIRM  BACK CANCEL");
+    gfx_text(UI_LEFT, UI_FOOT_Y, "MENU CONFIRM  BACK CANCEL", UI_CELLS, 1, UI_HINT, UI_BG);
     gfx_wait_release();
     for (;;) {
         unsigned key = gfx_wait_key();

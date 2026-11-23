@@ -122,30 +122,30 @@ static void draw(const struct state *s, unsigned write, unsigned read)
 {
     char a[8], b[8];
     number(a, write, 4); number(b, read, 4);
-    unsigned x = gfx_text(UI_LEFT, 20, "WRITE ", 6, 1, UI_DIM, UI_BG);
+    unsigned x = gfx_label(UI_LEFT, 20, "WRITE ", 36, 1, UI_DIM, UI_BG);
     x = gfx_text(x, 20, a, 4, 1, UI_TEXT, UI_BG);
-    x = gfx_text(x, 20, "  READ ", 7, 1, UI_DIM, UI_BG);
+    x = gfx_label(x, 20, "  READ ", 42, 1, UI_DIM, UI_BG);
     gfx_text(x, 20, b, 4, 1, UI_TEXT, UI_BG);
 
     number(a, s->frames, 3); number(b, s->gps, 4);
-    x = gfx_text(UI_LEFT, 31, "PKT ", 4, 1, UI_DIM, UI_BG);
+    x = gfx_label(UI_LEFT, 31, "PKT ", 24, 1, UI_DIM, UI_BG);
     x = gfx_text(x, 31, a, 3, 1, UI_OK, UI_BG);
-    x = gfx_text(x, 31, " GPS ", 5, 1, UI_DIM, UI_BG);
+    x = gfx_label(x, 31, " GPS ", 30, 1, UI_DIM, UI_BG);
     x = gfx_text(x, 31, b, 4, 1, UI_TEXT, UI_BG);
     number(a, s->other + s->bad, 3);
-    x = gfx_text(x, 31, " ?", 2, 1, UI_DIM, UI_BG);
+    x = gfx_label(x, 31, " ?", 12, 1, UI_DIM, UI_BG);
     gfx_text(x, 31, a, 3, 1, UI_TEXT, UI_BG);
 
     gfx_fill(0, 42, H9_WIDTH, 1, UI_RULE);
     for (unsigned i = 0; i < HEARD; i++) {
         const struct heard *h = &s->heard[(s->next + HEARD - 1 - i) % HEARD];
         unsigned y = 46 + i * 16;
-        unsigned e = gfx_text(UI_LEFT, y, h->call, 10, 1, UI_ACCENT, UI_BG);
+        unsigned e = gfx_label(UI_LEFT, y, h->call, 60, 1, UI_ACCENT, UI_BG);
         gfx_fill(e, y, H9_WIDTH - e, 8, UI_BG);
-        e = gfx_text(UI_LEFT, y + 8, h->info, LINE, 1, UI_TEXT, UI_BG);
+        e = gfx_label(UI_LEFT, y + 8, h->info, H9_WIDTH - UI_LEFT, 1, UI_TEXT, UI_BG);
         gfx_fill(e, y + 8, H9_WIDTH - e, 8, UI_BG);
     }
-    x = gfx_text(UI_LEFT, 110, s->nmea, LINE, 1, UI_DIM, UI_BG);
+    x = gfx_label(UI_LEFT, 110, s->nmea, H9_WIDTH - UI_LEFT, 1, UI_DIM, UI_BG);
     gfx_fill(x, 110, H9_WIDTH - x, 8, UI_BG);
 }
 

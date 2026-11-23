@@ -27,9 +27,10 @@ for their own data and pieces.
 
 ## Layout and keys
 
-- Use the built-in 5 × 7 font at 1× for labels and controls. A 3- or 4-pixel
-  margin leaves 26 character cells. Reserve 2× text for a prominent
-  reading, such as the GPS clock.
+- Use the built-in 5 × 7 font at 1× for labels and controls. Pass the
+  available width in pixels to `gfx_label` and allow a 3- or 4-pixel margin.
+  Use fixed cells for frequencies, numeric tables, and character editors.
+  Reserve 2× text for a prominent reading such as the GPS clock.
 - Use `ui_title` and `ui_footer` for ordinary pages. Charts and multi-page
   views can place titles, readings and tabs where their data fits. Leave
   space between the plot, its legend and the keys.
@@ -39,9 +40,9 @@ for their own data and pieces.
 - Up and Down move or adjust. Menu opens a tool, picks an item or ends an
   edit. Back returns one level. Display the actual key for each action,
   especially confirmation or cancellation of a transmission.
-- Keep the code with `gfx_fill` and `gfx_text` plus the two shared chrome
-  helpers. Check the display with empty, full and long-value cases, then
-  verify the module still fits below its shared-state boundary.
+- Use `gfx_label_fit` for wrapping or scrolling. Check the display with
+  empty, full, and long values, then verify the module still fits below its
+  shared-state boundary.
 
 ## APRS
 

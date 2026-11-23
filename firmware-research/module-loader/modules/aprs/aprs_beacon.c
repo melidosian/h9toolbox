@@ -194,7 +194,7 @@ static void draw(const struct screen *s)
     unsigned n, y = TOP;
     uint32_t frequency = TX_FREQ;
     ui_title("BEACON");
-    gfx_text(112, UI_TITLE_Y, s->armed ? "ARMED" : "OFF", 8, 1, s->armed ? UI_OK : UI_TEXT, UI_BG);
+    gfx_label(112, UI_TITLE_Y, s->armed ? "ARMED" : "OFF", 48, 1, s->armed ? UI_OK : UI_TEXT, UI_BG);
     gfx_fill(0, TITLE_H, H9_WIDTH, FOOT_Y - TITLE_H, UI_BG);
     n = put_str(b, A->mycall[0] ? A->mycall : "NO CALL");
     b[n++] = ' ';

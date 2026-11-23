@@ -29,18 +29,18 @@ static const uint8_t *glyph(char c)
 }
 
 /* One character cell of 6x8 pixels at `scale`, streamed row by row. */
-static void draw_char(unsigned x, unsigned y, char c, unsigned scale, uint16_t fg, uint16_t bg)
+static void draw_char(unsigned x, unsigned y, const uint8_t *rows, unsigned cell, unsigned left,
+                      unsigned scale, uint16_t fg, uint16_t bg)
 {
-    const uint8_t *rows = glyph(c);
     uint8_t buffer[128];
-    unsigned used = 0, w = 6 * scale, h = 8 * scale;
+    unsigned used = 0, w = cell * scale, h = 8 * scale;
     h9_lcd_window(x, y, x + w - 1, y + h - 1);
     for (unsigned py = 0; py < h; py++) {
         unsigned row = py / scale;
-        unsigned bits = row < 7 ? rows[row] : 0;
+        unsigned bits = row < 7 ? rows[row] << left : 0;
         for (unsigned px = 0; px < w; px++) {
             unsigned col = px / scale;
-            uint16_t color = col < 5 && (bits >> (4 - col)) & 1 ? fg : bg;
+            uint16_t color = col + 1 < cell && (bits >> (4 - col)) & 1 ? fg : bg;
             buffer[used++] = (uint8_t)(color >> 8);
             buffer[used++] = (uint8_t)color;
             if (used == sizeof buffer) {
@@ -54,9 +54,36 @@ static void draw_char(unsigned x, unsigned y, char c, unsigned scale, uint16_t f
 
 unsigned gfx_text(unsigned x, unsigned y, const char *text, unsigned max, unsigned scale, uint16_t fg, uint16_t bg)
 {
-    for (unsigned i = 0; i < max && text[i]; i++, x += 6 * scale)
-        draw_char(x, y, text[i], scale, fg, bg);
-    return x;
+    unsigned proportional = scale & GFX_PROPORTIONAL, measure = scale & GFX_MEASURE;
+    scale &= 0xff;
+    if (proportional && !measure) {
+        if (x >= H9_WIDTH) return x;
+        if (max > H9_WIDTH - x) max = H9_WIDTH - x;
+    }
+    unsigned i = 0;
+    for (; max && text[i]; ++i) {
+        char c = text[i];
+        if (proportional && c == '\n') break;
+        const uint8_t *rows = glyph(c);
+        unsigned cell = 6, left = 0;
+        if (proportional && (c < '0' || c > '9')) {
+            unsigned bits = 0;
+            for (unsigned row = 0; row < 7; ++row) bits |= rows[row];
+            if (!bits) cell = 3;
+            else {
+                while (!(bits & (16u >> left))) ++left;
+                while (!(bits & (1u << (6 - cell)))) --cell;
+                cell -= left;
+            }
+        }
+        unsigned width = cell * scale;
+        unsigned cost = proportional ? width : 1;
+        if (cost > max) break;
+        if (!measure) draw_char(x, y, rows, cell, left, scale, fg, bg);
+        x += width;
+        max -= cost;
+    }
+    return measure ? i : x;
 }
 
 /* Wait until no key is down (the key that started a module may still be held). */

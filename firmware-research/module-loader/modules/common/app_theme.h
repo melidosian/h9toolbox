@@ -23,13 +23,13 @@ uint16_t menu_ink(uint16_t accent);
 static inline void ui_title(const char *text)
 {
     gfx_fill(0, 0, H9_WIDTH, UI_TITLE_H, UI_BG);
-    gfx_text(UI_LEFT, UI_TITLE_Y, text, UI_CELLS, 1, UI_ACCENT, UI_BG);
+    gfx_label(UI_LEFT, UI_TITLE_Y, text, H9_WIDTH - 2 * UI_LEFT, 1, UI_ACCENT, UI_BG);
 }
 
 static inline void ui_footer(const char *keys)
 {
     gfx_fill(0, UI_FOOT_Y - 1, H9_WIDTH, H9_HEIGHT - UI_FOOT_Y + 1, UI_BG);
-    gfx_text(UI_LEFT, UI_FOOT_Y, keys, UI_CELLS, 1, UI_HINT, UI_BG);
+    gfx_label(UI_LEFT, UI_FOOT_Y, keys, H9_WIDTH - 2 * UI_LEFT, 1, UI_HINT, UI_BG);
 }
 
 #endif

@@ -1,3 +1,4 @@
+#define H9_GFX_TEST_STUB 1
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>

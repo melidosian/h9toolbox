@@ -115,6 +115,21 @@ python -I menu-replacement/run_host_tests.py
 The C harnesses use the `h9-hostcc` Docker image. The coverage JSON generated
 alongside the firmware lists every stock row and its corresponding endpoint.
 
+## Channel screen and menu themes
+
+Open **Radio Settings → Display & buttons → Toolbox theme** to preview
+Focus, Split, Daylight, Focus Light, or Daylight Dark across the Toolbox
+menu tree. Press MENU to apply the theme for the current power session.
+Stock uses the existing Menu Color preference.
+
+**Channel screen preview** is in the same folder. It snapshots the current
+A/B frequencies, memory numbers, names, and selected side. Use UP/DN to
+cycle through the five layouts and BACK to return. Focus and Focus Light
+put the memory name first and wrap long active names across two lines.
+VFOs and unnamed memories show the frequency in the primary position.
+The native home screen continues to handle live receive, transmit, and
+keypad states.
+
 ## Quick Change
 
 Hold **Back** on the unlocked radio home screen to open a 3×3 grid,

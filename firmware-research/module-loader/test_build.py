@@ -237,11 +237,15 @@ class FlashHelpers(unittest.TestCase):
 
     def test_module_checks_loader_before_entering(self):
         self.assertEqual(self.module.entry, build.symbol(self.module, "module_flash_entry"))
-        read, branch, run, zero, ret = self.instructions("module_flash_entry", 5)
+        read, branch, address, signature, magic, verify, run, zero, ret = self.instructions("module_flash_entry", 9)
         self.assertEqual(read[1], "r2 = [r0+4]")
         mismatch = re.fullmatch(r"if \(r2 != 5\) goto (-?\d+)", branch[1])
         self.assertIsNotNone(mismatch)
         self.assertEqual(branch[0] + int(mismatch[1]), run[0])
+        self.assertEqual(address[1], f"r2 = {self.origin + 4 * len(self.exports)}")
+        self.assertEqual(signature[1], "r2 = [r2+0]")
+        self.assertEqual(magic[1], f"r3 = {build.FLASH_TEXT_SIGNATURE}")
+        self.assertEqual(verify[0] + int(verify[1].removeprefix("if (r2 != r3) goto ")), run[0])
         self.assertEqual(run[0] + int(run[1].removeprefix("goto ")), build.symbol(self.module, "module_main"))
         self.assertEqual((zero[1], ret[1]), ("r0 = 0", "rts"))
 

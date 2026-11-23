@@ -1,3 +1,4 @@
+#define H9_GFX_TEST_STUB
 /* Host test for the GPS app: NMEA parsing, derived values and page text. */
 #include <stdio.h>
 #include <string.h>

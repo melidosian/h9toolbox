@@ -278,16 +278,16 @@ static void show_counter(unsigned mode, unsigned frequency, unsigned tone, unsig
     char text[32], *p;
     if (frequency) { p = frequency_label(text, frequency); append(p, " MHz"); }
     else append(text, "SEARCHING SIGNAL");
-    gfx_text(3, 27, text, 26, 1, UI_TEXT, UI_BG);
+    gfx_label(3, 27, text, 156, 1, UI_TEXT, UI_BG);
     tone_label(text, tone);
-    gfx_text(3, 45, text, 26, 1, tone != NONE ? UI_OK : UI_HINT, UI_BG);
+    gfx_label(3, 45, text, 156, 1, tone != NONE ? UI_OK : UI_HINT, UI_BG);
     p = append(text, "RSSI ");
     int dbm = (int)(rssi >> 1) - 160;
     if (dbm < 0) { *p++ = '-'; dbm = -dbm; }
     p = number(p, dbm, 1); append(p, " dBm");
-    gfx_text(3, 65, text, 26, 1, UI_TEXT, UI_BG);
+    gfx_label(3, 65, text, 156, 1, UI_TEXT, UI_BG);
     append(text, side ? "USE RESULT IN VFO B" : "USE RESULT IN VFO A");
-    gfx_text(3, 90, text, 26, 1, UI_DIM, UI_BG);
+    gfx_label(3, 90, text, 156, 1, UI_DIM, UI_BG);
     ui_footer("MENU USE 0 RESCAN BACK");
 }
 
@@ -379,9 +379,9 @@ static void show_spectrum(const uint16_t levels[BINS], const uint16_t peaks[BINS
         gfx_fill(i * 2, 91 - ph, 1, 1, UI_HINT);
     }
     char text[32], *p = frequency_label(text, start + peak * step); append(p, " MHz");
-    gfx_text(3, 23, text, 26, 1, UI_TEXT, UI_BG);
+    gfx_label(3, 23, text, 156, 1, UI_TEXT, UI_BG);
     p = append(text, "SPAN "); p = number(p, span / 100000, 1); append(p, " MHz");
-    gfx_text(3, 101, text, 26, 1, UI_DIM, UI_BG);
+    gfx_label(3, 101, text, 156, 1, UI_DIM, UI_BG);
     ui_footer(listening ? "MENU USE VFO BACK SCOPE" : "MENU LISTEN UP/DN SPAN BACK");
 }
 

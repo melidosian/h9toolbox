@@ -14,6 +14,7 @@ struct radio_version_parser {
 };
 int radio_version_feed(struct radio_version_parser *, unsigned byte);
 int radio_system(const struct h9_api *, unsigned action);
+void radio_manual_read(unsigned page, unsigned offset, uint8_t *dst, unsigned count);
 int radio_apply_pending(const struct h9_api *);
 typedef int (*radio_rf_action)(void *);
 int radio_with_rf(const struct h9_api *, radio_rf_action, void *);

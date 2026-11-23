@@ -167,14 +167,14 @@ static __attribute__((noinline)) void draw_grid(unsigned selected, unsigned targ
         const char *title_text = i == MONITOR_TILE && target >= 200 ? "TX FREQ" : tiles[i].label;
         gfx_fill(x, y, COL_W - 1, ROW_H - 1, bg);
         gfx_text(x + 2, y + 3, number, 1, 1, i == selected ? UI_ACCENT : UI_HINT, bg);
-        gfx_text(x + 10, y + 3, title_text, 7, 1, title, bg);
+        gfx_label(x + 10, y + 3, title_text, COL_W - 11, 1, title, bg);
         draw_grid_value(x, y + 12, COL_W - 1, label, UI_TEXT, bg);
     }
     for (unsigned n = 0; n <= 3; ++n) {
         gfx_fill(0, GRID_Y - 1 + n * ROW_H, H9_WIDTH, 1, DIVIDER);
         gfx_fill(n * COL_W, GRID_Y, 1, 3 * ROW_H - 1, DIVIDER);
     }
-    if (notice) gfx_text(3, 109, notice, 26, 1, UI_DANGER, UI_BG);
+    if (notice) gfx_label(3, 109, notice, 156, 1, UI_DANGER, UI_BG);
     ui_footer("0 SETTINGS  MENU  BACK");
 }
 
@@ -283,8 +283,8 @@ static __attribute__((noinline)) unsigned edit_split(const struct h9_api *api, u
         if (key == H9_KEY_MENU) {
             int result = digits && digits < 8 ? RADIO_INVALID : radio_with_rf(api, save_split, &split);
             if (!result) return key;
-            gfx_text(3, 105, result == RADIO_INVALID ? "CHECK TX FREQUENCY" : "SAVE/APPLY FAILED",
-                     26, 1, UI_DANGER, UI_BG);
+            gfx_label(3, 105, result == RADIO_INVALID ? "CHECK TX FREQUENCY" : "SAVE/APPLY FAILED",
+                     156, 1, UI_DANGER, UI_BG);
         } else if (key >= 2 && key <= 11) {
             if (digits == 8) digits = 0;
             split.tx = (digits++ ? split.tx * 10 : 0) + key - 2;
@@ -341,7 +341,7 @@ static __attribute__((noinline)) unsigned edit_tones(const struct h9_api *api, u
         char value[RADIO_MAX_VALUE + 1];
         ui_title(side == 2 ? "RX + TX TONE" : field[side].label);
         gfx_fill(3, 49, H9_WIDTH - 6, 16, UI_BG);
-        gfx_text(3, 49, radio_value_label(&edit[side != 0], value), 13, 2, UI_ACCENT, UI_BG);
+        gfx_label(3, 49, radio_value_label(&edit[side != 0], value), 156, 2, UI_ACCENT, UI_BG);
         unsigned key = next_key(input, 1);
         if (key == KEY_EXIT || key == H9_KEY_BACK) return key;
         if (key == KEY_HASH) side = (side + 2) % 3;
@@ -372,7 +372,7 @@ static __attribute__((noinline)) unsigned edit_tile(const struct h9_api *api, un
         for (;;) {
             char value[RADIO_MAX_VALUE + 1];
             gfx_fill(3, 49, H9_WIDTH - 6, 16, UI_BG);
-            gfx_text(3, 49, radio_value_label(edit, value), 13, 2, UI_ACCENT, UI_BG);
+            gfx_label(3, 49, radio_value_label(edit, value), 156, 2, UI_ACCENT, UI_BG);
             unsigned key = next_key(input, 1);
             if (key == KEY_EXIT) return KEY_EXIT;
             if (key == H9_KEY_BACK || key == KEY_HASH) return key;

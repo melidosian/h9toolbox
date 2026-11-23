@@ -3,6 +3,7 @@
 #include <string.h>
 #include "radio_settings_catalog.h"
 #include "radio_33cm.h"
+#include "radio_theme.h"
 
 static unsigned char image[0x6100];
 static unsigned writes, fail_write, corrupt_write;
@@ -24,7 +25,9 @@ static const struct radio_storage storage = { read_image, write_image };
 
 int main(void)
 {
-    assert(RADIO_SETTING_COUNT == 123);
+    assert(RADIO_SETTING_COUNT == 124);
+    const struct radio_setting *theme = &radio_settings[RADIO_INTERFACE_THEME];
+    assert(theme->offset == RADIO_THEME_SETTING && theme->choice_count == RADIO_THEME_COUNT);
     unsigned tx500 = 0;
     while (tx500 < RADIO_SETTING_COUNT && strcmp(radio_settings[tx500].id, "tx500")) ++tx500;
     assert(tx500 + 1 < RADIO_SETTING_COUNT);
@@ -115,5 +118,5 @@ int main(void)
             assert(radio_set_number(&edit, (unsigned)-32769) == RADIO_INVALID);
         }
     }
-    puts("123 radio fields: round trips, calibration, DTMF, coordinates, shared bits and I/O failures passed.");
+    puts("124 radio fields: round trips, calibration, DTMF, coordinates, shared bits and I/O failures passed.");
 }

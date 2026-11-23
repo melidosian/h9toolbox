@@ -1,5 +1,6 @@
 /* Pinned factory v1.0.38 backends; none enters the retired menu renderer. */
 #include "radio_system.h"
+#include "radio_manual_images.h"
 
 int radio_system_reload_native(void);
 int radio_system_factory_native(unsigned action);
@@ -65,3 +66,11 @@ static unsigned ring_end(void) { return *(const volatile uint16_t *)0x16E34u & 2
 static unsigned ring_byte(unsigned at) { return ((const volatile uint8_t *)0x16634u)[at & 2047]; }
 static unsigned ticks(void) { return *(const volatile uint32_t *)0x1D8B0u; }
 const struct radio_system_platform radio_system_platform = { identity, reload, reset, query, ring_end, ring_byte, ticks };
+
+void radio_manual_read(unsigned page, unsigned offset, uint8_t *dst, unsigned count)
+{
+    const uint8_t *pixels = (const uint8_t *)(uintptr_t)manual_images[page].address;
+    unsigned first = manual_images[page].first, last = manual_images[page].last;
+    for (unsigned i = 0; i < count; ++i, ++offset)
+        dst[i] = offset >= first && offset < last ? pixels[offset] : 0xff;
+}

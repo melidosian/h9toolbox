@@ -17,4 +17,5 @@ const struct radio_action_info radio_actions[RADIO_ACTION_COUNT] = {
     {"frequencyScan", "SCAN FREQUENCY", "VFO & scan", "Capture a nearby frequency"},
     {"rangeScan", "SCAN SAVED RANGE", "VFO & scan", "Capture within saved limits"},
     {"spectrum", "SPECTRUM", "VFO & scan", "Sweep, listen and use peak"},
+    {"channelPreview", "CHANNEL SCREEN PREVIEW", "Display & buttons", "Preview A/B display concepts"},
 };

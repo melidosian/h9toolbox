@@ -8,6 +8,7 @@ REPO = Path(__file__).resolve().parents[3]
 MODULE = "firmware-research/module-loader"
 RADIO = f"{MODULE}/menu-replacement"
 cases = [
+    ("gfx", [], [f"{MODULE}/modules/common/test_gfx.c", f"{MODULE}/modules/common/gfx.c"]),
     ("key-ramp", [], [f"{MODULE}/modules/common/test_key_ramp.c"]),
     ("quick-change", [], [f"{RADIO}/test_radio_quick.c", f"{RADIO}/radio_channels.c",
                           f"{RADIO}/radio_settings.c"]),
@@ -20,15 +21,15 @@ cases = [
     ("aprs-client", [], [f"{MODULE}/modules/aprs/test_aprs.c"]),
     ("menu", [], [f"{MODULE}/modules/menu/test_toolbox_menu.c"]),
     ("preview", ["-DH9_RADIO_MENU_PREVIEW"], [f"{MODULE}/modules/menu/test_toolbox_menu.c"]),
-    ("unified", ["-DH9_RADIO_SETTINGS"], [f"{MODULE}/modules/menu/test_toolbox_menu.c", f"{RADIO}/radio_settings.c", f"{RADIO}/radio_actions_catalog.c", f"{RADIO}/radio_aprs.c"]),
+    ("unified", ["-DH9_RADIO_SETTINGS", "-ffunction-sections", "-Wl,--gc-sections"], [f"{MODULE}/modules/menu/test_toolbox_menu.c", f"{RADIO}/radio_settings.c", f"{RADIO}/radio_actions_catalog.c", f"{RADIO}/radio_aprs.c", f"{RADIO}/radio_theme.c"]),
     ("settings", [], [f"{RADIO}/test_radio_settings.c", f"{RADIO}/radio_settings.c"]),
-    ("editor", [], [f"{RADIO}/test_radio_editor.c", f"{RADIO}/radio_editor.c", f"{RADIO}/radio_settings.c"]),
+    ("editor", ["-DH9_GFX_TEST_STUB"], [f"{RADIO}/test_radio_editor.c", f"{RADIO}/radio_editor.c", f"{RADIO}/radio_settings.c"]),
     ("channels", [], [f"{RADIO}/test_radio_channels.c", f"{RADIO}/radio_channels.c", f"{RADIO}/radio_settings.c"]),
     ("channel-editor", [], [f"{RADIO}/test_radio_channel_editor.c",
                             f"{RADIO}/radio_channels.c", f"{RADIO}/radio_settings.c"]),
     ("bluetooth", [], [f"{RADIO}/test_radio_bluetooth.c"]),
     ("scan", [], [f"{RADIO}/test_radio_scan.c"]),
-    ("system", ["-DH9_RESIDENT_TX"], [f"{RADIO}/test_radio_system.c", f"{RADIO}/radio_system.c", f"{RADIO}/radio_settings.c"]),
+    ("system", ["-DH9_RESIDENT_TX", "-DH9_GFX_TEST_STUB"], [f"{RADIO}/test_radio_system.c", f"{RADIO}/radio_system.c", f"{RADIO}/radio_settings.c"]),
 ]
 commands = ["set -eu"]
 for name, flags, sources in cases:

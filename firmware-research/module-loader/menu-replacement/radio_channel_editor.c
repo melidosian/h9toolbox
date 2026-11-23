@@ -64,14 +64,14 @@ int radio_channel_editor(const struct radio_storage *storage, uint16_t accent)
     for (;;) {
         if (target || draw_frame) {
             gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
-            gfx_text(UI_LEFT, UI_TITLE_Y, "CHANNEL SETTINGS", UI_CELLS, 1, ink, UI_BG);
+            gfx_label(UI_LEFT, UI_TITLE_Y, "CHANNEL SETTINGS", 154, 1, ink, UI_BG);
             char label[4];
             channel_number(target, label);
-            gfx_text(3, 24, target ? label : "SELECT CHANNEL", 16, 1, ink, UI_BG);
+            gfx_label(3, 24, target ? label : "SELECT CHANNEL", 96, 1, ink, UI_BG);
             const char *footer = editing && active_setting.kind == RADIO_CHOICE ? "UP/DN   MENU SAVE   BACK" :
                 editing ? "0-9  MENU SAVE    BACK" : !target ? "0-9 JUMP  MENU OPEN  BACK" :
                 confirm ? "MENU CONFIRM  BACK CANCEL" : "MENU EDIT     BACK RETURN";
-            gfx_text(UI_LEFT, UI_FOOT_Y, footer, UI_CELLS, 1, UI_TEXT, UI_BG);
+            gfx_label(UI_LEFT, UI_FOOT_Y, footer, 154, 1, UI_TEXT, UI_BG);
         }
         draw_frame = target;
         unsigned count = target ? MEMORY_FIELDS + 3 : MEMORIES;
@@ -109,11 +109,16 @@ int radio_channel_editor(const struct radio_storage *storage, uint16_t accent)
             gfx_fill(0, 40 + row * 12, H9_WIDTH, 12, bg);
             unsigned n = 0;
             while (n < 10 && value[n]) ++n;
-            gfx_text(3, 42 + row * 12, text, target ? 24 - n : 3, 1, fg, bg);
-            gfx_text(target ? 157 - n * 6 : 33, 42 + row * 12, value, target ? n : 21,
-                     1, active ? fg : ink, bg);
+            unsigned y = 42 + row * 12;
+            if (target) {
+                gfx_label(3, y, text, 148 - n * 6, 1, fg, bg);
+                gfx_text(157 - n * 6, y, value, n, 1, active ? fg : ink, bg);
+            } else {
+                gfx_text(3, y, text, 3, 1, fg, bg);
+                gfx_label(33, y, value, 126, 1, active ? fg : ink, bg);
+            }
         }
-        if (notice) gfx_text(3, 105, notice, 26, 1, ink, UI_BG);
+        if (notice) gfx_label(3, 105, notice, 154, 1, ink, UI_BG);
         unsigned key = channel_key(&input, !editing && !confirm);
         if (!target && notice) gfx_fill(0, 105, H9_WIDTH, 8, UI_BG);
         notice = 0;

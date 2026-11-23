@@ -1,3 +1,4 @@
+#define H9_GFX_TEST_STUB
 /* Host test for the resident VFO tracker in satauto.c (tracker()): which
  * words and saved records it writes, when, and when it must keep its hands off the radio. */
 #include <stdio.h>

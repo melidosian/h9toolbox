@@ -17,7 +17,7 @@ static uint16_t pixels[H9_WIDTH * H9_HEIGHT];
 static unsigned wx, wy, width, cursor;
 static uint8_t settings_image[0x6100];
 void h9_lcd_window(unsigned x0, unsigned y0, unsigned x1, unsigned y1)
-{ assert(x1 < H9_WIDTH && y1 < H9_HEIGHT); wx = x0; wy = y0; width = x1 - x0 + 1; cursor = 0; }
+{ assert(x0 <= x1 && x1 < H9_WIDTH && y0 <= y1 && y1 < H9_HEIGHT); wx = x0; wy = y0; width = x1 - x0 + 1; cursor = 0; }
 void h9_lcd_write(const void *buffer, unsigned n)
 {
     const uint8_t *p = buffer;
@@ -90,4 +90,46 @@ int main(int argc, char **argv)
     state.editing = 0;
     draw_menu(&loader, &list, &state, &view);
     frame(argv[1], "messages");
+
+    static const char *const styles[] = {"focus", "split", "daylight", "focus-light", "daylight-dark"};
+    const struct channel_preview_row channels[] = {
+        {14694000, 24, "NORTH RIDGE"},
+        {44600000, 8, "SIMPLEX"},
+    };
+    char filename[40];
+    for (unsigned theme = RADIO_THEME_FOCUS; theme < RADIO_THEME_COUNT; ++theme) {
+        const char *style = styles[theme - RADIO_THEME_FOCUS];
+        state.theme = theme;
+        menu_open(&list, &state, &view, MENU_HOME, 0);
+        draw_menu(&loader, &list, &state, &view);
+        snprintf(filename, sizeof filename, "%s-menu", style);
+        frame(argv[1], filename);
+        radio_channel_preview_draw(theme, 0, channels);
+        snprintf(filename, sizeof filename, "%s-channels", style);
+        frame(argv[1], filename);
+    }
+
+    const struct channel_preview_row long_name_and_vfo[] = {
+        {14694000, 24, "NORTH RIDGE LINK REPEATER"},
+        {44601250, 0, ""},
+    };
+    radio_channel_preview_draw(RADIO_THEME_FOCUS, 0, long_name_and_vfo);
+    frame(argv[1], "focus-two-line-name");
+    radio_channel_preview_draw(RADIO_THEME_FOCUS, 1, long_name_and_vfo);
+    frame(argv[1], "focus-vfo");
+
+    const struct channel_preview_row wide_name_and_unnamed[] = {
+        {14694000, 24, "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"},
+        {44601251, 8, ""},
+    };
+    radio_channel_preview_draw(RADIO_THEME_FOCUS_LIGHT, 0, wide_name_and_unnamed);
+    frame(argv[1], "focus-light-wide-name");
+    radio_channel_preview_draw(RADIO_THEME_FOCUS_LIGHT, 1, wide_name_and_unnamed);
+    unsigned saw_last_digit = 0;
+    uint16_t ink = radio_theme(RADIO_THEME_FOCUS_LIGHT)->text;
+    for (unsigned y = 34; y < 58; ++y)
+        for (unsigned x = 145; x < H9_WIDTH; ++x)
+            saw_last_digit |= pixels[y * H9_WIDTH + x] == ink;
+    assert(saw_last_digit);
+    frame(argv[1], "focus-light-unnamed");
 }

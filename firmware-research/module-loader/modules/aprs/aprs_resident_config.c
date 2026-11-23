@@ -136,7 +136,7 @@ static const char *const rows[] = { "SCHEDULE", "MODE", "EVERY", "SYMBOL", "APRS
 static void line(unsigned y, const char *s, unsigned color)
 {
     gfx_fill(0, y, H9_WIDTH, 10, UI_BG);
-    gfx_text(4, y, s, 25, 1, (uint16_t)color, UI_BG);
+    gfx_label(4, y, s, 150, 1, (uint16_t)color, UI_BG);
 }
 
 static void draw(const struct h9_runtime_status *s, unsigned selected, const char *notice)
@@ -153,8 +153,8 @@ static void draw(const struct h9_runtime_status *s, unsigned selected, const cha
         uint16_t bg = i == selected ? UI_ACCENT : UI_BG;
         unsigned y = 21 + i * 13;
         gfx_fill(0, y, H9_WIDTH, 12, bg);
-        gfx_text(4, y + 2, rows[i], 12, 1, fg, bg);
-        gfx_text(104, y + 2, values[i], 9, 1, fg, bg);
+        gfx_label(4, y + 2, rows[i], 72, 1, fg, bg);
+        gfx_label(104, y + 2, values[i], 54, 1, fg, bg);
     }
     const char *state = !s->worker_ready || s->polls == 0 ? "SCHEDULER UNAVAILABLE" :
         !s->uart_online ? "GPS LINK WAIT" :

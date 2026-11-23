@@ -118,7 +118,7 @@ static void draw(const struct satdata *data, const struct satshare *sh, unsigned
     khz(d, shift_dn);
     row(98, s, DIM);
     sat_tabs(2);
-    gfx_text(96, UI_FOOT_Y, "MENU VFO", 8, 1, UI_HINT, BG);
+    gfx_label(96, UI_FOOT_Y, "MENU VFO", 48, 1, UI_HINT, BG);
 }
 
 /* Leave the choices where .SAT TRACKER finds them and ask the loader for it (it arms and returns to the radio; older loaders restart it). */

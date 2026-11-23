@@ -5943,3 +5943,75 @@ result yet.**
   `f63eb09cb7b7ece0134f85be28ff3a79b78874346b995c7827bc709295af15a6`.
   The far payload SHA-256 is
   `263707b65e149f016d3144951711c4ecb38fc205094b322f96f21fd1507063d1`.
+
+## 2026-11-23 — Proportional text render study
+
+- Rendered the v0.1.8 dev channel picker, APRS message detail, and Bluetooth
+  settings in the host LCD harness at 160 × 128. The prototype used the
+  existing 5 × 7 glyph bitmaps, trimmed blank side columns from letters
+  and punctuation, used 3 px spaces, and kept the 6 px digit advance.
+- ILLINOIS LINK REPEATER measured 118 px versus 132 px and fit in the
+  126 px channel-name area. WILLIAMS HILL 900 LINK measured 115 px versus
+  132 px and also fit. The sample APRS message wrapped to two lines
+  instead of three. Bluetooth Internal Mic fit beside its value, while
+  Bluetooth Internal Speaker still clipped.
+- Screen layout prototypes changed horizontal fit and message wrap only.
+  Compiled Pi32 size, LCD timing, and physical readability remain unmeasured.
+  Comparison PNG SHA-256
+  `ea03ecd199aa710baeb50f257193f3decd6ddc338eda5c82938d6b3ed3501f4a`.
+
+### Firmware implementation
+
+- Used pixel-width labels in the Toolbox menu, channel picker, normal
+  display long names, Quick Change, settings and tools, APRS, GPS, satellite
+  pages, and other Toolbox apps. APRS bodies wrap by available pixels, and
+  long channel names scroll to the first suffix that fits. Frequency
+  fields and cursor grids can still use the original fixed-width renderer.
+- Kept API 5 jump addresses and the fixed-width calling convention intact.
+  Rebuilt app modules check a renderer signature before using proportional
+  drawing. The boot, recovery, and updater text use their existing paths.
+- The Pi32v2 shared drawing helpers fit in 1,485 bytes. The far menu uses
+  61,144 bytes. APRS MSG uses 6,696 of its 6,704 available bytes.
+  Host tests, the native renderer harness, combined package round trip,
+  and all 136 staged modem transfer blocks passed.
+- Bench v0.1.9-rc.1 package SHA-256
+  `ab7573caf07df427dc32674afe769703c38aa688a656e535f26ba243f5fe2267`.
+  Far payload SHA-256
+  `538a70d64babb38af41359799ae1f09a26b09f3fc0263f1cecfadd0a604b4a77`.
+  A physical display and redraw timing trial remains pending.
+
+## 2026-11-23 — Channel screen design and Toolbox themes
+
+- Imported the five concepts and their original renders from
+  `channel-screen-design` commit `6714866`. The Toolbox menu tree uses the
+  concept colors for selection, title, dividers and help. The edit screen
+  previews the theme before saving it for the current power session. Stock
+  retains the factory Menu Color preference.
+- Added an on-radio preview with the selected A/B side, RX frequencies,
+  memory numbers and long or short names. The stock home screen still
+  handles live receive, transmit and keypad redraws. Host LCD renders
+  exercise all five theme and layout combinations.
+- The first combined link left too little room for the APRS modem updater.
+  The replacement manual renderer reads the unpatched pixel data from
+  main flash and fills in the three QR codes' reused white margins.
+  The build and final package checks recovered all 29,400 RGB565 image
+  bytes exactly. The far menu uses 55,644 bytes, and the combined image
+  fits the existing main and far flash windows.
+- Bench v0.1.9-rc.2 main SHA-256
+  `95d6e9a08050b08831351ac57d9fd902e5cea8e2a480a30527c1469974a0c8e2`.
+  Far SHA-256
+  `b7a60c9abd134ff98a0fb93db0eba704c805943523c1c2f788c65adc4fb059b5`.
+  The host menu and loader tests, package round trip, and the 136-block
+  modem transfer test passed. Physical LCD and keypad testing is pending.
+
+### Focus channel names
+
+- Focus and Focus Light give named memories the primary text position. The
+  active name can wrap to two lines at a word boundary. For names with very
+  wide characters, two smaller lines show the complete 32-character name.
+  Frequencies for named memories stay in the channel header. VFOs and unnamed
+  memories use the frequency as primary text, including all five decimal
+  digits when present.
+- The host LCD harness rendered both Focus palettes, a two-line repeater name,
+  a 32-character wide name, VFO and an unnamed memory. Split and both
+  Daylight renders matched the previous firmware pixel for pixel.

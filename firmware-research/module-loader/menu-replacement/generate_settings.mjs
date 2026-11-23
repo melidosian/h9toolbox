@@ -29,6 +29,8 @@ settings.push(
   {id:'bOffset',label:'VFO B offset (10 Hz)',section:'VFO & scan',offset:0xcbc,type:'frequency',min:0,max:60000000},
   {id:'btInternalMic',label:'Bluetooth internal mic',section:'Bluetooth',offset:0x6000+8,type:'select',options:[[0,'Off'],[1,'On']]},
   {id:'btInternalSpeaker',label:'Bluetooth internal speaker',section:'Bluetooth',offset:0x6001+8,type:'select',options:[[0,'Off'],[1,'On']]},
+  {id:'interfaceTheme',label:'Toolbox theme',section:'Display & buttons',offset:0x6003+8,type:'select',
+    options:['Stock','Focus','Split','Daylight','Focus Light','Daylight Dark'].map((label,i)=>[i,label])},
 );
 const groups = [...new Set(settings.map(s => s.section))];
 const q = x => JSON.stringify(x);
@@ -46,7 +48,8 @@ settings.forEach((s,i) => {
   }
 });
 lines.push('enum {', ...groups.map((g,i) => `    ${groupId(g)} = ${i},`),
-  `    RADIO_MENU_COLOR = ${settings.findIndex(s => s.id === 'color')}`, '};');
+  `    RADIO_MENU_COLOR = ${settings.findIndex(s => s.id === 'color')},`,
+  `    RADIO_INTERFACE_THEME = ${settings.findIndex(s => s.id === 'interfaceTheme')}`, '};');
 lines.push('static const char *const radio_setting_groups[] = {');
 lines.push(...groups.map(g => `    ${q(g)},`));
 lines.push('};', 'static const struct radio_setting radio_settings[] = {');

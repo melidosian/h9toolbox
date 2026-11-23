@@ -10,6 +10,7 @@
 #include "../../menu-replacement/radio_settings_catalog.h"
 #include "../../menu-replacement/radio_actions.h"
 #include "../../menu-replacement/radio_system.h"
+#include "../../menu-replacement/radio_theme.h"
 #include "../../menu-replacement/radio_aprs.h"
 #endif
 
@@ -103,6 +104,7 @@ struct menu_state {
 #ifdef H9_RADIO_SETTINGS
     unsigned radio_changed, page, beacon_type, beacon_draft;
     uint16_t accent;
+    uint8_t theme;
     struct radio_edit radio_draft;
     unsigned number, have_number, number_invalid;
 #endif
@@ -415,6 +417,17 @@ static uint16_t saved_menu_color(void)
         ? menu_color(radio_value(&edit)) : UI_ACCENT;
 }
 
+static unsigned saved_theme(void)
+{
+    uint8_t theme;
+    return radio_stock_storage.read(RADIO_THEME_SETTING, &theme, 1) ? RADIO_THEME_STOCK : theme;
+}
+
+static int previewing_theme(const struct menu_state *state)
+{
+    return state->editing && state->radio_draft.setting == &radio_settings[RADIO_INTERFACE_THEME];
+}
+
 static int previewing_color(const struct menu_state *state)
 {
     return state->editing && state->radio_draft.setting == &radio_settings[RADIO_MENU_COLOR];
@@ -424,17 +437,19 @@ static int previewing_color(const struct menu_state *state)
 static const char *draw_row(const struct h9_api *api, const struct menu_list *list,
                             const struct menu_state *state,
 #ifdef H9_RADIO_SETTINGS
-                            const struct menu_view *view, uint16_t accent,
+                            const struct menu_view *view, uint16_t accent, const struct radio_theme *theme,
 #endif
                             unsigned row, unsigned y)
 {
 #ifdef H9_RADIO_SETTINGS
     unsigned count = view->count;
+    uint16_t background = theme ? theme->background : UI_BG;
 #else
     unsigned count = list->row_count;
+    uint16_t background = UI_BG;
 #endif
     if (row >= count) {
-        gfx_fill(0, y, ROW_WIDTH, ROW_H, UI_BG);
+        gfx_fill(0, y, ROW_WIDTH, ROW_H, background);
         return 0;
     }
 #ifdef H9_RADIO_SETTINGS
@@ -446,7 +461,7 @@ static const char *draw_row(const struct h9_api *api, const struct menu_list *li
     unsigned item = list->rows[row];
     if (item & HEADING) {
         gfx_fill(0, y, ROW_WIDTH, ROW_H, UI_BG);
-        unsigned x = gfx_text(3, y + 3, group_name(item & ~HEADING), 20, 1, UI_DIM, UI_BG);
+        unsigned x = gfx_label(3, y + 3, group_name(item & ~HEADING), 120, 1, UI_DIM, UI_BG);
         gfx_text(x + 6, y + 3, "-------------------------", (ROW_WIDTH - x - 6) / 6, 1, UI_DIM, UI_BG);
         return 0;
     }
@@ -513,9 +528,17 @@ static const char *draw_row(const struct h9_api *api, const struct menu_list *li
     }
     unsigned selected = item == state->selected;
 #ifdef H9_RADIO_SETTINGS
-    uint16_t bg = selected ? (state->editing && !previewing_color(state) ? UI_EDIT : accent) : UI_BG;
-    uint16_t label_ink = selected ? (menu_luma(bg) >= 820 ? UI_BG : UI_TEXT) : UI_TEXT;
-    uint16_t value_ink = selected ? label_ink : menu_ink(accent);
+    uint16_t bg, label_ink, value_ink;
+    int editing = selected && state->editing && !previewing_color(state) && !previewing_theme(state);
+    if (theme) {
+        bg = selected ? (editing ? theme->text : theme->accent) : background;
+        label_ink = selected ? (editing ? theme->background : theme->on_accent) : theme->text;
+        value_ink = selected ? label_ink : theme->muted;
+    } else {
+        bg = selected ? (editing ? UI_EDIT : accent) : background;
+        label_ink = selected ? (menu_luma(bg) >= 820 ? UI_BG : UI_TEXT) : UI_TEXT;
+        value_ink = selected ? label_ink : menu_ink(accent);
+    }
 #else
     uint16_t bg = selected ? (state->editing ? UI_EDIT : UI_ACCENT) : UI_BG;
     uint16_t label_ink = selected ? UI_BG : UI_TEXT;
@@ -525,9 +548,9 @@ static const char *draw_row(const struct h9_api *api, const struct menu_list *li
     unsigned n = text_length(value);
 #ifdef H9_RADIO_SETTINGS
     if (n > 12) n = 12;
-    gfx_text(3, y + 3, label, (ROW_WIDTH - 12) / 6 - n, 1, label_ink, bg);
+    gfx_label(3, y + 3, label, ROW_WIDTH - 12 - n * 6, 1, label_ink, bg);
 #else
-    gfx_text(3, y + 3, label, H9_NAME_BYTES, 1, label_ink, bg);
+    gfx_label(3, y + 3, label, ROW_WIDTH - 12 - n * 6, 1, label_ink, bg);
 #endif
     gfx_text(ROW_WIDTH - 3 - n * 6, y + 3, value, n, 1, value_ink, bg);
     return selected ? help : 0;
@@ -542,13 +565,23 @@ static void draw_menu(const struct h9_api *api, const struct menu_list *list, co
 #ifdef H9_RADIO_SETTINGS
     unsigned total = view->count, row = state->selected, rows = total;
     const char *title = page_name(state->page);
-    uint16_t accent = previewing_color(state) ? menu_color(radio_value(&state->radio_draft)) : state->accent;
-    uint16_t ink = menu_ink(accent);
+    const struct radio_theme *theme = radio_theme(previewing_theme(state)
+        ? radio_value(&state->radio_draft) : state->theme);
+    if (previewing_color(state)) theme = 0;
+    uint16_t accent = theme ? theme->accent : previewing_color(state)
+        ? menu_color(radio_value(&state->radio_draft)) : state->accent;
+    uint16_t ink = theme ? theme->accent : menu_ink(accent);
+    uint16_t background = theme ? theme->background : UI_BG;
+    uint16_t panel = theme ? theme->panel : UI_BG;
+    uint16_t text = theme ? theme->text : UI_TEXT;
+    uint16_t muted = theme ? theme->muted : UI_HINT;
+    uint16_t rule = theme ? theme->rule : UI_DIM;
 #else
     struct menu_option option = list->options[state->selected];
     unsigned total = list->count, row = option.row, rows = list->row_count;
     const char *title = group_name(option.group);
     uint16_t accent = UI_ACCENT, ink = UI_ACCENT;
+    uint16_t background = UI_BG, panel = UI_BG, text = UI_TEXT, muted = UI_HINT, rule = UI_DIM;
 #endif
     unsigned item = state->selected + 1;
 #ifdef H9_RADIO_MENU_PREVIEW
@@ -573,9 +606,12 @@ static void draw_menu(const struct h9_api *api, const struct menu_list *list, co
 #endif
     }
 #endif
-    gfx_fill(0, 0, H9_WIDTH, ROW_Y, UI_BG);
-    gfx_text(UI_LEFT, UI_TITLE_Y, title, sizeof count > 6 ? 18 : 20, 1, ink, UI_BG);
-    gfx_text(H9_WIDTH - sizeof count * 6 + 1, UI_TITLE_Y, count, sizeof count - 1, 1, ink, UI_BG);
+    gfx_fill(0, 0, H9_WIDTH, ROW_Y, panel);
+    gfx_label(UI_LEFT, UI_TITLE_Y, title, H9_WIDTH - sizeof count * 6 - 3, 1, ink, panel);
+    gfx_text(H9_WIDTH - sizeof count * 6 + 1, UI_TITLE_Y, count, sizeof count - 1, 1, ink, panel);
+#ifdef H9_RADIO_SETTINGS
+    if (theme) gfx_fill(0, ROW_Y - 1, H9_WIDTH, 1, rule);
+#endif
 
     unsigned top = row < VISIBLE / 2 ? 0 : row - VISIBLE / 2;
     unsigned limit = rows > VISIBLE ? rows - VISIBLE : 0;
@@ -584,19 +620,23 @@ static void draw_menu(const struct h9_api *api, const struct menu_list *list, co
     for (unsigned i = 0; i < VISIBLE; ++i) {
         const char *row_help = draw_row(api, list, state,
 #ifdef H9_RADIO_SETTINGS
-                                        view, accent,
+                                        view, accent, theme,
 #endif
                                         top + i, ROW_Y + i * ROW_H);
         if (row_help) help = row_help;   /* headings and other rows never return help */
     }
     unsigned track = VISIBLE * ROW_H;
-    gfx_fill(ROW_WIDTH + 1, ROW_Y, 2, track, UI_DIM);
+    gfx_fill(ROW_WIDTH, ROW_Y, H9_WIDTH - ROW_WIDTH, track, background);
+    gfx_fill(ROW_WIDTH + 1, ROW_Y, 2, track, rule);
     unsigned offset = total > 1 ? (track - 5) * state->selected / (total - 1) : 0;
     gfx_fill(ROW_WIDTH + 1, ROW_Y + offset, 2, 5, accent);
-    gfx_fill(0, ROW_Y + VISIBLE * ROW_H, H9_WIDTH, H9_HEIGHT - ROW_Y - VISIBLE * ROW_H, UI_BG);
+    gfx_fill(0, ROW_Y + VISIBLE * ROW_H, H9_WIDTH, H9_HEIGHT - ROW_Y - VISIBLE * ROW_H, panel);
+#ifdef H9_RADIO_SETTINGS
+    if (theme) gfx_fill(0, ROW_Y + VISIBLE * ROW_H, H9_WIDTH, 1, rule);
+#endif
     if (state->notice || help)
-        gfx_text(3, 104, state->notice ? state->notice : help, 26, 1,
-                 state->notice ? ink : UI_HINT, UI_BG);
+        gfx_label(3, 104, state->notice ? state->notice : help, 154, 1,
+                 state->notice ? ink : muted, panel);
     const char *footer = state->editing ? "MENU DONE   UP/DN CHANGE" : "MENU PICK   BACK RADIO";
 #ifdef H9_RADIO_SETTINGS
     if (state->editing) {
@@ -607,8 +647,8 @@ static void draw_menu(const struct h9_api *api, const struct menu_list *list, co
         footer = state->page == MENU_HOME ? "MENU OPEN   BACK RADIO" : "MENU OPEN   BACK UP";
     else footer = "MENU PICK   BACK UP";
 #endif
-    gfx_text(UI_LEFT, UI_FOOT_Y, footer, UI_CELLS, 1,
-             UI_TEXT, UI_BG);
+    gfx_label(UI_LEFT, UI_FOOT_Y, footer, H9_WIDTH - 2 * UI_LEFT, 1,
+             text, panel);
 }
 
 static int read_settings(const struct h9_runtime_api *api, struct menu_state *state)
@@ -684,6 +724,7 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
     else menu_open(list, &state, &view, MENU_HOME, 0);
     MENU_SELECTION = menu_position(&state);
     state.accent = saved_menu_color();
+    state.theme = saved_theme();
 #define DRAW_MENU() draw_menu(loader, list, &state, &view)
 #define ITEM_COUNT view.count
 #define SAVE_POSITION() (MENU_SELECTION = menu_position(&state))
@@ -837,6 +878,7 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
                                 state.radio_changed |= state.radio_draft.setting->offset < 0x6000;
                                 if (previewing_color(&state))
                                     state.accent = menu_color(radio_value(&state.radio_draft));
+                                if (previewing_theme(&state)) state.theme = radio_value(&state.radio_draft);
                                 state.editing = 0;
                                 state.notice = "SAVED";
                             } else state.notice = result == RADIO_CONFLICT ? "CHANGED ELSEWHERE: REOPEN" : "SETTINGS SAVE FAILED";

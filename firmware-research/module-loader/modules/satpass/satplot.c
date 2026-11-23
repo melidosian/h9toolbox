@@ -104,21 +104,21 @@ static void draw_pass(const struct satdata *data, const struct satshare *s, unsi
     dot(peak_az, peak, 5, UI_ACCENT);
 
     char b[16];
-    gfx_text(116, 2, sat->name, 7, 1, UI_ACCENT, UI_BG);
-    gfx_text(116, 18, "RISE", 4, 1, UI_OK, UI_BG);
+    gfx_label(116, 2, sat->name, 42, 1, UI_ACCENT, UI_BG);
+    gfx_label(116, 18, "RISE", 24, 1, UI_OK, UI_BG);
     time_text(b, aos); gfx_text(116, 28, b, 6, 1, UI_TEXT, UI_BG);
     az_text(b, az_aos); gfx_text(116, 38, b, 6, 1, UI_DIM, UI_BG);
-    gfx_text(116, 54, "SET", 3, 1, UI_DANGER, UI_BG);
+    gfx_label(116, 54, "SET", 18, 1, UI_DANGER, UI_BG);
     time_text(b, los); gfx_text(116, 64, b, 6, 1, UI_TEXT, UI_BG);
     az_text(b, az_los); gfx_text(116, 74, b, 6, 1, UI_DIM, UI_BG);
-    gfx_text(116, 90, "HIGH", 4, 1, UI_ACCENT, UI_BG);
+    gfx_label(116, 90, "HIGH", 24, 1, UI_ACCENT, UI_BG);
     char *d = num(b, orbit_deg((uint32_t)peak), 1);
     put(d, " DEG");
     gfx_text(116, 100, b, 6, 1, UI_TEXT, UI_BG);
     d = num(b, n + 1, 1); *d++ = '/'; num(d, s->count, 1);   /* "2/5" */
     gfx_text(116, 110, b, 3, 1, UI_DIM, UI_BG);
     sat_tabs(1);
-    gfx_text(96, UI_FOOT_Y, "UP/DN PASS", 10, 1, UI_HINT, UI_BG);
+    gfx_label(96, UI_FOOT_Y, "UP/DN PASS", 60, 1, UI_HINT, UI_BG);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)

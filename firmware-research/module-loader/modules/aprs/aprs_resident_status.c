@@ -48,14 +48,14 @@ static void tx_status(const struct h9_runtime_status *status)
     if (status->settings.armed) {
         char vfo[15] = { (char)('A' + status->settings.tx_side), ' ' };
         aprs_tx_mhz(vfo + 2, status->settings.tx_frequency);
-        gfx_text(UI_LEFT, 38, "APRS VFO", 8, 1, UI_DIM, UI_BG);
+        gfx_label(UI_LEFT, 38, "APRS VFO", 48, 1, UI_DIM, UI_BG);
         gfx_text(97, 38, vfo, 10, 1, UI_TEXT, UI_BG);
     }
     char digits[11], *out = digits + 10;
     uint32_t count = status->beacon.submitted;
     *out = 0;
     do { *--out = (char)('0' + count % 10u); count /= 10u; } while (count);
-    gfx_text(UI_LEFT, 65, "TX SUBMITTED", 12, 1, UI_DIM, UI_BG);
+    gfx_label(UI_LEFT, 65, "TX SUBMITTED", 72, 1, UI_DIM, UI_BG);
     gfx_text(H9_WIDTH - UI_LEFT - (unsigned)(digits + 10 - out) * 6u, 65, out, 10, 1, UI_TEXT, UI_BG);
 }
 #endif
@@ -67,12 +67,12 @@ unsigned module_main(const struct h9_api *loader, unsigned self)
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
     ui_title("BEACON STATUS");
 #ifdef H9_RESIDENT_TX
-    gfx_text(UI_LEFT, 87, "TX IN RADIO VIEW", 25, 1, UI_DIM, UI_BG);
+    gfx_label(UI_LEFT, 87, "TX IN RADIO VIEW", 150, 1, UI_DIM, UI_BG);
 #else
-    gfx_text(UI_LEFT, 80, "BENCH MODE  TX DISABLED", 25, 1, UI_DIM, UI_BG);
+    gfx_label(UI_LEFT, 80, "BENCH MODE  TX DISABLED", 150, 1, UI_DIM, UI_BG);
 #endif
     ui_footer("BACK  TOOLBOX");
-    gfx_text(UI_LEFT, 51, api ? "WAITING FOR STATUS" : "SCHEDULER UNAVAILABLE", 25, 1, UI_ACCENT, UI_BG);
+    gfx_label(UI_LEFT, 51, api ? "WAITING FOR STATUS" : "SCHEDULER UNAVAILABLE", 150, 1, UI_ACCENT, UI_BG);
     gfx_wait_release();
     uint32_t last = BEACON_TICK - 100u;
     while (h9_key() != H9_KEY_BACK) {
@@ -80,10 +80,10 @@ unsigned module_main(const struct h9_api *loader, unsigned self)
         struct h9_runtime_status status;
         if (api && now - last >= 100u && api->read_status(&status)) {
             gfx_fill(0, 26, H9_WIDTH, 48, UI_BG);
-            gfx_text(UI_LEFT, 27, H9_HAS_MESSAGES ? "BEACON TYPE" : "SCHEDULE",
-                     11, 1, UI_DIM, UI_BG);
-            gfx_text(127, 27, mode_label(&status.settings), 5, 1, UI_TEXT, UI_BG);
-            gfx_text(UI_LEFT, 51, beacon_status(&status), 25, 1,
+            gfx_label(UI_LEFT, 27, H9_HAS_MESSAGES ? "BEACON TYPE" : "SCHEDULE",
+                     66, 1, UI_DIM, UI_BG);
+            gfx_label(127, 27, mode_label(&status.settings), 30, 1, UI_TEXT, UI_BG);
+            gfx_label(UI_LEFT, 51, beacon_status(&status), 150, 1,
                      status.beacon.gps.fix && status.beacon.wait < H9_BS_BUSY ? UI_OK : UI_ACCENT, UI_BG);
 #ifdef H9_RESIDENT_TX
             tx_status(&status);

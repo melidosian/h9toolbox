@@ -69,7 +69,7 @@ static int plausible(uint32_t v)
 
 static void line(unsigned row, const char *text, uint16_t fg)
 {
-    gfx_text(UI_LEFT, 13 + row * 11, text, UI_CELLS, 1, fg, UI_BG);
+    gfx_label(UI_LEFT, 13 + row * 11, text, 154, 1, fg, UI_BG);
 }
 
 static void fields(void)
@@ -77,7 +77,7 @@ static void fields(void)
     static const uint16_t words[] = { 0x1BC, 0x1C0, 0x1C4, 0x1C8, 0x1CC, 0x1D0 };
     char b[32], *d;
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
-    gfx_text(UI_LEFT, 2, "VFO PROBE 1/3 FIELDS", 20, 1, UI_ACCENT, UI_BG);
+    gfx_label(UI_LEFT, 2, "VFO PROBE 1/3 FIELDS", 120, 1, UI_ACCENT, UI_BG);
     for (unsigned i = 0; i < 6; i++) {
         d = put(b, "+"); d = hex(d, words[i], 3); d = put(d, " ");
         mhz(d, RAM32(words[i]));
@@ -105,7 +105,7 @@ static void resident(void)
     volatile struct satshare *sh = SAT_SHARED;
     char b[32], *d;
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, UI_BG);
-    gfx_text(UI_LEFT, 2, "VFO PROBE 3/3 TRACKER", 21, 1, UI_ACCENT, UI_BG);
+    gfx_label(UI_LEFT, 2, "VFO PROBE 3/3 TRACKER", 126, 1, UI_ACCENT, UI_BG);
     unsigned ran = sh->st_valid == RES_MAGIC;
     d = put(b, "MAGIC "); d = hex(d, sh->res_magic, 8); put(d, sh->res_magic == RES_MAGIC ? " ARMED" : "");
     line(0, b, UI_TEXT);
@@ -148,14 +148,14 @@ static void scan_page(const uint32_t *hits, unsigned n, unsigned first)
     d = put(b, "VFO PROBE 2/3 HITS ");
     d = num(d, n, 1);
     if (n == MAX_HITS) put(d, "+");
-    gfx_text(UI_LEFT, 2, b, UI_CELLS, 1, UI_ACCENT, UI_BG);
+    gfx_label(UI_LEFT, 2, b, 154, 1, UI_ACCENT, UI_BG);
     for (unsigned r = 0; r < ROWS && first + r < n; r++) {
         uint32_t a = hits[first + r];
         d = hex(b, a, 5); d = put(d, " ");
         mhz(d, *(const volatile uint32_t *)a);
         line(r, b, a >= BASE && a < BASE + 0x1200 ? UI_OK : UI_TEXT);
     }
-    gfx_text(UI_LEFT, 120, "MENU PAGE  UP/DN  BACK", UI_CELLS, 1, UI_HINT, UI_BG);
+    gfx_label(UI_LEFT, 120, "MENU PAGE  UP/DN  BACK", 154, 1, UI_HINT, UI_BG);
 }
 
 unsigned module_main(const struct h9_api *api, unsigned self)

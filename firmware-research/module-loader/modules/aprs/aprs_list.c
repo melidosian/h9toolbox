@@ -15,7 +15,7 @@ static void draw_row(unsigned i, unsigned row)
     if (i >= A->count) return;
     const struct station *s = &A->st[i];
     char r[16];
-    gfx_text(4, y + 2, s->call, CALL, 1, sel ? UI_BG : s->live ? UI_TEXT : UI_DIM, bg);
+    gfx_label(4, y + 2, s->call, (CALL) * 1 * 6, 1, sel ? UI_BG : s->live ? UI_TEXT : UI_DIM, bg);
     put_age(r, s);
     gfx_text(AGE_X, y + 2, r, 3, 1, sel ? UI_BG : UI_DIM, bg);
     unsigned n = put_range(r, s);

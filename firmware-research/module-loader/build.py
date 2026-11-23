@@ -113,6 +113,7 @@ KISS_RESIDENT_HELPER = 0x84F88
 KISS_CALLS = {0x5DB40: 0xA7CAA, 0x5DB6A: 0xA7CB6, 0x5DB86: 0xA7CE8, 0x870E0: 0xA7CF8}
 FLASH_HELPERS = 0x85080   # after the relocated KISS helpers in the retired Morse code
 FLASH_HELPERS_API = 5
+FLASH_TEXT_SIGNATURE = 0x31504F52
 FAR_MENU_FLASH, FAR_MENU_CPU = 0xEA000, 0x01EE5000
 FAR_MENU_END = 0xFA000     # resident TX starts here in the dev build
 # API 5 assigns one four-byte jump per export, in this order. Keep these
@@ -280,7 +281,8 @@ def build_flash_helpers(lib: list[Path], out: Path) -> tuple[bytes, Path]:
     jumps = out / "flash_helper_table.s"
     jumps.write_text('    .section .text,"ax",@progbits\n' +
                      "".join(f"    .globl jump_{name}\njump_{name}:\n    goto {name}\n"
-                             for name, _ in FLASH_EXPORTS))
+                             for name, _ in FLASH_EXPORTS)
+                     + f"    .long {FLASH_TEXT_SIGNATURE:#x}\n")
     entry = "jump_" + FLASH_EXPORTS[0][0]
     helpers = link([assemble(jumps, out), *lib], origin, entry, out, "flash_helpers")
     body = text_of(helpers, origin)
@@ -288,7 +290,9 @@ def build_flash_helpers(lib: list[Path], out: Path) -> tuple[bytes, Path]:
         raise ValueError("Flash helpers need an executable body without other loaded sections")
 
     calls = out / "module_flash_calls.s"
-    source = [f".equ MODULE_FLASH_API, {FLASH_HELPERS_API}\n",
+    source = [f".equ MODULE_FLASH_API, {FLASH_HELPERS_API}\n"
+              f".equ MODULE_TEXT_SIGNATURE_ADDRESS, {origin + 4 * len(FLASH_EXPORTS):#x}\n"
+              f".equ MODULE_TEXT_SIGNATURE, {FLASH_TEXT_SIGNATURE:#x}\n",
               (ROOT / "src" / "flash_module.s").read_text(), "\n"]
     for index, (name, arguments) in enumerate(FLASH_EXPORTS):
         target = origin + 4 * index
@@ -352,7 +356,7 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
             run(["node", str(radio_dir / "generate_channel_choices.mjs")])
             menu_sources += tuple(radio_dir / name for name in (
                 "radio_settings.c", "radio_storage.c", "radio_editor.c", "radio_channels.c", "radio_channel_editor.c",
-                "radio_actions.c", "radio_actions_catalog.c", "radio_bluetooth.c", "radio_scan.c",
+                "radio_actions.c", "radio_actions_catalog.c", "radio_theme.c", "radio_bluetooth.c", "radio_scan.c",
                 "radio_system.c", "radio_system_native.c", "radio_aprs.c", "channel_labels.c",
                 "channel_labels_native.c", "channel_name_scroll.c", "channel_name_view.c", "radio_quick.c"))
         sources = (menu_dir / "menu.c", *menu_sources)
@@ -779,6 +783,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
             raise ValueError("Unified menu needs its matching far body")
         label_patch = apply_channel_labels(patched, stock, base, far_menu_body, symbol(stub_prog, "ml_crc"), out)
         sys.path.insert(0, str(ROOT / "menu-replacement"))
+        import generate_manuals
         import radio_menu_patch
         def raw_assembly(source):
             return bytes(next(s for s in elf.read(asm.assemble_source(source)).sections if s.name == ".text").data)
@@ -802,6 +807,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
                                            symbol(stub_prog, "ml_crc"), FAR_MENU_CPU,
                                            len(far_menu_body), crc16(far_menu_body), raw_assembly,
                                            preceding_patches=morse_disable.patches(stock) if disable_morse else ())
+        generate_manuals.verify_pixels(stock, patched)
     raw = out / "h9_toolbox_modules_NOT_FOR_FLASH.raw"
     raw.write_bytes(patched)
 
