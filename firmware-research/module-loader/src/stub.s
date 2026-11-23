@@ -762,3 +762,7 @@ ml_fw_version:
     .ifdef ML_RUNTIME_BOOT
     .long 0x29a00
     .endif
+    .ifdef ML_DISPLAY_LAYOUTS_ENTRY
+    .long ML_DISPLAY_LAYOUTS_MAGIC
+    .long ML_DISPLAY_LAYOUTS_ENTRY
+    .endif

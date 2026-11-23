@@ -6015,3 +6015,39 @@ result yet.**
 - The host LCD harness rendered both Focus palettes, a two-line repeater name,
   a 32-character wide name, VFO and an unnamed memory. Split and both
   Daylight renders matched the previous firmware pixel for pixel.
+
+## 2026-11-23 — Persistent live Focus layout
+
+- Added Focus after Single, Dual and Classic in Toolbox Display layout.
+  The native settings byte still stores a stock value (0 through 2).
+  Focus uses the Classic row callbacks and draws in the same 108 × 24
+  rectangle. Named memories show up to two name lines and the frequency.
+  VFOs and unnamed memories use the frequency in the large position.
+- Stock Classic rendering at app+0x59908 caps the name area at x+108.
+  TX dispatch at app+0x5A72E and RX at app+0x7AEEC check the home mode
+  before entering the existing redraw paths. The Focus hook preserves their
+  RX/TX colors and native indicators outside the row. The keypad-lock flag
+  at RAM 0x11AC2 does not inhibit Focus. The source of the native row
+  coordinates is the resource display table. Bounds checks fall back to
+  the Classic renderer if a full Focus row would leave the screen.
+- The Focus preference uses VM key 251 with an owned four-byte record and
+  a boot-cleared cache at RAM 0x299F8. A longer record with the same prefix
+  or a foreign value is left intact. Selecting Focus leaves the saved
+  stock layout available as a fallback. Switching back to a stock layout
+  and Reset All clear the owned preference.
+- The optional Display Layouts module uses a tagged extension at the end
+  of the loader API 5 table. It shares the firmware setting and preview
+  service, and it can report when a firmware update is required. The
+  main loop and native menu already verify the paired far body. Existing
+  API 5 offsets stay fixed. Removing the app leaves the selection and
+  firmware renderer intact.
+- Host tests passed for stock layout fallback, VM reboot and reset,
+  corrupt and foreign records, failed saves, app compatibility, wrapping,
+  LCD row bounds, RX/TX, keypad lock and entry. Live LCD and power-cycle
+  behavior still need a physical trial.
+- Bench v0.1.9-rc.4 main SHA-256
+  `63a12396032bdd85d13f3b3618363a11b48ee9043665f14469df0f20a6e1b29f`.
+  Far SHA-256
+  `18306f39d71fcfab07fb5143d731e6a20c258c6d48c4926a5da59e6b76d8a06a`.
+  The packaged firmware and standalone module match the loader table.
+  All 136 APRS updater blocks passed the host transfer test.

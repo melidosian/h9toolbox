@@ -131,32 +131,50 @@ void radio_channel_preview_draw(unsigned index, unsigned active, const struct ch
 #define RADIO_BYTE(address) (*(const volatile uint8_t *)(uintptr_t)(address))
 #define RADIO_WORD(address) (*(const volatile uint32_t *)(uintptr_t)(address))
 
-int radio_channel_preview(void)
+int radio_channel_short_name(unsigned memory, char name[33])
 {
-    struct channel_preview_row rows[2];
-    char names[2][33] = {{0}};
+    name[0] = 0;
+    if (!memory || memory > 199) return RADIO_INVALID;
+
+    struct radio_setting setting;
+    struct radio_edit edit;
+    char label[RADIO_MAX_VALUE + 1];
+    if (radio_channel_field(memory, 12, &setting) ||
+        radio_begin(&radio_stock_storage, &setting, &edit)) return RADIO_IO_ERROR;
+    radio_value_label(&edit, label);
+    for (unsigned i = 0; i <= setting.length; ++i) {
+        name[i] = label[i];
+        if (!label[i]) break;
+    }
+    return RADIO_OK;
+}
+
+int radio_channel_display_name(unsigned memory, char name[33])
+{
+    name[0] = 0;
+    if (memory && memory <= 199 && !radio_label_get(memory, name) && name[0]) return RADIO_OK;
+    return radio_channel_short_name(memory, name);
+}
+
+unsigned radio_channel_preview_snapshot(struct channel_preview_row rows[2], char names[2][33])
+{
     unsigned active = RADIO_BYTE(0x11B50u) >> 7;
     for (unsigned side = 0; side < 2; ++side) {
         unsigned memory = radio_memory_channel(RADIO_BYTE, side);
         if (memory > 199) memory = 0;
-        if (memory && (radio_label_get(memory, names[side]) || !names[side][0])) {
-            struct radio_setting setting;
-            struct radio_edit edit;
-            char label[RADIO_MAX_VALUE + 1];
-            names[side][0] = 0;
-            if (!radio_channel_field(memory, 12, &setting) &&
-                !radio_begin(&radio_stock_storage, &setting, &edit)) {
-                radio_value_label(&edit, label);
-                for (unsigned i = 0; i <= setting.length; ++i) {
-                    names[side][i] = label[i];
-                    if (!label[i]) break;
-                }
-            }
-        }
+        radio_channel_display_name(memory, names[side]);
         rows[side] = (struct channel_preview_row){
             RADIO_WORD(0x11CA0u + 8u * side), memory, names[side]
         };
     }
+    return active;
+}
+
+int radio_channel_preview(void)
+{
+    struct channel_preview_row rows[2];
+    char names[2][33];
+    unsigned active = radio_channel_preview_snapshot(rows, names);
 
     uint8_t index;
     if (radio_stock_storage.read(RADIO_THEME_SETTING, &index, 1) || !radio_theme(index))

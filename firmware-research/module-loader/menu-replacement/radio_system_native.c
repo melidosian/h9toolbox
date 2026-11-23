@@ -1,5 +1,6 @@
 /* Pinned factory v1.0.38 backends; none enters the retired menu renderer. */
 #include "radio_system.h"
+#include "radio_focus.h"
 #include "radio_manual_images.h"
 
 int radio_system_reload_native(void);
@@ -42,6 +43,10 @@ static int reset(unsigned action)
 {
     if (!ready()) return RADIO_IO_ERROR;
     if (action > 4) return RADIO_INVALID;
+    if (action == 3) {
+        int result = radio_focus_reset();
+        if (result) return result;
+    }
     int result = radio_system_factory_native(action);
     if (result) return result;
     /* Analog reset copies exactly 912 bytes from the factory table. Verify

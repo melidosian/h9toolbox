@@ -7,6 +7,13 @@ static uint8_t ram[0x20000];
 static unsigned tick, revision, omit_a, windows, ascii, fallbacks;
 static unsigned last_y, last_side, last_frequency, last_color, last_right;
 static unsigned tx_side, frequency_draws, tx_windows, tx_stock_names;
+static unsigned focus_enabled, syncs, redraws, focus_lines, short_reads;
+static const char *short_name = "LOCAL FM";
+static struct {
+    unsigned y, scale;
+    uint16_t color;
+    char text[33];
+} focus_text[3];
 enum { NAME_TX_RED = 0xf800 };
 static char last_text[16];
 static struct name_row *fixture_rows(void);
@@ -15,6 +22,7 @@ static void stock_b(unsigned x, unsigned y, unsigned font);
 static void stock_classic_draw(unsigned x, unsigned y, unsigned side, unsigned frequency, unsigned color);
 static unsigned stock_display_side(void);
 static void stock_frequency_draw(unsigned x, unsigned y, unsigned frequency, unsigned color, unsigned font);
+static void stock_mark_redraw(unsigned side);
 #define RADIO_BYTE(address) ram[address]
 #define RADIO_TICK tick
 #define NAME_ROWS fixture_rows()
@@ -23,6 +31,7 @@ static void stock_frequency_draw(unsigned x, unsigned y, unsigned frequency, uns
 #define STOCK_DRAW_CLASSIC stock_classic_draw
 #define STOCK_DISPLAY_SIDE stock_display_side
 #define STOCK_DRAW_FREQUENCY stock_frequency_draw
+#define STOCK_MARK_REDRAW stock_mark_redraw
 #include "channel_name_view.c"
 
 static struct name_row *fixture_rows(void)
@@ -68,11 +77,21 @@ static void stock_frequency_draw(unsigned x, unsigned y, unsigned frequency, uns
 unsigned gfx_text(unsigned x, unsigned y, const char *text, unsigned pixels,
                   unsigned scale, uint16_t color, uint16_t bg)
 {
-    assert((scale & GFX_PROPORTIONAL) && !bg);
+    assert(scale & GFX_PROPORTIONAL);
     unsigned cell = (scale & 255) * 6;
     unsigned n = 0;
     while (n < pixels / cell && text[n]) ++n;
     if (scale & GFX_MEASURE) return n;
+    if (bg) {
+        assert(focus_enabled && x == 12 && pixels == 108 && focus_lines < 3);
+        assert(y >= 22 && y + (scale & 255) * 8 <= 100);
+        focus_text[focus_lines].y = y;
+        focus_text[focus_lines].scale = scale & 255;
+        focus_text[focus_lines].color = color;
+        memcpy(focus_text[focus_lines].text, text, n);
+        focus_text[focus_lines++].text[n] = 0;
+        return x + n * cell;
+    }
     assert(x + pixels <= 160 && y >= 4 && n < sizeof last_text);
     memcpy(last_text, text, n);
     last_text[n] = 0;
@@ -86,9 +105,38 @@ unsigned gfx_text(unsigned x, unsigned y, const char *text, unsigned pixels,
 }
 
 void gfx_fill(unsigned x, unsigned y, unsigned w, unsigned h, uint16_t color)
-{ assert(x + w <= 160 && y + h <= 128 && !color); }
+{
+    assert(x + w <= 160 && y + h <= 128);
+    if (color) assert(focus_enabled && x == 12 && w == 108 && h == 24 && (y == 22 || y == 76));
+}
 
 unsigned radio_label_revision(void) { return revision; }
+int radio_focus_enabled(void) { return focus_enabled; }
+void radio_focus_sync(void) { ++syncs; }
+static void stock_mark_redraw(unsigned side) { assert(!side); ++redraws; }
+
+const struct radio_theme *radio_theme(unsigned theme)
+{
+    static const struct radio_theme focus = { .background = 1, .panel = 2, .text = 3,
+                                               .muted = 4, .accent = 5 };
+    assert(theme == RADIO_THEME_FOCUS);
+    return &focus;
+}
+
+const char *radio_frequency_label(unsigned frequency, char text[10])
+{
+    assert(frequency < 100000000);
+    snprintf(text, 10, "%03u.%05u", frequency / 100000, frequency % 100000);
+    return text;
+}
+
+int radio_channel_short_name(unsigned memory, char label[33])
+{
+    assert(memory);
+    ++short_reads;
+    strcpy(label, short_name);
+    return RADIO_OK;
+}
 
 int radio_label_get(unsigned channel, char label[33])
 {
@@ -164,5 +212,55 @@ int main(void)
     ram[0x12BB3] = 0;
     stock_classic_tx(14500000);
     assert(last_frequency == 14500000 && frequency_draws == 1 && tx_stock_names == 1);
-    puts("Classic long and short names, A/B transmit colors, scrolling, and frequency fallback passed.");
+
+    focus_enabled = 1;
+    omit_a = 0;
+    ram[0x12BB3] = 1;
+    ram[0x11AC2] = 1; /* keypad lock leaves the home rows visible */
+    radio_label_draw_classic(12, 22, 0, 14652001, NAME_WHITE);
+    assert(focus_lines == 3 && focus_text[0].y == 22 && focus_text[1].y == 30 &&
+           focus_text[2].y == 38 && focus_text[0].scale == 1 && focus_text[0].color == 5);
+    assert(!strcmp(focus_text[0].text, "0123456789ABCDEFGH") &&
+           !strcmp(focus_text[1].text, "IJKLMNOPQRSTUV") && !strcmp(focus_text[2].text, "146.52001"));
+    focus_lines = 0;
+    radio_label_draw_classic(12, 76, 1, 14439000, 0x07e0);
+    assert(focus_lines == 3 && !strcmp(focus_text[0].text, "MOUNTAIN WEATHER") &&
+           !strcmp(focus_text[1].text, "DISTRICT") && focus_text[2].color == 0x07e0);
+    focus_lines = 0;
+    radio_label_draw_tx_frequency(12, 76, 14500000, NAME_TX_RED, CLASSIC_FONT);
+    assert(focus_lines == 3 && focus_text[0].color == NAME_TX_RED && focus_text[2].color == NAME_TX_RED);
+
+    focus_lines = 0;
+    ram[0xC140] = 1;
+    unsigned before = syncs;
+    radio_label_draw_classic(12, 22, 0, 14652000, NAME_WHITE);
+    radio_label_display_tick();
+    assert(!focus_lines && syncs == before);
+    ram[0xC140] = 0;
+    ram[0x11AFE] = 1;
+    radio_label_display_tick();
+    assert(syncs == before);
+    ram[0x11AFE] = 0;
+    radio_label_draw_classic(12, 22, 0, 14652000, NAME_WHITE);
+    ++revision;
+    radio_label_display_tick();
+    assert(syncs == before + 1 && redraws == 1);
+
+    focus_lines = 0;
+    omit_a = 1;
+    radio_label_draw_classic(12, 22, 0, 14652000, NAME_WHITE);
+    assert(focus_lines == 2 && !strcmp(focus_text[0].text, "LOCAL FM") && short_reads == 1);
+    focus_lines = 0;
+    short_name = "NEW NAME";
+    radio_label_draw_classic(12, 22, 0, 14652000, NAME_WHITE);
+    assert(focus_lines == 2 && !strcmp(focus_text[0].text, "NEW NAME") && short_reads == 2);
+    focus_lines = 0;
+    short_name = "";
+    radio_label_draw_classic(12, 22, 0, 14652000, NAME_WHITE);
+    assert(focus_lines == 1 && focus_text[0].scale == 2 && !strcmp(focus_text[0].text, "146.52000"));
+    focus_lines = 0;
+    ram[0x12BB2] = 0;
+    radio_label_draw_classic(12, 22, 0, 44600000, NAME_WHITE);
+    assert(focus_lines == 1 && focus_text[0].scale == 2 && !strcmp(focus_text[0].text, "446.00000"));
+    puts("Stock layouts and Focus row bounds, wrapping, RX/TX, key guards and name/frequency fallback passed.");
 }

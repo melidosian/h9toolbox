@@ -114,6 +114,7 @@ KISS_CALLS = {0x5DB40: 0xA7CAA, 0x5DB6A: 0xA7CB6, 0x5DB86: 0xA7CE8, 0x870E0: 0xA
 FLASH_HELPERS = 0x85080   # after the relocated KISS helpers in the retired Morse code
 FLASH_HELPERS_API = 5
 FLASH_TEXT_SIGNATURE = 0x31504F52
+DISPLAY_LAYOUTS_MAGIC = 0x31594C44
 FAR_MENU_FLASH, FAR_MENU_CPU = 0xEA000, 0x01EE5000
 FAR_MENU_END = 0xFA000     # resident TX starts here in the dev build
 # API 5 assigns one four-byte jump per export, in this order. Keep these
@@ -325,7 +326,8 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
         raise ValueError("Unified menu requires far flash and excludes the label preview")
     common = ROOT / "modules" / "common"
     run([sys.executable, "-I", str(common / "font5x7.py")])
-    lib = [assemble(common / "h9lib.s", out), compile_c(common / "gfx.c", out, toolchain)]
+    local_lib = [assemble(common / "h9lib.s", out), compile_c(common / "gfx.c", out, toolchain)]
+    lib = local_lib
     entry = "module_main"
     flash = None
     flags = ("-DH9_RESIDENT_TX",) if auto_tx else ()
@@ -336,14 +338,16 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
         flags += ("-DH9_FLASH_HELPERS",)
 
     def c_module(name: str, source: Path, *extra: Path, extra_flags: tuple[str, ...] = (),
-                 category: str = "") -> dict:
+                 category: str = "", standalone: bool = False) -> dict:
         objs = [compile_c(src, out, toolchain, flags=flags + extra_flags) for src in (source, *extra)]
-        prog = link([*objs, *lib], LOAD, entry, out, "mod_" + source.stem)
+        prog = link([*objs, *(local_lib if standalone else lib)], LOAD,
+                    "module_main" if standalone else entry, out, "mod_" + source.stem)
         return {"name": name, "body": text_of(prog, LOAD), "bss": 0, "entry": prog.entry - LOAD,
                 **({"category": category} if category else {})}
 
     menu_dir = ROOT / "modules" / "menu"
     aprs_dir = ROOT / "modules" / "aprs"
+    layouts_dir = ROOT / "modules" / "display_layouts"
     menu_sources = (common / "vfo_backup.c",)
     if flash_shared:
         menu_sources += (menu_dir / "toolbox_menu.c", aprs_dir / "aprs_resident_config.c",
@@ -359,6 +363,7 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
                 "radio_actions.c", "radio_actions_catalog.c", "radio_theme.c", "radio_bluetooth.c", "radio_scan.c",
                 "radio_system.c", "radio_system_native.c", "radio_aprs.c", "channel_labels.c",
                 "channel_labels_native.c", "channel_name_scroll.c", "channel_name_view.c", "radio_quick.c"))
+            menu_sources += (layouts_dir / "display_layouts.c",)
         sources = (menu_dir / "menu.c", *menu_sources)
         menu_flags = flags + ("-DH9_GROUPED_MENU",)
         if radio_menu_preview:
@@ -372,7 +377,8 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
         # The RAM trampoline targets the first far byte. Put the API gate
         # before the C objects and reject any linker layout that moves it.
         program = link([*lib, *objects], FAR_MENU_CPU, entry, out, "far_menu",
-                       keep=(*CHANNEL_LABEL_EXPORTS.values(), "radio_quick_menu") if unified_menu else ())
+                       keep=(*CHANNEL_LABEL_EXPORTS.values(), "radio_quick_menu", "display_layouts")
+                       if unified_menu else ())
         if program.entry != FAR_MENU_CPU:
             raise ValueError("Far menu API gate is not at the trampoline target")
         far_menu_body = text_of(program, FAR_MENU_CPU)
@@ -478,7 +484,10 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
     test_bundle = bundle([reset_test])
     parse_bundle(test_bundle)
     (out / "test-ml-reset-bundle.bin").write_bytes(test_bundle)
-    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe, maze, about], flash, far_menu_body
+    layouts = [c_module("DISPLAY LAYOUTS", layouts_dir / "display_layouts_app.c",
+                        category="setup", standalone=True)] if unified_menu else []
+    return [menu, bb, *screens, aprs, satpass, satplot, sattrack, satauto, satdata, gps, vfo_probe,
+            maze, about, *layouts], flash, far_menu_body
 
 
 def call_bytes(target: int, site: int) -> bytes:
@@ -660,6 +669,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
     if auto_tx and (not resident or flash is None):
         raise ValueError("Resident TX requires the shared-flash dev build")
     api_version = FLASH_HELPERS_API if flash is not None else 4 if resident else 3
+    layouts_entry = None
     if not H9TB_RAW.is_file():
         raise SystemExit(f"Build H9 Toolbox Firmware first: resource-service/build.py --stage bb-s2 ({H9TB_RAW})")
     base = H9TB_RAW.read_bytes()
@@ -681,9 +691,13 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
                 raise ValueError("Unified loader requires its far body")
             far_program = elf.read((out / "far_menu.elf").read_bytes())
             quick_entry = symbol(far_program, "radio_quick_menu")
-            if not FAR_MENU_CPU <= quick_entry < FAR_MENU_CPU + len(far_menu_body):
-                raise ValueError("Quick Change entry exceeds the verified far-menu body")
+            layouts_entry = symbol(far_program, "display_layouts")
+            if not all(FAR_MENU_CPU <= entry < FAR_MENU_CPU + len(far_menu_body)
+                       for entry in (quick_entry, layouts_entry)):
+                raise ValueError("A Toolbox entry exceeds the verified far-menu body")
             definitions += band_33cm_constants() + (f".equ ML_QUICK_ENTRY, {quick_entry:#x}\n"
+                            f".equ ML_DISPLAY_LAYOUTS_ENTRY, {layouts_entry:#x}\n"
+                            f".equ ML_DISPLAY_LAYOUTS_MAGIC, {DISPLAY_LAYOUTS_MAGIC:#x}\n"
                             f".equ ML_STOCK_GNSS, {IMAGE_BASE + STOCK_GNSS:#x}\n"
                             f".equ ML_STOCK_DISPATCH, {IMAGE_BASE + STOCK_DISPATCH + len(STOCK_DISPATCH_PROLOGUE):#x}\n"
                             f".equ ML_LABELS_LOOP, {IMAGE_BASE + CHANNEL_LABEL_SHIMS:#x}\n"
@@ -737,6 +751,9 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
     if (struct.unpack_from("<4sI", patched, api_at) != (b"H9AP", api_version)
             or struct.unpack_from("<I", patched, api_at + 24)[0] != version_word):
         raise ValueError("the image's API table disagrees with the build")
+    if layouts_entry is not None and struct.unpack_from("<II", patched, api_at + 32) != (
+            DISPLAY_LAYOUTS_MAGIC, layouts_entry):
+        raise ValueError("the image's Display Layouts capability disagrees with the build")
     patched[HOOK:HOOK + 4] = call_bytes(CAVE, HOOK)
     heap_end = CHANNEL_LABEL_RAM if unified_menu else RESIDENT_RAM if resident else APRS_SERVICE_RAM
     patched[HEAP_END_SITE + 2:HEAP_END_SITE + 6] = heap_end.to_bytes(4, "little")
@@ -849,6 +866,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         "stub_bytes": len(stub), "stub_sha256": sha256(stub).hexdigest(),
         "firmware_version": version_text,
         "loader_api": api_version,
+        "display_layouts_entry": hex(layouts_entry) if layouts_entry is not None else None,
         "stub_symbols": {n: hex(symbol(stub_prog, n)) for n in ("ml_hotkey", "ml_main", "ml_api", "ml_read")},
         "heap_end": hex(heap_end),
         "aprs_service_ram": {"start": hex(APRS_SERVICE_RAM), "end": hex(LOAD)},

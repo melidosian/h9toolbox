@@ -84,6 +84,13 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
         "id": "about", "name": "ABOUT", "title": "About", "version": "1.0-dev",
         "category": "Setup", "description": "Show the Toolbox firmware and app loader version.",
     })
+    if firmware.get("display_layouts_entry") and "DISPLAY LAYOUTS" in built:
+        apps.append({
+            "id": "display_layouts", "name": "DISPLAY LAYOUTS", "title": "Display Layouts",
+            "version": "1.0-dev", "category": "Setup",
+            "description": "Preview and save the home screen layout, including two-line Focus.",
+            "notes": ["Requires matching H9 Toolbox firmware with Focus support."],
+        })
     return {"profile": "smartbeacon", "menu": menu, "apps": apps}
 
 

@@ -2,6 +2,7 @@
 #ifndef RADIO_SETTINGS_CATALOG_H
 #define RADIO_SETTINGS_CATALOG_H
 #include "radio_settings.h"
+#include "radio_focus.h"
 static const struct radio_choice radio_choices_0[] = {
     { 0, "0" },
     { 1, "1" },
@@ -248,6 +249,7 @@ static const struct radio_choice radio_choices_36[] = {
     { 0, "Single" },
     { 1, "Dual" },
     { 2, "Classic" },
+    { 3, "Focus" },
 };
 static const struct radio_choice radio_choices_37[] = {
     { 0, "Blue" },
@@ -644,6 +646,7 @@ enum {
     RADIO_GROUP_APRS_IDENTITY = 6,
     RADIO_GROUP_APRS_BEACON = 7,
     RADIO_GROUP_APRS_RELAY_ROUTING = 8,
+    RADIO_DISPLAY_LAYOUT = 36,
     RADIO_MENU_COLOR = 37,
     RADIO_INTERFACE_THEME = 123
 };
@@ -695,7 +698,7 @@ static const struct radio_setting radio_settings[] = {
     { "rangerHigh", "Scan upper limit (MHz)", 7979, 2, RADIO_NUMBER, RADIO_GROUP_VFO_SCAN, 255, 0, 0, 999, 0, 0, 0 },
     { "rangerLow", "Scan lower limit (MHz)", 7981, 2, RADIO_NUMBER, RADIO_GROUP_VFO_SCAN, 255, 0, 0, 999, 0, 0, 0 },
     { "language", "Menu language", 7976, 1, RADIO_CHOICE, RADIO_GROUP_DISPLAY_BUTTONS, 255, 0, 0, 0, radio_choices_35, 9, 0 },
-    { "display", "Display layout", 7977, 1, RADIO_CHOICE, RADIO_GROUP_DISPLAY_BUTTONS, 255, 0, 0, 0, radio_choices_36, 3, 0 },
+    { "display", "Display layout", 7977, 1, RADIO_CHOICE, RADIO_GROUP_DISPLAY_BUTTONS, 255, 0, 0, 0, radio_choices_36, 4, 0 },
     { "color", "Menu color", 7978, 1, RADIO_CHOICE, RADIO_GROUP_DISPLAY_BUTTONS, 255, 0, 0, 0, radio_choices_37, 18, 0 },
     { "aLabel", "VFO A label", 3234, 1, RADIO_CHOICE, RADIO_GROUP_DISPLAY_BUTTONS, 4, 2, 0, 0, radio_choices_38, 2, 0 },
     { "bLabel", "VFO B label", 3235, 1, RADIO_CHOICE, RADIO_GROUP_DISPLAY_BUTTONS, 16, 4, 0, 0, radio_choices_39, 2, 0 },

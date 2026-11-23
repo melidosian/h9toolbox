@@ -20,6 +20,9 @@ struct channel_preview_row {
     const char *name;
 };
 
+int radio_channel_short_name(unsigned memory, char name[33]);
+int radio_channel_display_name(unsigned memory, char name[33]);
+unsigned radio_channel_preview_snapshot(struct channel_preview_row rows[2], char names[2][33]);
 void radio_channel_preview_draw(unsigned theme, unsigned active,
                                 const struct channel_preview_row rows[2]);
 int radio_channel_preview(void);

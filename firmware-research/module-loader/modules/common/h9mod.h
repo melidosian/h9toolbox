@@ -24,7 +24,11 @@ struct h9_api {
     uint32_t firmware;   /* API version 2 and later only (older loaders have nothing here): H9 Toolbox Firmware version
                           * 0xRRMMmmpp, where RR is the release candidate number or zero */
     const struct h9_runtime_prefix *resident; /* API version 4 and later only */
+    uint32_t display_layouts_magic; /* optional extension on the unified API 5 loader */
+    unsigned (*display_layouts)(const struct h9_api *);
 };
+
+enum { H9_DISPLAY_LAYOUTS_API = 5, H9_DISPLAY_LAYOUTS_MAGIC = 0x31594c44u }; /* "DLY1" */
 
 /* API 6 adds a request for the firmware Messages menu. Bits 20â€“23 of the
  * reserved menu position carry the APRS view across module switches. */

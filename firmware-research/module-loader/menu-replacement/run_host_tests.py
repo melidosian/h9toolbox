@@ -7,6 +7,7 @@ import sys
 REPO = Path(__file__).resolve().parents[3]
 MODULE = "firmware-research/module-loader"
 RADIO = f"{MODULE}/menu-replacement"
+LAYOUTS = f"{MODULE}/modules/display_layouts"
 cases = [
     ("gfx", [], [f"{MODULE}/modules/common/test_gfx.c", f"{MODULE}/modules/common/gfx.c"]),
     ("key-ramp", [], [f"{MODULE}/modules/common/test_key_ramp.c"]),
@@ -23,6 +24,8 @@ cases = [
     ("preview", ["-DH9_RADIO_MENU_PREVIEW"], [f"{MODULE}/modules/menu/test_toolbox_menu.c"]),
     ("unified", ["-DH9_RADIO_SETTINGS", "-ffunction-sections", "-Wl,--gc-sections"], [f"{MODULE}/modules/menu/test_toolbox_menu.c", f"{RADIO}/radio_settings.c", f"{RADIO}/radio_actions_catalog.c", f"{RADIO}/radio_aprs.c", f"{RADIO}/radio_theme.c"]),
     ("settings", [], [f"{RADIO}/test_radio_settings.c", f"{RADIO}/radio_settings.c"]),
+    ("display-storage", [], [f"{RADIO}/test_radio_storage.c", f"{RADIO}/radio_settings.c"]),
+    ("display-layouts", [], [f"{LAYOUTS}/test_display_layouts.c", f"{RADIO}/radio_settings.c"]),
     ("editor", ["-DH9_GFX_TEST_STUB"], [f"{RADIO}/test_radio_editor.c", f"{RADIO}/radio_editor.c", f"{RADIO}/radio_settings.c"]),
     ("channels", [], [f"{RADIO}/test_radio_channels.c", f"{RADIO}/radio_channels.c", f"{RADIO}/radio_settings.c"]),
     ("channel-editor", [], [f"{RADIO}/test_radio_channel_editor.c",

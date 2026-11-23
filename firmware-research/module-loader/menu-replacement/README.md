@@ -127,8 +127,17 @@ A/B frequencies, memory numbers, names, and selected side. Use UP/DN to
 cycle through the five layouts and BACK to return. Focus and Focus Light
 put the memory name first and wrap long active names across two lines.
 VFOs and unnamed memories show the frequency in the primary position.
-The native home screen continues to handle live receive, transmit, and
-keypad states.
+
+For the live screen, select **Display layout → Focus**. Focus gives named
+memories two lines in the stock channel rows and keeps the native status
+indicators, receive and transmit behavior, and keypad screens. The selection
+survives a power cycle. Single, Dual, and Classic remain available.
+
+The optional **Display Layouts** app is in Toolbox → Setup when installed.
+Use UP/DN to preview the four live layout choices, MENU to save, or BACK to
+cancel. It requires firmware with Focus support. The firmware owns the live
+rendering and saved preference, so Focus remains selectable through Radio
+Settings after the app is removed.
 
 ## Quick Change
 
