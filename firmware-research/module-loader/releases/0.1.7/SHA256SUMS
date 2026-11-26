@@ -1,5 +1,5 @@
-fff743efb96abab825cebb5f1dd997702c9aeab978f36545b71c326a48ea8748  h9-toolbox-firmware-v0.1.7.fw
-fcb9039e197d53849b6b976eec2128178255cf8c5ca899041b8c4bd7fc04c8d4  h9-toolbox-v0.1.7-far.bin
+d0961229c589de90627c58eb31c376198bd29008fb069f96537f857de5d448a5  h9-toolbox-firmware-v0.1.7.fw
+460f01968847e9d9f500d8cfdd70807bf1a8faabf2b44415d89920f8f0f2c05f  h9-toolbox-v0.1.7-far.bin
 bb96fd24c4735b93e961189b96042d0bd418baaff8d70638433d4349d9e98c6d  apps/about.h9mod
 bcc1ea30d07ec235e33715a6ecd5c105b64107ba8f9fb17d672430e7c8a7bbc1  apps/aprs.h9mod
 a4654d570c8f913307a2a1558cb1d3a219d0cb257bfea43274b92a71ab8a85af  apps/aprs_monitor.h9mod
@@ -11,5 +11,5 @@ e89dbac823254f60cfee1f21fdc7929a6c5eca3dbf417e0f960e3d2801210ed8  apps/maze_chas
 f9b92dc5a628182a4480a5c2c0fe5074cc5125e9d4ff106c1dcbdcd9a519b093  apps/sat_pass.h9mod
 1bec4169f1ae747ae944abbaf13ccaef03afda4722160739a0f259d630ec1025  apps/satellites.json
 aa6a2284f6dd884fe46e1082fd72646f0cd39174884c44126948500cb1e15e0e  apps/vfo_probe.h9mod
-2ceb391e826eec1661edc0ab985ce7e566fce80a872d24a94bbd48a1eaec4009  h9-toolbox-firmware-v0.1.7-no-modem.fw
-e7e0670ad0d39e8c35eab167c1dbe973314df2cfc7216550e39c92fd3f2fd71a  h9-toolbox-v0.1.7-no-modem-far.bin
+51abd446156565b1c29ce1f4fe5b1f3254ae289956267b6613c53ad8dbdc2725  h9-toolbox-firmware-v0.1.7-no-modem.fw
+3ee7e0aa70d8fb84e643c924663d05e9f64b0cb0b34f674b7389d4eddbba4b20  h9-toolbox-v0.1.7-no-modem-far.bin

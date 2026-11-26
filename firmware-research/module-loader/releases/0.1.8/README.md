@@ -10,12 +10,13 @@ its paired far image. The matching App Manager catalog is available at
   scheduler and part of the optional modem update.
 - `h9-toolbox-firmware-v0.1.8-no-modem.fw` and
   `h9-toolbox-v0.1.8-no-modem-far.bin` are the paired build for the same
-  controls with the modem updater unchecked. They were reproduced from
+  controls with the modem updater unchecked. They were originally reproduced from
   revision `204af53` using the unified build before the modem stage is
   added. The menu, scheduler and catalog modules match the standard build.
 - `apps/` contains the catalog and modules from the matching build.
 - Run `sha256sum -c SHA256SUMS` here to verify the release files.
 
-The main application matches the RC6 bench image apart from its version
-marker. The far image is byte-identical to RC6. See the
-[changelog](../../../../CHANGELOG.md) for the 900TX controls.
+The main and far files were rebuilt from the v0.1.8 release source
+with the native display handoff and Dual Watch fixes. Both modem options
+passed offline verification. These rebuilt images await radio testing.
+See the [changelog](../../../../CHANGELOG.md) for controls and release notes.

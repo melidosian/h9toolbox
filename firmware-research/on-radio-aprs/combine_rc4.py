@@ -124,6 +124,12 @@ def build_combined(base: Path, stock_path: Path, output: Path, version: str | No
                     image_parts = image_parts[:-1] + (FINAL_MORSE_SPILL,)
                     image_offset += extra
                     available_code += extra
+                    if available_code < EIGHT_PART_STAGE_BYTES:
+                        # Retain the other retired span as a ninth fragment
+                        # when the menu needs more of the far flash.
+                        image_parts += (EXTRA_MORSE_SPILL[-1],)
+                        image_offset += EXTRA_MORSE_SPILL[-1][1]
+                        available_code += EXTRA_MORSE_SPILL[-1][1]
         code_limit = min(code_limit, available_code & ~3)
         if code_limit <= 0:
             raise ValueError("No aligned space remains for the relocated modem stage")

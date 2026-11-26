@@ -6094,3 +6094,18 @@ result yet.**
   package differs from RC5 in the native menu wrapper and its package
   checksums. The APRS Settings host test covers timeout, reopening
   the saved row and backing up one level without a settings write.
+
+### Dev installer integration
+
+- Cherry-picked the native display handoff from c5aa02f into Dev. Rebuilt
+  the paired main and far payloads for all six combined profiles with the
+  display handoff and Dual Watch fixes. Pinned the package, decoded main
+  image and far hashes in the installer. The default Dev and production
+  profiles remain v0.1.8 and v0.1.7 respectively.
+- The larger unified menu moves the RC5 modem stage to 0xF7A44. The v0.1.8
+  modem stage uses one additional retired CW fragment to fit its verified
+  payload. The nine-fragment host test matched all 136 transfer blocks
+  and exercised checksum rejection, timeouts, and the modem boot reply.
+- The site test decrypts each shipped application's root wrapper and
+  checks the native view reset, home callback, and repaint tail call.
+  The rebuilt images await physical-radio testing.

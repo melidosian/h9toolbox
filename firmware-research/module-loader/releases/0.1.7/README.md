@@ -10,13 +10,13 @@ and the matching far firmware image. Use the matching catalog at
   scheduler and part of the optional modem update.
 - `h9-toolbox-firmware-v0.1.7-no-modem.fw` and
   `h9-toolbox-v0.1.7-no-modem-far.bin` are the paired build for the same
-  controls with the modem updater unchecked. They were reproduced from
+  controls with the modem updater unchecked. They were originally reproduced from
   revision `7e0f6e9` using the unified build before the modem stage is
   added. The menu, scheduler and catalog modules match the standard build.
 - `apps/` contains the App Manager catalog and modules.
 - Run `sha256sum -c SHA256SUMS` from this directory to verify the files.
 
-The main and far files are the paired images verified over HID and checked
-on the radio with the updated channel picker, accelerated scrolling and
-MHz entry. The app catalog comes from the same build. See the
-[changelog](../../../../CHANGELOG.md) for controls and release notes.
+The main and far files were rebuilt from the v0.1.7 release source
+with the native display handoff and Dual Watch fixes. Both modem options
+passed offline verification. These rebuilt images await radio testing.
+See the [changelog](../../../../CHANGELOG.md) for controls and release notes.

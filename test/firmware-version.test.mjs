@@ -16,6 +16,20 @@ function numericVersion(version) {
   return parts.reduce((value, part) => value * 256 + part, 0);
 }
 
+function nativeMenuWrapper(image) {
+  const start = 0x5100 + 0x6d326;
+  const aligned = start & ~31;
+  const decoded = Buffer.from(image.subarray(aligned, (start + 104 + 31) & ~31));
+  for (let block = 0; block < decoded.length; block += 32) {
+    let key = (0xf181 ^ ((aligned + block - 0x5000) >> 2)) & 0xffff;
+    for (let i = block; i < block + 32; i++) {
+      decoded[i] ^= key & 255;
+      key = ((key << 1) ^ ((key & 0x8000) ? 0x1021 : 0)) & 0xffff;
+    }
+  }
+  return decoded.subarray(start - aligned, start - aligned + 104);
+}
+
 test('the updater retains the pinned v0.1.5 recovery package', async () => {
   const text = (await readFile(new URL('firmware-research/module-loader/VERSION', root), 'utf8')).trim();
   const [, version, candidate] = /^(\d+\.\d+\.\d+)(?:-rc\.([1-9]\d{0,2}))?$/.exec(text) ?? [];
@@ -26,7 +40,7 @@ test('the updater retains the pinned v0.1.5 recovery package', async () => {
     assert.ok(Number(candidate) < 256);
     assert.ok(publishedVersion < loaderVersion);
   } else {
-    assert.equal(BUILD.version, text);
+    assert.ok(publishedVersion <= loaderVersion);
   }
   assert.ok(BUILD.label.endsWith(`v${BUILD.version}`), 'the label names the published version');
   assert.equal(BUILD.packageFile, `h9-toolbox-firmware-v${BUILD.version}.fw`);
@@ -73,7 +87,9 @@ test('the GitHub Pages build publishes v0.1.7 as the default firmware with its a
   }
   const farWithout = await readFile(join(site, 'dist/firmware-update/dev/h9-toolbox-v0.1.6-rc.4-far.bin'));
   const farWith = await readFile(join(site, 'dist/firmware-update/dev/h9-toolbox-v0.1.6-rc.5-far.bin'));
-  const modemStart = 0xf7a00 - 0xea000, modemEnd = 0xfa000 - 0xea000;
+  const modemStart = farWith.findIndex((byte, i) => byte !== farWithout[i]);
+  const modemEnd = 0xfa000 - 0xea000;
+  assert.ok(modemStart >= 0xf7a00 - 0xea000 && modemStart < modemEnd);
   assert.equal(farWithout.length, farWith.length);
   assert.deepEqual(farWithout.subarray(0, modemStart), farWith.subarray(0, modemStart));
   assert.ok(farWithout.subarray(modemStart, modemEnd).every(byte => byte === 0xff));
@@ -85,7 +101,10 @@ test('the GitHub Pages build publishes v0.1.7 as the default firmware with its a
       const pkg = new Uint8Array(await readFile(join(site, 'dist/firmware-update', build.file)));
       const far = await readFile(join(site, 'dist/firmware-update', build.farFile));
       assert.equal(await sha256(pkg), build.packageSha256);
-      assert.equal(await sha256(decodePackage(pkg)), build.imageSha256);
+      const image = decodePackage(pkg);
+      assert.equal(await sha256(image), build.imageSha256);
+      // Stock view reset, draw callback and tail call from the white-screen fix.
+      assert.ok(nativeMenuWrapper(image).includes(Buffer.from('c4ffd01a0100402052ee4603c0ff445de501d2ec4d003404d000', 'hex')), build.id);
       assert.equal(far.length, 0x12000);
       assert.equal(await sha256(far), build.farSha256);
       const catalogDir = build.catalog === '0.1.6' ? 'rc5' : build.catalog;
