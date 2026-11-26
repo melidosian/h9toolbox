@@ -16,6 +16,14 @@ radio_system_reload_native:
     r0 = 0
     {pc, r14-r4} = [sp++]
 
+    .globl radio_system_retune_native
+radio_system_retune_native:
+    [--sp] = {rets, r14-r4}
+    r4 = 0x01e58e3e
+    r0 = 0
+    call r4
+    {pc, r14-r4} = [sp++]
+
     .globl radio_system_factory_native
 radio_system_factory_native:
     [--sp] = {rets, r14-r4}

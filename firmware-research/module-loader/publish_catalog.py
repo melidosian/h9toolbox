@@ -81,8 +81,8 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
             )
         apps.append(app)
     apps.append({
-        "id": "about", "name": "ABOUT", "title": "About", "version": "1.0-dev",
-        "category": "Setup", "description": "Show the Toolbox firmware and app loader version.",
+        "id": "about", "name": "ABOUT", "title": "About", "version": "1.1",
+        "category": "Setup", "description": "Show the installed firmware version and build options.",
     })
     return {"profile": "smartbeacon", "menu": menu, "apps": apps}
 

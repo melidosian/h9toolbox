@@ -11,29 +11,39 @@ older_release=firmware-research/module-loader/smartbeacon-release
 mkdir -p dist/firmware-update/dev
 cp "$older_release"/{h9-toolbox-firmware-v0.1.5.fw,h9-toolbox-earlier-dev.fw,h9-toolbox-dev-before-aprs.fw} dist/firmware-update/dev/
 
-# Keep v0.1.6 available for recovery and explicit selection.
-preview_release=firmware-research/module-loader/combined-preview-release
-(cd "$preview_release" && sha256sum -c SHA256SUMS)
-cp "$preview_release"/{h9-toolbox-firmware-v0.1.6-rc.5.fw,h9-toolbox-v0.1.6-rc.5-far.bin} dist/firmware-update/dev/
-mkdir -p dist/apps/catalog/rc5
-cp "$preview_release"/apps/* dist/apps/catalog/rc5/
+python3 - <<'PY'
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 
-# Publish v0.1.7 and its matching App Manager catalog.
-release=firmware-research/module-loader/releases/0.1.7
-(cd "$release" && sha256sum -c SHA256SUMS)
-cp "$release"/{h9-toolbox-firmware-v0.1.7.fw,h9-toolbox-v0.1.7-far.bin} dist/firmware-update/dev/
-mkdir -p dist/apps/catalog/0.1.7
-cp "$release"/apps/* dist/apps/catalog/0.1.7/
+source = Path("firmware-research/h9-flasher")
+files = ["README.md", "h9_flasher.py", "vendor/LICENSE.jl-uboot-tool", "vendor/data/br23loader.bin"]
+paths = [source / name for name in files] + sorted((source / "vendor").rglob("*.py"))
+with ZipFile("dist/firmware-update/h9-desktop-backup.zip", "w", compression=ZIP_DEFLATED) as archive:
+    for path in paths:
+        archive.write(path, Path("h9-desktop-backup") / path.relative_to(source))
+PY
 
 sed -e 's|id="optBuild">|id="optBuild" data-release-firmware data-next-firmware>|' \
   -e 's|H9 Toolbox Firmware v0.1.5|H9 Toolbox Firmware v0.1.7|g' \
   -e 's|Load H9 Toolbox v0.1.5|Load H9 Toolbox v0.1.7|g' \
-  -e 's|Return to the v0.1.6 installer|Return to the v0.1.7 installer|' \
   -e 's|hold Back from the channel screen to open the app menu|press Menu from the channel screen to open Toolbox|' \
   -e 's|hold <strong>Back</strong> to open the app menu|press <strong>Menu</strong> to open Toolbox|' \
-  -e 's|<!-- dev-before-install -->|<p class="fine">If you have an armed APRS schedule, disarm it on the radio before entering update mode. An armed schedule can resume on restart.</p>|' \
   dist/firmware-update/index.html > dist/firmware-update/index.html.tmp
 mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
+
+# Publish the v0.1.6 firmware and its matching app catalog.
+preview_release=firmware-research/module-loader/combined-preview-release
+(cd "$preview_release" && sha256sum -c SHA256SUMS)
+cp "$preview_release"/{h9-toolbox-firmware-v0.1.6-rc.{4,5}.fw,h9-toolbox-v0.1.6-rc.{4,5}-far.bin} dist/firmware-update/dev/
+mkdir -p dist/apps/catalog/rc5
+cp "$preview_release"/apps/* dist/apps/catalog/rc5/
+
+# Offer the Quick Change release and its matched app catalog.
+quick_release=firmware-research/module-loader/releases/0.1.7
+(cd "$quick_release" && sha256sum -c SHA256SUMS)
+cp "$quick_release"/h9-toolbox-{firmware-v0.1.7*.fw,v0.1.7*-far.bin} dist/firmware-update/dev/
+mkdir -p dist/apps/catalog/0.1.7
+cp "$quick_release"/apps/* dist/apps/catalog/0.1.7/
 
 # Select the matching catalog at the normal App Manager URL.
 test -s dist/apps/catalog/0.1.7/catalog.json

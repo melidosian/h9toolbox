@@ -7,7 +7,7 @@ export const SETTING_HELP = Object.freeze({
   beep: 'Plays a confirmation tone when a key is pressed.',
   txLight: 'Lights the display while the radio is transmitting.',
   rxLight: 'Lights the display while the radio is receiving.',
-  dualWatch: 'Controls the radio’s dual-watch or synchronization behavior for the two VFOs.',
+  dualWatchEnabled: 'Controls whether the radio watches both VFOs.',
   voxGain: 'Sets voice-activated transmit sensitivity. Off disables VOX.',
   voxDelay: 'Sets how long VOX keeps transmitting after you stop speaking.',
   backlight: 'Sets how long the display backlight stays on after activity.',

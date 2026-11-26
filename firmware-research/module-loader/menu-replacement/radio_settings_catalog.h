@@ -656,7 +656,7 @@ static const struct radio_setting radio_settings[] = {
     { "beep", "Key beep", 3233, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 4, 2, 0, 0, radio_choices_3, 2, 0 },
     { "txLight", "Display on TX", 3232, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 128, 7, 0, 0, radio_choices_4, 2, 0 },
     { "rxLight", "Display on RX", 3232, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 64, 6, 0, 0, radio_choices_5, 2, 0 },
-    { "dualWatch", "Dual watch / sync", 3234, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 64, 6, 0, 0, radio_choices_6, 2, 0 },
+    { "dualWatchEnabled", "Dual Watch", 3235, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 4, 2, 0, 0, radio_choices_6, 2, 0 },
     { "voxGain", "VOX gain", 3239, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 7, 0, 0, 0, radio_choices_7, 6, 0 },
     { "voxDelay", "VOX delay", 3246, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 255, 0, 0, 0, radio_choices_8, 3, 0 },
     { "backlight", "Backlight timer", 3245, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 255, 0, 0, 0, radio_choices_9, 5, 0 },

@@ -32,18 +32,24 @@ Change. On v0.1.5, hold **Back** for the app menu.
 1. Open the firmware updater in Chrome or Edge on a computer. Connect a
    data-capable USB-C cable and hold **PTT + 2** while powering on the
    Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [Dev firmware updater](https://dev.h9toolbox.com/firmware-update/)
-2. Choose your firmware, save the recommended `.h9hid` recovery backup,
-   and keep USB connected through verification. The updater requests a reboot
+2. Choose verified H9 Toolbox or stock firmware, review the flash map, then
+   confirm the install. In **Build options**, Quick Change adds direct
+   channel editing and faster scrolling. Dev also offers experimental
+   33 cm controls. The APRS modem updater is selectable for each build.
+   Keep USB connected through verification. Select the optional `.h9hid`
+   backup for an exact firmware rollback. The updater requests a reboot
    after verification and gives manual restart instructions if the radio
    stays in update mode.
 3. With the radio on its normal channel screen, use the App Manager linked
    from your updater to choose apps and select **Write to radio**.
+   Add or update **About**, then open **Setup → About** on the radio to see
+   which build options are included in its firmware.
    [App Manager](https://h9toolbox.com/apps/) · [Dev App Manager](https://dev.h9toolbox.com/apps/)
 4. If you want full KISS TNC and the updater verifies that the modem
    update was staged, follow **Optional: Unlock KISS TNC** on the restart
    step. It includes the keypad instructions and bridge download.
 
-Keep the `.h9hid` file to recover the main firmware. The Bluetooth
+Keep any `.h9hid` file you create for an exact firmware rollback. The Bluetooth
 programmer’s `.img` backup is for channels and settings. To return to the
 factory main firmware, choose **Stock Type-C v1.0.38** in the updater. The
 APRS modem uses its own recovery procedure. [TD-H9 recovery guide](https://dev.h9toolbox.com/firmware-update/recovery/) · [APRS modem recovery](firmware-research/kiss-tnc/README.md#aprs-modem)

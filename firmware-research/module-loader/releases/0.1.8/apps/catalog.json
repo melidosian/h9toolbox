@@ -327,22 +327,22 @@
    "id": "about",
    "name": "ABOUT",
    "title": "About",
-   "version": "1.0-dev",
+   "version": "1.1",
    "category": "Setup",
-   "description": "Show the Toolbox firmware and app loader version.",
+   "description": "Show the installed firmware version and build options.",
    "modules": [
     {
      "name": "ABOUT",
-     "bytes": 792,
-     "ram": 792,
-     "crc16": "9ba1"
+     "bytes": 895,
+     "ram": 895,
+     "crc16": "352a"
     }
    ],
    "file": "about.h9mod",
-   "bytes": 792,
-   "ram": 792,
-   "crc16": "9ba1",
-   "sha256": "a49e30575db05064a3189781540a0eb70ee66f13d2b3051543f9d78173a37731"
+   "bytes": 895,
+   "ram": 895,
+   "crc16": "352a",
+   "sha256": "bb96fd24c4735b93e961189b96042d0bd418baaff8d70638433d4349d9e98c6d"
   }
  ],
  "profile": "smartbeacon"

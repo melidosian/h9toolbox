@@ -30,6 +30,19 @@ test('setting edits change only mapped bytes and preserve neighboring bit fields
   assert.deepEqual(changed.slice(0x0ca8, 0x0ca9), original.slice(0x0ca8, 0x0ca9));
 });
 
+test('Dual Watch uses the native TDR bit and preserves both VFO fields', () => {
+  const bytes = image();
+  const dualWatch = find('dualWatchEnabled');
+  bytes[0x0caa] = 0x40; // The legacy bit is set but stock Dual Watch is off.
+  bytes[0x0cab] = 0x92;
+  assert.equal(readSetting(bytes, dualWatch), '0');
+  const enabled = writeSetting(bytes, dualWatch, '1');
+  assert.equal(enabled[0x0cab], 0x96);
+  assert.equal(enabled[0x0caa], 0x40);
+  assert.equal(readSetting(enabled, dualWatch), '1');
+  assert.deepEqual(writeSetting(enabled, dualWatch, '0'), bytes);
+});
+
 test('unchanged text retains original padding and unknown values', () => {
   const original = image();
   original.set([65,66,0,0xff,0xff,0xff], 0x3085);

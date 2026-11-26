@@ -5943,3 +5943,106 @@ result yet.**
   `f63eb09cb7b7ece0134f85be28ff3a79b78874346b995c7827bc709295af15a6`.
   The far payload SHA-256 is
   `263707b65e149f016d3144951711c4ecb38fc205094b322f96f21fd1507063d1`.
+
+## 2026-11-26 — Firmware backup and Dual Watch
+
+- The combined installer formerly reconstructed all HID-readable sectors
+  above the application, even when stock or release images supplied the
+  application bytes. An unrecognised application could trigger 65,520
+  shifted-window reads. The default recovery archive now stores the main
+  image and, for combined installs, the far firmware at 0xEA000–0xFBFFF.
+  Existing full-flash and main-only archives remain readable.
+- Known sector bytes come from pinned firmware files or erased flash and
+  are checked against aligned and shifted CRCs. Unmatched ranges use
+  neighboring sectors as seeds. The CRC-16 inverse recovers two bytes per
+  shift, with independent odd-offset checks and a second aligned scan.
+  Simulated HID used 96 shifted reads for a known application with erased
+  far flash and 32,854 when full reconstruction from an erased pair was
+  needed. Actual USB timing is pending.
+- In stock v1.0.38, the setter at CPU 0x01E742A2 updates live RAM 0x12BA7,
+  saves bit 2 of partition 4 byte 0x0CA3, and calls 0x01E58E3E(0). The
+  stock receive reload at 0x01E58E84 confirms the same bit and polarity.
+  The old Toolbox row used bit 6 of 0x0CA2. The browser and generated
+  menu now use the stock Dual Watch bit. The native menu loads it into
+  live RAM and retunes under the existing RF guard when the value changes.
+  The portable JSON key is now dualWatchEnabled so legacy exports with
+  the old mapping cannot silently change the live setting on import.
+- The unified offline trial passed the package, far payload and module
+  bundle checks. Main package SHA-256
+  2575aa23904ae1c2c082515a14d9201ce39b13aa53f3d70c3cd837519ca31fb3.
+  Combined trial far payload SHA-256
+  1afe6e72bb800ea7eacaf7f7f88c4503ffe5d508426a21501e741108908488ed.
+  On-radio testing is pending.
+
+### Direct desktop recovery backup
+
+- PTT+2 WebHID still exposes CRCs. The hold-8 BR23 USB mass-storage loader
+  already read the whole 1 MiB NOR on the bench (2026-11-09). The desktop
+  flasher now has a read-only recovery-backup command that uses that same
+  loader and 256-byte reads, independent of the installed application.
+- It reads the main and far firmware twice and checks that the bytes agree
+  before saving a compact .h9hid archive. The two passes take 7,392 flash
+  reads. The three-minute target requires an average below 24 ms per read,
+  allowing for loader setup. The command reports the observed elapsed time.
+- Mocked reads verified the region boundaries, byte equality, refusal to
+  overwrite a saved archive, and failure without an output on inconsistent
+  reads. The browser imported a desktop-generated archive and verified it
+  against simulated live main and far firmware. The site build includes the
+  desktop tool and the installer links to it. Hardware timing and hold-8
+  availability across TD-H9 variants remain unverified.
+
+### Verified-package install is the browser default
+
+- PTT+2 WebHID can install the pinned Toolbox or stock package without
+  reconstructing the previous image. The quick path first uses the aligned
+  CRC scan and six shifted windows over the Type-C model sectors
+  (0xB6000–0xB7FFF). It writes changed main sectors in descending order and
+  checks aligned and shifted CRCs after writing. Combined Toolbox installs
+  also verify the bounded far region. The same checks are available when
+  reinstalling Toolbox or selecting stock to recover after interruption.
+- With the shipped packages and a simulated partially written application,
+  both targets passed quick preflight with six shifted requests. A changed
+  model sector or wrong shifted reply refused the quick path. The archive
+  backup remains opt-in for exact rollback.
+
+### Build options and flash map
+
+- The no-modem Toolbox option uses the stage-free RC4 build. Its package
+  reproduced the previous bench package SHA-256 8e7cb1fc…, and its combined
+  far payload reproduced 83228873…. The release asset pads the final sector
+  with erased bytes to fill 0xEA000–0xFBFFF. Including the modem updater selects
+  the pinned RC5 main and far pair. The app catalog remains compatible with
+  the shared menu and module API. Installing either option leaves the APRS
+  modem itself alone. The RC5 keypad flow still runs separately.
+- The browser reviews all planned main, far and legacy staging writes
+  before the first flash command. A second preflight checks that the plan
+  still matches. The map labels protected regions and tracks every planned
+  sector through its per-sector verification.
+
+### Additional installer build options
+
+- Quick Change, direct channel editing and faster scrolling share the pinned
+  v0.1.7 release. Dev adds the pinned v0.1.8 33 cm and 900TX option on top
+  of these controls. The default remains v0.1.6 with the modem updater.
+- Built v0.1.7 and v0.1.8 without the modem stage from 7e0f6e9 and 204af53.
+  The offline checks verified both firmware regions; the rebuilt menu,
+  resident scheduler and catalog modules were byte-identical to the
+  matching with-modem releases. The app catalogs are shared per version.
+- A simulated USB radio installed both new no-modem options via the
+  browser's reviewed flash plan, matched all destination bytes and preserved
+  the settings region. The completion links opened the matching catalogs.
+  The new no-modem packages have not been bench-flashed.
+
+### On-radio About options
+
+- Setup → About uses the running loader version to identify the Quick Change,
+  channel editing, scrolling and 33 cm profiles. The paired screen and launch
+  instructions at app+0x8847E and app+0x88488 identify the modem updater in
+  the six combined install variants, including v0.1.7 and v0.1.8 packages
+  that share a version number. The older v0.1.5 staging path also checks
+  the installed staging region when its updater hooks are present.
+- The API 5 About 1.1 module built at 895 bytes (CRC-16 352a). The updated
+  version is in the matching App Manager catalogs. A host screen harness
+  verified the text for the six combined variants, both v0.1.5 staging
+  files, an erased staging region, and unknown hook/version cases.
+  LCD behavior on a physical radio remains unverified.

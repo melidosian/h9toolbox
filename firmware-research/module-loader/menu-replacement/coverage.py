@@ -17,7 +17,7 @@ RETIRED_RF_SMS = {"retired": "rf_sms"}
 BINDINGS = {
     0: [settings("squelch"),settings("aStep","bStep"),settings("voxGain"),settings("voxDelay"),
         settings("timeout"),settings("roger"),settings("beep"),settings("powerSave"),settings("keyLock"),
-        settings("dualWatch"),settings("voicePrompt"),settings("backlight"),settings("brightness"),
+        settings("dualWatchEnabled"),settings("voicePrompt"),settings("backlight"),settings("brightness"),
         settings("powerOnType","powerLine1","powerLine2","powerLine3"),settings("display"),settings("ani"),
         settings("aLabel"),settings("bLabel"),settings("sidetone"),settings("pttDelay"),settings("language"),
         settings("alarm"),settings("tailClean"),settings("repeaterTone"),settings("talkAround"),settings("fmInterrupt"),

@@ -24,12 +24,14 @@ const catalogElement = $('catalog');
 const requestedCatalog = new URLSearchParams(location.search).get('catalog');
 const useLegacyDevCatalog = catalogElement.hasAttribute('data-legacy-dev-catalog') && requestedCatalog === 'smartbeacon';
 const usePreviewCatalog = catalogElement.hasAttribute('data-release-catalog') && !useLegacyDevCatalog;
-const useNextCatalog = usePreviewCatalog && catalogElement.hasAttribute('data-next-catalog') &&
-  !['0.1.6', 'rc5'].includes(requestedCatalog);
-const useBand33cmCatalog = useNextCatalog && catalogElement.hasAttribute('data-33cm-catalog') && requestedCatalog !== '0.1.7';
-const combinedVersion = useBand33cmCatalog ? 'v0.1.8' : useNextCatalog ? 'v0.1.7' : 'v0.1.6';
-const benchCatalog = useNextCatalog ? combinedVersion.slice(1) : usePreviewCatalog ? 'rc5' : 'smartbeacon';
-const explicitlySelected = useNextCatalog ? requestedCatalog === benchCatalog : ['0.1.6', 'rc5'].includes(requestedCatalog);
+const combinedCatalogs = ['0.1.6', 'rc5', '0.1.7'];
+if (catalogElement.hasAttribute('data-33cm-catalog')) combinedCatalogs.push('0.1.8');
+const defaultCatalog = combinedCatalogs.includes('0.1.8') ? '0.1.8'
+  : catalogElement.hasAttribute('data-next-catalog') ? '0.1.7' : 'rc5';
+const selectedCatalog = combinedCatalogs.includes(requestedCatalog) ? requestedCatalog : defaultCatalog;
+const benchCatalog = usePreviewCatalog ? selectedCatalog === '0.1.6' ? 'rc5' : selectedCatalog : 'smartbeacon';
+const benchVersion = benchCatalog === 'rc5' ? '0.1.6' : benchCatalog;
+const explicitlySelected = combinedCatalogs.includes(requestedCatalog);
 const preferBench = usePreviewCatalog || useLegacyDevCatalog;
 const downloaded = new Map();  // catalog SHA-256 -> modules
 
@@ -104,7 +106,7 @@ function renderCatalog() {
   });
   box.replaceChildren(...cards);
   $('catalogNote').textContent = bench
-    ? `Requires H9 Toolbox Firmware ${usePreviewCatalog ? combinedVersion : 'v0.1.5 (development build)'}.`
+    ? `Requires H9 Toolbox Firmware ${usePreviewCatalog ? `v${benchVersion}` : 'v0.1.5 (development build)'}.`
     : `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
 }
 
@@ -300,13 +302,13 @@ async function applyPreviewBundle(opened) {
   }
   // RC3 and later use this catalog's firmware menu and module API.
   if (!capabilities.sparseSerialWrites) {
-    log(`The connected radio needs compatible firmware for the ${combinedVersion} app bundle.`);
+    log(`The connected radio needs compatible firmware for the v${benchVersion} app bundle.`);
     return;
   }
   const updated = await withUpdatedMenu(catalog, installed, { restoreBench: true });
-  if (session !== opened) throw new Error(`Radio disconnected before applying the ${combinedVersion} app bundle.`);
+  if (session !== opened) throw new Error(`Radio disconnected before applying the v${benchVersion} app bundle.`);
   staged = updated;
-  log(`Applying the ${combinedVersion} app bundle to your installed apps.`);
+  log(`Applying the v${benchVersion} app bundle to your installed apps.`);
   await writeBundle();
 }
 
