@@ -33,10 +33,11 @@ Change. On v0.1.5, hold **Back** for the app menu.
    data-capable USB-C cable and hold **PTT + 2** while powering on the
    Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [Dev firmware updater](https://dev.h9toolbox.com/firmware-update/)
 2. Choose verified H9 Toolbox or stock firmware, review the flash map, then
-   confirm the install. In **Build options**, Quick Change adds direct
-   channel editing and faster scrolling. Dev also offers experimental
-   33 cm controls. The APRS modem updater is selectable for each build.
-   Keep USB connected through verification. Select the optional `.h9hid`
+   confirm the install. **Full** includes every available build option.
+   **Essentials** includes the core Toolbox features. **Custom** lets you
+   choose the Quick Change controls and APRS modem updater. Dev also offers
+   experimental 33 cm controls and a **Standard** preset with Quick Change
+   and the modem updater. Keep USB connected through verification. Select the optional `.h9hid`
    backup for an exact firmware rollback. The updater requests a reboot
    after verification and gives manual restart instructions if the radio
    stays in update mode.

@@ -21,7 +21,7 @@
   <link rel="icon" href="../favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../landing.css?v=20261108c">
-  <link rel="stylesheet" href="./update.css?v=20261126options">
+  <link rel="stylesheet" href="./update.css?v=20261126layout">
   <link rel="stylesheet" href="../boot-logo/logo.css?v=20261108c">
   <script src="../https-redirect.js"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"H9 Toolbox TD-H9 Web Flasher","url":"https://h9toolbox.com/firmware-update/","description":"Install H9 Toolbox Firmware or restore stock v1.0.38 on a TIDRADIO TD-H9 over USB-C (PTT + 2 HID mode) in Chrome or Edge.","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows, macOS, Linux, ChromeOS (desktop Chrome or Edge)","browserRequirements":"Requires WebHID in desktop Chrome or Edge over HTTPS","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Install H9 Toolbox Firmware","Restore stock v1.0.38","Quick firmware backup","Sector-by-sector verification","Resume after interruption","App Manager link for apps and boot logo"],"about":{"@type":"Product","name":"TIDRADIO TD-H9","brand":{"@type":"Brand","name":"TIDRADIO"},"category":"Handheld two-way radio"},"publisher":{"@type":"Organization","name":"H9 Toolbox","url":"https://h9toolbox.com/","sameAs":["https://github.com/melidosian/h9toolbox"]}}</script>
@@ -90,33 +90,53 @@
         <section class="guide-slide" aria-labelledby="files-title" hidden>
           <p class="guide-count">Step 3 of 5</p>
           <h2 id="files-title" tabindex="-1">Choose your firmware</h2>
-          <p>Choose H9 Toolbox for the on-radio app menu. Choose stock to install the official Type-C v1.0.38 firmware.</p>
-          <div class="file-grid">
-            <div class="hosted-package" id="optBuild">
-              <strong>H9 Toolbox Firmware v0.1.5</strong><span class="selected-badge" aria-hidden="true" hidden>Selected</span>
-              <small>Includes the app loader, Bluetooth packet support, and an optional APRS modem update.</small>
-              <fieldset class="firmware-features" id="firmwareFeatures">
-                <legend>Build options</legend>
-                <label><input type="checkbox" checked disabled><span>Toolbox menu and app loader <small>Included</small></span></label>
-                <label><input type="checkbox" checked disabled><span>Bluetooth packet support <small>Included</small></span></label>
-                <label id="quickControlsOption" hidden><input type="checkbox" id="quickControls"><span>Quick Change and channel controls <small>Adds shortcuts, direct channel editing and faster keypad scrolling.</small></span></label>
-                <label id="band33cmOption" hidden><input type="checkbox" id="band33cm"><span>Experimental 33 cm controls <small>Adds tuning and the 900TX setting. Requires Quick Change and channel controls.</small></span></label>
+          <div class="hosted-package" id="optBuild">
+            <strong>H9 Toolbox Firmware v0.1.5</strong><span class="selected-badge" aria-hidden="true" hidden>Selected</span>
+            <small>Includes the app loader, Bluetooth packet support, and an optional APRS modem update.</small>
+            <fieldset class="build-profiles" id="buildProfiles" hidden>
+              <legend>Build preset</legend>
+              <label><input type="radio" name="buildPreset" id="fullBuild" value="full"><span>Full <small id="fullBuildDescription">All options available in this installer.</small></span></label>
+              <label id="standardBuildOption" hidden><input type="radio" name="buildPreset" id="standardBuild" value="standard"><span>Standard <small>Quick Change and the APRS modem updater.</small></span></label>
+              <label><input type="radio" name="buildPreset" id="essentialsBuild" value="essentials"><span>Essentials <small>Core Toolbox features only.</small></span></label>
+              <label><input type="radio" name="buildPreset" id="customBuild" value="custom"><span>Custom <small>Choose which optional features to include.</small></span></label>
+            </fieldset>
+            <fieldset class="firmware-features" id="firmwareFeatures">
+              <legend>Features</legend>
+              <div id="coreFeatures" hidden>
+                <h3>Included in every preset</h3>
+                <ul>
+                  <li>Toolbox menu and app loader</li>
+                  <li>Long channel names</li>
+                  <li>Bluetooth packet support</li>
+                  <li>Persistent APRS messages</li>
+                </ul>
+              </div>
+              <div id="radioFeatures" hidden>
+                <h3>Radio controls</h3>
+                <label><input type="checkbox" id="quickControls"><span>Quick Change and channel controls <small>Keypad shortcuts, direct channel editing and faster scrolling ship together.</small></span></label>
+                <label><input type="checkbox" id="band33cm"><span>Experimental 33 cm controls <small>Adds tuning and the 900TX setting. Requires Quick Change and the Dev installer.</small></span></label>
+              </div>
+              <div>
+                <h3 id="packetFeatures" hidden>APRS and packet</h3>
                 <label><input type="checkbox" id="includeModem" checked><span>APRS modem updater <small>Adds the keypad updater for V1.0.15X.</small></span></label>
-              </fieldset>
-              <button class="button primary-button" id="loadBuild">Load H9 Toolbox v0.1.5</button>
-            </div>
-            <div class="hosted-package" id="optStock">
-              <strong>Stock Type-C v1.0.38</strong><span class="selected-badge" aria-hidden="true" hidden>Selected</span>
-              <small>Fetches and verifies the official package from the TDH9 GitHub mirror.</small>
-              <button class="button ghost" id="loadStockGitHub">Fetch stock firmware</button>
-              <label>Or choose a local stock .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label>
-            </div>
+              </div>
+            </fieldset>
+            <button class="button primary-button" id="loadBuild">Load H9 Toolbox v0.1.5</button>
           </div>
           <p id="rcPreviewLink" hidden><a href="./">Return to the v0.1.6 installer</a>.</p>
           <p class="selection-state" id="firmwareState" aria-live="polite">No firmware selected</p>
           <details class="guide-help" id="firmwareHelp" hidden>
             <summary>The download or file check failed</summary>
             <p>Check your internet connection and try loading the package again. If GitHub is unavailable, choose a local copy of the official Type-C v1.0.38 <strong>.fw</strong> file. This updater checks the exact package before installing it.</p>
+          </details>
+          <details class="stock-install" id="optStock">
+            <summary>Advanced · Install stock firmware <span class="selected-badge" aria-hidden="true" hidden>Selected</span></summary>
+            <div class="stock-install-content">
+              <strong>Stock Type-C v1.0.38</strong>
+              <small>Fetches and verifies the official package from the TDH9 GitHub mirror.</small>
+              <button class="button ghost" id="loadStockGitHub">Fetch stock firmware</button>
+              <label>Or choose a local stock .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label>
+            </div>
           </details>
         </section>
 
@@ -215,6 +235,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The full browser install and restore flow has been tested on one TD-H9 from macOS.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=20261126options"></script>
+  <script type="module" src="./update.js?v=20261126presets"></script>
 </body>
 </html>

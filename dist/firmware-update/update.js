@@ -57,13 +57,23 @@ function selectedCombinedBuild() {
 if (useRc) {
   const defaultVersion = devOptions ? '0.1.8' : firmwareOption.hasAttribute('data-next-firmware') ? '0.1.7' : '0.1.6';
   const requestedVersion = requestedRelease.replace(/-no-modem$/, '') || defaultVersion;
-  $('quickControlsOption').hidden = false;
-  $('band33cmOption').hidden = !devOptions;
+  for (const id of ['buildProfiles', 'coreFeatures', 'radioFeatures', 'packetFeatures']) $(id).hidden = false;
+  if (devOptions) {
+    $('standardBuildOption').hidden = false;
+    $('fullBuildDescription').textContent = 'All options, including experimental 33 cm controls.';
+  }
   $('band33cm').checked = devOptions && requestedVersion === '0.1.8';
   $('quickControls').checked = $('band33cm').checked || requestedVersion === '0.1.7';
   $('includeModem').checked = requestedRelease !== '0.1.6-rc.4' &&
     !(requestedRelease.endsWith('-no-modem') && ($('quickControls').checked || requestedVersion === '0.1.6'));
-  $('optBuild').querySelector('small').textContent = 'Includes the new Menu-key interface, long channel names, persistent APRS messages and the optional modem fix.';
+  if ($('quickControls').checked && $('includeModem').checked) {
+    $(!$('band33cm').checked && devOptions ? 'standardBuild' : 'fullBuild').checked = true;
+  } else if (!$('quickControls').checked && !$('includeModem').checked) {
+    $('essentialsBuild').checked = true;
+  } else {
+    $('customBuild').checked = true;
+  }
+  firmwareOption.querySelector('small').textContent = 'Select a preset or customize the features installed on your radio.';
 } else if (useLegacyDevBuild) {
   firmwareOption.querySelector('strong').textContent = legacyDevBuild.label;
   firmwareOption.querySelector('small').textContent = 'Includes the Toolbox app loader, Bluetooth packet support, SmartBeacon, timed APRS beacons, and APRS Mute.';
@@ -217,9 +227,11 @@ function refresh() {
   }
   $('firmwareFile').disabled = busy;
   $('loadBuild').disabled = busy;
-  $('includeModem').disabled = busy;
-  $('quickControls').disabled = busy || !useRc;
-  $('band33cm').disabled = busy || !devOptions || !$('quickControls').checked;
+  $('buildProfiles').disabled = busy;
+  const canCustomize = useRc && $('customBuild').checked && !busy;
+  $('includeModem').disabled = useRc ? !canCustomize : busy;
+  $('quickControls').disabled = !canCustomize;
+  $('band33cm').disabled = !canCustomize || !devOptions || !$('quickControls').checked;
   if (useRc) {
     const { version } = selectedCombinedBuild();
     firmwareOption.querySelector('strong').textContent = `H9 Toolbox Firmware v${version}`;
@@ -450,13 +462,26 @@ async function loadSelectedBuild() {
   } finally { busy = false; refresh(); }
 }
 $('loadBuild').addEventListener('click', loadSelectedBuild);
-for (const id of ['includeModem', 'quickControls', 'band33cm']) {
-  $(id).addEventListener('change', () => {
-    if (!$('quickControls').checked) $('band33cm').checked = false;
-    if (target?.kind === 'build') void loadSelectedBuild();
-    else refresh();
-  });
+function applyBuildSelection() {
+  if (target?.kind === 'build') void loadSelectedBuild();
+  else refresh();
 }
+
+$('buildProfiles').addEventListener('change', event => {
+  const preset = event.target.value;
+  if (preset === 'custom') {
+    refresh();
+    return;
+  }
+  $('quickControls').checked = preset !== 'essentials';
+  $('band33cm').checked = preset === 'full' && devOptions;
+  $('includeModem').checked = preset !== 'essentials';
+  applyBuildSelection();
+});
+$('firmwareFeatures').addEventListener('change', () => {
+  if (!$('quickControls').checked) $('band33cm').checked = false;
+  applyBuildSelection();
+});
 $('exactBackup').addEventListener('change', () => { resetPreview(); refresh(); });
 $('loadStockGitHub').addEventListener('click', async () => {
   const selection = beginFirmwareSelection();
