@@ -31,21 +31,21 @@ Change. On v0.1.5, hold **Back** for the app menu.
 
 1. Open the firmware updater in Chrome or Edge on a computer. Connect a
    data-capable USB-C cable and hold **PTT + 2** while powering on the
-   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [Dev firmware updater](https://dev.h9toolbox.com/firmware-update/)
+   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/)
 2. Choose verified H9 Toolbox or stock firmware, review the flash map, then
    confirm the install. **Full** includes every available build option.
    **Essentials** includes the core Toolbox features. **Custom** lets you
-   choose the Quick Change controls and APRS modem updater. Dev also offers
-   experimental 33 cm controls and a **Standard** preset with Quick Change
-   and the modem updater. Keep USB connected through verification. Select the optional `.h9hid`
-   backup for an exact firmware rollback. The updater requests a reboot
-   after verification and gives manual restart instructions if the radio
-   stays in update mode.
+   choose the Quick Change controls and APRS modem updater. Firmware v0.1.8
+   adds experimental 33 cm controls and a **Standard** preset with Quick
+   Change and the modem updater. Keep USB connected through verification.
+   Select the optional `.h9hid` backup for an exact firmware rollback. The
+   updater requests a reboot after verification and gives manual restart
+   instructions if the radio stays in update mode.
 3. With the radio on its normal channel screen, use the App Manager linked
    from your updater to choose apps and select **Write to radio**.
    Add or update **About**, then open **Setup → About** on the radio to see
    which build options are included in its firmware.
-   [App Manager](https://h9toolbox.com/apps/) · [Dev App Manager](https://dev.h9toolbox.com/apps/)
+   [App Manager](https://h9toolbox.com/apps/)
 4. If you want full KISS TNC and the updater verifies that the modem
    update was staged, follow **Optional: Unlock KISS TNC** on the restart
    step. It includes the keypad instructions and bridge download.
@@ -72,8 +72,9 @@ GitHub Pages builds `main` with `scripts/build-site.sh` for
 `scripts/build-dev-site.sh` for [dev.h9toolbox.com](https://dev.h9toolbox.com/)
 and records that commit at [`/dev-build.txt`](https://dev.h9toolbox.com/dev-build.txt).
 The production installer defaults to H9 Toolbox Firmware v0.1.7.
-The development installer defaults to v0.1.8 with experimental 33 cm support.
-Each serves the main firmware, far-flash payload and matching App Manager catalog.
+The `dev` deployment stages changes before promotion to `main` and currently
+serves v0.1.8 with experimental 33 cm support. Both deployments serve the main
+firmware, far-flash payload and matching App Manager catalog.
 
 The production site uses Google Analytics 4 for page views and automatic
 interaction events. The tag runs only on `h9toolbox.com`. H9 Toolbox keeps

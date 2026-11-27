@@ -1,6 +1,6 @@
 # H9 Toolbox Firmware v0.1.7
 
-Use the Type-C TD-H9 development installer at
+Use the H9 Toolbox installer for the Type-C TD-H9 at
 `/firmware-update/?release=0.1.7`. It verifies and writes the main package
 and the matching far firmware image. Use the matching catalog at
 `/apps/?catalog=0.1.7` for apps.
@@ -17,6 +17,7 @@ and the matching far firmware image. Use the matching catalog at
 - Run `sha256sum -c SHA256SUMS` from this directory to verify the files.
 
 The main and far files were rebuilt from the v0.1.7 release source
-with the native display handoff and Dual Watch fixes. Both modem options
-passed offline verification. These rebuilt images await radio testing.
+with the native display handoff, Dual Watch fix, and support for opening
+Toolbox before installing any optional apps. Both modem options passed
+offline verification. These rebuilt images await radio testing.
 See the [changelog](../../../../CHANGELOG.md) for controls and release notes.

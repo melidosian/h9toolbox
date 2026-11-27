@@ -66,6 +66,16 @@ class Bundle(unittest.TestCase):
             build.parse_bundle(bytes(data))
 
 
+class UnifiedMenu(unittest.TestCase):
+    def test_far_menu_entry_accepts_an_empty_bundle(self):
+        entry = STUB.split("ml_main:\n", 1)[1].split("ml_run:\n", 1)[0]
+        self.assertIn("call ml_check\n    r10 = r0", entry)
+        self.assertIn(".ifndef ML_UNIFIED_MENU\n    if (r10 == 0) goto ml_main_return\n    .endif", entry)
+        far_entry = STUB.split("ml_unified_menu:\n", 1)[1].split("ml_unified_recovery:\n", 1)[0]
+        self.assertIn("if (r0 != r1) goto ml_unified_recovery", far_entry)
+        self.assertIn("r1 = r10\n    goto ml_call_loaded", far_entry)
+
+
 class SerialCloneWrite(unittest.TestCase):
     """USB clone writes use sector-aware writes, including channels in unified builds."""
 

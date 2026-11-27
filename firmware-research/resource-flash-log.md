@@ -6109,3 +6109,21 @@ result yet.**
 - The site test decrypts each shipped application's root wrapper and
   checks the native view reset, home callback, and repaint tail call.
   The rebuilt images await physical-radio testing.
+
+## 2026-11-27 — Built-in menu entry without an app bundle
+
+- GitHub issue #11 reported that the Menu key did nothing after flashing
+  Toolbox until the matching apps were written. The unified loader called
+  `ml_check` and returned on a zero count before reaching the checked
+  far-flash menu. On an empty Modules slot, the H9DATA01 directory check
+  returns zero.
+- Unified builds now pass the validated bundle count to the built-in menu
+  after its existing CRC check. A zero count lists the built-in settings
+  and leaves app sections empty. Module loads still check the index and
+  module CRC. Older Back-key launchers still require their app bundle.
+- Rebuilt the main and far pairs for the three installer versions with
+  and without the modem updater. The v0.1.8 full package SHA-256 starts
+  with `7678bde0` and its paired far image with `0a171b87`. The staged
+  modem build recovered the expected modem image in the offline repack
+  check. The host menu harness passed with an empty bundle. Testing the
+  first Menu press on a physical TD-H9 is pending.

@@ -131,11 +131,11 @@ test('the GitHub Pages build publishes v0.1.7 as the default firmware with its a
   await verifyBuilds(availableCombinedBuilds(true).filter(build => build.version === '0.1.8'));
 });
 
-test('installer options resolve separately from the modem updater and gate 33 cm to Dev', () => {
+test('installer options resolve separately from the modem updater and require release support for 33 cm', () => {
   assert.equal(selectCombinedBuild().id, '0.1.6-rc.5');
   assert.equal(selectCombinedBuild({ quickControls: true }).id, '0.1.7');
   assert.equal(selectCombinedBuild({ quickControls: true, includeModem: false }).id, '0.1.7-no-modem');
-  assert.equal(selectCombinedBuild({ quickControls: true, band33cm: true, dev: true, includeModem: false }).id, '0.1.8-no-modem');
-  assert.throws(() => selectCombinedBuild({ quickControls: true, band33cm: true }), /development installer/);
-  assert.throws(() => selectCombinedBuild({ band33cm: true, dev: true }), /Quick Change/);
+  assert.equal(selectCombinedBuild({ quickControls: true, band33cm: true, allow33cm: true, includeModem: false }).id, '0.1.8-no-modem');
+  assert.throws(() => selectCombinedBuild({ quickControls: true, band33cm: true }), /unavailable in this firmware release/);
+  assert.throws(() => selectCombinedBuild({ band33cm: true, allow33cm: true }), /Quick Change/);
 });

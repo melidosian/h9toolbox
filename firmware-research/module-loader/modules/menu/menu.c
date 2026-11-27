@@ -94,12 +94,17 @@ static void message(const char *text)
 }
 #endif
 
-unsigned module_main(const struct h9_api *api, unsigned self)
+unsigned module_main(const struct h9_api *api, unsigned entry_arg)
 {
+#ifdef H9_RADIO_SETTINGS
+    /* The unified loader supplies the validated count, including zero. */
+    unsigned count = entry_arg;
+#else
     uint8_t header[H9_BUNDLE_HEADER];
-    (void)self;
+    (void)entry_arg;
     api->read(header, api->bundle, sizeof header);
     unsigned count = header[10] | (unsigned)header[11] << 8;
+#endif
 #ifndef H9_GROUPED_MENU
     unsigned modules = count > 1 ? count - 1 : 0;
 #endif

@@ -3,7 +3,7 @@ set -euo pipefail
 
 bash scripts/build-site.sh
 
-# Offer the experimental 33 cm build only on Dev.
+# Stage the firmware build with experimental 33 cm controls.
 band_release=firmware-research/module-loader/releases/0.1.8
 (cd "$band_release" && sha256sum -c SHA256SUMS)
 cp "$band_release"/h9-toolbox-{firmware-v0.1.8*.fw,v0.1.8*-far.bin} dist/firmware-update/dev/
@@ -15,7 +15,7 @@ mkdir -p dist/aprs-update
 cp prototypes/aprs-update/{index.html,aprs.css,aprs.js,protocol.mjs} dist/aprs-update/
 cp firmware-research/kiss-tnc/APRS-1.0.15-rx15-rxff.bin dist/aprs-update/
 
-# Keep the explicit older dev installer and catalog available.
+# Keep v0.1.5 and its catalog available by explicit selection.
 dev_release=firmware-research/module-loader/smartbeacon-release
 cp "$dev_release"/{SHA256SUMS,h9-toolbox-aprs-scheduler.bin,h9-toolbox-aprs-stage.bin,h9-toolbox-dev-apps.bin} dist/firmware-update/dev/
 rm -f dist/firmware-update/smartbeacon/index.html

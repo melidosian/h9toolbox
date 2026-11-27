@@ -27,7 +27,6 @@ sed -e 's|id="optBuild">|id="optBuild" data-release-firmware data-next-firmware>
   -e 's|H9 Toolbox Firmware v0.1.5|H9 Toolbox Firmware v0.1.7|g' \
   -e 's|Load H9 Toolbox v0.1.5|Load H9 Toolbox v0.1.7|g' \
   -e 's|hold Back from the channel screen to open the app menu|press Menu from the channel screen to open Toolbox|' \
-  -e 's|hold <strong>Back</strong> to open the app menu|press <strong>Menu</strong> to open Toolbox|' \
   dist/firmware-update/index.html > dist/firmware-update/index.html.tmp
 mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
 

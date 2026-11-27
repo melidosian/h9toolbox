@@ -101,7 +101,9 @@ The firmware replaces five stock menu functions covering 11,950 bytes:
 the root, list builder, category entry, setting getter and setting saver.
 The replacement keeps the RF, storage and Bluetooth services it calls.
 The loader enters the far menu directly after verifying its CRC, including
-after a Toolbox app returns. Stock USB recovery remains available.
+after a Toolbox app returns. With no valid app bundle, the built-in menu
+still opens with its native settings and an empty app list. Stock USB
+recovery remains available.
 
 Run the host harnesses from `module-loader/`:
 

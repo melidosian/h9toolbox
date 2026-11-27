@@ -24,6 +24,11 @@ Short version of the rules (details in the handbook, section 1):
 
 ## Firmware releases
 
+- Treat `dev` as the staging branch on the path to `main`. In user-facing
+  copy, call the tool the H9 Toolbox installer. Describe experimental
+  features by their name and firmware version. Use `dev` only for branch
+  and deployment details in engineering documentation.
+
 - Before calling a firmware PR to `main` ready to merge, state the intended
   public release version and verify the default installer and App Manager
   catalog from the PR's production deployment output. Use the normal URLs

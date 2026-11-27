@@ -2,6 +2,9 @@
 
 ## H9 Toolbox Firmware v0.1.8
 
+- **Menu** opens the built-in Toolbox menu immediately after a fresh
+  firmware install. App Manager can add optional apps later. [#11](https://github.com/melidosian/h9toolbox/issues/11)
+
 - **Radio Settings → Radio → 900TX** enables experimental 902–928 MHz
   transmit in Ham or unlocked mode. The setting defaults to Off and
   saves across power cycles.

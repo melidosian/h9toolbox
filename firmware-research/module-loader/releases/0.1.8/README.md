@@ -1,9 +1,9 @@
 # H9 Toolbox Firmware v0.1.8
 
-Use the Type-C TD-H9 Dev installer at `/firmware-update/` or
-`/firmware-update/?release=0.1.8`. Both select the main firmware and
-its paired far image. The matching App Manager catalog is available at
-`/apps/` or `/apps/?catalog=0.1.8` on Dev.
+Select v0.1.8 in the H9 Toolbox installer for the Type-C TD-H9 at
+`/firmware-update/?release=0.1.8`. The installer selects the main firmware
+and its paired far image. The matching App Manager catalog is at
+`/apps/?catalog=0.1.8`.
 
 - `h9-toolbox-firmware-v0.1.8.fw` contains the main firmware.
 - `h9-toolbox-v0.1.8-far.bin` contains the unified menu, resident APRS
@@ -17,6 +17,7 @@ its paired far image. The matching App Manager catalog is available at
 - Run `sha256sum -c SHA256SUMS` here to verify the release files.
 
 The main and far files were rebuilt from the v0.1.8 release source
-with the native display handoff and Dual Watch fixes. Both modem options
-passed offline verification. These rebuilt images await radio testing.
+with the native display handoff, Dual Watch fix, and support for opening
+Toolbox before installing any optional apps. Both modem options passed
+offline verification. These rebuilt images await radio testing.
 See the [changelog](../../../../CHANGELOG.md) for controls and release notes.

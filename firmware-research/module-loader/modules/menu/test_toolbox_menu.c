@@ -389,6 +389,13 @@ static void test_unified(const struct menu_list *list)
     has_categories = 1;
     build_list(&categorized, &loader, sizeof names / sizeof *names);
     assert(categorized.sections[GAMES].count == 2 && !categorized.sections[APPS].count);
+
+    struct menu_list without_apps;
+    const struct h9_api empty_bundle = { .version = 5 };
+    build_list(&without_apps, &empty_bundle, 0);
+    home = menu_view(&without_apps, MENU_HOME);
+    assert(home.count >= 3 && home.children[0] == RADIO_FOLDER && home.children[1] == CHANNELS);
+    assert(!without_apps.sections[APPS].count && !without_apps.sections[GAMES].count);
 }
 #endif
 

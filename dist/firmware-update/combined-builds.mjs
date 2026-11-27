@@ -2,55 +2,56 @@ const builds = {
   '0.1.6': [
     {
       id: '0.1.6-rc.4', file: 'dev/h9-toolbox-firmware-v0.1.6-rc.4.fw',
-      packageSha256: 'fd5caff805b3faecb660835d210d54fe7f49efc4787b37afe71858a4467ebef9',
-      imageSha256: '5a9b59346d01b33fb6d345d53afce5d633dc96af1ffd53c3b69fd732b4409342',
+      packageSha256: 'ef8f1cf378ed0b7d54571050b8b5797e1d0a32e1056555fe310bb511f57f8112',
+      imageSha256: '8750726fff64f7f08d2d7eb3c92ababb1918b7ede38627e04b54ba2a922114b2',
       farFile: 'dev/h9-toolbox-v0.1.6-rc.4-far.bin',
-      farSha256: 'a31c029ca64bd18cf3a337320f77dd9fcb2925c742d2cf2bba08a3bc4b93896e',
+      farSha256: '2f8b0dff994a61e9e0df8dfc821545f3614eaf65687196e56e9f6ec23632bc01',
     },
     {
       id: '0.1.6-rc.5', file: 'dev/h9-toolbox-firmware-v0.1.6-rc.5.fw',
-      packageSha256: '95c30fcce4b411c3e7d82db2761e39c13818a5cf62d6ff87cc5c41f2c16cbe36',
-      imageSha256: 'ef94b9b45082c152bfcc7b21e9f20f4cdb79b5a43e9f214fc983ddfacd358698',
+      packageSha256: 'cb1bc6869a117342c903f88cef851bcc705d449a2d12e7755f4e0b2f7504b70d',
+      imageSha256: '3d51a00b0db5f27e0013aab4d98139326dcf03b736741a71dbb10b83e81c2810',
       farFile: 'dev/h9-toolbox-v0.1.6-rc.5-far.bin',
-      farSha256: '5e1e65f19e88d30c00f304bd19193968ec4f2ecdcf1395137b0e5ae9f7ab871d',
+      farSha256: '7da26507a9937ea6a17efcb4d9d0ee6b6cc9b918e9ead1590c8bd918fd2c1c91',
     },
   ],
   '0.1.7': [
     {
       id: '0.1.7-no-modem', file: 'dev/h9-toolbox-firmware-v0.1.7-no-modem.fw',
-      packageSha256: '51abd446156565b1c29ce1f4fe5b1f3254ae289956267b6613c53ad8dbdc2725',
-      imageSha256: 'ef40abc554055db8ca7aeac9061d495a5c6ea9fd64ba2dfd7b18a36c591523b6',
+      packageSha256: '90986fc4cca5b303dcfd945b8fe13d4bb21b71661639d75a3550371c768938be',
+      imageSha256: '86e11b7de905e66e95b94cea7639b18c11858f73d2022360fc4f6b9ccd763fde',
       farFile: 'dev/h9-toolbox-v0.1.7-no-modem-far.bin',
-      farSha256: '3ee7e0aa70d8fb84e643c924663d05e9f64b0cb0b34f674b7389d4eddbba4b20',
+      farSha256: '01dec477daa9d6cab990e815b08ffac131da0cf3a6925783fb671ff5a4fee375',
     },
     {
       id: '0.1.7', file: 'dev/h9-toolbox-firmware-v0.1.7.fw',
-      packageSha256: 'd0961229c589de90627c58eb31c376198bd29008fb069f96537f857de5d448a5',
-      imageSha256: '05a0c765e7ab8a42646b1a6cbe194d5f6244b632986c4bbea1a6ce3b92aeb090',
+      packageSha256: '39b00c2bd0307b64cc6026d3da820e34c5fe719153e6f696f7d9830f68656d68',
+      imageSha256: 'e14268ad9109a5ab63d5fdefdb41898aebcf4586c3c62bb7f6725a81fea545e4',
       farFile: 'dev/h9-toolbox-v0.1.7-far.bin',
-      farSha256: '460f01968847e9d9f500d8cfdd70807bf1a8faabf2b44415d89920f8f0f2c05f',
+      farSha256: 'e52d7451fde10bcad2c7d861f85d845031b04fbe66f71e51ae05ea19bee5b558',
     },
   ],
   '0.1.8': [
     {
       id: '0.1.8-no-modem', file: 'dev/h9-toolbox-firmware-v0.1.8-no-modem.fw',
-      packageSha256: 'e11e1d827586584e01f9d81ca17b41f70e31bbd59be79d9d6ad5b48974d1c481',
-      imageSha256: '7d9ee46529e7fb2cdb9d5383487b076ee28a55ba15b59cf00892f1e937a6c078',
+      packageSha256: '9d229128c1454638de535fb5b447bbf2ae71aa73b341585f9da2a7d4e3f2d322',
+      imageSha256: '4ba7fc607998d126827bc5e0eff9c5d64a1daae324c0e4bc2f670cf0d888a2c3',
       farFile: 'dev/h9-toolbox-v0.1.8-no-modem-far.bin',
-      farSha256: '07d963470f320980836245e6c0b6ab3b92546f51ce15479aa5574fb07ca79b32',
+      farSha256: '3e613541be52ebfe1d3974b78069f21c96630bcac2d71bb4efd8eb7f1e6ffc15',
     },
     {
       id: '0.1.8', file: 'dev/h9-toolbox-firmware-v0.1.8.fw',
-      packageSha256: 'e1d327cc7a8bff81ddb621d13320dcc52f456d5bbdebddff8de89f731138a372',
-      imageSha256: '0d83de621d41256ef41c48c12877e75b4530c54041a67384cdfa937ef5476db5',
+      packageSha256: '7678bde01ebc596b6b9fa1b5de76f966343c7d64ea447aef6b04513b80961714',
+      imageSha256: 'b86506d122d2a2c80b9b09168a53d87bf3dde84a6806e5a1502ace242a2f68f1',
       farFile: 'dev/h9-toolbox-v0.1.8-far.bin',
-      farSha256: 'f44876f4826a424a4ed19b76fdbd07f74ff57ca1d41eecf4351c90f3b3014314',
+      farSha256: '0a171b874a01b448f1897169652f13315f668b10ae4ed88111fb745fd7b3a865',
     },
   ],
 };
 
-export function selectCombinedBuild({ quickControls = false, band33cm = false, includeModem = true, dev = false } = {}) {
-  if (band33cm && (!quickControls || !dev)) throw new Error('The 33 cm option requires the development installer and Quick Change.');
+export function selectCombinedBuild({ quickControls = false, band33cm = false, includeModem = true, allow33cm = false } = {}) {
+  if (band33cm && !allow33cm) throw new Error('Experimental 33 cm controls are unavailable in this firmware release.');
+  if (band33cm && !quickControls) throw new Error('Experimental 33 cm controls require Quick Change.');
   const version = band33cm ? '0.1.8' : quickControls ? '0.1.7' : '0.1.6';
   return {
     ...builds[version][Number(includeModem)],
@@ -60,8 +61,8 @@ export function selectCombinedBuild({ quickControls = false, band33cm = false, i
   };
 }
 
-export function availableCombinedBuilds(dev) {
+export function availableCombinedBuilds(allow33cm) {
   const options = [{}, { quickControls: true }];
-  if (dev) options.push({ quickControls: true, band33cm: true, dev });
+  if (allow33cm) options.push({ quickControls: true, band33cm: true, allow33cm });
   return options.flatMap(option => [true, false].map(includeModem => selectCombinedBuild({ ...option, includeModem })));
 }

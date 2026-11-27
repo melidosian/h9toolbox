@@ -4,7 +4,7 @@ import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v
 import { backedUpFar, FarFirmwareHid, planFarFirmware, planFarFirmwareWithoutBackup, writeFarFirmware } from './far-region.mjs?v=20261126sectors';
 import { loadAprsStage, planStageRegion, writeStageRegion } from './aprs-stage.mjs?v=20261126sectors';
 import { createFlashMap } from './flash-map.mjs?v=20261126sectors';
-import { availableCombinedBuilds, selectCombinedBuild } from './combined-builds.mjs?v=20261126options';
+import { availableCombinedBuilds, selectCombinedBuild } from './combined-builds.mjs?v=20261127naming';
 
 const $ = id => document.getElementById(id);
 const slides = [...document.querySelectorAll('.guide-slide')];
@@ -40,7 +40,7 @@ const firmwareOption = $('optBuild');
 const requestedRelease = new URLSearchParams(location.search).get('release') ?? '';
 const useLegacyDevBuild = firmwareOption.hasAttribute('data-legacy-dev-firmware') && requestedRelease === '0.1.5';
 const useRc = firmwareOption.hasAttribute('data-release-firmware') && !useLegacyDevBuild;
-const devOptions = useRc && firmwareOption.hasAttribute('data-33cm-firmware');
+const allow33cm = useRc && firmwareOption.hasAttribute('data-33cm-firmware');
 const usePackagedRelease = useRc || useLegacyDevBuild;
 const previewBuild = selectCombinedBuild();
 const packagedBuild = useRc ? previewBuild : legacyDevBuild;
@@ -51,23 +51,23 @@ function selectedCombinedBuild() {
     quickControls: $('quickControls').checked,
     band33cm: $('band33cm').checked,
     includeModem: $('includeModem').checked,
-    dev: devOptions,
+    allow33cm,
   });
 }
 if (useRc) {
-  const defaultVersion = devOptions ? '0.1.8' : firmwareOption.hasAttribute('data-next-firmware') ? '0.1.7' : '0.1.6';
+  const defaultVersion = allow33cm ? '0.1.8' : firmwareOption.hasAttribute('data-next-firmware') ? '0.1.7' : '0.1.6';
   const requestedVersion = requestedRelease.replace(/-no-modem$/, '') || defaultVersion;
   for (const id of ['buildProfiles', 'coreFeatures', 'radioFeatures', 'packetFeatures']) $(id).hidden = false;
-  if (devOptions) {
+  if (allow33cm) {
     $('standardBuildOption').hidden = false;
     $('fullBuildDescription').textContent = 'All options, including experimental 33 cm controls.';
   }
-  $('band33cm').checked = devOptions && requestedVersion === '0.1.8';
+  $('band33cm').checked = allow33cm && requestedVersion === '0.1.8';
   $('quickControls').checked = $('band33cm').checked || requestedVersion === '0.1.7';
   $('includeModem').checked = requestedRelease !== '0.1.6-rc.4' &&
     !(requestedRelease.endsWith('-no-modem') && ($('quickControls').checked || requestedVersion === '0.1.6'));
   if ($('quickControls').checked && $('includeModem').checked) {
-    $(!$('band33cm').checked && devOptions ? 'standardBuild' : 'fullBuild').checked = true;
+    $(!$('band33cm').checked && allow33cm ? 'standardBuild' : 'fullBuild').checked = true;
   } else if (!$('quickControls').checked && !$('includeModem').checked) {
     $('essentialsBuild').checked = true;
   } else {
@@ -231,7 +231,7 @@ function refresh() {
   const canCustomize = useRc && $('customBuild').checked && !busy;
   $('includeModem').disabled = useRc ? !canCustomize : busy;
   $('quickControls').disabled = !canCustomize;
-  $('band33cm').disabled = !canCustomize || !devOptions || !$('quickControls').checked;
+  $('band33cm').disabled = !canCustomize || !allow33cm || !$('quickControls').checked;
   if (useRc) {
     const { version } = selectedCombinedBuild();
     firmwareOption.querySelector('strong').textContent = `H9 Toolbox Firmware v${version}`;
@@ -339,7 +339,7 @@ async function loadHostedBuild() {
   let packaged = null;
   if (usePackagedRelease) {
     const otherDevBuilds = [earlierDevBuild, priorDevBuild, ...(useRc
-      ? [...availableCombinedBuilds(devOptions).filter(build => build.id !== previewBuild.id), legacyDevBuild]
+      ? [...availableCombinedBuilds(allow33cm).filter(build => build.id !== previewBuild.id), legacyDevBuild]
       : [])];
     const [current, ...others] = await Promise.all([packagedBuild, ...otherDevBuilds].map(loadPackagedImage));
     packaged = current;
@@ -474,7 +474,7 @@ $('buildProfiles').addEventListener('change', event => {
     return;
   }
   $('quickControls').checked = preset !== 'essentials';
-  $('band33cm').checked = preset === 'full' && devOptions;
+  $('band33cm').checked = preset === 'full' && allow33cm;
   $('includeModem').checked = preset !== 'essentials';
   applyBuildSelection();
 });
@@ -580,7 +580,7 @@ async function createBackup() {
   if (backupCancelled) throw new BackupStoppedError();
   const images = namedImages();
   const includeFar = useRc && target?.kind === 'build';
-  const farImages = includeFar ? await Promise.all(availableCombinedBuilds(devOptions)
+  const farImages = includeFar ? await Promise.all(availableCombinedBuilds(allow33cm)
     .map(build => loadReleaseFile(build.farFile, build.farSha256))) : null;
   if (backupCancelled) throw new BackupStoppedError();
   status('Checking firmware against verified images and reading back any different sectors. Keep USB connected.');
@@ -669,10 +669,11 @@ async function restartAfterVerification() {
 }
 
 const stockRestart = ['Check the firmware version, channels, and settings.'];
-const toolboxRestart = [
-  useRc ? 'From the channel screen, press Menu to open Toolbox.' : 'From the channel screen, hold Back to open the app menu.',
-  usePackagedRelease ? 'Open App Manager to install the matching apps.'
-    : 'Use the App Manager over Bluetooth or experimental USB-C to add apps or a boot logo.',
+const toolboxRestart = useRc ? [
+  'From the channel screen, press Menu to open Toolbox.',
+  'Use App Manager to add optional apps.',
+] : [
+  'Install the matching apps with App Manager, then hold Back from the channel screen to open the app menu.',
 ];
 function appManagerLink() {
   const catalog = target.combined?.catalog ?? (useLegacyDevBuild ? 'smartbeacon' : null);

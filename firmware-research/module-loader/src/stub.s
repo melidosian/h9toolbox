@@ -326,7 +326,9 @@ ml_main:
     [r0+0] = r1
     call ml_check
     r10 = r0
+    .ifndef ML_UNIFIED_MENU
     if (r10 == 0) goto ml_main_return
+    .endif
     r11 = 0
 ml_run:
     .ifdef ML_UNIFIED_MENU
@@ -342,6 +344,7 @@ ml_run:
 ml_run_loaded:
     r0 = ml_api
     r1 = r11
+ml_call_loaded:
     call r3
     if (r11 != 0) goto ml_module_done
     /* The menu returned: 0 = back to the radio, else the module to run. */
@@ -419,7 +422,10 @@ ml_unified_menu:
     r1 = ML_UNIFIED_CRC
     if (r0 != r1) goto ml_unified_recovery
     r3 = ML_UNIFIED_CPU
-    goto ml_run_loaded
+    r0 = ml_api
+    /* An empty or invalid bundle gives the built-in menu an app count of zero. */
+    r1 = r10
+    goto ml_call_loaded
 ml_unified_recovery:
     r3 = 0x02000d68
     call r3
