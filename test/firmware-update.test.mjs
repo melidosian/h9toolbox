@@ -4,6 +4,21 @@ import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBac
 import { createHidArchive, knownAppMatches, loadHidArchive, planFirmwareWithoutBackup, readAccessibleFlash, readFirmwareBackup, recoverNextSector, recoverPreviousSector, UnverifiedRadioError } from '../dist/firmware-update/readback.mjs';
 import { backedUpFar, FAR_START, FAR_END } from '../dist/firmware-update/far-region.mjs';
 
+test('the stock catalog selects one reference and tolerates a changed fingerprint sector', async () => {
+  const { STOCK_RELEASES, STOCK_SIGNATURE_SECTORS } = await import('../dist/firmware-update/stock-catalog.mjs');
+  const { stockReferenceForScan } = await import('../dist/firmware-update/stock-source.mjs');
+  for (const release of STOCK_RELEASES) {
+    const scan = expectedCrcs(new Uint8Array(IMAGE_SIZE));
+    const indexes = STOCK_SIGNATURE_SECTORS.map(address => (address - APP_START) / SECTOR_SIZE);
+    indexes.forEach((index, i) => { scan[index] = release.signature[i]; });
+    assert.equal(stockReferenceForScan(scan), release);
+    scan[indexes[0]] ^= 1;
+    assert.equal(stockReferenceForScan(scan), release);
+    scan[indexes[1]] ^= 1;
+    assert.equal(stockReferenceForScan(scan), null);
+  }
+});
+
 test('HID init packet matches captured vendor request', () => {
   const body = new Uint8Array(17);
   body.set(new TextEncoder().encode('app_dir_head'));

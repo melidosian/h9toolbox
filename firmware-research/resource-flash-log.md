@@ -6127,3 +6127,38 @@ result yet.**
   modem build recovered the expected modem image in the offline repack
   check. The host menu harness passed with an empty bundle. Testing the
   first Menu press on a physical TD-H9 is pending.
+
+### Public v0.1.6 backup on a stock-compatible radio
+
+- A checksum-verified v1 HID archive recorded `verified-erased-sector-seed`.
+  Compared with the pinned Type-C v1.0.38 image, its application differed by
+  22 bytes in the final sector, 0xD9000, within 0xD9FE0–0xD9FFD. The public
+  installer accepts that sector as stock-compatible for installation, but
+  its backup shortcut requires a matching application in every sector.
+- The v0.1.6 fallback reads 16 groups of 4,095 shifted CRC windows each.
+  A replay of the archive through the current exact backup path recovered
+  both firmware regions byte for byte in 2,271 CRC requests including
+  scans. The default v0.1.8 preflight used 24 CRC requests and accepted
+  the radio. These request counts come from offline replay.
+- The last 32 bytes of the application's raw flash region were erased in
+  the pinned package. In the stock-compatible archive that block starts
+  with the package product ID, `X12345678`, padded with seven `FF` bytes.
+  Thirteen more bytes differ in the remaining binary portion. The product
+  ID reads directly from raw flash. The meaning of the remaining fields
+  has not been verified.
+
+### Type-C stock backup references, v1.0.23–v1.0.38
+
+- Verified the packages for v1.0.23, .24, .27, .28, .29, .32, .33 and .38
+  from the pinned TDH9 mirror. The .27 archive nests the Type-C ZIP.
+  Versions through .32 have seven package records, with the directory
+  extending past 0x200; .33 and .38 have five.
+- The decoded images have the same first 0x5000 bytes and a TD-H9 model
+  string. The earlier images end at 0xC4000–0xD6000, before the v1.0.38
+  image's 0xDA000 end. Their package bytes serve as readback candidates
+  within each image's range. The installer verifies any remaining sectors
+  against the radio. Catalog recognition does not authorize writes or
+  expand the factory recovery choices.
+- Simulated all eight images with a changed final managed sector. The
+  optional backup recovered both firmware regions byte for byte in 2,271
+  checksum requests per image. Physical-radio testing was not performed.

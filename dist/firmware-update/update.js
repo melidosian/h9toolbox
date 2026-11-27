@@ -1,6 +1,6 @@
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, APRS_STAGE_START, RESIDENT_START, RESIDENT_END, BUILD, PREVIOUS, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, looksLikeH9, stockCompatible, writeSector } from './firmware.mjs?v=20261119m';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, APRS_STAGE_START, RESIDENT_START, RESIDENT_END, BUILD, PREVIOUS, STOCK_IMAGE_SHA256, crc16, decodePackage, expectedCrcs, H9Hid, loadBackup, loadBuildPackage, loadPreviousImage, loadStockPackage, loadStockSeed, planUpdate, scanRadio, sha256, looksLikeH9, stockCompatible, writeSector } from './firmware.mjs?v=20261127stock';
 import { BackupStoppedError, createHidArchive, knownAppMatches, loadHidArchive, planFirmwareWithoutBackup, readFirmwareBackup, UnverifiedRadioError } from './readback.mjs?v=20261126quick';
-import { extractPinnedStockFirmware, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261110a';
+import { extractPinnedStockFirmware, loadStockReference, stockReferenceForScan, TYPE_C_ZIP_URL } from './stock-source.mjs?v=20261127stock';
 import { backedUpFar, FarFirmwareHid, planFarFirmware, planFarFirmwareWithoutBackup, writeFarFirmware } from './far-region.mjs?v=20261126sectors';
 import { loadAprsStage, planStageRegion, writeStageRegion } from './aprs-stage.mjs?v=20261126sectors';
 import { createFlashMap } from './flash-map.mjs?v=20261126sectors';
@@ -579,6 +579,17 @@ async function createBackup() {
   await ensureReferences();
   if (backupCancelled) throw new BackupStoppedError();
   const images = namedImages();
+  const stockReference = stockReferenceForScan(current);
+  let catalogImage = null;
+  if (stockReference && stockReference.imageSha256 !== STOCK_IMAGE_SHA256) {
+    status(`Loading the verified Type-C stock v${stockReference.version} backup reference.`);
+    try {
+      catalogImage = await loadStockReference(stockReference, url => fetch(url, { signal: AbortSignal.timeout(20000) }));
+    } catch {
+      status(`Could not load stock v${stockReference.version}. Continuing with the local backup references.`);
+    }
+    if (backupCancelled) throw new BackupStoppedError();
+  }
   const includeFar = useRc && target?.kind === 'build';
   const farImages = includeFar ? await Promise.all(availableCombinedBuilds(allow33cm)
     .map(build => loadReleaseFile(build.farFile, build.farSha256))) : null;
@@ -586,8 +597,9 @@ async function createBackup() {
   status('Checking firmware against verified images and reading back any different sectors. Keep USB connected.');
   phase('Backing up firmware');
   progress(0, 1);
-  const recovered = await readFirmwareBackup(hid, current, images.map(([, image]) => image),
-    farImages, progress, () => backupCancelled);
+  const referenceImages = images.map(([, image]) => image);
+  if (catalogImage) referenceImages.push(catalogImage);
+  const recovered = await readFirmwareBackup(hid, current, referenceImages, farImages, progress, () => backupCancelled);
   if (backupCancelled) throw new BackupStoppedError();
   const archive = await createHidArchive(recovered.accessible, recovered.method, recovered.far);
   // The protected boot bytes are a placeholder from a known image (they are
@@ -597,15 +609,20 @@ async function createBackup() {
   // backup as a pinned release or select the wrong stock restore point.
   const match = images.find(([, image]) => image.length === IMAGE_SIZE &&
     recovered.accessible.every((byte, offset) => byte === image[APP_START + offset]));
+  const matchesCatalogImage = catalogImage && catalogImage.subarray(APP_START)
+    .every((byte, offset) => byte === recovered.accessible[offset]);
+  const catalogLabel = matchesCatalogImage ? `Stock v${stockReference.version}` : null;
   let source = match?.[0] ?? 'other';
   if (source === 'other' && stockSeed && stockCompatible(expectedCrcs(loaded.image), stockSeed))
     source = 'stock-like';
   if (backupCancelled) throw new BackupStoppedError();
   $('cancelBackup').disabled = true;
-  const sourceName = source === 'build' || previousInfo(source)?.catalog || source === packagedBuild.label ? 'H9-Toolbox-Firmware-'
+  const sourceName = catalogLabel ? `Stock-v${stockReference.version}-`
+    : source === 'build' || previousInfo(source)?.catalog || source === packagedBuild.label ? 'H9-Toolbox-Firmware-'
     : [earlierDevBuild.id, priorDevBuild.id].includes(source) ? 'H9-Toolbox-Earlier-Dev-'
       : source === 'stock-like' ? 'Stock-' : source === 'other' ? 'Unrecognised-' : previousInfo(source)?.file ?? '';
-  const sourceLabel = source === 'build' ? BUILD.label : source === packagedBuild.label ? packagedBuild.label : previousInfo(source)?.label;
+  const sourceLabel = catalogLabel ?? (source === 'stock' ? 'Stock v1.0.38'
+    : source === 'build' ? BUILD.label : source === packagedBuild.label ? packagedBuild.label : previousInfo(source)?.label);
   const date = new Date().toISOString().slice(0, 10);
   const name = `TD-H9-${sourceName}HID-recovery-${date}.h9hid`;
   const url = URL.createObjectURL(new Blob([archive], { type: 'application/octet-stream' }));

@@ -50,6 +50,11 @@ Change. On v0.1.5, hold **Back** for the app menu.
    update was staged, follow **Optional: Unlock KISS TNC** on the restart
    step. It includes the keypad instructions and bridge download.
 
+Optional backups use pinned Type-C stock references for v1.0.23, v1.0.24,
+v1.0.27, v1.0.28, v1.0.29, v1.0.32, v1.0.33 and v1.0.38. The updater
+checks the radio before reusing any reference bytes. For factory recovery,
+the installer offers Type-C v1.0.38.
+
 Keep any `.h9hid` file you create for an exact firmware rollback. The Bluetooth
 programmer’s `.img` backup is for channels and settings. To return to the
 factory main firmware, choose **Stock Type-C v1.0.38** in the updater. The

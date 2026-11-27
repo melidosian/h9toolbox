@@ -1,16 +1,43 @@
-import { sha256 } from './firmware.mjs?v=20261111g';
+import { APP_START, SECTOR_SIZE, decodePackage, sha256 } from './firmware.mjs?v=20261127stock';
+import { STOCK_RELEASES, STOCK_SIGNATURE_SECTORS } from './stock-catalog.mjs';
 
-export const TYPE_C_ZIP_URL = 'https://raw.githubusercontent.com/teedubyeah/TDH9/1ccb67c2684204b0097533486c545607caaf65b8/Firmware/1.0.38/H9_Update-Type-C_1.0.38.zip';
-export const TYPE_C_ZIP_SHA256 = '1d1b6f87705f026dc5c5b118786d133cbc7f0589f606c8572581df981492155a';
-const ZIP_SIZE = 7091957;
-const FIRMWARE_PATH = 'H9_Update-Type-C/TD-H9-V1.0.38.fw';
-const FIRMWARE_SIZE = 897440;
+const currentStock = STOCK_RELEASES.find(release => release.version === '1.0.38');
+export const TYPE_C_ZIP_URL = currentStock.url;
+export const TYPE_C_ZIP_SHA256 = currentStock.zipSha256;
 
 function requireValue(condition, message) { if (!condition) throw new Error(message); }
 
-export async function extractPinnedStockFirmware(zip) {
-  requireValue(zip.length === ZIP_SIZE && await sha256(zip) === TYPE_C_ZIP_SHA256,
-    'GitHub Type-C v1.0.38 ZIP does not match the pinned SHA-256.');
+export function stockReferenceForScan(crcs) {
+  // A near match only selects a download. The backup verifies each reused
+  // sector against the radio before trusting the reference bytes.
+  const matches = STOCK_RELEASES.filter(release =>
+    STOCK_SIGNATURE_SECTORS.filter((address, index) =>
+      crcs[(address - APP_START) / SECTOR_SIZE] === release.signature[index]).length >= 4);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+export async function extractPinnedStockFirmware(zip, release = currentStock) {
+  if (release.outer) {
+    const { path, bytes, sha256: digest } = release.outer;
+    zip = await extractPinnedEntry(zip, bytes, digest, path, release.zipBytes);
+  }
+  const firmware = await extractPinnedEntry(zip, release.zipBytes, release.zipSha256, release.path, release.packageBytes);
+  requireValue(await sha256(firmware) === release.packageSha256, 'Extracted stock package checksum mismatch.');
+  return firmware;
+}
+
+export async function loadStockReference(release, fetchFile = fetch) {
+  const response = await fetchFile(release.url);
+  requireValue(response.ok, 'Could not download the stock firmware reference.');
+  const image = decodePackage(await extractPinnedStockFirmware(new Uint8Array(await response.arrayBuffer()), release));
+  requireValue(image.length === release.imageBytes && await sha256(image) === release.imageSha256,
+    'Stock firmware reference image checksum mismatch.');
+  return image;
+}
+
+async function extractPinnedEntry(zip, zipBytes, zipSha256, path, entryBytes) {
+  requireValue(zip.length === zipBytes && await sha256(zip) === zipSha256,
+    'Stock firmware ZIP does not match the pinned SHA-256.');
   const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
   let end = -1;
   for (let offset = zip.length - 22; offset >= Math.max(0, zip.length - 65557); offset--) {
@@ -36,7 +63,7 @@ export async function extractPinnedStockFirmware(zip) {
     const next = offset + 46 + nameLength + extraLength + commentLength;
     requireValue(next <= directoryEnd, 'ZIP file entry extends past directory.');
     const name = new TextDecoder().decode(zip.subarray(offset + 46, offset + 46 + nameLength));
-    if (name === FIRMWARE_PATH) {
+    if (name === path) {
       requireValue(!entry, 'Duplicate stock firmware in ZIP.');
       entry = {
         flags: view.getUint16(offset + 8, true),
@@ -49,7 +76,7 @@ export async function extractPinnedStockFirmware(zip) {
     offset = next;
   }
   requireValue(offset === directoryEnd && entry, 'Pinned Type-C firmware file is missing from ZIP.');
-  requireValue((entry.flags & 1) === 0 && entry.method === 8 && entry.size === FIRMWARE_SIZE,
+  requireValue((entry.flags & 1) === 0 && entry.method === 8 && entry.size === entryBytes,
     'Unexpected stock firmware ZIP compression or size.');
   requireValue(entry.local + 30 <= zip.length && view.getUint32(entry.local, true) === 0x04034b50,
     'Stock firmware local ZIP header is invalid.');
@@ -57,7 +84,7 @@ export async function extractPinnedStockFirmware(zip) {
   const localExtra = view.getUint16(entry.local + 28, true);
   const dataStart = entry.local + 30 + localName + localExtra;
   requireValue(dataStart + entry.compressed <= offset &&
-    new TextDecoder().decode(zip.subarray(entry.local + 30, entry.local + 30 + localName)) === FIRMWARE_PATH,
+    new TextDecoder().decode(zip.subarray(entry.local + 30, entry.local + 30 + localName)) === path,
     'Stock firmware ZIP entry is out of bounds.');
   let firmware;
   try {
@@ -67,6 +94,6 @@ export async function extractPinnedStockFirmware(zip) {
   } catch (error) {
     throw new Error(`Browser could not decompress the Type-C firmware ZIP: ${error.message}`);
   }
-  requireValue(firmware.length === FIRMWARE_SIZE, 'Extracted stock firmware size is invalid.');
+  requireValue(firmware.length === entryBytes, 'Extracted stock firmware size is invalid.');
   return firmware;
 }
