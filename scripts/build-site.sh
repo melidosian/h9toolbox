@@ -23,10 +23,11 @@ with ZipFile("dist/firmware-update/h9-desktop-backup.zip", "w", compression=ZIP_
         archive.write(path, Path("h9-desktop-backup") / path.relative_to(source))
 PY
 
-sed -e 's|id="optBuild">|id="optBuild" data-release-firmware data-next-firmware>|' \
-  -e 's|H9 Toolbox Firmware v0.1.5|H9 Toolbox Firmware v0.1.7|g' \
-  -e 's|Load H9 Toolbox v0.1.5|Load H9 Toolbox v0.1.7|g' \
+sed -e 's|id="optBuild">|id="optBuild" data-release-firmware data-next-firmware data-33cm-firmware>|' \
+  -e 's|H9 Toolbox Firmware v0.1.5|H9 Toolbox Firmware v0.1.8|g' \
+  -e 's|Load H9 Toolbox v0.1.5|Load H9 Toolbox v0.1.8|g' \
   -e 's|hold Back from the channel screen to open the app menu|press Menu from the channel screen to open Toolbox|' \
+  -e 's|<!-- dev-before-install -->|<p class="fine">If you have an armed APRS schedule, disarm it on the radio before entering update mode. An armed schedule can resume on restart.</p>|' \
   dist/firmware-update/index.html > dist/firmware-update/index.html.tmp
 mv dist/firmware-update/index.html.tmp dist/firmware-update/index.html
 
@@ -44,9 +45,16 @@ cp "$quick_release"/h9-toolbox-{firmware-v0.1.7*.fw,v0.1.7*-far.bin} dist/firmwa
 mkdir -p dist/apps/catalog/0.1.7
 cp "$quick_release"/apps/* dist/apps/catalog/0.1.7/
 
+# Publish the firmware build with experimental 33 cm controls.
+band_release=firmware-research/module-loader/releases/0.1.8
+(cd "$band_release" && sha256sum -c SHA256SUMS)
+cp "$band_release"/h9-toolbox-{firmware-v0.1.8*.fw,v0.1.8*-far.bin} dist/firmware-update/dev/
+mkdir -p dist/apps/catalog/0.1.8
+cp "$band_release"/apps/* dist/apps/catalog/0.1.8/
+
 # Select the matching catalog at the normal App Manager URL.
-test -s dist/apps/catalog/0.1.7/catalog.json
-sed -e 's|id="catalog" class=|id="catalog" data-release-catalog data-next-catalog class=|' \
-  -e 's|hold <b>Back</b> on the radio for the menu|press <b>Menu</b> on the radio with v0.1.7|' \
+test -s dist/apps/catalog/0.1.8/catalog.json
+sed -e 's|id="catalog" class=|id="catalog" data-release-catalog data-next-catalog data-33cm-catalog class=|' \
+  -e 's|hold <b>Back</b> on the radio for the menu|press <b>Menu</b> on the radio with v0.1.8|' \
   dist/apps/index.html > dist/apps/index.html.tmp
 mv dist/apps/index.html.tmp dist/apps/index.html

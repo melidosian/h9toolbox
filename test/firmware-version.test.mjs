@@ -46,7 +46,7 @@ test('the updater retains the pinned v0.1.5 recovery package', async () => {
   assert.equal(BUILD.packageFile, `h9-toolbox-firmware-v${BUILD.version}.fw`);
 });
 
-test('the GitHub Pages build publishes v0.1.7 as the default firmware with its app catalog', async t => {
+test('the GitHub Pages build publishes v0.1.8 as the default firmware with its app catalog', async t => {
   const workflow = await readFile(new URL('.github/workflows/pages.yml', root), 'utf8');
   assert.match(workflow, /run: bash scripts\/build-site\.sh/);
   const site = await mkdtemp(join(tmpdir(), 'h9-pages-'));
@@ -61,14 +61,13 @@ test('the GitHub Pages build publishes v0.1.7 as the default firmware with its a
   }
   await promisify(execFile)('bash', ['scripts/build-site.sh'], { cwd: site });
   const updater = await readFile(join(site, 'dist/firmware-update/index.html'), 'utf8');
-  assert.match(updater, /id="optBuild" data-release-firmware data-next-firmware/);
-  assert.match(updater, /Load H9 Toolbox v0\.1\.7/);
+  assert.match(updater, /id="optBuild" data-release-firmware data-next-firmware data-33cm-firmware/);
+  assert.match(updater, /Load H9 Toolbox v0\.1\.8/);
   assert.doesNotMatch(updater, /data-legacy-dev-firmware|Load H9 Toolbox v0\.1\.5/);
   assert.match(updater, /href="\.\/h9-desktop-backup\.zip"/);
   assert.match(updater, /<input id="exactBackup" type="checkbox" disabled>/);
   assert.match(updater, /<input type="checkbox" id="includeModem" checked>/);
   assert.match(updater, /id="flashMap"/);
-  assert.doesNotMatch(updater, /data-33cm-firmware/);
   assert.doesNotMatch(updater, /id="skipBackup"/);
   const zip = join(site, 'dist/firmware-update/h9-desktop-backup.zip');
   await promisify(execFile)('python3', ['-m', 'zipfile', '-e', zip, site]);
@@ -77,7 +76,7 @@ test('the GitHub Pages build publishes v0.1.7 as the default firmware with its a
   ]);
   assert.match(stdout, /--device.*--output/s);
   const apps = await readFile(join(site, 'dist/apps/index.html'), 'utf8');
-  assert.match(apps, /id="catalog" data-release-catalog data-next-catalog/);
+  assert.match(apps, /id="catalog" data-release-catalog data-next-catalog data-33cm-catalog/);
   assert.doesNotMatch(apps, /data-legacy-dev-catalog/);
   const catalog = JSON.parse(await readFile(join(site, 'dist/apps/catalog/rc5/catalog.json'), 'utf8'));
   assert.ok(catalog.apps.some(app => app.id === 'aprs'));
@@ -118,14 +117,13 @@ test('the GitHub Pages build publishes v0.1.7 as the default firmware with its a
       assert.equal(await sha256(await readFile(join(site, 'dist/apps/catalog', catalogDir, about.file))), about.sha256);
     }
   }
-  await verifyBuilds(availableCombinedBuilds(false));
-  await assert.rejects(stat(join(site, 'dist/apps/catalog/0.1.8')));
-  await assert.rejects(stat(join(site, 'dist/firmware-update/dev/h9-toolbox-firmware-v0.1.8.fw')));
+  assert.match(await readFile(join(site, 'dist/firmware/index.html'), 'utf8'), /V0\.1\.8/);
+  await verifyBuilds(availableCombinedBuilds(true));
   await promisify(execFile)('bash', ['scripts/build-dev-site.sh'], {
     cwd: site, env: { ...process.env, CF_PAGES_COMMIT_SHA: 'test' },
   });
-  assert.match(await readFile(join(site, 'dist/firmware-update/index.html'), 'utf8'), /data-33cm-firmware/);
-  assert.match(await readFile(join(site, 'dist/apps/index.html'), 'utf8'), /data-33cm-catalog/);
+  assert.match(await readFile(join(site, 'dist/firmware-update/index.html'), 'utf8'), /data-33cm-firmware data-legacy-dev-firmware/);
+  assert.match(await readFile(join(site, 'dist/apps/index.html'), 'utf8'), /data-33cm-catalog data-legacy-dev-catalog/);
   assert.match(await readFile(join(site, 'dist/firmware-update/index.html'), 'utf8'), /Load H9 Toolbox v0\.1\.8/);
   assert.match(await readFile(join(site, 'dist/firmware/index.html'), 'utf8'), /V0\.1\.8/);
   await verifyBuilds(availableCombinedBuilds(true).filter(build => build.version === '0.1.8'));

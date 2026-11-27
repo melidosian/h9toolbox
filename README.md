@@ -7,7 +7,7 @@ Free browser tools and custom firmware for the TIDRADIO TD-H9.
 ## H9 Toolbox Firmware
 
 H9 Toolbox Firmware builds on the stock Type-C v1.0.38 firmware. It keeps
-your saved channels and settings and adds an app menu. On v0.1.7, press
+your saved channels and settings and adds an app menu. On v0.1.8, press
 **Menu** from the channel screen to open Toolbox or hold **Back** for Quick
 Change. On v0.1.5, hold **Back** for the app menu.
 
@@ -76,10 +76,10 @@ GitHub Pages builds `main` with `scripts/build-site.sh` for
 [h9toolbox.com](https://h9toolbox.com/). Cloudflare Pages builds `dev` with
 `scripts/build-dev-site.sh` for [dev.h9toolbox.com](https://dev.h9toolbox.com/)
 and records that commit at [`/dev-build.txt`](https://dev.h9toolbox.com/dev-build.txt).
-The production installer defaults to H9 Toolbox Firmware v0.1.7.
-The `dev` deployment stages changes before promotion to `main` and currently
-serves v0.1.8 with experimental 33 cm support. Both deployments serve the main
-firmware, far-flash payload and matching App Manager catalog.
+The production installer defaults to H9 Toolbox Firmware v0.1.8 with
+experimental 33 cm support. The `dev` deployment stages changes before
+promotion to `main`. Both deployments serve the main firmware, far-flash
+payload and matching App Manager catalog.
 
 The production site uses Google Analytics 4 for page views and automatic
 interaction events. The tag runs only on `h9toolbox.com`. H9 Toolbox keeps
