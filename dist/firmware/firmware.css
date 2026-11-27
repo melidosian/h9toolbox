@@ -15,6 +15,14 @@
   text-transform: uppercase;
 }
 
+.firmware-hero h1 em {
+  display: block;
+}
+
+.firmware-hero h1 em span {
+  white-space: nowrap;
+}
+
 .firmware-hero .hero-lead {
   max-width: 575px;
 }
@@ -69,6 +77,58 @@
   line-height: 1.12;
   letter-spacing: -.045em;
 }
+
+.shortcut-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(250px, .8fr);
+  align-items: center;
+  gap: clamp(20px, 5vw, 66px);
+  padding: clamp(18px, 4vw, 44px);
+  border: 1px solid #34565a;
+  border-radius: 16px;
+  background: #142b35;
+  scroll-margin-top: 24px;
+}
+
+.shortcut-copy p {
+  margin: 0;
+  color: #bad0d0;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.shortcut-keys {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+  list-style: none;
+  margin: 19px 0;
+  padding: 0;
+}
+
+.shortcut-keys li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 41px;
+  padding: 5px 0;
+  border-bottom: 1px solid #34565a;
+  color: #e1edeb;
+  font-size: 13px;
+}
+
+.shortcut-section kbd {
+  display: inline-block;
+  min-width: 23px;
+  padding: 1px 4px;
+  border: 1px solid #547571;
+  border-radius: 4px;
+  color: #b7edd0;
+  text-align: center;
+  font: 700 12px/1.5 ui-monospace, monospace;
+}
+
+.toolbox-screen { width: min(100%, 370px); justify-self: end; }
 
 .firmware-section-head {
   display: flex;
@@ -269,13 +329,15 @@
     flex-wrap: wrap;
   }
 
-  .firmware-hero {
+  .firmware-hero,
+  .shortcut-section {
     grid-template-columns: 1fr;
     row-gap: 27px;
   }
 
   .hero-screen {
     width: min(100%, 390px);
+    justify-self: start;
   }
 
   .firmware-tools {

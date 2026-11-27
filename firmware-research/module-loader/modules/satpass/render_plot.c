@@ -36,7 +36,15 @@ unsigned gfx_text(unsigned x, unsigned y, const char *t, unsigned max, unsigned 
 }
 void gfx_wait_release(void) {}
 static unsigned host_keys[8], host_nkeys, host_ikey;
-unsigned gfx_wait_key(void) { return host_ikey < host_nkeys ? host_keys[host_ikey++] : H9_KEY_BACK; }
+static uint32_t host_tick;
+#define TICK host_tick
+unsigned h9_key(void)
+{
+    unsigned i = host_ikey++;
+    if (i / 4 >= host_nkeys) return H9_KEY_BACK;
+    return i % 4 < 2 ? host_keys[i / 4] : H9_KEY_NONE;
+}
+void h9_delay(unsigned ms) { host_tick += ms / 10; }
 
 #define module_main plot_main
 #include "satplot.c"

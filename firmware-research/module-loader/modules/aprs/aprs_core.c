@@ -483,6 +483,7 @@ int aprs_open(void)
         A->mycall[n] = 0;
     }
     A->dirty = 1;
+    A->arrows = (struct h9_key_ramp){0};
     A->last_key = KEY_WAIT;       /* ignore keys until all are released */
     A->held = HELD;
     return fresh;
@@ -502,23 +503,24 @@ unsigned aprs_event(void)
         unsigned key = h9_key(), prev = A->last_key;
         if (prev == KEY_WAIT) { if (key == H9_KEY_NONE) A->last_key = key; continue; }
         A->last_key = key;
+        uint32_t now = TICK;
+        unsigned event_key = h9_key_ramp(&A->arrows, key, now, 1);
         if (key == H9_KEY_MENU) {
-            if (prev != H9_KEY_MENU) { A->held = 0; A->press_tick = TICK; }
+            if (prev != H9_KEY_MENU) { A->held = 0; A->press_tick = now; }
             if (A->held == HELD) continue;                         /* already handled */
             A->held++;
-            if ((uint32_t)(TICK - A->press_tick) >= HOLD_TICKS) {
+            if ((uint32_t)(now - A->press_tick) >= HOLD_TICKS) {
                 A->held = HELD;
                 return EV_HOLD;
             }
             continue;
         }
-        if (prev == H9_KEY_MENU && A->held != HELD && (uint32_t)(TICK - A->press_tick) >= TAP_TICKS)
+        if (prev == H9_KEY_MENU && A->held != HELD && (uint32_t)(now - A->press_tick) >= TAP_TICKS)
             return EV_MENU;                                        /* short press, released */
-        if (key == prev || key == H9_KEY_NONE) continue;
-        if (key == H9_KEY_UP) return EV_UP;
-        if (key == H9_KEY_DOWN) return EV_DOWN;
-        if (key == H9_KEY_BACK) return EV_BACK;
-        if (key >= 2 && key <= 11) return EV_DIGIT + key - 2;
+        if (event_key == H9_KEY_UP) return EV_UP;
+        if (event_key == H9_KEY_DOWN) return EV_DOWN;
+        if (event_key == H9_KEY_BACK) return EV_BACK;
+        if (event_key >= 2 && event_key <= 11) return EV_DIGIT + event_key - 2;
     }
 }
 

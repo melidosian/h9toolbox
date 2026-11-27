@@ -41,6 +41,18 @@ test('lossless archive JSON round-trips every original byte', () => {
   assert.deepEqual(result.edited, original);
 });
 
+test('legacy Dual Watch JSON preserves original bytes and current exports use the corrected field', () => {
+  const original = image();
+  original[0x0cab] &= ~0x04;
+  const archive = exportPortable(original, original, {archive:true});
+  assert.equal(archive.settings.Radio.dualWatchEnabled, 'Off');
+  delete archive.settings.Radio.dualWatchEnabled;
+  archive.settings.Radio.dualWatch = 'On';
+  assert.deepEqual(importPortable(archive).edited, original);
+  archive.settings.Radio.dualWatchEnabled = 'On';
+  assert.equal(importPortable(archive).edited[0x0cab], original[0x0cab] | 0x04);
+});
+
 test('readable JSON setting edits overlay the original image', () => {
   const original = image();
   const json = exportPortable(original);

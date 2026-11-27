@@ -1,8 +1,8 @@
 // H9 Toolbox App Manager: stage module changes, then write one verified
 // bundle to the modules slot over Bluetooth or USB-C (dist/doom/upload.mjs).
 import { readCloneCapabilities } from '../channel-labels.mjs';
-import { crc16 } from '../boot-logo/resource.mjs';
-import { connectBluetooth, connectUsb } from '../boot-logo/radio.mjs?v=usb3';
+import { MissingResourceServiceError, crc16 } from '../boot-logo/resource.mjs?v=20261127status';
+import { connectBluetooth, connectUsb } from '../boot-logo/radio.mjs?v=20261127status';
 import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=usb3';
 import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=usb1';
 import { CHIP_SLOT, buildBundle, checkModule, parseBundle, usage } from './bundle.mjs?v=am3';
@@ -24,7 +24,14 @@ const catalogElement = $('catalog');
 const requestedCatalog = new URLSearchParams(location.search).get('catalog');
 const useLegacyDevCatalog = catalogElement.hasAttribute('data-legacy-dev-catalog') && requestedCatalog === 'smartbeacon';
 const usePreviewCatalog = catalogElement.hasAttribute('data-release-catalog') && !useLegacyDevCatalog;
-const benchCatalog = usePreviewCatalog ? 'rc5' : 'smartbeacon';
+const combinedCatalogs = ['0.1.6', 'rc5', '0.1.7'];
+if (catalogElement.hasAttribute('data-33cm-catalog')) combinedCatalogs.push('0.1.8');
+const defaultCatalog = combinedCatalogs.includes('0.1.8') ? '0.1.8'
+  : catalogElement.hasAttribute('data-next-catalog') ? '0.1.7' : 'rc5';
+const selectedCatalog = combinedCatalogs.includes(requestedCatalog) ? requestedCatalog : defaultCatalog;
+const benchCatalog = usePreviewCatalog ? selectedCatalog === '0.1.6' ? 'rc5' : selectedCatalog : 'smartbeacon';
+const benchVersion = benchCatalog === 'rc5' ? '0.1.6' : benchCatalog;
+const explicitlySelected = combinedCatalogs.includes(requestedCatalog);
 const preferBench = usePreviewCatalog || useLegacyDevCatalog;
 const downloaded = new Map();  // catalog SHA-256 -> modules
 
@@ -99,7 +106,7 @@ function renderCatalog() {
   });
   box.replaceChildren(...cards);
   $('catalogNote').textContent = bench
-    ? `Requires H9 Toolbox Firmware ${usePreviewCatalog ? 'v0.1.6' : 'v0.1.5 (development build)'}.`
+    ? `Requires H9 Toolbox Firmware ${usePreviewCatalog ? `v${benchVersion}` : 'v0.1.5 (development build)'}.`
     : `${catalog.apps.length} app(s) available. Add or remove them here, then Write to radio.`;
 }
 
@@ -281,8 +288,8 @@ async function readRadio() {
 }
 
 async function applyPreviewBundle(opened) {
-  // Apply the bundle automatically only when the URL explicitly selects v0.1.6.
-  if (!usePreviewCatalog || !['0.1.6', 'rc5'].includes(requestedCatalog) ||
+  // Apply the bundle automatically only when the URL explicitly selects that firmware.
+  if (!usePreviewCatalog || !explicitlySelected ||
       catalog?.profile !== 'smartbeacon' || !installed?.length ||
       !menuState(catalog, installed, true).canUpdate) return;
   const radio = opened.radio;
@@ -295,13 +302,13 @@ async function applyPreviewBundle(opened) {
   }
   // RC3 and later use this catalog's firmware menu and module API.
   if (!capabilities.sparseSerialWrites) {
-    log('The connected radio needs compatible firmware for the v0.1.6 app bundle.');
+    log(`The connected radio needs compatible firmware for the v${benchVersion} app bundle.`);
     return;
   }
   const updated = await withUpdatedMenu(catalog, installed, { restoreBench: true });
-  if (session !== opened) throw new Error('Radio disconnected before applying the v0.1.6 app bundle.');
+  if (session !== opened) throw new Error(`Radio disconnected before applying the v${benchVersion} app bundle.`);
   staged = updated;
-  log('Applying the v0.1.6 app bundle to your installed apps.');
+  log(`Applying the v${benchVersion} app bundle to your installed apps.`);
   await writeBundle();
 }
 
@@ -312,6 +319,7 @@ async function readFile(file) {
 
 const startConnection = connect => run(async () => {
   $('result').textContent = '';
+  $('firmwareRequired').hidden = true;
   connecting = true; render();
   let opened;
   try {
@@ -338,6 +346,11 @@ const startConnection = connect => run(async () => {
     await opened?.disconnect();
     if (!opened && error.name === 'NotFoundError') {
       log('No radio selected.');
+      return;
+    }
+    if (error instanceof MissingResourceServiceError) {
+      log(error.message, 'error');
+      $('firmwareRequired').hidden = false;
       return;
     }
     throw error;

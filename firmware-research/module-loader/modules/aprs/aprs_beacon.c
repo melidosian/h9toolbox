@@ -342,6 +342,7 @@ static int start_background(const struct h9_api *api, struct screen *s)
 unsigned module_main(const struct h9_api *api, unsigned self)
 {
     struct screen s;
+    struct h9_key_ramp keys = {0};
     unsigned key_now = BKEY_WAIT, since = 0, handled = 0, second = 0xFFFFu, quiet_until = 0;
     (void)self;
     if (api->version < 3) return 0;
@@ -362,6 +363,9 @@ unsigned module_main(const struct h9_api *api, unsigned self)
         /* Keys. The keypad reads Menu for a few ms when the speaker amp starts and after a transmit, so: taps count
          * after BTAP_TICKS, starting and stopping needs a BHOLD_TICKS hold, and keys are ignored for a moment after a TX. */
         unsigned key = h9_key(), tick = TICK;
+        unsigned arrow = h9_key_ramp(&keys, key_now == BKEY_WAIT || tick < quiet_until ? 0 : key, tick, 1);
+        if (arrow == H9_KEY_UP) { s.sel = s.sel ? s.sel - 1 : ROWS - 1; redraw = 1; }
+        else if (arrow == H9_KEY_DOWN) { s.sel = s.sel + 1 < ROWS ? s.sel + 1 : 0; redraw = 1; }
         if (key_now == BKEY_WAIT) { if (key == H9_KEY_NONE) key_now = key; }          /* wait for every key to be released */
         else if (tick < quiet_until) { key_now = BKEY_WAIT; }
         else if (key != key_now) {
@@ -373,9 +377,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
                 redraw = 1;
             }
             key_now = key; since = tick; handled = 0;
-            if (key == H9_KEY_UP) { s.sel = s.sel ? s.sel - 1 : ROWS - 1; redraw = 1; }
-            else if (key == H9_KEY_DOWN) { s.sel = s.sel + 1 < ROWS ? s.sel + 1 : 0; redraw = 1; }
-            else if (key == H9_KEY_5) {
+            if (key == H9_KEY_5) {
                 note(&s, transmit(&s, 0));
                 quiet_until = TICK + QUIET_TICKS;
                 redraw = 1;

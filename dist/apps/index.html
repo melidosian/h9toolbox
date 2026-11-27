@@ -44,6 +44,7 @@
         <button id="connectUsb">Connect USB-C</button>
         <button id="disconnect" disabled>Disconnect</button>
         <button id="reload" disabled>Read from radio</button> <span id="state" class="note" role="status">Disconnected</span>
+        <p id="firmwareRequired" class="warn" role="alert" hidden><strong>H9 Toolbox app service unavailable.</strong> Stock firmware can’t install Toolbox apps. If your radio is running stock firmware, <a href="../firmware-update/">install H9 Toolbox Firmware</a>, then restart and reconnect. If Toolbox is already installed, power-cycle the radio and try again.</p>
         <p class="note">For Bluetooth, turn on the radio’s Bluetooth programming mode, then choose the TD-H9 in the browser.</p>
         <p class="note">For experimental USB-C, connect a data cable with the radio on its normal channel screen. Choose its serial port if the browser asks.</p>
       </section>
@@ -104,6 +105,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The App Manager and its apps have been tested on one TD-H9. APRS SEND transmits: you need an amateur radio licence.</p></footer>
   </div>
-  <script type="module" src="app.mjs?v=20261121release"></script>
+  <script type="module" src="app.mjs?v=20261127status"></script>
 </body>
 </html>

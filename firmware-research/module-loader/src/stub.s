@@ -4,7 +4,8 @@
  * game used (app+0xA77F0, before the S2 tables at app+0xA7E50) and is entered
  * from the same my_app loop hook (app+0x088906) Brick Breaker's launcher used.
  *
- * Hold Back about 0.4 s (40 stock hold ticks, as Brick Breaker):
+ * Hold Back about 0.4 s (40 stock hold ticks, as Brick Breaker).
+ * Unified builds handle Back through stock keypad dispatch. Other builds use the app launcher:
  *   1. ml_check validates the module bundle on the resource chip while the
  *      stock my_app frame is still intact. No valid bundle: the stock loop
  *      continues as if nothing happened (the radio stays usable).
@@ -42,10 +43,14 @@
     .globl ml_hotkey
 ml_hotkey:
     [--sp] = {rets, r4}
+    .ifdef ML_UNIFIED_MENU
+    call ml_33cm_restore
+    .endif
     .ifdef ML_RUNTIME_BOOT
     r3 = ML_RUNTIME_BOOT
     call r3
     .endif
+    .ifndef ML_UNIFIED_MENU
     r3 = 0x0000c3af
     r0 = b[r3+0] (u)
     if (r0 != 15) goto ml_back_released
@@ -83,6 +88,7 @@ ml_arm_back_hold:
 ml_back_released:
     r0 = 0
     [sp+76] = r0
+    .endif
 
 ml_stock_loop_call:
     call res_tick
@@ -320,7 +326,9 @@ ml_main:
     [r0+0] = r1
     call ml_check
     r10 = r0
+    .ifndef ML_UNIFIED_MENU
     if (r10 == 0) goto ml_main_return
+    .endif
     r11 = 0
 ml_run:
     .ifdef ML_UNIFIED_MENU
@@ -336,6 +344,7 @@ ml_run:
 ml_run_loaded:
     r0 = ml_api
     r1 = r11
+ml_call_loaded:
     call r3
     if (r11 != 0) goto ml_module_done
     /* The menu returned: 0 = back to the radio, else the module to run. */
@@ -357,6 +366,55 @@ ml_main_return:
     {pc, r14-r4} = [sp++]
 
     .ifdef ML_UNIFIED_MENU
+/* Translate hold-# before the native dispatcher handles it. */
+    .globl ml_quick_dispatch
+ml_quick_dispatch:
+    r3 = 0x0000c3b4
+    r0 = b[r3+0] (u)
+    if (r0 == 0) goto ml_stock_dispatch
+    r0 = b[r3+1] (u)
+    if (r0 == 35) goto ml_quick_scan
+ml_stock_dispatch:
+    /* Replay the four bytes replaced at app+0x818F0. */
+    [--sp] = {rets, r15-r4}
+    sp += -56
+    r3 = ML_STOCK_DISPATCH
+    goto r3
+
+ml_quick_scan:
+    r2 = 0x00011ab0
+    r0 = b[r2+0] (u)
+    if (r0 > 1) goto ml_stock_dispatch
+    r0 = b[r2+22] (u)
+    if (r0 != 3) goto ml_stock_dispatch
+    r0 = b[r2+18] (u)
+    if (r0 != 0) goto ml_stock_dispatch
+    r0 = b[r2+75] (u)
+    if (r0 != 0) goto ml_stock_dispatch
+    r0 = 24
+    b[r3+1] = r0
+    goto ml_stock_dispatch
+
+/* The native dispatcher has selected Back's GNSS action. It still owns
+ * the queue and its current event. Keep GNSS as the fallback. */
+    .globl ml_quick_back
+ml_quick_back:
+    [--sp] = {rets, r14-r4}
+    r0 = ML_UNIFIED_CPU
+    r1 = ML_UNIFIED_BYTES
+    call ml_crc
+    r1 = ML_UNIFIED_CRC
+    if (r0 != r1) goto ml_quick_gnss
+    r0 = ml_api
+    r3 = ML_QUICK_ENTRY
+    call r3
+    if (r0 == 0) goto ml_quick_gnss
+    {pc, r14-r4} = [sp++]
+ml_quick_gnss:
+    {rets, r14-r4} = [sp++]
+    r3 = ML_STOCK_GNSS
+    goto r3
+
 ml_unified_menu:
     r0 = ML_UNIFIED_CPU
     r1 = ML_UNIFIED_BYTES
@@ -364,7 +422,10 @@ ml_unified_menu:
     r1 = ML_UNIFIED_CRC
     if (r0 != r1) goto ml_unified_recovery
     r3 = ML_UNIFIED_CPU
-    goto ml_run_loaded
+    r0 = ml_api
+    /* An empty or invalid bundle gives the built-in menu an app count of zero. */
+    r1 = r10
+    goto ml_call_loaded
 ml_unified_recovery:
     r3 = 0x02000d68
     call r3
@@ -659,6 +720,34 @@ ml_aprs_clear:
     if (r1 != r3) goto ml_aprs_clear
     r3 = 0x01e516c6
     goto r3
+
+    .ifdef ML_UNIFIED_MENU
+/* First stock task loop, after VM init. A missing or invalid record is Off. */
+ml_33cm_restore:
+    r4 = RADIO_33CM_STATE
+    r0 = [r4+0]
+    if (r0 != 0) goto ml_33cm_restored
+    [--sp] = {rets, r14-r4}
+    sp += -4
+    r0 = RADIO_33CM_VM_KEY
+    r1 = sp + 0
+    r2 = 4
+    r3 = 0x01e6285e
+    call r3
+    r3 = RADIO_33CM_OFF
+    if (r0 != 4) goto ml_33cm_cache
+    r1 = [sp+0]
+    r2 = RADIO_33CM_MAGIC
+    if (r1 != r2) goto ml_33cm_cache
+    r3 = r2
+ml_33cm_cache:
+    r4 = RADIO_33CM_STATE
+    [r4+0] = r3
+    sp += 4
+    {pc, r14-r4} = [sp++]
+ml_33cm_restored:
+    rts
+    .endif
 
 /* ---- what a module gets in r0 ---------------------------------------- */
     .balign 4

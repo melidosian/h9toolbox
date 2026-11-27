@@ -5,7 +5,8 @@ import { cp, mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { BUILD } from '../dist/firmware-update/firmware.mjs';
+import { BUILD, decodePackage, sha256 } from '../dist/firmware-update/firmware.mjs';
+import { availableCombinedBuilds, selectCombinedBuild } from '../dist/firmware-update/combined-builds.mjs';
 
 const root = new URL('../', import.meta.url);
 function numericVersion(version) {
@@ -13,6 +14,20 @@ function numericVersion(version) {
   const parts = version.split('.').map(Number);
   assert.ok(parts.every(part => part < 256));
   return parts.reduce((value, part) => value * 256 + part, 0);
+}
+
+function nativeMenuWrapper(image) {
+  const start = 0x5100 + 0x6d326;
+  const aligned = start & ~31;
+  const decoded = Buffer.from(image.subarray(aligned, (start + 104 + 31) & ~31));
+  for (let block = 0; block < decoded.length; block += 32) {
+    let key = (0xf181 ^ ((aligned + block - 0x5000) >> 2)) & 0xffff;
+    for (let i = block; i < block + 32; i++) {
+      decoded[i] ^= key & 255;
+      key = ((key << 1) ^ ((key & 0x8000) ? 0x1021 : 0)) & 0xffff;
+    }
+  }
+  return decoded.subarray(start - aligned, start - aligned + 104);
 }
 
 test('the updater retains the pinned v0.1.5 recovery package', async () => {
@@ -25,18 +40,20 @@ test('the updater retains the pinned v0.1.5 recovery package', async () => {
     assert.ok(Number(candidate) < 256);
     assert.ok(publishedVersion < loaderVersion);
   } else {
-    assert.equal(BUILD.version, text);
+    assert.ok(publishedVersion <= loaderVersion);
   }
   assert.ok(BUILD.label.endsWith(`v${BUILD.version}`), 'the label names the published version');
   assert.equal(BUILD.packageFile, `h9-toolbox-firmware-v${BUILD.version}.fw`);
 });
 
-test('the GitHub Pages build publishes v0.1.6 as the default firmware with its app catalog', async t => {
+test('the GitHub Pages build publishes v0.1.7 as the default firmware with its app catalog', async t => {
   const workflow = await readFile(new URL('.github/workflows/pages.yml', root), 'utf8');
   assert.match(workflow, /run: bash scripts\/build-site\.sh/);
   const site = await mkdtemp(join(tmpdir(), 'h9-pages-'));
   t.after(() => rm(site, { recursive: true, force: true }));
-  for (const dir of ['dist', 'scripts', 'prototypes/kiss-tnc',
+  for (const dir of ['dist', 'scripts', 'prototypes/kiss-tnc', 'prototypes/aprs-update',
+    'firmware-research/h9-flasher',
+    'firmware-research/kiss-tnc', 'firmware-research/module-loader/releases',
     'firmware-research/module-loader/smartbeacon-release',
     'firmware-research/module-loader/combined-preview-release']) {
     await mkdir(join(site, dir), { recursive: true });
@@ -44,15 +61,81 @@ test('the GitHub Pages build publishes v0.1.6 as the default firmware with its a
   }
   await promisify(execFile)('bash', ['scripts/build-site.sh'], { cwd: site });
   const updater = await readFile(join(site, 'dist/firmware-update/index.html'), 'utf8');
-  assert.match(updater, /id="optBuild" data-release-firmware/);
-  assert.match(updater, /Load H9 Toolbox v0\.1\.6/);
+  assert.match(updater, /id="optBuild" data-release-firmware data-next-firmware/);
+  assert.match(updater, /Load H9 Toolbox v0\.1\.7/);
   assert.doesNotMatch(updater, /data-legacy-dev-firmware|Load H9 Toolbox v0\.1\.5/);
+  assert.match(updater, /href="\.\/h9-desktop-backup\.zip"/);
+  assert.match(updater, /<input id="exactBackup" type="checkbox" disabled>/);
+  assert.match(updater, /<input type="checkbox" id="includeModem" checked>/);
+  assert.match(updater, /id="flashMap"/);
+  assert.doesNotMatch(updater, /data-33cm-firmware/);
+  assert.doesNotMatch(updater, /id="skipBackup"/);
+  const zip = join(site, 'dist/firmware-update/h9-desktop-backup.zip');
+  await promisify(execFile)('python3', ['-m', 'zipfile', '-e', zip, site]);
+  const { stdout } = await promisify(execFile)('python3', [
+    join(site, 'h9-desktop-backup/h9_flasher.py'), 'recovery-backup', '--help',
+  ]);
+  assert.match(stdout, /--device.*--output/s);
   const apps = await readFile(join(site, 'dist/apps/index.html'), 'utf8');
-  assert.match(apps, /id="catalog" data-release-catalog/);
+  assert.match(apps, /id="catalog" data-release-catalog data-next-catalog/);
   assert.doesNotMatch(apps, /data-legacy-dev-catalog/);
   const catalog = JSON.parse(await readFile(join(site, 'dist/apps/catalog/rc5/catalog.json'), 'utf8'));
   assert.ok(catalog.apps.some(app => app.id === 'aprs'));
-  for (const file of ['h9-toolbox-firmware-v0.1.6-rc.5.fw', 'h9-toolbox-v0.1.6-rc.5-far.bin']) {
+  for (const file of ['h9-toolbox-firmware-v0.1.6-rc.4.fw', 'h9-toolbox-v0.1.6-rc.4-far.bin',
+    'h9-toolbox-firmware-v0.1.6-rc.5.fw', 'h9-toolbox-v0.1.6-rc.5-far.bin']) {
     assert.ok((await stat(join(site, 'dist/firmware-update/dev', file))).size > 0);
   }
+  const farWithout = await readFile(join(site, 'dist/firmware-update/dev/h9-toolbox-v0.1.6-rc.4-far.bin'));
+  const farWith = await readFile(join(site, 'dist/firmware-update/dev/h9-toolbox-v0.1.6-rc.5-far.bin'));
+  const modemStart = farWith.findIndex((byte, i) => byte !== farWithout[i]);
+  const modemEnd = 0xfa000 - 0xea000;
+  assert.ok(modemStart >= 0xf7a00 - 0xea000 && modemStart < modemEnd);
+  assert.equal(farWithout.length, farWith.length);
+  assert.deepEqual(farWithout.subarray(0, modemStart), farWith.subarray(0, modemStart));
+  assert.ok(farWithout.subarray(modemStart, modemEnd).every(byte => byte === 0xff));
+  assert.ok(farWith.subarray(modemStart, modemEnd).some(byte => byte !== 0xff));
+  assert.deepEqual(farWithout.subarray(modemEnd), farWith.subarray(modemEnd));
+
+  async function verifyBuilds(builds) {
+    for (const build of builds) {
+      const pkg = new Uint8Array(await readFile(join(site, 'dist/firmware-update', build.file)));
+      const far = await readFile(join(site, 'dist/firmware-update', build.farFile));
+      assert.equal(await sha256(pkg), build.packageSha256);
+      const image = decodePackage(pkg);
+      assert.equal(await sha256(image), build.imageSha256);
+      // Stock view reset, draw callback and tail call from the white-screen fix.
+      assert.ok(nativeMenuWrapper(image).includes(Buffer.from('c4ffd01a0100402052ee4603c0ff445de501d2ec4d003404d000', 'hex')), build.id);
+      assert.equal(far.length, 0x12000);
+      assert.equal(await sha256(far), build.farSha256);
+      const catalogDir = build.catalog === '0.1.6' ? 'rc5' : build.catalog;
+      const matching = JSON.parse(await readFile(join(site, 'dist/apps/catalog', catalogDir, 'catalog.json'), 'utf8'));
+      assert.ok(matching.apps.some(app => app.id === 'aprs'));
+      assert.match(matching.menu.notes.join(' '), new RegExp(build.version.replaceAll('.', '\\.')));
+      for (const item of [matching.menu, ...matching.apps])
+        assert.equal(await sha256(await readFile(join(site, 'dist/apps/catalog', catalogDir, item.file))), item.sha256);
+      const about = matching.apps.find(app => app.id === 'about');
+      assert.equal(about.version, '1.1');
+      assert.equal(await sha256(await readFile(join(site, 'dist/apps/catalog', catalogDir, about.file))), about.sha256);
+    }
+  }
+  await verifyBuilds(availableCombinedBuilds(false));
+  await assert.rejects(stat(join(site, 'dist/apps/catalog/0.1.8')));
+  await assert.rejects(stat(join(site, 'dist/firmware-update/dev/h9-toolbox-firmware-v0.1.8.fw')));
+  await promisify(execFile)('bash', ['scripts/build-dev-site.sh'], {
+    cwd: site, env: { ...process.env, CF_PAGES_COMMIT_SHA: 'test' },
+  });
+  assert.match(await readFile(join(site, 'dist/firmware-update/index.html'), 'utf8'), /data-33cm-firmware/);
+  assert.match(await readFile(join(site, 'dist/apps/index.html'), 'utf8'), /data-33cm-catalog/);
+  assert.match(await readFile(join(site, 'dist/firmware-update/index.html'), 'utf8'), /Load H9 Toolbox v0\.1\.8/);
+  assert.match(await readFile(join(site, 'dist/firmware/index.html'), 'utf8'), /V0\.1\.8/);
+  await verifyBuilds(availableCombinedBuilds(true).filter(build => build.version === '0.1.8'));
+});
+
+test('installer options resolve separately from the modem updater and require release support for 33 cm', () => {
+  assert.equal(selectCombinedBuild().id, '0.1.6-rc.5');
+  assert.equal(selectCombinedBuild({ quickControls: true }).id, '0.1.7');
+  assert.equal(selectCombinedBuild({ quickControls: true, includeModem: false }).id, '0.1.7-no-modem');
+  assert.equal(selectCombinedBuild({ quickControls: true, band33cm: true, allow33cm: true, includeModem: false }).id, '0.1.8-no-modem');
+  assert.throws(() => selectCombinedBuild({ quickControls: true, band33cm: true }), /unavailable in this firmware release/);
+  assert.throws(() => selectCombinedBuild({ band33cm: true, allow33cm: true }), /Quick Change/);
 });

@@ -135,14 +135,14 @@
 
 .browser-check.unavailable { border-color: #8b6743; background: #382c25; color: #ffe0b1; }
 
-.guide-help, .restore-options {
+.guide-help, .restore-options, .stock-install {
   margin-top: 15px;
   border: 1px solid #38565c;
   border-radius: 8px;
   background: #10212c;
 }
 
-.guide-help summary, .restore-options summary, .guide-activity summary {
+.guide-help summary, .restore-options summary, .guide-activity summary, .stock-install summary {
   padding: 11px 14px;
   color: #bfdfd6;
   font-size: 13px;
@@ -150,7 +150,7 @@
   cursor: pointer;
 }
 
-.guide-help[open] summary, .restore-options[open] summary { color: #e0f3eb; }
+.guide-help[open] summary, .restore-options[open] summary, .stock-install[open] summary { color: #e0f3eb; }
 .guide-help p, .restore-options p {
   margin: 0;
   padding: 0 14px 12px;
@@ -161,26 +161,32 @@
 
 .guide-help a:not(.button), .guide-slide p a:not(.button) { color: #a6e7c5; }
 
-.file-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.hosted-package {
+.hosted-package, .stock-install-content {
   display: grid;
   align-content: start;
   gap: 9px;
   min-width: 0;
+}
+
+.hosted-package {
+  margin-top: 14px;
   padding: 15px;
   border: 1px solid #416168;
   border-radius: 9px;
   background: #152c36;
 }
 
-.hosted-package strong { font-size: 15px; }
-.hosted-package small { color: #b0c6c8; font-size: 13px; line-height: 1.5; }
-.hosted-package.selected { border-color: #8bdcb6; background: #173a30; }
+@media (min-width: 621px) {
+  .hosted-package { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+  .hosted-package > :not(fieldset) { grid-column: 1 / -1; }
+  .hosted-package > fieldset[hidden] + fieldset { grid-column: 1 / -1; }
+}
+
+:is(.hosted-package, .stock-install-content) strong { font-size: 15px; }
+:is(.hosted-package, .stock-install-content) small { color: #b0c6c8; font-size: 13px; line-height: 1.5; }
+:is(.hosted-package, .stock-install).selected { border-color: #8bdcb6; background: #173a30; }
+.stock-install-content { padding: 4px 14px 14px; }
+.stock-install summary .selected-badge { margin-inline-start: 6px; }
 
 .selected-badge {
   order: -1;
@@ -193,11 +199,11 @@
   font-weight: 700;
 }
 
-.hosted-package .button { justify-self: start; }
-.file-grid label, .backup-file { display: grid; gap: 7px; color: #bfdfd6; font-size: 12px; font-weight: 700; }
+:is(.hosted-package, .stock-install-content) .button { justify-self: start; }
+:is(.hosted-package, .stock-install-content) label, .backup-file { display: grid; gap: 7px; color: #bfdfd6; font-size: 12px; font-weight: 700; }
 .backup-file { padding: 0 14px 14px; }
 
-.file-grid input, .backup-file input {
+:is(.hosted-package, .stock-install-content) input, .backup-file input {
   width: 100%;
   min-width: 0;
   padding: 8px;
@@ -236,7 +242,7 @@
   .firmware-main .intro { padding: 32px 0 20px; }
   .guide-steps { padding: 12px 6px; gap: 3px; }
   .guide-steps li { flex-direction: column; gap: 4px; font-size: clamp(9px, 2.5vw, 12px); }
-  .file-grid, .prepare-list { grid-template-columns: 1fr; }
+  .prepare-list { grid-template-columns: 1fr; }
   .prepare-list li { gap: 2px; padding: 9px 11px; }
 }
 
@@ -258,3 +264,61 @@
 .recovery-guide .card a { color: #a6e7c5; }
 
 .restore-options .controls { padding: 0 14px 14px; }
+
+.build-profiles, .firmware-features {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-inline-size: 0;
+  margin: 4px 0;
+  padding: 8px 0 2px;
+  border: 0;
+  border-top: 1px solid #416168;
+}
+.build-profiles[hidden] { display: none; }
+:is(.build-profiles, .firmware-features) legend { padding: 0 8px 0 0; color: #bfdfd6; font-size: 12px; font-weight: 700; }
+:is(.build-profiles, .firmware-features) label { grid-template-columns: 15px minmax(0, 1fr); align-items: start; }
+:is(.build-profiles, .firmware-features) input { padding: 0; margin: 2px 0; accent-color: #9ce8c1; }
+:is(.build-profiles, .firmware-features) small { display: block; font-size: 11px; font-weight: 400; }
+.firmware-features h3 { margin: 0 0 6px; font-size: 12px; color: #bfdfd6; }
+.firmware-features ul { margin: 0; padding-left: 17px; font-size: 13px; }
+.firmware-features label + label { margin-top: 8px; }
+
+.flash-map {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #416168;
+  border-radius: 10px;
+  background: #10212b;
+}
+.flash-map-heading { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; align-items: baseline; }
+.flash-map-heading h3 { margin: 0; font-size: 16px; }
+.flash-map-heading span, #flashMapSummary { color: #b8d0d2; font-size: 12px; }
+#flashMapSummary { margin: 12px 0 0; }
+.flash-legend {
+  display: flex;
+  flex-wrap: wrap;
+  list-style: none;
+  gap: 6px 12px;
+  margin: 12px 0;
+  padding: 0;
+  color: #dce8e8;
+  font-size: 11px;
+}
+.flash-legend li { display: inline-flex; gap: 5px; align-items: center; }
+.flash-legend li::before { content: ''; inline-size: 10px; block-size: 10px; border-radius: 2px; background: var(--block-color); }
+.flash-region { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: start; gap: 8px; margin-top: 8px; }
+.flash-region strong { color: #bfd6d7; font-size: 11px; font-weight: 600; line-height: 14px; }
+.flash-cells { display: grid; grid-template-columns: repeat(32, minmax(0, 1fr)); gap: 3px; }
+.flash-block { height: 10px; border-radius: 2px; background: var(--block-color); }
+.flash-map [data-state="planned"] { --block-color: #74aefa; }
+.flash-map [data-state="writing"] { --block-color: #ffca68; }
+.flash-map [data-state="verified"] { --block-color: #7bdcaf; }
+.flash-map [data-state="untouched"] { --block-color: #5c7380; }
+.flash-map [data-state="protected"] { --block-color: repeating-linear-gradient(135deg, #425764 0 2px, #283b47 2px 4px); }
+.flash-map [data-state="interrupted"] { --block-color: #f3928e; }
+@media (max-width: 535px) {
+  .flash-region { grid-template-columns: 1fr; gap: 4px; }
+  .flash-cells { gap: 2px; }
+  .flash-map { padding: 12px; }
+}

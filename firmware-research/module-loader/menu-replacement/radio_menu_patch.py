@@ -3,8 +3,8 @@ from hashlib import sha256
 
 STOCK_SHA256 = "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3"
 ROOT_START, ROOT_END = 0x6D326, 0x6D38E
-ROOT_POINTER = 0xB6BC4
 IMAGE_BASE = 0x01E00100
+HOME_DRAW = 0x55C44
 REMOVED_UI = (
     ("list builder", 0x6811E, 0x682CC),
     ("root", ROOT_START, ROOT_END),
@@ -12,7 +12,7 @@ REMOVED_UI = (
     ("setting getter", 0x6F358, 0x70650),
     ("setting saver", 0x73496, 0x74C32),
 )
-UI_POINTERS = ((0xB6BC4, ROOT_START), (0xB6C00, 0x6ECAE),
+UI_POINTERS = ((0xB6B88, HOME_DRAW), (0xB6BC4, ROOT_START), (0xB6C00, 0x6ECAE),
                (0xB6C3C, 0x6F358), (0xB6C60, 0x73496))
 
 
@@ -31,6 +31,9 @@ def apply(stock: bytes, image: bytearray, entry: int, crc_entry: int,
     for name, start, end in REMOVED_UI:
         if image[start:end] != expected[start:end]:
             raise ValueError(f"Native {name} replacement overlaps an existing patch")
+    # The stock dispatcher sets the current view and its draw callback before
+    # calling the root. Use the same view/callback update as the stock
+    # dispatcher (app+0x82466–0x82480), then draw view zero (home).
     code = assembler(f"""
         [--sp] = {{rets, r4}}
         r0 = {far_address:#x}
@@ -41,7 +44,13 @@ def apply(stock: bytes, image: bytearray, entry: int, crc_entry: int,
         if (r0 != r1) goto menu_recovery
         r4 = {entry:#x}
         call r4
-        {{pc, r4}} = [sp++]
+        r4 = 0x11ad0
+        r0 = 0
+        b[r4+54] = r0
+        r0 = {IMAGE_BASE + HOME_DRAW:#x}
+        [r4+524] = r0
+        {{rets, r4}} = [sp++]
+        goto r0
 menu_recovery:
         r4 = 0x02000d68
         call r4

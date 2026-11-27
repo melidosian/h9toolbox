@@ -1,3 +1,4 @@
+#include "key_ramp.h"
 /* The resident build uses the grouped list and keypad flow of Limehawk's
  * TD-H3 menu. The unified build organizes radio and Toolbox rows in folders. */
 #include "app_theme.h"
@@ -24,7 +25,6 @@ enum { RADIO_FIRST = GROUPS, RADIO_GROUPS = GROUPS + RADIO_SETTING_GROUP_COUNT }
 #define RADIO_ROWS (RADIO_SETTING_COUNT + RADIO_ACTION_COUNT + H9_MSG_DRAFT)
 #define MENU_GROUPS RADIO_GROUPS
 enum { MENU_HOME = MENU_GROUPS, RADIO_FOLDER, APRS_FOLDER, FOLDER_COUNT };
-enum { REPEAT_DELAY = 35, REPEAT_PERIOD = 10 };
 enum { MENU_ACTION = 1, APRS_CONTROL, APRS_MESSAGE };
 enum { APRS_CONFIG_PAGE = RADIO_FIRST + RADIO_GROUP_APRS_IDENTITY,
        APRS_BEACON_PAGE = RADIO_FIRST + RADIO_GROUP_APRS_BEACON };
@@ -189,6 +189,13 @@ static void add_option(struct menu_list *list, unsigned group, unsigned index)
 #ifdef H9_RADIO_SETTINGS
 static int same_text(const char *a, const char *b)
 { while (*a && *a == *b) { ++a; ++b; } return *a == *b; }
+const struct radio_setting *radio_setting_by_id(const char *id)
+{
+    for (unsigned i = 0; i < RADIO_SETTING_COUNT; ++i)
+        if (same_text(id, radio_settings[i].id)) return &radio_settings[i];
+    return 0;
+}
+
 static const char *const message_labels[] = { "NEW MESSAGE", "INBOX", "SENT", "DRAFTS" };
 static const char *const message_help[] = {
     "Compose an APRS message", "Read received messages", "Read sent messages", "Open the APRS draft"
@@ -408,17 +415,6 @@ static uint16_t saved_menu_color(void)
         ? menu_color(radio_value(&edit)) : UI_ACCENT;
 }
 
-static unsigned luma(uint16_t rgb)
-{
-    return 26 * (rgb >> 11) + 26 * ((rgb >> 5) & 63) + 10 * (rgb & 31);
-}
-
-static uint16_t menu_ink(uint16_t accent)
-{
-    /* Lighten dark colors for small text on the black LCD background. */
-    return luma(accent) < 1050 ? ((accent >> 1) & 0x7BEF) + 0x8410 : accent;
-}
-
 static int previewing_color(const struct menu_state *state)
 {
     return state->editing && state->radio_draft.setting == &radio_settings[RADIO_MENU_COLOR];
@@ -518,7 +514,7 @@ static const char *draw_row(const struct h9_api *api, const struct menu_list *li
     unsigned selected = item == state->selected;
 #ifdef H9_RADIO_SETTINGS
     uint16_t bg = selected ? (state->editing && !previewing_color(state) ? UI_EDIT : accent) : UI_BG;
-    uint16_t label_ink = selected ? (luma(bg) >= 820 ? UI_BG : UI_TEXT) : UI_TEXT;
+    uint16_t label_ink = selected ? (menu_luma(bg) >= 820 ? UI_BG : UI_TEXT) : UI_TEXT;
     uint16_t value_ink = selected ? label_ink : menu_ink(accent);
 #else
     uint16_t bg = selected ? (state->editing ? UI_EDIT : UI_ACCENT) : UI_BG;
@@ -642,6 +638,11 @@ static void select_number(struct menu_state *state, unsigned count, unsigned num
 }
 
 #ifdef H9_RADIO_SETTINGS
+void toolbox_open_radio_settings(void)
+{
+    MENU_SELECTION = MENU_POSITION_MAGIC | RADIO_FOLDER << 8;
+}
+
 void toolbox_open_messages(void)
 {
     MENU_SELECTION = MENU_POSITION_MAGIC | MESSAGES << 8;
@@ -677,14 +678,12 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
 #ifdef H9_RADIO_SETTINGS
     struct menu_view view;
     unsigned saved_page = (saved_row >> 8) & 0xffu;
-    if ((saved_row & (0xffff0000u & ~H9_MSG_ROUTE_MASK)) == (MENU_POSITION_MAGIC & ~H9_MSG_ROUTE_MASK) && saved_page < FOLDER_COUNT &&
+    if ((saved_row & (0xffff0000u & ~H9_MSG_ROUTE_MASK)) == (MENU_POSITION_MAGIC & ~H9_MSG_ROUTE_MASK) && saved_page < FOLDER_COUNT && saved_page != CHANNELS &&
         (saved_page >= MENU_GROUPS || list->sections[saved_page].count))
         menu_open(list, &state, &view, saved_page, saved_row & 0xffu);
     else menu_open(list, &state, &view, MENU_HOME, 0);
     MENU_SELECTION = menu_position(&state);
     state.accent = saved_menu_color();
-    uint32_t last_repeat = 0;
-    unsigned repeat_wait = REPEAT_DELAY;
 #define DRAW_MENU() draw_menu(loader, list, &state, &view)
 #define ITEM_COUNT view.count
 #define SAVE_POSITION() (MENU_SELECTION = menu_position(&state))
@@ -702,7 +701,7 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
     DRAW_MENU();
     gfx_wait_release();
     uint32_t last_key = MENU_TICK;
-    unsigned sample = H9_KEY_NONE, stable = H9_KEY_NONE;
+    struct h9_key_ramp input = {0};
     for (;;) {
         h9_delay(2);
         uint32_t now = MENU_TICK;
@@ -726,21 +725,8 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
             return 0;
         }
 
-        unsigned key = h9_key();
-        int pressed = key == sample && key != stable;
-        if (pressed) stable = key;
-#ifdef H9_RADIO_SETTINGS
-        if (pressed) {
-            last_repeat = now;
-            repeat_wait = REPEAT_DELAY;
-        } else if (key == stable && !state.editing && (key == H9_KEY_UP || key == H9_KEY_DOWN) &&
-                   now - last_repeat >= repeat_wait) {
-            last_repeat = now;
-            repeat_wait = REPEAT_PERIOD;
-            pressed = 1;
-        }
-#endif
-        if (pressed && key != H9_KEY_NONE) {
+        unsigned key = h9_key_ramp(&input, h9_key(), now, !state.editing);
+        if (key) {
             last_key = now;
             redraw = 1;
             state.notice = 0;
@@ -792,11 +778,13 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
 #ifdef H9_RADIO_SETTINGS
                 struct menu_option option = { 0 };
                 if (state.page < MENU_GROUPS) option = menu_option(list, state.page, state.selected);
+                else if (key == H9_KEY_MENU && view.children[state.selected] == CHANNELS)
+                    option = menu_option(list, CHANNELS, 0);
 #else
                 struct menu_option option = list->options[state.selected];
 #endif
 #ifdef H9_RADIO_SETTINGS
-                if (key == H9_KEY_MENU && state.page >= MENU_GROUPS)
+                if (key == H9_KEY_MENU && state.page >= MENU_GROUPS && !option.action)
                     menu_open(list, &state, &view, view.children[state.selected], 0);
                 else
 #endif
@@ -904,7 +892,7 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
                         }
                     } else if (option.action == MENU_ACTION) {
                         if (apply_radio(loader, &state)) {
-                            int result = radio_action(loader, option.index);
+                            int result = radio_action(loader, option.index, state.accent);
                             state.radio_changed |= result == -1;
                             if (result == -1) {
                                 state.accent = saved_menu_color();
@@ -914,7 +902,7 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
                             state.notice = result == -1 ? "SAVED" : result == RADIO_BUSY ? "RADIO BUSY: TRY AGAIN"
                                 : result ? "ACTION FAILED" : 0;
                             last_key = MENU_TICK;
-                            stable = sample = H9_KEY_NONE;
+                            input = (struct h9_key_ramp){0};
                             gfx_wait_release();
                         }
                     } else if (option.group >= RADIO_FIRST) {
@@ -928,7 +916,7 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
                             state.radio_changed |= result == -1;
                             state.notice = result == -1 ? "SAVED" : result ? "SETTINGS READ FAILED" : 0;
                             last_key = MENU_TICK;
-                            stable = sample = H9_KEY_NONE;
+                            input = (struct h9_key_ramp){0};
                             gfx_wait_release();
                         }
                     } else
@@ -955,7 +943,6 @@ unsigned toolbox_menu(const struct h9_api *loader, unsigned count)
                 }
             }
         }
-        sample = key;
         if (redraw) {
             SAVE_POSITION();
             DRAW_MENU();

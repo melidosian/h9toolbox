@@ -4,8 +4,12 @@
 **/*.pyc
 **/*.fw
 **/*.bin
+!module-loader/combined-preview-release/h9-toolbox-firmware-v0.1.6-rc.4.fw
+!module-loader/combined-preview-release/h9-toolbox-v0.1.6-rc.4-far.bin
 **/*.img
 **/*.ips
 **/*.rgb565
 **/*.log
 !h9-flasher/vendor/data/br23loader.bin
+!module-loader/releases/*/h9-toolbox-firmware-v*.fw
+!module-loader/releases/*/h9-toolbox-v*-far.bin

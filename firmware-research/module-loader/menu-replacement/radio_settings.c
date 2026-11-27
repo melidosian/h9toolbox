@@ -1,4 +1,7 @@
+#define H9_KEY_RAMP_IMPLEMENTATION
+#include "key_ramp.h"
 #include "radio_settings.h"
+#include "radio_33cm.h"
 
 static void copy(uint8_t *dst, const uint8_t *src, unsigned n)
 {
@@ -20,7 +23,7 @@ static unsigned frequency_value(const uint8_t *bytes)
 unsigned radio_value(const struct radio_edit *edit)
 {
     const struct radio_setting *s = edit->setting;
-    if (s->kind == RADIO_FREQUENCY) return frequency_value(edit->value);
+    if (radio_is_frequency(s)) return frequency_value(edit->value);
     if (s->kind == RADIO_SIGNED16) return (int16_t)(edit->value[0] | (unsigned)edit->value[1] << 8);
     if (s->kind == RADIO_DEGREES || s->kind == RADIO_ALTITUDE) {
         unsigned n = 0;
@@ -32,20 +35,22 @@ unsigned radio_value(const struct radio_edit *edit)
     return (n & s->mask) >> s->shift;
 }
 
-static int valid_number(const struct radio_setting *s, unsigned n)
+static int valid_number(const struct radio_edit *edit, unsigned n)
 {
+    const struct radio_setting *s = edit->setting;
     if (s->kind == RADIO_CHOICE) {
         for (unsigned i = 0; i < s->choice_count; ++i) if (s->choices[i].value == n) return 1;
         return 0;
     }
     if (radio_is_signed(s)) return (int32_t)n >= s->min && (int32_t)n <= s->max;
+    if (s->kind == RADIO_CHANNEL_FREQUENCY && edit->channel_33cm && radio_33cm_contains(n)) return 1;
     return n >= (unsigned)s->min && n <= (unsigned)s->max;
 }
 
 static void set_number(struct radio_edit *edit, unsigned n)
 {
     const struct radio_setting *s = edit->setting;
-    if (s->kind == RADIO_FREQUENCY) {
+    if (radio_is_frequency(s)) {
         for (unsigned i = 0; i < 4; ++i) {
             unsigned pair = n % 100;
             edit->value[i] = pair % 10 | (pair / 10) << 4;
@@ -60,9 +65,15 @@ static void set_number(struct radio_edit *edit, unsigned n)
 
 int radio_set_number(struct radio_edit *edit, unsigned n)
 {
-    if (radio_is_text(edit->setting) || !valid_number(edit->setting, n)) return RADIO_INVALID;
+    if (radio_is_text(edit->setting) || !valid_number(edit, n)) return RADIO_INVALID;
     set_number(edit, n);
     return RADIO_OK;
+}
+
+int radio_33cm_enabled(const struct radio_storage *storage)
+{
+    uint8_t enabled;
+    return !storage->read(RADIO_33CM_SETTING, &enabled, 1) && enabled == 1;
 }
 
 int radio_begin(const struct radio_storage *storage, const struct radio_setting *s, struct radio_edit *edit)
@@ -71,6 +82,7 @@ int radio_begin(const struct radio_storage *storage, const struct radio_setting 
     edit->setting = s;
     if (storage->read(s->offset, edit->original, s->length)) return RADIO_IO_ERROR;
     copy(edit->value, edit->original, s->length);
+    edit->channel_33cm = s->kind == RADIO_CHANNEL_FREQUENCY && radio_33cm_enabled(storage);
     if (s->kind >= RADIO_DTMF_FIXED) {
         static const char tones[] = "0123456789ABCD*#";
         unsigned start = s->kind == RADIO_DTMF_LENGTH, count = radio_text_length(s);
@@ -103,7 +115,7 @@ int radio_adjust(struct radio_edit *edit, int direction)
         if (i == s->choice_count) i = direction > 0 ? 0 : s->choice_count - 1;
         else i = direction > 0 ? (i + 1) % s->choice_count : (i ? i - 1 : s->choice_count - 1);
         n = s->choices[i].value;
-    } else if (!valid_number(s, n)) n = direction > 0 ? s->min : s->max;
+    } else if (!valid_number(edit, n)) n = direction > 0 ? s->min : s->max;
     else if (radio_is_signed(s)) {
         int32_t value = (int32_t)n;
         int32_t step = s->kind == RADIO_SIGNED16 ? 10 : 1;
@@ -111,8 +123,13 @@ int radio_adjust(struct radio_edit *edit, int direction)
             : (value >= s->min + step ? value - step : s->max);
     }
     else {
-        unsigned step = s->kind == RADIO_FREQUENCY ? 500 : 1; /* 5 kHz or one displayed unit */
-        n = direction > 0 ? (n <= s->max - step ? n + step : s->min) : (n >= s->min + step ? n - step : s->max);
+        unsigned step = radio_is_frequency(s) ? 500 : 1; /* 5 kHz or one displayed unit */
+        unsigned low = s->min, high = s->max;
+        if (edit->channel_33cm && radio_33cm_contains(n)) {
+            low = RADIO_33CM_LOW;
+            high = RADIO_33CM_HIGH;
+        }
+        n = direction > 0 ? (n <= high - step ? n + step : low) : (n >= low + step ? n - step : high);
     }
     set_number(edit, n);
     return RADIO_OK;
@@ -145,11 +162,13 @@ int radio_save(const struct radio_storage *storage, struct radio_edit *edit)
 {
     const struct radio_setting *s = edit->setting;
     uint8_t now[RADIO_MAX_VALUE], check[RADIO_MAX_VALUE];
-    if (!radio_is_text(s) && !valid_number(s, radio_value(edit))) return RADIO_INVALID;
+    if (s->kind == RADIO_CHANNEL_FREQUENCY) edit->channel_33cm = radio_33cm_enabled(storage);
+    if (!radio_is_text(s) && !valid_number(edit, radio_value(edit))) return RADIO_INVALID;
     if (s->check_rx_offset && radio_value(edit)) {
         if (storage->read(s->check_rx_offset, check, 4)) return RADIO_IO_ERROR;
         unsigned frequency = frequency_value(check);
-        if (frequency < 1800000 || frequency > 60000000) return RADIO_INVALID;
+        if ((frequency < 1800000 || frequency > 60000000) &&
+            !(radio_33cm_contains(frequency) && radio_33cm_enabled(storage))) return RADIO_INVALID;
     }
     if (radio_is_text(s)) {
         unsigned ended = 0;
@@ -194,6 +213,20 @@ int radio_save(const struct radio_storage *storage, struct radio_edit *edit)
     return RADIO_OK;
 }
 
+const char *radio_frequency_label(unsigned f, char text[10])
+{
+    if (f > 99999999) return "--";
+    for (unsigned i = 9, place = 1; i;) {
+        --i;
+        if (i == 3) text[i] = '.';
+        else { text[i] = '0' + f / place % 10; place *= 10; }
+    }
+    unsigned end = 9;
+    while (end > 7 && text[end - 1] == '0') --end;
+    text[end] = 0;
+    return text;
+}
+
 const char *radio_value_label(const struct radio_edit *edit, char buffer[RADIO_MAX_VALUE + 1])
 {
     const struct radio_setting *s = edit->setting;
@@ -207,7 +240,10 @@ const char *radio_value_label(const struct radio_edit *edit, char buffer[RADIO_M
         return buffer;
     }
     unsigned n = radio_value(edit);
-    if (s->kind == RADIO_FREQUENCY && !valid_number(s, n)) return "UNSET";
+    if (radio_is_frequency(s)) {
+        if (!valid_number(edit, n)) return "UNSET";
+        if (s->min) return radio_frequency_label(n, buffer);
+    }
     if (s->kind == RADIO_CHOICE) {
         for (unsigned i = 0; i < s->choice_count; ++i) if (s->choices[i].value == n) return s->choices[i].label;
         return "UNSET";
@@ -237,4 +273,15 @@ const char *radio_number_label(unsigned n, char *buffer)
     while (i) buffer[j++] = digits[--i];
     buffer[j] = 0;
     return buffer;
+}
+
+__attribute__((noinline)) unsigned menu_luma(uint16_t rgb)
+{
+    return 26 * (rgb >> 11) + 26 * ((rgb >> 5) & 63) + 10 * (rgb & 31);
+}
+
+uint16_t menu_ink(uint16_t accent)
+{
+    /* Lighten dark colors for small text on the black LCD background. */
+    return menu_luma(accent) < 1050 ? ((accent >> 1) & 0x7BEF) + 0x8410 : accent;
 }

@@ -120,8 +120,9 @@ export function decodePackage(bytes) {
   requireValue(view.getUint32(4, true) === bytes.length && view.getUint32(12, true) === 0x200, 'Firmware package length is invalid.');
   requireValue(new TextDecoder().decode(header.slice(16, 22)) === 'AC695X', 'Firmware chip type is not AC695X.');
   const count = view.getUint16(8, true);
-  requireValue(count >= 1 && count <= 6, 'Firmware file count is invalid.');
-  requireValue(crc16(header.slice(0x40, 0x40 + 0x50 * count)) === view.getUint16(2, true), 'Firmware file list CRC is invalid.');
+  requireValue(count >= 1 && count <= 7, 'Firmware file count is invalid.');
+  const directoryEnd = 0x40 + 0x50 * count;
+  requireValue(crc16(bytes.subarray(0x40, directoryEnd)) === view.getUint16(2, true), 'Firmware file list CRC is invalid.');
   let image;
   for (let entry = 0; entry < count; entry++) {
     const record = bytes.slice(0x40 + entry * 0x50, 0x40 + (entry + 1) * 0x50);
@@ -135,7 +136,7 @@ export function decodePackage(bytes) {
     if (rv.getUint16(0, true) === 0 && name === 'flash.bin') {
       requireValue(!image, 'Duplicate firmware image.');
       const offset = rv.getUint32(8, true), size = rv.getUint32(12, true);
-      requireValue(offset >= 0x200 && offset + size <= bytes.length, 'Firmware image extends past the package.');
+      requireValue(offset >= Math.max(0x200, directoryEnd) && offset + size <= bytes.length, 'Firmware image extends past the package.');
       image = bytes.slice(offset, offset + size);
       requireValue(crc16(image) === rv.getUint16(4, true), 'Firmware image CRC is invalid.');
     }

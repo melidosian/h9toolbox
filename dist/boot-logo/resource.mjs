@@ -59,10 +59,12 @@ export function* readPlan(start, length) {
   }
 }
 
+export class MissingResourceServiceError extends Error {}
+
 export function parseStatus(bytes, bank) {
   if (bytes.length !== BLOCK) throw new Error('Status block must be 32 bytes.');
   if (hex(bytes.slice(0, 4)) !== '48 39 52 53') {
-    throw new Error(`No resource service at status slot (got ${hex(bytes.slice(0, 4))}); the radio is running other firmware.`);
+    throw new MissingResourceServiceError(`No resource service at status slot (got ${hex(bytes.slice(0, 4))}).`);
   }
   if (![1, 2].includes(bytes[4])) throw new Error(`Unsupported service version ${bytes[4]}.`);
   if (bytes[11] !== 0x5a) throw new Error('Status block trailer is wrong.');

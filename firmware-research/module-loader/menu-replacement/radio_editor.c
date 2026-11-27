@@ -67,7 +67,7 @@ int radio_editor(const struct radio_storage *storage, const struct radio_setting
             } else if (key == H9_KEY_UP || key == H9_KEY_DOWN) {
                 radio_adjust(&edit, key == H9_KEY_UP ? 1 : -1);
                 have_number = 0;
-            } else if ((setting->kind == RADIO_NUMBER || setting->kind == RADIO_FREQUENCY) && key >= 2 && key <= 11) {
+            } else if ((setting->kind == RADIO_NUMBER || radio_is_frequency(setting)) && key >= 2 && key <= 11) {
                 unsigned candidate = (have_number ? number * 10 : 0) + key - 2;
                 if (candidate <= setting->max) {
                     number = candidate;

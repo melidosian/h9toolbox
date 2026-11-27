@@ -1,8 +1,11 @@
 """Offline safeguards for the TD-H9 flasher; no USB device is accessed."""
 
 import importlib.util
+import hashlib
+import json
 import os
 from pathlib import Path
+import struct
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -40,6 +43,61 @@ class FakeLoader:
 
     def flash_read(self, offset, size):
         return bytes(self.flash[offset:offset + size])
+
+
+class RecoveryBackupTests(unittest.TestCase):
+    def test_reads_only_managed_regions_and_writes_browser_archive(self):
+        loader = FakeLoader(0x100000)
+        loader.flash[flasher.APP_START:flasher.APP_END] = b"\x3c" * (flasher.APP_END - flasher.APP_START)
+        loader.flash[flasher.FAR_START:flasher.FAR_END] = b"\xc3" * (flasher.FAR_END - flasher.FAR_START)
+        loader.flash[flasher.APP_END] = 0x55
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(flasher, "load_protocol") as protocol, \
+             patch.object(flasher, "require_bootloader") as require, \
+             patch.object(flasher, "start_loader", return_value=loader) as start, \
+             patch.object(loader, "flash_read", wraps=loader.flash_read) as read:
+            archive = Path(temp) / "recovery.h9hid"
+            flasher.run_recovery_backup("radio", archive)
+            captured = archive.read_bytes()
+            with self.assertRaisesRegex(flasher.FlashError, "Refusing to overwrite"):
+                flasher.run_recovery_backup("radio", archive)
+            self.assertEqual(archive.read_bytes(), captured)
+        device = protocol.return_value[0].return_value.__enter__.return_value
+        require.assert_called_once_with(device)
+        start.assert_called_once_with(device, protocol.return_value, read_only=True)
+        self.assertEqual(loader.erases, [])
+        self.assertEqual(loader.writes, [])
+        self.assertEqual(read.call_count, 7392)
+        for call in read.call_args_list:
+            offset, length = call.args
+            self.assertTrue(flasher.APP_START <= offset < offset + length <= flasher.APP_END or
+                            flasher.FAR_START <= offset < offset + length <= flasher.FAR_END)
+        self.assertEqual(captured[:7], b"H9HID1\n")
+        length, = struct.unpack_from("<I", captured, 7)
+        header = json.loads(captured[11:11 + length])
+        payload = captured[11 + length:]
+        self.assertEqual(header["format"], "h9toolbox-hid-backup-v3")
+        self.assertEqual(header["start"], flasher.APP_START)
+        self.assertEqual(header["farStart"], flasher.FAR_START)
+        self.assertEqual(header["length"], len(payload))
+        self.assertEqual(header["sha256"], hashlib.sha256(payload).hexdigest())
+        self.assertEqual(payload, loader.flash[flasher.APP_START:flasher.APP_END] +
+                         loader.flash[flasher.FAR_START:flasher.FAR_END])
+
+    def test_a_mismatch_between_passes_leaves_no_archive(self):
+        loader = FakeLoader(0x100000)
+        first = iter((b"a", b"b"))
+        read = loader.flash_read
+        loader.flash_read = lambda offset, length: (
+            next(first) * length if offset == flasher.APP_START else read(offset, length))
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(flasher, "load_protocol"), \
+             patch.object(flasher, "require_bootloader"), \
+             patch.object(flasher, "start_loader", return_value=loader):
+            archive = Path(temp) / "recovery.h9hid"
+            with self.assertRaisesRegex(flasher.FlashError, "changed between reads"):
+                flasher.run_recovery_backup("radio", archive)
+            self.assertFalse(archive.exists())
 
 
 class FarRegionTests(unittest.TestCase):
@@ -150,6 +208,8 @@ class FlashSafetyTests(unittest.TestCase):
                 jumps.append((address, argument))
 
         class Loader:
+            flash_id = flasher.FLASH_ID
+
             class DevType:
                 SPI0_NOR = 3
 
@@ -157,11 +217,18 @@ class FlashSafetyTests(unittest.TestCase):
                 pass
 
             def online_device(self):
-                return {"type": 3, "id": flasher.FLASH_ID}
+                return {"type": 3, "id": self.flash_id}
 
         flasher.start_loader(object(), (None, Boot, Loader))
         self.assertEqual(b"".join(data for _, data in writes), flasher.LOADER_FILE.read_bytes())
         self.assertEqual(jumps, [(flasher.LOADER_ADDRESS, flasher.LOADER_ARGUMENT)])
+        Loader.flash_id = 0xEF4014
+        flasher.start_loader(object(), (None, Boot, Loader), read_only=True)
+        with self.assertRaisesRegex(flasher.FlashError, "Unexpected flash ID"):
+            flasher.start_loader(object(), (None, Boot, Loader))
+        Loader.flash_id = 0xEF4013
+        with self.assertRaisesRegex(flasher.FlashError, "Unexpected SPI NOR capacity"):
+            flasher.start_loader(object(), (None, Boot, Loader), read_only=True)
 
     def test_protocol_rejects_wrong_or_short_command_replies(self):
         class FakeDevice:

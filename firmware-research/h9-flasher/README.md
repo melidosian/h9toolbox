@@ -4,6 +4,31 @@ This Python 3.10+ command-line tool targets the **TD-H9 BR23 USB update mode** o
 
 Hardware status: a Windows backup completed and the user reported a successful flash on 2026-11-03. The final console output and post-reboot firmware version were not independently captured. Linux hardware access has not been tested. Keep the official updater and a reliable way to recover the radio available. `inspect` is entirely offline; `probe` sends only SCSI INQUIRY. `backup` runs a temporary helper in the radio's RAM, checks its chip key and flash header, and saves the flash area being updated without erasing or writing flash. `flash` performs those checks, verifies or saves a backup, updates only sectors that differ, verifies each changed sector, then reads back the whole image. It preserves the area from `0xDA000` onward, including the reserved region at `0xFF000`.
 
+## Back up for the browser installer
+
+Use Python 3.10 or newer. With the TD-H9 off and connected by USB-C, hold **8**
+while turning it on. Look for **BR23 UBOOT1.00**. Identify the device using the
+platform instructions below, then run the corresponding command with that path.
+
+```powershell
+py -3 h9_flasher.py recovery-backup --device '\\.\PHYSICALDRIVE1' --output h9-before-update.h9hid
+```
+
+```sh
+# Linux
+sudo python3 h9_flasher.py recovery-backup --device /dev/sg2 --output h9-before-update.h9hid
+# macOS, after installing libusb and pyusb as described below
+sudo ~/h9usb/bin/python h9_flasher.py recovery-backup --device 4C4A:2342 --output h9-before-update.h9hid
+```
+
+The command reads both firmware regions twice and saves the archive only if
+the reads agree. It runs the BR23 helper in RAM and requires no firmware
+package. After it reports the archive and elapsed time, power off and hold
+**PTT + 2** while turning on. In the browser updater, choose the firmware and
+select the archive under **Use a saved restore point** before installing.
+The browser checks the connected radio against the saved firmware before
+writing. Save channels and settings separately with the programmer.
+
 ## Windows
 
 Use a data-capable USB-C cable and put the radio in USB update mode. Open **PowerShell as Administrator**. Identify the radio's disk number from the `BR23 UBOOT1.00` model; do not guess or use the number in this example without checking:

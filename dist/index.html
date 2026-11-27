@@ -5,22 +5,23 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self'; connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'">
   <meta name="theme-color" content="#0c1822">
-  <meta name="description" content="Free browser tools for the TIDRADIO TD-H9: a Bluetooth programmer for channels and settings, and H9 Toolbox Firmware (custom firmware with an app loader: an onboard APRS client, Brick Breaker and your own boot logo, managed over Bluetooth) with a web flasher and one-click restore to stock.">
+  <meta name="description" content="Explore H9 Toolbox Firmware for the TIDRADIO TD-H9, with Quick Change shortcuts, on-radio APRS, and satellite tools. Program channels and settings over Bluetooth from your browser.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://h9toolbox.com/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="H9 Toolbox">
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://h9toolbox.com/">
-  <meta property="og:title" content="TIDRADIO TD-H9 Programmer &amp; Custom Firmware | H9 Toolbox">
-  <meta property="og:description" content="Free browser tools for the TIDRADIO TD-H9: a Bluetooth programmer for channels and settings, and H9 Toolbox Firmware (custom firmware with an app loader: an onboard APRS client, Brick Breaker and your own boot logo, managed over Bluetooth) with a web flasher and one-click restore to stock.">
+  <meta property="og:title" content="TIDRADIO TD-H9 Custom Firmware &amp; Programmer | H9 Toolbox">
+  <meta property="og:description" content="Explore H9 Toolbox Firmware for the TIDRADIO TD-H9, with Quick Change shortcuts, on-radio APRS, and satellite tools. Program channels and settings over Bluetooth from your browser.">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="TIDRADIO TD-H9 Programmer &amp; Custom Firmware | H9 Toolbox">
-  <meta name="twitter:description" content="Free browser tools for the TIDRADIO TD-H9: a Bluetooth programmer for channels and settings, and H9 Toolbox Firmware (custom firmware with an app loader: an onboard APRS client, Brick Breaker and your own boot logo, managed over Bluetooth) with a web flasher and one-click restore to stock.">
-  <title>TIDRADIO TD-H9 Programmer &amp; Custom Firmware | H9 Toolbox</title>
+  <meta name="twitter:title" content="TIDRADIO TD-H9 Custom Firmware &amp; Programmer | H9 Toolbox">
+  <meta name="twitter:description" content="Explore H9 Toolbox Firmware for the TIDRADIO TD-H9, with Quick Change shortcuts, on-radio APRS, and satellite tools. Program channels and settings over Bluetooth from your browser.">
+  <title>TIDRADIO TD-H9 Custom Firmware &amp; Programmer | H9 Toolbox</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="/landing.css?v=20261108c">
+  <link rel="stylesheet" href="/landing.css?v=20261121-carousel">
   <script src="/https-redirect.js"></script>
+  <script src="/firmware-carousel.js" defer></script>
   <script src="/analytics.js"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"H9 Toolbox","url":"https://h9toolbox.com/","description":"Free, independent browser tools for the TIDRADIO TD-H9 handheld radio: Bluetooth programming, custom firmware, and boot logo changes.","publisher":{"@type":"Organization","name":"H9 Toolbox","url":"https://h9toolbox.com/","sameAs":["https://github.com/melidosian/h9toolbox"]},"about":{"@type":"Product","name":"TIDRADIO TD-H9","brand":{"@type":"Brand","name":"TIDRADIO"},"category":"Handheld two-way radio"}}</script>
 </head>
@@ -32,40 +33,66 @@
     </header>
 
     <main>
-      <section class="landing-hero hero-without-diagram" aria-labelledby="hero-title">
+      <section class="landing-hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="overline"><span class="signal-dot"></span> TIDRADIO TD-H9 · WEB BLUETOOTH PROGRAMMER</p>
-          <h1 id="hero-title">Program your <span class="keep-together">TD-H9.</span><br><em>Right in your browser.</em></h1>
-          <p class="hero-lead">Connect from desktop Chrome or Edge, back up your radio, then edit channels and settings. No account or H9 Toolbox install needed.</p>
-          <div class="hero-start"><a class="hero-primary" href="/programmer/">Open Web programmer <span aria-hidden="true">↗</span></a><a class="hero-secondary" href="/firmware/">H9 Toolbox Firmware ↗</a></div>
-          <ol class="quick-path" aria-label="How to program your radio"><li><span>1</span>Connect Bluetooth</li><li><span>2</span>Read &amp; save original</li><li><span>3</span>Edit &amp; write</li></ol>
+          <p class="overline">CUSTOM FIRMWARE FOR THE TIDRADIO TD-H9</p>
+          <h1 id="hero-title">H9 Toolbox <em>Firmware</em></h1>
+          <p class="hero-lead">In v0.1.7, hold <strong>Back</strong> for Quick Change or hold <strong>#</strong> to start scanning. Open Toolbox for radio settings, APRS, GPS and FM satellite passes.</p>
+          <div class="hero-start">
+            <a class="hero-primary" href="/firmware/">Explore H9 Toolbox Firmware <span aria-hidden="true">↗</span></a>
+            <a class="subtle-link" href="/programmer/">Open Channel Programmer</a>
+          </div>
+          <p class="home-compatibility">Firmware for the Type-C TD-H9 · Installs over USB-C</p>
         </div>
-        <div class="hero-diagram" aria-hidden="true" hidden>
-          <div class="diagram-label">TD-H9</div>
-          <div class="diagram-radio"><div class="diagram-antenna"></div><div class="diagram-screen"><span>H9</span><span>TOOLBOX</span></div><div class="diagram-keys"><i></i><i></i><i></i><i></i></div></div>
-          <div class="diagram-path path-left"><span>START HERE</span><b>WEB PROGRAMMER</b></div>
-          <div class="diagram-path path-right"><span>ALSO HERE</span><b>FIRMWARE</b></div>
-        </div>
+        <section class="landing-screen" aria-label="Firmware screenshots" aria-roledescription="carousel">
+          <div id="firmware-screens" aria-live="polite">
+            <figure>
+              <img src="/firmware/quick-change.png" width="480" height="384" alt="Nine numbered shortcuts with large current values and dividing lines.">
+              <figcaption>Quick Change <span>1 / 5</span></figcaption>
+            </figure>
+            <figure hidden>
+              <img src="/firmware/toolbox-menu.png" width="480" height="384" loading="lazy" alt="The Toolbox menu lists Radio Settings, Channel Settings, APRS, Radio Tools, Games, and Apps.">
+              <figcaption>Toolbox menu <span>2 / 5</span></figcaption>
+            </figure>
+            <figure hidden>
+              <img src="/apps/catalog/shots/aprs-map.png" width="480" height="384" loading="lazy" alt="An APRS map plots nearby stations by direction and distance.">
+              <figcaption>APRS station map <span>3 / 5</span></figcaption>
+            </figure>
+            <figure hidden>
+              <img src="/apps/catalog/shots/sat-track.png" width="480" height="384" loading="lazy" alt="The satellite tracker displays azimuth, elevation, and Doppler-adjusted frequencies.">
+              <figcaption>FM satellite tracking <span>4 / 5</span></figcaption>
+            </figure>
+            <figure hidden>
+              <img src="/apps/catalog/shots/gps-signals.png" width="480" height="384" loading="lazy" alt="GPS Info shows signal strength bars for navigation satellites.">
+              <figcaption>GPS signal strength <span>5 / 5</span></figcaption>
+            </figure>
+          </div>
+          <div class="screen-controls" hidden>
+            <button type="button" aria-controls="firmware-screens" aria-label="Previous screenshot"><span aria-hidden="true">←</span></button>
+            <button type="button" aria-controls="firmware-screens" aria-label="Next screenshot"><span aria-hidden="true">→</span></button>
+          </div>
+        </section>
       </section>
 
-      <section class="route-section" aria-label="Choose a tool">
-        <article class="route-card programmer-card">
-          <div class="route-top"><span class="route-number">01 / START HERE</span><span class="route-mode">WEB BLUETOOTH</span></div>
-          <div class="route-icon" aria-hidden="true"><span class="radio-wave">◖</span><span class="radio-core"></span><span class="radio-wave">◗</span></div>
-          <h2>Channels &amp; settings</h2>
-          <p>Read your TD-H9, save its original <code>.img</code>, edit channels and mapped settings, then write changed blocks back from Chrome or Edge.</p>
-          <ul><li>No account required</li><li>CSV and readable JSON transfer</li><li>Radio data stays in your browser</li></ul>
-          <a class="route-action" href="/programmer/">Open Web programmer <span aria-hidden="true">↗</span></a>
-        </article>
-
-        <article class="route-card firmware-card">
-          <div class="route-top"><span class="route-number">02 / EXPLORE LATER</span><span class="route-mode">USB-C / HID</span></div>
-          <div class="route-icon firmware-icon" aria-hidden="true"><span class="pixel-brick"></span><span class="pixel-brick"></span><span class="pixel-brick"></span><span class="pixel-ball"></span><span class="pixel-paddle"></span></div>
-          <h2>H9 Toolbox Firmware</h2>
-          <p>Stock v1.0.38 plus apps: an onboard APRS client, Brick Breaker and more, added in the App Manager. Install it in your browser over USB-C, with a backup first and one-click restore to stock.</p>
-          <ul><li>APRS stations, map and messages on the radio</li><li>Apps and boot logo over Bluetooth or experimental USB-C</li><li>Backup before writing, restore any time</li></ul>
-          <a class="route-action" href="/firmware/">Get H9 Toolbox Firmware <span aria-hidden="true">↗</span></a>
-        </article>
+      <section class="home-tools" aria-labelledby="tools-title">
+        <h2 id="tools-title">Tools for your TD-H9</h2>
+        <div class="home-tool-grid">
+          <article class="home-tool">
+            <h3>Web Programmer</h3>
+            <p>Back up channels and settings over Bluetooth. Edit memories, organize scan lists, and import or export channels as CSV.</p>
+            <a class="text-link" href="/programmer/">Open Web Programmer <span aria-hidden="true">↗</span></a>
+          </article>
+          <article class="home-tool">
+            <h3>App Manager</h3>
+            <p>Install APRS, FM Satellite Passes, GPS Info, and games. Change the radio’s boot logo over Bluetooth or experimental USB-C.</p>
+            <a class="text-link" href="/apps/">Open App Manager <span aria-hidden="true">↗</span></a>
+          </article>
+          <article class="home-tool">
+            <h3>Firmware recovery</h3>
+            <p>Resume an interrupted update, recover from a saved backup, or restore official Type-C firmware.</p>
+            <a class="text-link" href="/firmware-update/recovery/">Open the recovery guide <span aria-hidden="true">↗</span></a>
+          </article>
+        </div>
       </section>
 
       <section class="file-note" aria-labelledby="file-note-title">

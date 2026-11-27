@@ -1,4 +1,4 @@
-import { APP_START, FLASH_SIZE, H9Hid, SECTOR_SIZE, crc16, writeSector } from './firmware.mjs';
+import { APP_START, FLASH_SIZE, H9Hid, IMAGE_SIZE, SECTOR_SIZE, crc16, writeSector } from './firmware.mjs';
 
 export const FAR_START = 0xea000;
 export const FAR_END = 0xfc000;
@@ -24,8 +24,11 @@ export class FarFirmwareHid extends H9Hid {
 }
 
 export function backedUpFar(accessible) {
-  if (accessible?.length !== FLASH_SIZE - APP_START) return null;
-  return accessible.subarray(FAR_START - APP_START, FAR_END - APP_START);
+  if (accessible?.length === FLASH_SIZE - APP_START)
+    return accessible.subarray(FAR_START - APP_START, FAR_END - APP_START);
+  if (accessible?.length === IMAGE_SIZE - APP_START + FAR_SIZE)
+    return accessible.subarray(IMAGE_SIZE - APP_START);
+  return null;
 }
 
 function sector(bytes, i) {
@@ -95,13 +98,15 @@ export async function planFarFirmware(hid, saved, release, direction, interrupte
   return { destination, work };
 }
 
-export async function writeFarFirmware(hid, plan, pending, progress) {
+export async function writeFarFirmware(hid, plan, pending, progress, onSector = () => {}) {
   const image = new Uint8Array(FAR_END);
   image.set(plan.destination, FAR_START);
   progress(0, plan.work.length);
   for (const [index, address] of plan.work.entries()) {
     pending(address);
+    onSector(address, 'writing');
     await writeSector(hid, address, image);
+    onSector(address, 'verified');
     pending(null);
     progress(index + 1, plan.work.length);
   }

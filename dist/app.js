@@ -1,7 +1,7 @@
 import { CHANNEL_COUNT, CTCSS_TONES, DCS_CODES, readChannel, writeChannel, clearChannel } from './channel.mjs';
-import { SETTINGS, SETTING_GROUPS, readSetting, writeSetting, readFixedPosition } from './settings.mjs';
-import { SETTING_HELP } from './settings-help.mjs';
-import { exportPortable, importPortable } from './portable.mjs';
+import { SETTINGS, SETTING_GROUPS, readSetting, writeSetting, readFixedPosition } from './settings.mjs?v=20261126dualwatch';
+import { SETTING_HELP } from './settings-help.mjs?v=20261126dualwatch';
+import { exportPortable, importPortable } from './portable.mjs?v=20261126dualwatch';
 import { parseMHz, standardOffset, planTransmit } from './channel-plan.mjs';
 import { exportChannels, inspectChannelImport, importChannels } from './channels-file.mjs';
 import { serializeChannelsCsv, parseChannelsCsv } from './channels-csv.mjs';
