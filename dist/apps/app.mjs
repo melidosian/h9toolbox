@@ -1,8 +1,8 @@
 // H9 Toolbox App Manager: stage module changes, then write one verified
 // bundle to the modules slot over Bluetooth or USB-C (dist/doom/upload.mjs).
 import { readCloneCapabilities } from '../channel-labels.mjs';
-import { crc16 } from '../boot-logo/resource.mjs';
-import { connectBluetooth, connectUsb } from '../boot-logo/radio.mjs?v=usb3';
+import { MissingResourceServiceError, crc16 } from '../boot-logo/resource.mjs?v=20261127status';
+import { connectBluetooth, connectUsb } from '../boot-logo/radio.mjs?v=20261127status';
 import { mountLogoTool } from '../boot-logo/logo-tool.mjs?v=usb3';
 import { SLOTS, readPack, restore, uploadPack } from '../doom/upload.mjs?v=usb1';
 import { CHIP_SLOT, buildBundle, checkModule, parseBundle, usage } from './bundle.mjs?v=am3';
@@ -319,6 +319,7 @@ async function readFile(file) {
 
 const startConnection = connect => run(async () => {
   $('result').textContent = '';
+  $('firmwareRequired').hidden = true;
   connecting = true; render();
   let opened;
   try {
@@ -345,6 +346,11 @@ const startConnection = connect => run(async () => {
     await opened?.disconnect();
     if (!opened && error.name === 'NotFoundError') {
       log('No radio selected.');
+      return;
+    }
+    if (error instanceof MissingResourceServiceError) {
+      log(error.message, 'error');
+      $('firmwareRequired').hidden = false;
       return;
     }
     throw error;

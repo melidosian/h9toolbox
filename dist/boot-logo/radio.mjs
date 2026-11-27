@@ -9,7 +9,7 @@ import {
   BANK_SIZE, BLOCK, BULK_HEADER, BULK_SIZES, LINK_FIXED_ADDRESS, LINK_STOCK_ADDRESS, LOGO_ADDRESS, RAM_SELECT_ADDRESS, RAM_SIZE,
   LOGO_BYTES, OP, SECTOR, assembleBulk, bulkSlotAddress, checkRange, controlFrame, crc16, dataAddress, dataFrame, hex,
   logoSectorPlan, parseBulkReply, parseStatus, statusAddress,
-} from './resource.mjs?v=20261108a';
+} from './resource.mjs?v=20261127status';
 
 const MAGIC = Uint8Array.of(0x50, 0x56, 0x4f, 0x4a, 0x48, 0x5c, 0x14);
 const IDENTITY = Uint8Array.of(0x54, 0x44, 0x48, 0x39, 0xff, 0xff, 0xff);
