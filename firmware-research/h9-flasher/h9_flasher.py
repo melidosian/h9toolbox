@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import struct
 import sys
+from time import monotonic
 
 
 VENDOR = "BR23"
@@ -27,6 +28,9 @@ UFW_KEY = 0xF181
 FLASH_HEADER_KEY = 0xFFFF
 ERASE_SIZE = 0x1000
 TRANSFER_SIZE = 256
+APP_START, APP_END = 0x5000, 0xDA000
+# Far firmware starts after the two settings VM banks.
+FAR_START, FAR_END = 0xEA000, 0xFC000
 LOADER_ADDRESS = 0x12000
 LOADER_ARGUMENT = 1  # SPI NOR flash
 VENDOR_DIR = Path(__file__).resolve().parent / "vendor"
@@ -248,7 +252,7 @@ def require_bootloader(device) -> None:
     print(f"Radio bootloader: {vendor} {product} {revision}")
 
 
-def start_loader(device, protocol) -> object:
+def start_loader(device, protocol, *, read_only=False) -> object:
     _, JL_UBOOT, JL_LoaderV2 = protocol
     loader_data = LOADER_FILE.read_bytes()
     if len(loader_data) != 11264 or sha256(loader_data).hexdigest() != LOADER_SHA256:
@@ -274,19 +278,23 @@ def start_loader(device, protocol) -> object:
     if online["type"] != JL_LoaderV2.DevType.SPI0_NOR:
         raise FlashError(f"Unexpected flash type {online['type']}; expected SPI NOR")
     print(f"SPI NOR flash ID: 0x{online['id']:06X}")
-    if online["id"] != FLASH_ID:
+    # Read-only recovery can use other JEDEC 1 MiB SPI NOR chips. Keep the
+    # bench-tested exact chip check for callers that can write flash.
+    if read_only and online["id"] & 0xFF != 0x14:
+        raise FlashError(f"Unexpected SPI NOR capacity: 0x{online['id']:06X}; expected 1 MiB")
+    if not read_only and online["id"] != FLASH_ID:
         raise FlashError(f"Unexpected flash ID 0x{online['id']:06X}; expected 0x{FLASH_ID:06X}")
     return loader
 
 
-def read_flash(loader, size: int) -> bytes:
+def read_flash(loader, size: int, *, start: int = 0) -> bytes:
     data = bytearray()
     for offset in range(0, size, TRANSFER_SIZE):
         if offset % 0x10000 == 0:
             print(f"Reading: {offset:,}/{size:,} bytes", flush=True)
-        data.extend(loader.flash_read(offset, min(TRANSFER_SIZE, size - offset)))
+        data.extend(loader.flash_read(start + offset, min(TRANSFER_SIZE, size - offset)))
         if len(data) != min(offset + TRANSFER_SIZE, size):
-            raise FlashError(f"Short flash read at 0x{offset:X}")
+            raise FlashError(f"Short flash read at 0x{start + offset:X}")
     print(f"Read: {len(data):,}/{size:,} bytes", flush=True)
     return bytes(data)
 
@@ -313,11 +321,49 @@ def run_dump(device_path: str, output: Path, size: int) -> None:
     print(f"Dump saved (read-only): {output} ({len(data):,} bytes, SHA-256 {sha256(data).hexdigest()})")
 
 
-# Erased main-flash space after the settings VM (2 x 32 KiB at 0xDA000) and
-# before the end of the reserved area; no stock code writes here (see
-# firmware-research/resource-flash-log.md, 2026-11-09).
-FAR_START = 0xEA000
-FAR_END = 0xFC000
+def run_recovery_backup(device_path: str, output: Path) -> None:
+    """Read the two browser-managed firmware regions through the BR23 RAM loader."""
+    if output.suffix.lower() != ".h9hid":
+        raise FlashError("Use an .h9hid output filename")
+    if output.exists():
+        raise FlashError(f"Refusing to overwrite {output}")
+    started = monotonic()
+    protocol = load_protocol()
+    with protocol[0](device_path) as device:
+        require_bootloader(device)
+        loader = start_loader(device, protocol, read_only=True)
+        payload = b""
+        for label, start, end in (("main firmware", APP_START, APP_END),
+                                  ("far firmware", FAR_START, FAR_END)):
+            print(f"Backing up {label}")
+            data = read_flash(loader, end - start, start=start)
+            print(f"Verifying {label}")
+            if data != read_flash(loader, end - start, start=start):
+                raise FlashError(f"{label.capitalize()} changed between reads")
+            payload += data
+
+    # Same compact archive layout as the browser. It verifies the SHA-256
+    # when importing and checks the radio's live CRCs before writing.
+    metadata = json.dumps({
+        "format": "h9toolbox-hid-backup-v3",
+        "radio": "TD-H9",
+        "start": APP_START,
+        "farStart": FAR_START,
+        "length": len(payload),
+        "method": "verified-br23-direct-read",
+        "sha256": sha256(payload).hexdigest(),
+    }).encode("utf-8")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("xb") as archive:
+        try:
+            archive.write(b"H9HID1\n" + struct.pack("<I", len(metadata)) + metadata + payload)
+            archive.flush()
+            os.fsync(archive.fileno())
+        except BaseException:
+            archive.close()
+            output.unlink()
+            raise
+    print(f"Recovery backup saved: {output} ({monotonic() - started:.1f} seconds)")
 
 
 def check_far(blob: bytes, address: int, backup_path: Path) -> bytes:
@@ -496,6 +542,9 @@ def main() -> int:
     backup.add_argument("--device", required=True)
     backup.add_argument("--backup", required=True, type=Path)
     backup.add_argument("--stock-base", type=Path, help="Stock v1.0.38 .fw used to validate an app-only custom image")
+    recovery_backup = sub.add_parser("recovery-backup", help="Read and verify both firmware regions for the browser installer")
+    recovery_backup.add_argument("--device", required=True)
+    recovery_backup.add_argument("--output", required=True, type=Path)
     dump = sub.add_parser("dump", help="Read-only: read the whole SPI NOR (default 1 MiB) to a file")
     dump.add_argument("--device", required=True)
     dump.add_argument("--output", required=True, type=Path)
@@ -549,6 +598,8 @@ def main() -> int:
                         if args.stock_base else checked_firmware(args.firmware))
             run_flash(args.device, firmware, args.backup, write=False,
                       custom=bool(args.stock_base))
+        elif args.command == "recovery-backup":
+            run_recovery_backup(args.device, args.output)
         elif args.command == "write-far":
             if not args.yes:
                 raise FlashError("Add --yes to write the far region")

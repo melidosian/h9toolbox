@@ -12,5 +12,5 @@ enum radio_action_id {
 };
 struct radio_action_info { const char *id, *label, *group, *help; };
 extern const struct radio_action_info radio_actions[RADIO_ACTION_COUNT];
-int radio_action(const struct h9_api *, unsigned action);
+int radio_action(const struct h9_api *, unsigned action, uint16_t accent);
 #endif

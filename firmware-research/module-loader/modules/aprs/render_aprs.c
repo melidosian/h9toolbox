@@ -6,6 +6,7 @@
 #include <setjmp.h>
 
 #define APRS_HOST_TEST
+#define H9_MENU_POSITION 0u
 #include "h9mod.h"
 #include "gfx.h"
 

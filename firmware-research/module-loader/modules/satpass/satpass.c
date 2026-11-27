@@ -18,6 +18,7 @@
 
 #include "app_theme.h"
 #include "h9mod.h"
+#include "key_ramp.h"
 #include "fix_store.h"           /* the last fix across power-off */
 #include "orbit.h"
 #include "satshare.h"
@@ -35,10 +36,11 @@ enum { WANT = 5, HOURS = 36, NMEA = 80 };
 enum { BG = UI_BG, DIM = UI_DIM };
 
 struct state {
+    struct h9_key_ramp keys;
     uint32_t base_unix, base_tick;    /* UTC at a tick */
     int32_t lat, lon;                 /* binary angles */
     uint8_t have_time, have_pos, gps_fix, computing, saved;
-    unsigned sel, found, frame_len, cmd, escape, nmea_len, key, key_seen, last_draw;
+    unsigned sel, found, frame_len, cmd, escape, nmea_len, last_draw;
     uint32_t computed_at;
     int32_t calc_lat, calc_lon, store_lat, store_lon;
     struct satdata data;               /* the satellite table (read through the loader) */
@@ -222,15 +224,6 @@ static void list(const struct state *st, uint32_t now, int full)
     if (!st->found) gfx_text(UI_LEFT, 50, "NO PASSES IN 36H", 16, 1, DIM, BG);
 }
 
-/* A key once two readings agree (the keypad ADC has no debounce). */
-static unsigned key_press(struct state *st)
-{
-    unsigned k = h9_key();
-    if (k != st->key) { st->key = k; return 0; }
-    if (k == st->key_seen) return 0;
-    st->key_seen = k;
-    return k;
-}
 
 static int far(int32_t a, int32_t b)  /* more than about 0.1 degree apart */
 {
@@ -244,7 +237,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     struct state st;
     uint8_t *z = (uint8_t *)&st;
     for (unsigned i = 0; i < sizeof st; i++) z[i] = 0;
-    st.key = st.key_seen = h9_key();
+    st.keys.sample = st.keys.stable = h9_key();
     if (!satdata_open(api, &st.data)) {   /* no satellite table in the bundle (install the SAT PASS app again) */
         gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, BG);
         gfx_text(0, 40, "NO SATELLITE DATA", 17, 1, UI_DANGER, BG);
@@ -287,7 +280,7 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             if (st.sel >= st.found) st.sel = 0;
             dirty = 1;
         }
-        unsigned k = key_press(&st);
+        unsigned k = h9_key_ramp(&st.keys, h9_key(), TICK, 1);
         if (k == H9_KEY_BACK) return 0;
         else if (k == H9_KEY_MENU && st.found) {   /* the pass plot (hidden module .SAT PLOT) steps through the list */
             volatile struct h9_request *rq = H9_REQUEST;

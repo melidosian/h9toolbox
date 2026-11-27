@@ -13,9 +13,14 @@
 
 #include "app_theme.h"
 #include "h9mod.h"
+#include "key_ramp.h"
 #include "orbit.h"
 #include "satshare.h"
 #include "satdata.h"
+
+#ifndef TICK
+#define TICK (*(const volatile uint32_t *)0x1D8B0u)
+#endif
 
 enum { CX = 58, CY = 64, R = 44, SAMPLES = 48 };
 
@@ -131,13 +136,15 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     draw_pass(&data, &s, n, &o);
     gfx_wait_release();
     unsigned next = 0;   /* Menu: on to the TRACK page; Back: the list */
+    struct h9_key_ramp keys = {0};
     for (;;) {
-        unsigned k = gfx_wait_key();
+        h9_delay(20);
+        unsigned k = h9_key_ramp(&keys, h9_key(), TICK, 1);
+        if (!k) continue;
         if (k == H9_KEY_UP && n) draw_pass(&data, &s, --n, &o);
         else if (k == H9_KEY_DOWN && n + 1 < s.count) draw_pass(&data, &s, ++n, &o);
         else if (k == H9_KEY_UP || k == H9_KEY_DOWN) { /* at the end of the list: stay */ }
         else { next = k == H9_KEY_MENU; break; }
-        gfx_wait_release();
     }
     sh->sel = (uint8_t)n;   /* the next screen carries on at the pass last viewed */
     volatile struct h9_request *rq = H9_REQUEST;

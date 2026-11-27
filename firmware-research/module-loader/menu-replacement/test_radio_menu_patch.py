@@ -36,15 +36,29 @@ class NativeMenuPatch(unittest.TestCase):
         decode = objdump.decoder_for(table.load(), mcpu="r3").decode
         body = image[menu.ROOT_START:menu.ROOT_END]
         offset = 0
-        instructions = []
+        instructions, offsets = [], []
         while offset < report["guard_bytes"]:
             _, _, n, op = decode(body, offset)
             instructions.append(op)
+            offsets.append(offset)
             offset += n
         self.assertIn("r0 = 32395264", instructions)  # 0x1ee5000
         self.assertIn("r1 = 20000", instructions)
         self.assertIn("r1 = 35394", instructions)  # expected CRC
         self.assertIn("r4 = 33557864", instructions)  # 0x2000d68 USB recovery
+        loader = instructions.index(f"r4 = {0x1EA7B40}")
+        self.assertEqual(instructions[loader:loader + 9], [
+            f"r4 = {0x1EA7B40}", "call r4",
+            "r4 = 72400", "r0 = 0",
+            "b[r4+54] = r0",  # native view index
+            f"r0 = {0x1E55D44}",
+            "[r4+524] = r0",  # native home callback
+            "{rets, r4} = [sp++]", "goto r0",
+        ])
+        mismatch = instructions[loader - 1]
+        self.assertTrue(mismatch.startswith("if (r0 != r1) goto "))
+        self.assertEqual(offsets[loader] + int(mismatch.split()[-1]),
+                         offsets[instructions.index("r4 = 33557864")])
         self.assertEqual(body[report["guard_bytes"]:], bytes(104 - report["guard_bytes"]))
 
     def test_rejects_wrong_image(self):

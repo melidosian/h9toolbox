@@ -19,6 +19,7 @@
 #include "doppler.h"
 #include "app_theme.h"
 #include "h9mod.h"
+#include "key_ramp.h"
 #include "orbit.h"
 #include "satshare.h"
 #include "satdata.h"
@@ -194,10 +195,11 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, BG);
     gfx_wait_release();
     uint32_t last = 0;
+    struct h9_key_ramp keys = {0};
     for (;;) {
         uint32_t tick = TICK;
         if (!last || tick - last >= 100) { draw(&data, &s, n, &o, s.now + (tick - s.tick) / 100u); last = tick; }
-        unsigned k = h9_key();
+        unsigned k = h9_key_ramp(&keys, h9_key(), tick, 1);
         if (k == H9_KEY_UP && n) { n--; last = 0; }
         else if (k == H9_KEY_DOWN && n + 1 < s.count) { n++; last = 0; }
         else if (k == H9_KEY_BACK) break;
@@ -207,8 +209,9 @@ unsigned module_main(const struct h9_api *api, unsigned self)
             if (done) return 0;   /* .SAT TRACKER was requested: the loader runs it next */
             gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, BG);
             last = 0;
+            gfx_wait_release();
+            keys = (struct h9_key_ramp){0};
         }
-        if (k) gfx_wait_release();
         h9_delay(20);
     }
     sh->sel = (uint8_t)n;

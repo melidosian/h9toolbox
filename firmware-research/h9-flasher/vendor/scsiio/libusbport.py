@@ -2,7 +2,7 @@
 
 Written for this project; not part of jl-uboot-tool. The device path is the
 USB VID:PID, for example "4C4A:2342". The transport in usb_msc.py is a copy of
-firmware-research/resource-usb/usb_msc.py, which carried INQUIRY,
+firmware-research/archive/resource-usb/usb_msc.py, which carried INQUIRY,
 WRITE_MEMORY, READ_MEMORY, and JUMP_TO_MEMORY to a TD-H9 on 2026-11-08.
 Residue is counted from the bytes actually carried, as the Windows port does;
 the BR23 ROM's CSW residue field is not meaningful. Run as root on macOS so

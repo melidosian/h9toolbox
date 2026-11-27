@@ -33,7 +33,7 @@ function matchingPrefix(wanted, liveCrc) {
   return match;
 }
 
-async function inspectStage(hid, bytes, start, label) {
+export async function planStageRegion(hid, bytes, start, label) {
   const base = start - APP_START;
   const count = bytes.length / SECTOR_SIZE;
   const observed = await hid.crcs(base, count);
@@ -65,12 +65,17 @@ export async function stageAprs(hid, bytes, progress = () => {}, expectedHash = 
 // These reserved regions only accept programming into erased bytes. Readback
 // validates any existing prefix before continuing a previous attempt.
 export async function stageRegion(hid, bytes, start, label, write, progress) {
-  const plan = await inspectStage(hid, bytes, start, label);
+  const plan = await planStageRegion(hid, bytes, start, label);
+  return writeStageRegion(hid, bytes, start, label, write, progress, plan);
+}
+
+export async function writeStageRegion(hid, bytes, start, label, write, progress, plan, onSector = () => {}) {
   if (!plan) return 'occupied';
   if (!plan.length) return 'ready';
   progress(0, plan.length);
   for (const [i, { offset, prefix }] of plan.entries()) {
     const physical = start + offset;
+    onSector(physical, 'writing');
     const sector = bytes.subarray(offset, offset + SECTOR_SIZE);
     for (let pos = prefix; pos < SECTOR_SIZE; pos += CHUNK_SIZE) {
       const chunk = sector.subarray(pos, pos + CHUNK_SIZE);
@@ -78,9 +83,10 @@ export async function stageRegion(hid, bytes, start, label, write, progress) {
     }
     if (await hid.sectorCrc(physical) !== crc16(sector))
       throw new Error(`A sector in the ${label} failed its checksum. Keep USB connected and try Install again.`);
+    onSector(physical, 'verified');
     progress(i + 1, plan.length);
   }
-  const verified = await inspectStage(hid, bytes, start, label);
+  const verified = await planStageRegion(hid, bytes, start, label);
   if (!verified || verified.length) throw new Error(`The ${label} failed its final verification.`);
   return 'ready';
 }

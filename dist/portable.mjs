@@ -1,5 +1,5 @@
 import { CHANNEL_COUNT, readChannel, writeChannel, clearChannel } from './channel.mjs';
-import { SETTINGS, SETTING_GROUPS, readSetting, writeSetting } from './settings.mjs';
+import { SETTINGS, SETTING_GROUPS, readSetting, writeSetting } from './settings.mjs?v=20261126dualwatch';
 import { checkLongName, longNameField } from './channel-labels.mjs';
 
 export const PORTABLE_FORMAT = 'td-h9-web-programmer';

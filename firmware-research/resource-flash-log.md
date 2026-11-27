@@ -5507,3 +5507,658 @@ result yet.**
 - With USB unplugged, the operator booted into PTT+7 APRS update mode,
   ran the bundled keypad update, and reported APRS BOOT VERIFIED
   (V1.0.15X). The version reply passed after the modem restarted.
+
+## 2026-11-20 Quick Change menu
+
+- The v1.0.38 keypad table at app+0xAF050 maps raw key 19 to hold
+  event 34. The normal keypad dispatch at app+0x8890E now opens the
+  Quick Change grid for that event on the unlocked home screen.
+  The Lock tile re-queues event 34 for the native handler. Locked or
+  busy contexts and a failed far-menu CRC take the stock dispatch path.
+- Offline host tests exercised key release, digit and Menu shortcuts,
+  cancellation, PTT exit, native lock routing, VFO and memory targeting,
+  and readback of a saved value. The 160×128 host render used the firmware
+  font and drawing code.
+- The unified image is 57,412 bytes and reaches main flash 0xF8044.
+  The RC6 bench package puts the modem updater there and moves 428 bytes
+  of the modem image to 0xFB6AC, after the resident payload. Package
+  staging verified the modem image round trip and preserved the
+  byte-for-byte RC5 reproduction path. The new split passed the full
+  136-block host test.
+- RC6 bench package SHA-256
+  `4bbbce3119b1acc7cd3eaa0f6c057afbf49bad1bfd70a947f1be3db9e8b6be65`.
+  Matching far payload SHA-256
+  `5e0bf850bfc0b888878b3677b40cd6076a671fd15495e21a8c8048cd864b1118`.
+  Quick Change and the relocated modem stage await radio validation.
+
+### Quick Change hold-`#` revision
+
+- Stock raw key 20 produces hold event 35 and short event 16. The short
+  event inserts DTMF code 15 (`#`), and the hold event reaches the
+  `DTMF-%d` preset list. Quick Change takes event 35 on the unlocked home
+  screen. Tile 4 returns event 35 to that native preset handler, and
+  event 34 still goes straight to the native keypad lock handler.
+- The grid uses thin dividers, small numbered labels and 8×16 value cells.
+  The host render verified that both CTCSS frequencies and full DCS codes
+  fit. The keypad and storage tests and the 136-block modem staging
+  transfer test passed. On-radio validation remains pending.
+- The revised RC6 package SHA-256 is
+  `79cf8332806965ea1e4a9891752cdff96abec94adfb821edbf5c31838d203ffb`.
+  Its matching far payload SHA-256 is
+  `9fe6deb1c4196a9cbf00f6ad8c2182cda949c423a112b2461ec0ef539cda0253`.
+  The modem stage starts at 0xF8374 and the resident payload is byte-identical.
+
+### Quick Change FM shortcut mapping
+
+- Tile 3 now edits TX, RX or both tones. Tile 5 calls the native Cancel
+  Squelch press/release functions for a memory. Their dispatch reaches
+  app+0x7E340 to set RAM 0x11CC8 and app+0x7E394 to clear it. In VFO mode
+  tile 5 edits TX frequency and uses the stock shift direction and offset.
+  The stock VFO loader reads the offsets from partition 4 at 0xCB0 and
+  0xCB4. Tile 6 toggles VOX and key 0 opens Radio Settings.
+- The 60,140-byte unified menu fits in the combined build. The updater
+  starts at 0xF8AEC and uses 1,584 bytes. The modem image packs 500 bytes
+  into the reclaimed category body after the native entry redirect. The
+  four-part modem layout passed the host 136-block transfer test.
+- The revised RC6 package SHA-256 is
+  `303d1b822ffd738d134de8a3604d1e090b9bd4140a50ecda5063ff1de6bfbc97`.
+  Its matching far payload SHA-256 is
+  `b228e8a3af7cba430e248de309d9cb8d98de62d7c8fb48428fedff83054d4051`.
+  Host tests and package verification passed. On-radio validation is pending.
+
+## 2026-11-21 Quick Change RC6 flash
+
+- Flashed RC6 over the TD-H9's BR23 USB Update mode (4C4A:2342) on
+  macOS. The loader identified SPI NOR 0x856014 and chip key 0xF181.
+- Saved the prior RC5 main and far regions in the local
+  `~/h9-backups/quick-change-rc6-20261121.x008kKju` directory with the
+  recovery manifest and flash log. Their hashes match the RC5 release.
+- The flasher changed 13 main sectors and 17 far sectors. Full main
+  readback matched SHA-256
+  `7b337fa2fc57085546d8d02433df2098651f6ef75b92502dd82b6c09927c0315`.
+  Full far readback matched SHA-256
+  `b228e8a3af7cba430e248de309d9cb8d98de62d7c8fb48428fedff83054d4051`.
+  Normal boot and keypad behavior are pending operator confirmation.
+
+## 2026-11-21 Quick Change and scan shortcuts for RC7
+
+- The operator confirmed that RC6 booted, hold-`#` opened Quick Change,
+  hold-`*` locked and unlocked the keypad, and shortcuts worked.
+- RC7 uses the existing Back hold timer for Quick Change and translates
+  the isolated home-screen hold-`#` event into stock event 24 (hold 3).
+  The stock table identifies RAM 0xC3C4 as Back's pending short action.
+- Tile 4 cycles Scan Resume. Tile 9 saves and repaints the next brightness
+  level immediately. Stock app+0x50392 applies the live backlight level
+  from RAM 0x12BAA. Host tests cover the wrap from level 5 to level 1.
+- The RC7 package SHA-256 is
+  `cf0e9fb1f0f17f8e974cb1dde56d6ea2bcaf67c2a53e4b2c46fa585f88ec8ca4`.
+  Its matching far payload SHA-256 is
+  `96deae0c4d3f596eb7ec4269038f6ddf4199e0349cf718f1d85e66449fd1713c`.
+  Combined packaging and host tests passed. RC7 awaits on-radio testing.
+
+## 2026-11-21 Quick Change RC7 flash
+
+- Flashed RC7 through BR23 USB Update on macOS. The loader reported SPI NOR
+  0x856014 and chip key 0xF181. The previous RC6 main and far regions,
+  recovery manifest and flash log are in
+  `~/h9-backups/quick-change-rc7-20261121.NQukfF05`.
+- The flasher changed 17 main sectors and 17 far sectors. Full main
+  readback matched SHA-256
+  `8bde13d74a580702beb69c5ed4c22d6e7926eb1a6387790eff9912f780b700da`.
+  Full far readback matched SHA-256
+  `96deae0c4d3f596eb7ec4269038f6ddf4199e0349cf718f1d85e66449fd1713c`.
+  Normal boot and keypad behavior await operator confirmation.
+
+## 2026-11-21 Quick Change RC8 keypad dispatch
+
+- The operator confirmed normal RC7 boot. Hold Back still showed the
+  stock GNSS screen and hold `#` still opened DTMF presets.
+- RC8 uses stock's decoded Back hold event 33 to enter Quick Change
+  through the verified far-menu call. Hold `#` event 35 is translated
+  directly to the native scan event 24 on an unlocked operating screen.
+  The scan dispatch no longer shares the far menu entry. The native
+  keypad table confirms these event IDs and retains event 34 for lock.
+- Host tests and the linked keypad dispatch check passed. Flashed RC8
+  via BR23 USB Update and verified full main and far readbacks against
+  the release manifest. RC7 is backed up in
+  `~/h9-backups/quick-change-rc8-20261121.tqQjHYCm`.
+
+## 2026-11-21 Quick Change while receiving
+
+- The operator confirmed that RC8 opened Quick Change when squelch was
+  closed. With squelch open or Monitor latched, hold Back still opened GNSS.
+- The stock receive loop at app+0x88C30 has its own dispatch call at
+  app+0x88C38 and repeats while RAM 0x11AFE is nonzero. RC9 hooks that
+  call as well as the idle dispatcher at app+0x8890E. The overlay can
+  open and turn Monitor off during receive. RF configuration writes
+  that require a reload retain the receive guard.
+- The host regression passed for open squelch, Monitor off and RF-save
+  refusal during receive. Both patched main calls were checked against the
+  compiled dispatcher. Flashed RC9 via BR23 USB Update. Both full
+  readbacks matched the release manifest. RC8 is backed up in
+  `~/h9-backups/quick-change-rc9-20261121.rSQtI7sN`.
+
+## 2026-11-21 Quick Change RC10 dispatcher entry
+
+- The operator still saw GNSS on RC9 with Monitor on. A direct-transfer
+  scan found 11 callers of the stock keypad dispatcher at app+0x818F0.
+  The GNSS action called by hold Back at app+0x81FCA has one direct caller.
+- RC10 redirects the shared dispatcher entry and replays the original
+  four-byte prologue before continuing stock dispatch. Quick Change
+  accepts an unlocked home screen during receive or with Monitor latched,
+  including transient receive flags. The transmit and RF-save checks
+  still apply. The queue keeps subsequent stock events when Back is consumed.
+- Verified the linked redirect and byte-exact prologue replay. The host
+  menu regression and the modem stage's 136-block test passed. Flashed
+  RC10 via BR23 USB Update. Both full readbacks matched the release
+  manifest. RC9 is backed up in
+  `~/h9-backups/quick-change-rc10-20261121.tuoCZ5Ae`.
+
+## 2026-11-21 Quick Change RC11 Back-action hook
+
+- The operator still saw GNSS with Monitor on in RC10. The stock Back
+  event calls GNSS from app+0x81FCA. Its dispatcher later removes the
+  processed event at app+0x822F0 through the queue helper at app+0x5E0CA.
+- RC11 hooks the GNSS call itself and leaves Back dequeueing to stock.
+  Quick Change accepts the receive or Monitor state even when the stock
+  screen byte differs from idle. It retains the keypad lock and physical
+  and stock transmit checks. The settings shortcut appends a Menu event.
+- Separating overlay rendering and editors reduced the Quick Change
+  entry frame to 192 bytes of locals. The host regression covers open
+  squelch with a non-idle stock screen byte and checks queue ownership.
+- Flashed RC11 through BR23 USB Update and verified both regions by full
+  readback. The RC10 backups and recovery log are in
+  `~/h9-backups/quick-change-rc11-20261121.w8pwr0w1`.
+
+## 2026-11-21 Quick Change RC12 squelch apply
+
+- The operator confirmed that RC11 opens Quick Change with Monitor on.
+  Selecting squelch 1 from level 0 instead hit the receive guard and
+  showed RADIO BUSY.
+- The native squelch setter at app+0x7357C updates the live level byte
+  at 0x12B9E, saves partition offset 0xCA9 and calls the RF refresh at
+  CPU 0x01E58E3E. RC12 uses the same live level and RF refresh after a
+  verified squelch save. Physical PTT, transmit state and the resident
+  RF reservation still guard the apply.
+- The host regression covers a 0-to-1 edit in the open-squelch receive
+  state and checks the saved byte, live byte and native refresh call.
+- Flashed RC12 through BR23 USB Update. Both readbacks match the release
+  manifest. RC11's backup and the flash log are in
+  `~/h9-backups/quick-change-rc12-20261121.zxAD0nf5`. The combined layout
+  also passed the modem updater's 136-block host test.
+- After normal boot, the operator confirmed that level 1 saves from
+  Quick Change at squelch 0 without RADIO BUSY.
+
+## 2026-11-21 Quick Change v0.1.7 package verification
+
+- Rebuilt the unified image and combined modem stage with version 0.1.7.
+  The decoded main app differs from the USB-verified RC12 app only in the
+  four-byte Toolbox version word at app+0xA7D54. The far flash image and
+  source module bundle match RC12 byte for byte.
+
+## 2026-11-21 Channel Settings editor
+
+- The VFO editor's TX row wrote the memory-style TX field in each VFO
+  record. Stock split uses the BCD magnitude at partition offsets
+  `0xCB0` (A) and `0xCB4` (B) and the direction bits in the VFO record.
+  The editor now exposes the native TX Offset field. Quick Change reads
+  it through the same field definition, and Store VFO uses the same
+  address calculation when resolving TX into a memory record.
+- Host keypad tests cover changing the VFO B offset without overwriting
+  its former TX field, completing a numeric entry after an early save
+  attempt, and choosing a tone with the arrow keys.
+- Flashed the separate Channel Settings trial through PTT+2 USB HID. Both
+  firmware regions matched RC12 before writing and the trial after writing
+  by aligned and shifted CRCs. Backups and the flash log are in
+  `~/h9-backups/channel-editor-hid-20261121.pwdpq4dh`.
+
+## 2026-11-21 Direct Channel Settings list
+
+- Channel Settings opens a five-row viewport over VFO A, VFO B, and
+  memories 001–199. It shows stored short names where present. Keypad
+  jumps, arrow navigation, and returning to the same list row passed the
+  host editor tests. The menu integration test opens the action directly
+  from the top-level Channel Settings row.
+- The 60,552-byte far menu needs part of the APRS modem image in the
+  unused tail of the retired list-builder function. The combiner checks
+  the stub and fragment boundaries and reconstructs the original modem
+  bytes from the combined package. The previous layout still produces
+  its original files byte for byte. The five-fragment stage passed the
+  136-block host test. This channel-list trial has not been flashed.
+- Flashed the channel-list trial through PTT+2 USB HID. The pre-write
+  CRCs matched the earlier Channel Editor trial. Six main sectors and
+  17 far sectors changed, and both regions passed aligned and shifted
+  CRC verification. The backup and flash log are in
+  `~/h9-backups/channel-list-hid-20261121.KjW0ukEm`.
+
+## 2026-11-21 Channel Settings list styling and keypad repeat
+
+- The list now contains memories 001–199. Each row shows a three-digit
+  channel number, then an optional long name or the native short name.
+  The existing Toolbox palette supplies the title, selection and contrast.
+- Up and Down advance once on a stable press, then repeat after about
+  360 ms and every 100 ms while held in the list or field navigation.
+  Host tests cover both directions, name fallback, color and editing.
+- Built the 60,516-byte far menu and verified the matching main and far
+  trial files. The five-part APRS layout passed the 136-block host test.
+- Flashed the styled channel list trial over PTT+2 USB HID. The previous
+  channel-list trial matched both pre-write CRC scans and was backed up.
+  All six main sectors and 17 far sectors written passed sector checks,
+  and both full regions passed aligned and shifted CRC verification.
+  Backup and flash log: `~/h9-backups/channel-list-final-hid-20261121.eHoyvBm2`.
+
+## 2026-11-21 Shared keypad scroll ramp
+
+- The channel list's old repeat delay counted `h9_delay(2)` polls.
+  This API takes milliseconds, so repeat began much sooner than intended.
+  The shared keypad code now uses the 100 Hz radio clock. A tap advances
+  once, then a hold repeats from 500 ms at 160 ms intervals, improving
+  to 80 ms after one second and 40 ms after 1.8 seconds.
+- Toolbox menus, Channel Settings, Quick Change, Bluetooth device lists,
+  and the APRS, GPS and satellite app navigation share the same ramp.
+  Host tests cover taps, long holds, release, reversal and timer wrap.
+- Built and verified the paired trial images and matching app bundle.
+  The APRS modem stage passed the 136-block transfer test. The host
+  screenshot harness also rendered the APRS, GPS and satellite pages.
+- Flashed the scroll-ramp trial through PTT+2 USB HID. Both pre-write
+  regions matched the styled channel-list trial and were backed up.
+  All 17 main sectors and 17 far sectors written passed sector checks,
+  and both regions passed aligned and shifted CRC verification. Backup
+  and flash log: `~/h9-backups/scroll-ramp-hid-20261121.Bfjt4X5C`.
+
+## 2026-11-21 Channel list redraw
+
+- Scrolling the memory picker redraws its five visible rows and leaves
+  the header, prompt and key hints on the LCD. Returning from the
+  channel editor repaints the frame. A stale jump warning clears only
+  its eight-pixel message band.
+- Host draw tests verify one frame draw through arrow navigation and
+  scrolling the viewport. Built and verified the 60,592-byte far menu
+  with a tighter aligned modem-stage reservation. The relocated modem
+  passed the 136-block host test and the app bundle is byte-identical
+  to the scroll-ramp trial.
+- Flashed the channel-redraw trial through PTT+2 USB HID. Both pre-write
+  regions matched the scroll-ramp trial and were backed up. Each of the
+  17 main and 17 far sectors written passed sector checks. Both full
+  regions passed aligned and shifted CRC verification. Backup and flash
+  log: `~/h9-backups/channel-redraw-hid-20261121.neIegCYu`.
+
+## 2026-11-21 Channel frequency entry in MHz
+
+- Channel Settings accepts three MHz digits followed by up to five
+  fractional digits. A short entry is padded on the right before
+  native BCD encoding. The display keeps at least three decimal places
+  and shows additional nonzero precision. Host tests save 142.230 MHz
+  and 142.23456 MHz and reject a ninth digit.
+- Verified the main and far trial images. The combined package keeps the
+  optional APRS stage by storing one additional modem fragment in the
+  verified zeroed CW span at app+0x76BCE–0x76CDC. The six-part layout
+  passed the 136-block host test.
+- Flashed the MHz-entry trial through PTT+2 USB HID. Both pre-write
+  regions matched the channel-redraw trial and were backed up. Seven
+  main sectors and 17 far sectors changed, and both full regions
+  passed aligned and shifted CRC checks. Backup and flash log:
+  `~/h9-backups/channel-mhz-hid-20261121.tWeD2FP1`.
+- Confirmed on the radio that the MHz-entry trial works.
+
+## 2026-11-22 — Experimental 33 cm transmit
+
+- The v1.0.33 community build extends tuning and reports that PTT enters
+  transmit. The equivalent v1.0.38 validation call is at app+0x5AD64 and
+  checks the frequency after the repeater shift. It sits behind the
+  stock 500TX and region gates. The v1.0.38 counterpart to the
+  community classifier literal is at app+0x8332A in the RSSI
+  calibration routine. [Community patch notes](https://github.com/mjwgeek/TIDRADIO_TD-H9/blob/main/PATCH_NOTES.md)
+- Hooked the checked instructions at app+0x56616 and app+0x5ACC2.
+  The 902–928 MHz TX path requires the session setting and a permitted
+  region mode, then rejoins stock validation and RF setup. It preserves
+  the stack frequency, band selector, and RF table base. Other
+  frequencies use the existing gates and range tables. The boot
+  clear covers the word at RAM 0x299F0.
+- The combined bench package retains the optional APRS update. Two
+  additional modem fragments fit verified zeroed stock CW spans.
+  The modem image round-tripped through the package and all 136
+  blocks passed the host transfer test.
+- The menu and loader host suites passed. Instruction tracing from
+  the packaged app checked both redirects across 108 combinations of
+  frequency, setting state, and region.
+- Bench package SHA-256
+  `77bb5b7d2d4f504790956c3fb1ae1101667d18eb8c70f4cf1a9cf7fbddc7b5bb`.
+  Far payload SHA-256
+  `84f605b75770fb8776603befc1069b78f3f45ab0da63e74ed04e35a54a222da5`.
+  Radio boot and RF output on 33 cm await a physical trial.
+
+- Renamed the row to **900TX** in v0.1.8-rc.2. The rebuilt menu
+  contains the new label, and the 108 instruction-trace cases passed.
+  Main package SHA-256
+  `cc07e27e763097e453b44d51f705923df0b26377e33789a32bf71e3f3dc02471`.
+  Far payload SHA-256
+  `eb2399ac6c88466b802e234560e3d49a256691783ede558d59bb284076420e16`.
+
+### 900TX bench installation over USB HID
+
+- Rebuilt commit `bf74416` and matched the documented v0.1.8-rc.2 main
+  package and far payload SHA-256 hashes. The menu host suite passed and
+  the packaged modem layout passed the 136-block host transfer test.
+- The live main and far regions matched the menu text size RC2 trial.
+  Saved verified rollback copies in `~/h9-backups/900tx-bench-hid-20261122.BlpCTVrH`.
+- Wrote and verified 11 main sectors and 17 far sectors. Both full regions
+  matched the bench image in the aligned and shifted HID CRC scans.
+- Sent the HID reboot command. The radio returned to normal USB serial
+  mode and responded to the read-only channel clone check. The 33 cm RF
+  measurements are pending.
+
+### 900TX home-screen frequency entry
+
+- The user saw the radio return to the prior 2 m frequency after entering
+  910.000 MHz with 900TX on. The stock VFO keypad handler at app+0x7DEDA
+  rejected values outside its 18–600 MHz save range and reloaded the old
+  VFO record.
+- The v0.1.8-rc.3 bench build hooks that branch. An in-band 33 cm entry
+  reaches the native save path when 900TX is enabled in Ham or unlocked
+  mode. A trace of the packaged instructions matched the expected save or
+  reject branches in 130 frequency, setting and region combinations.
+  The 20 loader unit tests passed.
+- The main package SHA-256 is
+  `091dd0868ef8a6b8faf138e988203b913544688f867b3bb793bebb04ff29b247`.
+  The far payload matches RC2 byte for byte. Hardware keypad testing is
+  pending.
+
+- Flashed RC3 over USB HID. The RC2 main and far regions were verified
+  and backed up before writing. All five changed main sectors passed
+  verification, and both full regions matched RC3 using aligned and
+  shifted HID CRC scans. The radio rebooted and answered a read-only
+  serial clone check. Backups and flash log are in
+  `~/h9-backups/900tx-vfo-hid-20261122.arh9piSY`.
+
+### Persistent 900TX preference
+
+- The user measured 909.932 MHz with the VFO set to 910.000 MHz.
+  Switching off the 67 Hz CTCSS tone left the observed offset unchanged.
+  A 75 ppm correction on the old RTL-SDR aligned the measurement.
+- RC4 stores the 900TX preference in native VM key 250. The menu checks
+  the existing record and verifies the write before updating the cached
+  flag. The first my_app loop restores the flag. Offline tests covered
+  missing, foreign, saved-on, and saved-off states and write failure.
+- The larger menu required relocating one APRS image fragment into
+  the checked retired span at app+0x85586. The packed modem image
+  round-tripped and passed the 136-block host transfer test.
+- Main package SHA-256
+  `6f6d25296ccf75f2e9aff4b2bb28c526afcb4d9ca116c308018f20ff10da97a8`.
+  Far payload SHA-256
+  `6e2997e3186b1b27131e0c86f235d6930b920ea05439e49510ee77215f50c73e`.
+- Verified the live RC3 image, backed it up, and flashed 16 main and
+  17 far sectors over USB HID. Both complete regions verified. After
+  reboot the radio answered a read-only serial check. The on-radio
+  save and power-cycle test remains pending. Backups and flash log:
+  `~/h9-backups/900tx-persist-hid-20261122.JlcRXcw7`.
+
+### 900TX first-save correction
+
+- The user reported `Setting save failed` on RC4. The public settings
+  dispatcher replaces a missing VM record's status with the result of a
+  read-only configuration lookup. RC5 calls the direct pinned VM read
+  and write entries so the menu can distinguish a new key from an
+  invalid record. The boot restore uses the same read entry.
+- Reproduced the RC4 far menu and verified the two VM call targets were
+  the only changes in the rebuilt menu body. The APRS stage configuration
+  matched RC4 and the packaged modem data round-tripped.
+- Main package SHA-256
+  `c4e9cb6cf627d1feec13c800d1474efa26d6a00ffc663cd4fc65ea71cf9b6502`.
+  Far payload SHA-256
+  `263707b65e149f016d3144951711c4ecb38fc205094b322f96f21fd1507063d1`.
+- Verified and backed up the live RC4 image, then flashed five main
+  sectors and one far sector. Both full regions passed HID CRC
+  verification. The radio rebooted and answered a read-only serial
+  check. The on-radio first-save and power-cycle test is pending.
+  Backups and flash log: `~/h9-backups/900tx-vm-hid-20261122.AUDvLych`.
+
+### 33 cm carrier with 900TX off
+
+- The user confirmed RC5 saves 900TX and reported a weak carrier when
+  pressing PTT at 910.000 MHz with the setting off.
+- The old 33 cm rejection jumped to app+0x5AD8A. That stock branch clears
+  the TX-active flag but then writes RF register 0x30 with 0xC1FE. RC6
+  clears the same flag and returns directly from TX setup before the
+  RF-register writes.
+- Traced 84 frequency, setting, and region cases in the packaged image.
+  Blocked 33 cm requests returned without an RF call. Main package SHA-256
+  `4ba7ed6f95b89ef293e77e329b5e67f5f1d38b0dda72ac8dd6360ba7d886c867`.
+  The far payload matches RC5. The on-radio carrier test is pending.
+
+- Backed up RC5, flashed six changed main sectors, and verified both full
+  flash regions using aligned and shifted HID CRCs. The radio rebooted
+  and responded to a read-only USB serial check. Backups and flash log:
+  `~/h9-backups/900tx-rx-only-hid-20261122.PTSZT2PY`.
+
+### Dev v0.1.8 release preparation
+
+- Built the v0.1.8 release with the RC6 application code and far payload.
+  Only the version marker differs in the decoded main application.
+- Generated the matching App Manager catalog from the RC6 module bundle.
+  The Dev build serves v0.1.8 at the default updater and App Manager URLs,
+  with older versions available for explicit selection. Verified those
+  paths in a local Chrome run.
+- The release package SHA-256 is
+  `f63eb09cb7b7ece0134f85be28ff3a79b78874346b995c7827bc709295af15a6`.
+  The far payload SHA-256 is
+  `263707b65e149f016d3144951711c4ecb38fc205094b322f96f21fd1507063d1`.
+
+## 2026-11-26 — Firmware backup and Dual Watch
+
+- The combined installer formerly reconstructed all HID-readable sectors
+  above the application, even when stock or release images supplied the
+  application bytes. An unrecognised application could trigger 65,520
+  shifted-window reads. The default recovery archive now stores the main
+  image and, for combined installs, the far firmware at 0xEA000–0xFBFFF.
+  Existing full-flash and main-only archives remain readable.
+- Known sector bytes come from pinned firmware files or erased flash and
+  are checked against aligned and shifted CRCs. Unmatched ranges use
+  neighboring sectors as seeds. The CRC-16 inverse recovers two bytes per
+  shift, with independent odd-offset checks and a second aligned scan.
+  Simulated HID used 96 shifted reads for a known application with erased
+  far flash and 32,854 when full reconstruction from an erased pair was
+  needed. Actual USB timing is pending.
+- In stock v1.0.38, the setter at CPU 0x01E742A2 updates live RAM 0x12BA7,
+  saves bit 2 of partition 4 byte 0x0CA3, and calls 0x01E58E3E(0). The
+  stock receive reload at 0x01E58E84 confirms the same bit and polarity.
+  The old Toolbox row used bit 6 of 0x0CA2. The browser and generated
+  menu now use the stock Dual Watch bit. The native menu loads it into
+  live RAM and retunes under the existing RF guard when the value changes.
+  The portable JSON key is now dualWatchEnabled so legacy exports with
+  the old mapping cannot silently change the live setting on import.
+- The unified offline trial passed the package, far payload and module
+  bundle checks. Main package SHA-256
+  2575aa23904ae1c2c082515a14d9201ce39b13aa53f3d70c3cd837519ca31fb3.
+  Combined trial far payload SHA-256
+  1afe6e72bb800ea7eacaf7f7f88c4503ffe5d508426a21501e741108908488ed.
+  On-radio testing is pending.
+
+### Direct desktop recovery backup
+
+- PTT+2 WebHID still exposes CRCs. The hold-8 BR23 USB mass-storage loader
+  already read the whole 1 MiB NOR on the bench (2026-11-09). The desktop
+  flasher now has a read-only recovery-backup command that uses that same
+  loader and 256-byte reads, independent of the installed application.
+- It reads the main and far firmware twice and checks that the bytes agree
+  before saving a compact .h9hid archive. The two passes take 7,392 flash
+  reads. The three-minute target requires an average below 24 ms per read,
+  allowing for loader setup. The command reports the observed elapsed time.
+- Mocked reads verified the region boundaries, byte equality, refusal to
+  overwrite a saved archive, and failure without an output on inconsistent
+  reads. The browser imported a desktop-generated archive and verified it
+  against simulated live main and far firmware. The site build includes the
+  desktop tool and the installer links to it. Hardware timing and hold-8
+  availability across TD-H9 variants remain unverified.
+
+### Verified-package install is the browser default
+
+- PTT+2 WebHID can install the pinned Toolbox or stock package without
+  reconstructing the previous image. The quick path first uses the aligned
+  CRC scan and six shifted windows over the Type-C model sectors
+  (0xB6000–0xB7FFF). It writes changed main sectors in descending order and
+  checks aligned and shifted CRCs after writing. Combined Toolbox installs
+  also verify the bounded far region. The same checks are available when
+  reinstalling Toolbox or selecting stock to recover after interruption.
+- With the shipped packages and a simulated partially written application,
+  both targets passed quick preflight with six shifted requests. A changed
+  model sector or wrong shifted reply refused the quick path. The archive
+  backup remains opt-in for exact rollback.
+
+### Build options and flash map
+
+- The no-modem Toolbox option uses the stage-free RC4 build. Its package
+  reproduced the previous bench package SHA-256 8e7cb1fc…, and its combined
+  far payload reproduced 83228873…. The release asset pads the final sector
+  with erased bytes to fill 0xEA000–0xFBFFF. Including the modem updater selects
+  the pinned RC5 main and far pair. The app catalog remains compatible with
+  the shared menu and module API. Installing either option leaves the APRS
+  modem itself alone. The RC5 keypad flow still runs separately.
+- The browser reviews all planned main, far and legacy staging writes
+  before the first flash command. A second preflight checks that the plan
+  still matches. The map labels protected regions and tracks every planned
+  sector through its per-sector verification.
+
+### Additional installer build options
+
+- Quick Change, direct channel editing and faster scrolling share the pinned
+  v0.1.7 release. Dev adds the pinned v0.1.8 33 cm and 900TX option on top
+  of these controls. The default remains v0.1.6 with the modem updater.
+- Built v0.1.7 and v0.1.8 without the modem stage from 7e0f6e9 and 204af53.
+  The offline checks verified both firmware regions; the rebuilt menu,
+  resident scheduler and catalog modules were byte-identical to the
+  matching with-modem releases. The app catalogs are shared per version.
+- A simulated USB radio installed both new no-modem options via the
+  browser's reviewed flash plan, matched all destination bytes and preserved
+  the settings region. The completion links opened the matching catalogs.
+  The new no-modem packages have not been bench-flashed.
+
+### On-radio About options
+
+- Setup → About uses the running loader version to identify the Quick Change,
+  channel editing, scrolling and 33 cm profiles. The paired screen and launch
+  instructions at app+0x8847E and app+0x88488 identify the modem updater in
+  the six combined install variants, including v0.1.7 and v0.1.8 packages
+  that share a version number. The older v0.1.5 staging path also checks
+  the installed staging region when its updater hooks are present.
+- The API 5 About 1.1 module built at 895 bytes (CRC-16 352a). The updated
+  version is in the matching App Manager catalogs. A host screen harness
+  verified the text for the six combined variants, both v0.1.5 staging
+  files, an erased staging region, and unknown hook/version cases.
+  LCD behavior on a physical radio remains unverified.
+
+## 2026-11-23 — white screen after repeated Back on v0.1.6
+
+- The production installer ships the RC5 main and far images under the
+  v0.1.6 label. The reporter's exact build and menu path are unknown.
+- Disassembly of the shipped main image shows that its unified root at
+  app+`0x6D326` returns from the loader while the native dispatcher still
+  has view 5 and its menu callback installed. The next stock short Back can
+  follow the root's Back link through app+`0x827DE` to view 9 at
+  app+`0x6EC96`, which expects the original stock menu state. The legacy
+  RF refresh and row redraw in the Toolbox menu do not restore that state.
+- The root wrapper now restores view 0 and its callback at
+  `0x11AD0+54` and `0x11AD0+524`, then tail-calls the native repaint
+  at CPU `0x01E55D44`. The decoded assembly test also checks that a bad far
+  CRC still goes to USB recovery.
+- The unified source build passed. Applying the root patch to the shipped
+  RC5 image round-tripped as an app-only rebuild. The main package SHA-256
+  is `a3402982df0c90b1d5cdc25ea53ba87e8f735e637c7faeeddcc8559185546a13`.
+  The matching production far payload still passes the menu CRC. The
+  white-screen symptom and the fix await on-radio testing.
+
+### Follow-up observation on a second radio
+
+- The operator saw white for about 5–10 seconds in APRS Settings, then
+  black. USB was connected after the display went black. No boot image
+  was observed. One MENU press brought up the same menu area.
+- The unified menu remembers the current folder and row across an idle
+  return. A host check starting on APRS Mute confirmed it exits after
+  2,000 ticks and reopens the same page and row. The idle path returns
+  through the same native root as an explicit Back exit.
+- The factory 10 ms timer is installed from app+`0x88728`. Its callback
+  counts down the separate backlight timer and queues app+`0x894E2`
+  when it expires. That callback switches off the backlight and sends
+  LCD display-off (0x28). The stock `my_app` loop drains the callback
+  queue through app+`0x79F04` once the synchronous menu returns. The
+  Toolbox keypad loop reads the ADC scan directly and does not run the
+  stock key-to-display-wake path. This explains how the display can
+  go black after an idle exit and a MENU press can reopen the same
+  page. The timing of the start of the white phase relative to the
+  last key is still unknown.
+
+- Rebuilt from production `main` at `f069889` in the separate
+  `fix/white-screen` worktree. The emitted handoff matches the source
+  build byte for byte. The RC5-derived bench package and its matching
+  far image are in `module-loader/build/back-handoff/`. The main
+  package differs from RC5 in the native menu wrapper and its package
+  checksums. The APRS Settings host test covers timeout, reopening
+  the saved row and backing up one level without a settings write.
+
+### Dev installer integration
+
+- Cherry-picked the native display handoff from c5aa02f into Dev. Rebuilt
+  the paired main and far payloads for all six combined profiles with the
+  display handoff and Dual Watch fixes. Pinned the package, decoded main
+  image and far hashes in the installer. The default Dev and production
+  profiles remain v0.1.8 and v0.1.7 respectively.
+- The larger unified menu moves the RC5 modem stage to 0xF7A44. The v0.1.8
+  modem stage uses one additional retired CW fragment to fit its verified
+  payload. The nine-fragment host test matched all 136 transfer blocks
+  and exercised checksum rejection, timeouts, and the modem boot reply.
+- The site test decrypts each shipped application's root wrapper and
+  checks the native view reset, home callback, and repaint tail call.
+  The rebuilt images await physical-radio testing.
+
+## 2026-11-27 — Built-in menu entry without an app bundle
+
+- GitHub issue #11 reported that the Menu key did nothing after flashing
+  Toolbox until the matching apps were written. The unified loader called
+  `ml_check` and returned on a zero count before reaching the checked
+  far-flash menu. On an empty Modules slot, the H9DATA01 directory check
+  returns zero.
+- Unified builds now pass the validated bundle count to the built-in menu
+  after its existing CRC check. A zero count lists the built-in settings
+  and leaves app sections empty. Module loads still check the index and
+  module CRC. Older Back-key launchers still require their app bundle.
+- Rebuilt the main and far pairs for the three installer versions with
+  and without the modem updater. The v0.1.8 full package SHA-256 starts
+  with `7678bde0` and its paired far image with `0a171b87`. The staged
+  modem build recovered the expected modem image in the offline repack
+  check. The host menu harness passed with an empty bundle. Testing the
+  first Menu press on a physical TD-H9 is pending.
+
+### Public v0.1.6 backup on a stock-compatible radio
+
+- A checksum-verified v1 HID archive recorded `verified-erased-sector-seed`.
+  Compared with the pinned Type-C v1.0.38 image, its application differed by
+  22 bytes in the final sector, 0xD9000, within 0xD9FE0–0xD9FFD. The public
+  installer accepts that sector as stock-compatible for installation, but
+  its backup shortcut requires a matching application in every sector.
+- The v0.1.6 fallback reads 16 groups of 4,095 shifted CRC windows each.
+  A replay of the archive through the current exact backup path recovered
+  both firmware regions byte for byte in 2,271 CRC requests including
+  scans. The default v0.1.8 preflight used 24 CRC requests and accepted
+  the radio. These request counts come from offline replay.
+- The last 32 bytes of the application's raw flash region were erased in
+  the pinned package. In the stock-compatible archive that block starts
+  with the package product ID, `X12345678`, padded with seven `FF` bytes.
+  Thirteen more bytes differ in the remaining binary portion. The product
+  ID reads directly from raw flash. The meaning of the remaining fields
+  has not been verified.
+
+### Type-C stock backup references, v1.0.23–v1.0.38
+
+- Verified the packages for v1.0.23, .24, .27, .28, .29, .32, .33 and .38
+  from the pinned TDH9 mirror. The .27 archive nests the Type-C ZIP.
+  Versions through .32 have seven package records, with the directory
+  extending past 0x200; .33 and .38 have five.
+- The decoded images have the same first 0x5000 bytes and a TD-H9 model
+  string. The earlier images end at 0xC4000–0xD6000, before the v1.0.38
+  image's 0xDA000 end. Their package bytes serve as readback candidates
+  within each image's range. The installer verifies any remaining sectors
+  against the radio. Catalog recognition does not authorize writes or
+  expand the factory recovery choices.
+- Simulated all eight images with a changed final managed sector. The
+  optional backup recovered both firmware regions byte for byte in 2,271
+  checksum requests per image. Physical-radio testing was not performed.

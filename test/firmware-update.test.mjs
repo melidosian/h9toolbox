@@ -1,7 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, makePacket, parseReply, planUpdate, writeSector } from '../dist/firmware-update/firmware.mjs';
-import { createHidArchive, knownAppMatches, loadHidArchive, readAccessibleFlash, recoverNextSector, recoverPreviousSector } from '../dist/firmware-update/readback.mjs';
+import { APP_START, IMAGE_SIZE, SECTOR_SIZE, crc16, expectedCrcs, H9Hid, loadBackup, makePacket, parseReply, planUpdate, scanRadio, writeSector } from '../dist/firmware-update/firmware.mjs';
+import { createHidArchive, knownAppMatches, loadHidArchive, planFirmwareWithoutBackup, readAccessibleFlash, readFirmwareBackup, recoverNextSector, recoverPreviousSector, UnverifiedRadioError } from '../dist/firmware-update/readback.mjs';
+import { backedUpFar, FAR_START, FAR_END } from '../dist/firmware-update/far-region.mjs';
+
+test('the stock catalog selects one reference and tolerates a changed fingerprint sector', async () => {
+  const { STOCK_RELEASES, STOCK_SIGNATURE_SECTORS } = await import('../dist/firmware-update/stock-catalog.mjs');
+  const { stockReferenceForScan } = await import('../dist/firmware-update/stock-source.mjs');
+  for (const release of STOCK_RELEASES) {
+    const scan = expectedCrcs(new Uint8Array(IMAGE_SIZE));
+    const indexes = STOCK_SIGNATURE_SECTORS.map(address => (address - APP_START) / SECTOR_SIZE);
+    indexes.forEach((index, i) => { scan[index] = release.signature[i]; });
+    assert.equal(stockReferenceForScan(scan), release);
+    scan[indexes[0]] ^= 1;
+    assert.equal(stockReferenceForScan(scan), release);
+    scan[indexes[1]] ^= 1;
+    assert.equal(stockReferenceForScan(scan), null);
+  }
+});
 
 test('HID init packet matches captured vendor request', () => {
   const body = new Uint8Array(17);
@@ -106,6 +122,9 @@ test('sliding CRCs recover every byte in both directions', () => {
   const windows = Uint16Array.from({ length: SECTOR_SIZE }, (_, shift) => crc16(joined.subarray(shift, shift + SECTOR_SIZE)));
   assert.deepEqual(recoverNextSector(previous, windows, crc16(next)), next);
   assert.deepEqual(recoverPreviousSector(next, windows, crc16(previous)), previous);
+  const evenWindows = windows.map((crc, shift) => shift % 2 ? 0 : crc);
+  assert.deepEqual(recoverNextSector(previous, evenWindows, crc16(next), 2), next);
+  assert.deepEqual(recoverPreviousSector(next, evenWindows, crc16(previous), 2), previous);
   const corrupt = windows.slice(); corrupt[1024] ^= 1;
   assert.throws(() => recoverNextSector(previous, corrupt, crc16(next)), /CRC recovery failed|CRC mismatch/);
 });
@@ -177,6 +196,123 @@ test('quick backup of a known application skips the settings area and round-trip
   // fails, so readAccessibleFlash falls back to full recovery.
   const other = target.slice(); other[0x40000] ^= 1;
   assert.equal(await knownAppMatches(hid, sectorCrcs, other), false);
+});
+
+test('combined backup verifies main and far firmware without reconstructing settings', async () => {
+  const target = Uint8Array.from({length: IMAGE_SIZE}, (_, i) => (i * 31 + (i >> 9)) & 255);
+  const far = new Uint8Array(FAR_END - FAR_START).fill(0xff);
+  const radio = new Uint8Array(0x100000).fill(0xff);
+  radio.set(target);
+  radio.fill(0x42, IMAGE_SIZE, FAR_START);
+  radio.fill(0x17, FAR_END);
+  let windowRequests = 0;
+  const hid = {
+    async crcs(relative, count) {
+      return Array.from({length: count}, (_, i) => {
+        const start = APP_START + relative + i * SECTOR_SIZE;
+        return crc16(radio.subarray(start, start + SECTOR_SIZE));
+      });
+    },
+    async windowCrcs(relative, count) {
+      windowRequests++;
+      const start = APP_START + relative;
+      const end = start + count * SECTOR_SIZE;
+      assert.ok(end <= IMAGE_SIZE || (start >= FAR_START && end <= FAR_END), 'shifted read outside firmware');
+      return this.crcs(relative, count);
+    },
+  };
+  const scan = await scanRadio(hid);
+  const quick = await readFirmwareBackup(hid, scan, [target], []);
+  assert.equal(windowRequests, 96);
+  assert.deepEqual(quick.accessible, target.subarray(APP_START));
+  assert.deepEqual(quick.far, far);
+  const archive = await createHidArchive(quick.accessible, quick.method, quick.far);
+  const loaded = await loadHidArchive(archive, target);
+  assert.deepEqual(loaded.image, target);
+  assert.deepEqual(backedUpFar(loaded.accessible), far);
+  const corrupt = archive.slice(); corrupt[corrupt.length - 1] ^= 1;
+  await assert.rejects(loadHidArchive(corrupt, target), /checksum mismatch/);
+
+  // A changed first sector needs a reverse read. A changed last far sector
+  // needs a forward read. Both must survive in the actual recovery bytes.
+  radio[APP_START + 13] ^= 0x52;
+  radio[FAR_END - 7] ^= 0x19;
+  windowRequests = 0;
+  const changedScan = await scanRadio(hid);
+  const partial = await readFirmwareBackup(hid, changedScan, [target], []);
+  assert.deepEqual(partial.accessible, radio.subarray(APP_START, IMAGE_SIZE));
+  assert.deepEqual(partial.far, radio.subarray(FAR_START, FAR_END));
+  assert.ok(windowRequests < 4300, `partial backup used ${windowRequests} window requests`);
+
+  await assert.rejects(readFirmwareBackup(hid, changedScan, [target], [], () => {}, () => true),
+    /backup cancelled/i);
+  await assert.rejects(readFirmwareBackup(hid, scan, [target], []), /CRCs changed during backup/);
+});
+
+test('unrecognised firmware falls back to erased-sector recovery with two-byte shifts', async () => {
+  const accessible = new Uint8Array(0x100000 - APP_START).fill(0x71);
+  // Keep the sole erased pair outside the managed regions.
+  const blank = (IMAGE_SIZE - APP_START) / SECTOR_SIZE;
+  accessible.fill(0xff, blank * SECTOR_SIZE, (blank + 2) * SECTOR_SIZE);
+  const regularCrc = crc16(accessible.subarray(0, SECTOR_SIZE));
+  const blankCrc = crc16(accessible.subarray(blank * SECTOR_SIZE, (blank + 1) * SECTOR_SIZE));
+  const sectorCrcs = Array.from({length: accessible.length / SECTOR_SIZE}, (_, i) =>
+    i === blank || i === blank + 1 ? blankCrc : regularCrc);
+  let windowRequests = 0;
+  const hid = {
+    async crcs(relative, count) {
+      const index = relative / SECTOR_SIZE;
+      return sectorCrcs.slice(index, index + count);
+    },
+    async windowCrcs(relative, count) {
+      windowRequests++;
+      const first = Math.floor(relative / SECTOR_SIZE);
+      return Array.from({length: count}, (_, i) => {
+        const boundary = first + i;
+        const start = relative + i * SECTOR_SIZE;
+        return boundary === blank - 1 || boundary === blank + 1
+          ? crc16(accessible.subarray(start, start + SECTOR_SIZE))
+          : sectorCrcs[boundary];
+      });
+    },
+  };
+  const backup = await readFirmwareBackup(hid, sectorCrcs, [], []);
+  assert.equal(backup.method, 'verified-erased-sector-seed');
+  assert.deepEqual(backup.accessible, accessible.subarray(0, IMAGE_SIZE - APP_START));
+  assert.deepEqual(backup.far, accessible.subarray(FAR_START - APP_START, FAR_END - APP_START));
+  assert.equal(windowRequests, 32854);
+});
+
+test('quick install and stock recovery need only the model windows when other sectors differ', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { BUILD, decodePackage, loadBuildPackage, loadStockSeed, stockDifferences } = await import('../dist/firmware-update/firmware.mjs');
+  const file = async url => new Uint8Array(await readFile(new URL(url, import.meta.url)));
+  const build = await loadBuildPackage(await file(`../dist/firmware-update/${BUILD.packageFile}`));
+  const stock = await loadStockSeed(await file(`../dist/firmware-update/${BUILD.stockSeedFile}`), build.image);
+  const toolbox = decodePackage(await file('../firmware-research/module-loader/combined-preview-release/h9-toolbox-firmware-v0.1.6-rc.5.fw'));
+  const flash = new Uint8Array(0x100000).fill(0xff);
+  flash.set(toolbox);
+  flash[0x40010] ^= 0x19; // A sector no published image can supply.
+  flash.fill(0xAB, 0x5000, 0x6000); // Interrupted write to the app header.
+  const crcs = async (relative, count) => Array.from({length: count}, (_, i) => {
+    const start = APP_START + relative + i * SECTOR_SIZE;
+    return crc16(flash.subarray(start, start + SECTOR_SIZE));
+  });
+  let shifted = 0;
+  const hid = { crcs, async windowCrcs(relative, count) { shifted++; return crcs(relative, count); } };
+  const current = await scanRadio(hid);
+  for (const target of [toolbox, stock]) {
+    shifted = 0;
+    const plan = await planFirmwareWithoutBackup(hid, current, target);
+    assert.deepEqual(plan.update, stockDifferences(current, target).reverse());
+    assert.equal(plan.update.at(-1), APP_START);
+    assert.ok(plan.update.includes(0x40000));
+    assert.equal(plan.verifyShiftedWindows, true);
+    assert.equal(shifted, 6);
+  }
+  await assert.rejects(planFirmwareWithoutBackup({ windowCrcs: async () => [undefined] }, current, stock), UnverifiedRadioError);
+  flash[0xb672a] ^= 1;
+  await assert.rejects(planFirmwareWithoutBackup(hid, await scanRadio(hid), stock), UnverifiedRadioError);
 });
 
 test('hosted H9 Toolbox Firmware files rebuild every known image and plan only pinned sectors', async () => {

@@ -18,6 +18,7 @@
 #include "fix_store.h"
 #include "app_theme.h"
 #include "h9mod.h"
+#include "key_ramp.h"
 
 #ifndef GPS_HOST_TEST   /* the host test supplies its own */
 #define RING ((volatile uint8_t *)0x16634)
@@ -38,6 +39,7 @@ enum { BG = UI_BG, DIM = UI_DIM };
 struct sat { uint8_t id, con, elev, snr; uint16_t az; };
 
 struct state {
+    struct h9_key_ramp keys;
     /* from GGA / RMC */
     int32_t lat, lon, alt10, spd10;       /* microdegrees; altitude and speed (knots) in tenths */
     unsigned course, hdop10, quality, used, view;
@@ -53,7 +55,7 @@ struct state {
     unsigned frame_len, cmd, escape, nmea_len;
     char nmea[NMEA];
     /* ui */
-    unsigned page, key, key_seen, drawn_ver, last_draw;
+    unsigned page, drawn_ver, last_draw;
     int32_t saved_lat, saved_lon;
     uint8_t saved;
 };
@@ -403,15 +405,6 @@ static void draw(const struct state *st, uint32_t now, int full)
     if (full) ui_footer("UP/DN PAGE  BACK TOOLBOX");
 }
 
-/* A key once two readings agree (the keypad ADC has no debounce). */
-static unsigned key_press(struct state *st)
-{
-    unsigned k = h9_key();
-    if (k != st->key) { st->key = k; return 0; }
-    if (k == st->key_seen) return 0;
-    st->key_seen = k;
-    return k;
-}
 
 unsigned module_main(const struct h9_api *api, unsigned self)
 {
@@ -419,13 +412,13 @@ unsigned module_main(const struct h9_api *api, unsigned self)
     struct state st;
     uint8_t *z = (uint8_t *)&st;
     for (unsigned i = 0; i < sizeof st; i++) z[i] = 0;
-    st.key = st.key_seen = h9_key();
+    st.keys.sample = st.keys.stable = h9_key();
     st.saved = (uint8_t)fix_load_micro(api->read, &st.saved_lat, &st.saved_lon);
     gfx_fill(0, 0, H9_WIDTH, H9_HEIGHT, BG);
     unsigned dirty = 1;
     for (;;) {
         poll_ring(&st);
-        unsigned k = key_press(&st);
+        unsigned k = h9_key_ramp(&st.keys, h9_key(), TICK, 1);
         if (k == H9_KEY_BACK) return 0;
         if ((k == H9_KEY_MENU || k == H9_KEY_DOWN) && st.page < PAGES - 1) { st.page++; dirty = 1; }
         else if (k == H9_KEY_UP && st.page) { st.page--; dirty = 1; }

@@ -2,6 +2,7 @@
 #include "radio_system.h"
 
 int radio_system_reload_native(void);
+void radio_system_retune_native(void);
 int radio_system_factory_native(unsigned action);
 int radio_system_header_native(unsigned area, void *dst);
 void radio_system_uart_native(const void *, unsigned length);
@@ -35,7 +36,19 @@ static int ready(void) { return *(const volatile uint16_t *)0x12234u == 0x5AA5u;
 static int reload(void)
 {
     if (!ready()) return RADIO_IO_ERROR;
-    return radio_system_reload_native();
+    uint8_t saved;
+    if (radio_stock_storage.read(0x0ca3, &saved, sizeof saved)) return RADIO_IO_ERROR;
+    int result = radio_system_reload_native();
+    if (result) return result;
+    /* The stock Dual Watch setter at 0x01E742A2 updates the live TDR
+     * byte and retunes. The bulk reload does not take that setter path. */
+    volatile uint8_t *dual_watch = (volatile uint8_t *)0x12ba7u;
+    uint8_t enabled = (saved >> 2) & 1u;
+    if (*dual_watch != enabled) {
+        *dual_watch = enabled;
+        radio_system_retune_native();
+    }
+    return RADIO_OK;
 }
 static int reset(unsigned action)
 {

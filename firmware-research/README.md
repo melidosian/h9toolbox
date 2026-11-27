@@ -7,7 +7,6 @@ This folder collects the TD-H9 v1.0.38 firmware investigation and tools. It is r
 - [Brick Breaker source package](brick-breaker/README.md): independently buildable, hardware-tested stock-UI game with its pinned assembler, flasher, backup, and HID recovery tools. Official firmware and personal backups are excluded.
 - [Resource-flash service (S1/S2)](resource-service/README.md): offline-built, stock-derived images that expose the 16 MiB SPI resource flash through the Bluetooth clone `R` command (S1, read-only) and add a guarded sector erase/program service on `W` (S2), with a local [service page](../prototypes/resource-reader/README.md). Neither is hardware tested.
 - [Resource flash and UI boundary research log](resource-flash-log.md): dated findings, corrections, and test status for S0–S2, U0–U1, and the replacement-UI boundary, with stock evidence in [main-resource-flash.md](h9-firmware-research/evidence/stock/main-resource-flash.md) and [main-ui-radio-superloop.md](h9-firmware-research/evidence/stock/main-ui-radio-superloop.md).
-- [Resource flash over USB (U0–U1)](resource-usb/README.md): RAM-only route through the BR23 mask ROM's USB Update protocol; no main-firmware change. Includes a macOS libusb transport, the U1 ROM jump-return test (passed on hardware 2026-11-08), and the ported SPI2 read program for U2.
 - [Firmware analysis and recovery record](h9-firmware-research/README.md): container layout, APRS module, audio and transmit routing, startup logo, failed logo experiment, and successful HID recovery.
 - [APRS code map](h9-firmware-research/APRS_CODE_MAP.md): current hypotheses and the decoded receive/transmit paths.
 - [APRS TX route models](h9-firmware-research/aprs_tx_route_model.py): offline reconstruction of the shared TX CH selector and its [timed-beacon caller](h9-firmware-research/aprs_timed_beacon_model.py); neither measures RF.
@@ -21,7 +20,15 @@ This folder collects the TD-H9 v1.0.38 firmware investigation and tools. It is r
 The TD-H9 HID `C4` command was measured on a physical v1.0.38 radio. A request with block size 1 and an unaligned address returns CRC16 values for 4096-byte windows at 4096-byte strides, shifted by that address. Adjacent CRC windows differ by one outgoing and one incoming byte. CRC16 linearity lets the browser solve for the incoming byte when the previous sector is known, or the outgoing byte when the next sector is known. A live 4096-byte settings sector was reconstructed both forward from the verified official application image and backward from a verified erased sector; the two results matched byte for byte and matched the radio's sector CRC. No erase or write was sent in that test.
 
 The archive contains physical flash bytes `0x5000..0xFFFFF`, a checksum, and an explicit notice that protected boot bytes `0x0000..0x4FFF` are absent. Before accepting it, the browser checks the known image or an erased seed against shifted CRCs, verifies every reconstructed sector CRC, and rescans all accessible sector CRCs. Reconstruction on this radio's stock image uses about 12,285 shifted CRC requests; a nonmatching application image with an erased sector pair needs about 65,520. This protocol behavior is hardware observed on one radio and may differ on other firmware or devices. The page never writes the protected boot area or the retained settings region above `0xDA000`; the archive preserves those accessible settings bytes for offline recovery research. It is not a complete raw flash image and cannot repair corrupted protected boot bytes.
-- [Early browser USB probe](h9-usb-probe/index.html): exploratory WebUSB UI. The mass-storage update device cannot be accessed through WebUSB; use the Python flasher for that interface.
+
+## Archived experiments
+
+- [Far-flash experiments](archive/far-hello/README.md) tested running small programs directly from the far region of main flash.
+- [Trap monitor](archive/trap-test/) checked whether stock code reached candidate regions during bench trials.
+- [Firmware takeover analysis](archive/takeover/DESIGN.md) records the early plan and call-graph analysis for replacing the stock application task.
+- [Resource flash over USB](archive/resource-usb/README.md) records the RAM-only SCSI experiments and their offline tests.
+- [WebUSB probe](archive/webusb-probe.html) tested browser access to the mass-storage update device. Use the [Python flasher](h9-flasher/README.md) for that interface.
+- [Early resource loader design](archive/resource-loader-design.md) records the original proposal. The [module loader](module-loader/README.md) documents the implementation that shipped.
 
 ## Hardware findings
 

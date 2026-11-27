@@ -21,9 +21,9 @@ static int confirm_bt_reset(const struct h9_api *loader)
         if (key == H9_KEY_MENU) return radio_with_rf(loader, bt_reset, 0);
     }
 }
-int radio_action(const struct h9_api *loader, unsigned action)
+int radio_action(const struct h9_api *loader, unsigned action, uint16_t accent)
 {
-    if (action == RADIO_ACT_CHANNELS) return radio_channel_editor(&radio_stock_storage);
+    if (action == RADIO_ACT_CHANNELS) return radio_channel_editor(&radio_stock_storage, accent);
     if (action >= RADIO_ACT_INFO && action <= RADIO_ACT_RESET_APRS)
         return radio_system(loader, action - RADIO_ACT_INFO);
     if (action == RADIO_ACT_BT_INFO) return radio_bt_info();

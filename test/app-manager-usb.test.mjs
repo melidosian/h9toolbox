@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildBundle } from '../dist/apps/bundle.mjs';
 import { connectUsb } from '../dist/boot-logo/radio.mjs';
-import { BANK_SIZE, BLOCK, LOGO_ADDRESS, LOGO_BYTES, SECTOR } from '../dist/boot-logo/resource.mjs';
+import { BANK_SIZE, BLOCK, LOGO_ADDRESS, LOGO_BYTES, MissingResourceServiceError, SECTOR } from '../dist/boot-logo/resource.mjs?v=20261127status';
 import { SLOTS, readPack, restore, uploadPack } from '../dist/doom/upload.mjs';
 import { SimulatedRadio } from './support/simulated-radio.mjs';
 
@@ -123,7 +123,7 @@ test('a USB port closes on unplug and stock firmware fails the service check', a
   const disconnected = Promise.withResolvers();
   const session = await connectUsb({ onDisconnect: disconnected.resolve });
   t.after(() => session.disconnect());
-  await assert.rejects(session.radio.checkService(), /No resource service/);
+  await assert.rejects(session.radio.checkService(), { constructor: MissingResourceServiceError, message: /No resource service.*ff ff ff ff/ });
   unplug();
   await disconnected.promise;
   assert.equal(port.closed, true);

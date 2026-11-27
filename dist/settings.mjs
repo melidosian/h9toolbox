@@ -23,7 +23,8 @@ export const SETTINGS = [
   bit('Radio','beep','Key beep',0x0ca9,0x04,2),
   bit('Radio','txLight','Display on TX',0x0ca8,0x80,7),
   bit('Radio','rxLight','Display on RX',0x0ca8,0x40,6),
-  bit('Radio','dualWatch','Dual watch / sync',0x0caa,0x40,6),
+  // Stock v1.0.38 reads partition 4, 0x0ca3 bit 2 into the live TDR flag.
+  bit('Radio','dualWatchEnabled','Dual Watch',0x0cab,0x04,2),
   add('Radio','voxGain','VOX gain',0x0caf,opt(['Off','1','2','3','4','5']),{mask:0x07,shift:0}),
   add('Radio','voxDelay','VOX delay',0x0cb6,opt(['1 s','2 s','3 s'])),
   add('Radio','backlight','Backlight timer',0x0cb5,opt(['Continuous','5 s','10 s','15 s','30 s'])),

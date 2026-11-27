@@ -7,9 +7,9 @@ Free browser tools and custom firmware for the TIDRADIO TD-H9.
 ## H9 Toolbox Firmware
 
 H9 Toolbox Firmware builds on the stock Type-C v1.0.38 firmware. It keeps
-your saved channels and settings and adds an app menu. On v0.1.6, press
-**Menu** from the channel screen to open Toolbox. On earlier versions,
-hold **Back**.
+your saved channels and settings and adds an app menu. On v0.1.8, press
+**Menu** from the channel screen to open Toolbox or hold **Back** for Quick
+Change. On v0.1.5, hold **Back** for the app menu.
 
 - **APRS.** View heard stations, distance and bearing, a map around your GPS
   position, and messages. Use the keypad to send a status packet or canned
@@ -31,19 +31,31 @@ hold **Back**.
 
 1. Open the firmware updater in Chrome or Edge on a computer. Connect a
    data-capable USB-C cable and hold **PTT + 2** while powering on the
-   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/) · [Dev firmware updater](https://dev.h9toolbox.com/firmware-update/)
-2. Choose your firmware, save the recommended `.h9hid` recovery backup,
-   and keep USB connected through verification. The updater requests a reboot
-   after verification and gives manual restart instructions if the radio
-   stays in update mode.
+   Type-C TD-H9. [Firmware updater](https://h9toolbox.com/firmware-update/)
+2. Choose verified H9 Toolbox or stock firmware, review the flash map, then
+   confirm the install. **Full** includes every available build option.
+   **Essentials** includes the core Toolbox features. **Custom** lets you
+   choose the Quick Change controls and APRS modem updater. Firmware v0.1.8
+   adds experimental 33 cm controls and a **Standard** preset with Quick
+   Change and the modem updater. Keep USB connected through verification.
+   Select the optional `.h9hid` backup for an exact firmware rollback. The
+   updater requests a reboot after verification and gives manual restart
+   instructions if the radio stays in update mode.
 3. With the radio on its normal channel screen, use the App Manager linked
    from your updater to choose apps and select **Write to radio**.
-   [App Manager](https://h9toolbox.com/apps/) · [Dev App Manager](https://dev.h9toolbox.com/apps/)
+   Add or update **About**, then open **Setup → About** on the radio to see
+   which build options are included in its firmware.
+   [App Manager](https://h9toolbox.com/apps/)
 4. If you want full KISS TNC and the updater verifies that the modem
    update was staged, follow **Optional: Unlock KISS TNC** on the restart
    step. It includes the keypad instructions and bridge download.
 
-Keep the `.h9hid` file to recover the main firmware. The Bluetooth
+Optional backups use pinned Type-C stock references for v1.0.23, v1.0.24,
+v1.0.27, v1.0.28, v1.0.29, v1.0.32, v1.0.33 and v1.0.38. The updater
+checks the radio before reusing any reference bytes. For factory recovery,
+the installer offers Type-C v1.0.38.
+
+Keep any `.h9hid` file you create for an exact firmware rollback. The Bluetooth
 programmer’s `.img` backup is for channels and settings. To return to the
 factory main firmware, choose **Stock Type-C v1.0.38** in the updater. The
 APRS modem uses its own recovery procedure. [TD-H9 recovery guide](https://dev.h9toolbox.com/firmware-update/recovery/) · [APRS modem recovery](firmware-research/kiss-tnc/README.md#aprs-modem)
@@ -64,8 +76,10 @@ GitHub Pages builds `main` with `scripts/build-site.sh` for
 [h9toolbox.com](https://h9toolbox.com/). Cloudflare Pages builds `dev` with
 `scripts/build-dev-site.sh` for [dev.h9toolbox.com](https://dev.h9toolbox.com/)
 and records that commit at [`/dev-build.txt`](https://dev.h9toolbox.com/dev-build.txt).
-Both builds default to H9 Toolbox Firmware v0.1.6 over USB-C, including the
-main firmware and far-flash payload, and serve the matching App Manager catalog.
+The production installer defaults to H9 Toolbox Firmware v0.1.8 with
+experimental 33 cm support. The `dev` deployment stages changes before
+promotion to `main`. Both deployments serve the main firmware, far-flash
+payload and matching App Manager catalog.
 
 The production site uses Google Analytics 4 for page views and automatic
 interaction events. The tag runs only on `h9toolbox.com`. H9 Toolbox keeps

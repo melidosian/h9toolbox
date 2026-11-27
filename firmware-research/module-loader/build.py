@@ -35,7 +35,7 @@ RESEARCH = ROOT.parent
 TOOLS = RESEARCH / "brick-breaker" / "tools"
 ISA = TOOLS / "pi32v2-isa"
 sys.path.insert(0, str(ISA))
-from pi32v2isa import asm, elf, ld  # noqa: E402
+from pi32v2isa import asm, elf, ld, objdump, table  # noqa: E402
 
 STOCK_SHA256 = "11a07bc0b7f23ba809451256004f26e31547f1c251bbbc5f02ef905c968f9cd3"
 STOCK_PACKAGE_SHA256 = "c4d0beb5281f3a06d7a56083e1744b925f78ff9917c8364e006418ff0bbd0cd6"
@@ -53,12 +53,21 @@ HEAP_END_SITE, HEAP_END_OLD = 0x05FA9E, bytes.fromhex("c5ff00bf0200")
 # The serial / USB clone transport's write routine pointer (the literal 0x01E78348 loaded into the ops table in
 # app+0x78A9E, "c2ff 4883 e701"): retargeted to the stub's ml_serial_write (src/stub.s explains why).
 SERIAL_WRITE_SITE, SERIAL_WRITE_OLD = 0x78AA0, bytes.fromhex("4883e701")
+STOCK_DISPATCH = 0x818F0
+STOCK_DISPATCH_PROLOGUE = bytes.fromhex("7f04e292")
+BACK_ACTION_CALL, STOCK_GNSS = 0x81FCA, 0x7E078
 LOAD, SLOT_END = 0x29F00, 0x2BF00
 APRS_BOOT_SITE = 0x88186
 APRS_SERVICE_RAM = 0x29C00
 RESIDENT_RAM = 0x29A00
 CHANNEL_LABEL_RAM = 0x29900
 CHANNEL_LABEL_SHIMS, CHANNEL_LABEL_SHIMS_END = 0x87C80, 0x87E38
+TX_33CM_SHIMS, TX_33CM_SHIMS_END = 0x87E76, 0x87F64
+TX_33CM_HOOKS = (
+    (0x56616, bytes.fromhex("c5fff0c00000"), "ml_33cm_validate"),
+    (0x5ACC2, bytes.fromhex("c0ff0085cf00"), "ml_33cm_tx_range"),
+    (0x7DEDA, bytes.fromhex("04ec1630"), "ml_33cm_vfo_entry"),
+)
 # Pinned A/B Name + number row calls in all stock layouts.
 CHANNEL_NAME_CALLS = ((0x6758E, 0x5A386, "ml_labels_draw_a"),
                       (0x67642, 0x5A44E, "ml_labels_draw_b"),
@@ -345,7 +354,7 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
                 "radio_settings.c", "radio_storage.c", "radio_editor.c", "radio_channels.c", "radio_channel_editor.c",
                 "radio_actions.c", "radio_actions_catalog.c", "radio_bluetooth.c", "radio_scan.c",
                 "radio_system.c", "radio_system_native.c", "radio_aprs.c", "channel_labels.c",
-                "channel_labels_native.c", "channel_name_scroll.c", "channel_name_view.c"))
+                "channel_labels_native.c", "channel_name_scroll.c", "channel_name_view.c", "radio_quick.c"))
         sources = (menu_dir / "menu.c", *menu_sources)
         menu_flags = flags + ("-DH9_GROUPED_MENU",)
         if radio_menu_preview:
@@ -359,7 +368,7 @@ def build_modules(out: Path, toolchain: Path, resident: bool = False, *,
         # The RAM trampoline targets the first far byte. Put the API gate
         # before the C objects and reject any linker layout that moves it.
         program = link([*lib, *objects], FAR_MENU_CPU, entry, out, "far_menu",
-                       keep=tuple(CHANNEL_LABEL_EXPORTS.values()) if unified_menu else ())
+                       keep=(*CHANNEL_LABEL_EXPORTS.values(), "radio_quick_menu") if unified_menu else ())
         if program.entry != FAR_MENU_CPU:
             raise ValueError("Far menu API gate is not at the trampoline target")
         far_menu_body = text_of(program, FAR_MENU_CPU)
@@ -593,6 +602,45 @@ def apply_channel_labels(app: bytearray, stock: bytes, base: bytes, far: bytes, 
             "storage_start": "0x3f6000", "storage_end_exclusive": "0x3fa000",
             "heap_end": hex(CHANNEL_LABEL_RAM)}
 
+def band_33cm_constants() -> str:
+    header = (ROOT / "menu-replacement/radio_33cm.h").read_text()
+    names = {"LOW", "HIGH", "STATE", "MAGIC", "OFF", "REGION", "VM_KEY"}
+    constants = {}
+    for line in header.splitlines():
+        fields = line.split()
+        if len(fields) == 3 and fields[0] == "#define" and fields[1].removeprefix("RADIO_33CM_") in names:
+            constants[fields[1]] = int(fields[2], 0)
+    if len(constants) != len(names):
+        raise ValueError("33 cm hooks are missing shared constants")
+    return "".join(f".equ {name}, {value:#x}\n" for name, value in constants.items())
+
+
+def apply_33cm(app: bytearray, stock: bytes, out: Path, raw_assembly) -> dict:
+    source = out / "tx_33cm_hooks.s"
+    source.write_text(band_33cm_constants() + (ROOT / "src/tx_33cm_hooks.s").read_text())
+    origin = IMAGE_BASE + TX_33CM_SHIMS
+    shim = link([assemble(source, out)], origin, "ml_33cm_validate", out, "tx_33cm_hooks")
+    code = text_of(shim, origin)
+    end = TX_33CM_SHIMS + len(code)
+    if end > TX_33CM_SHIMS_END or app[TX_33CM_SHIMS:end] != bytes(len(code)):
+        raise ValueError("33 cm hooks overlap existing instructions")
+    decoder = objdump.decoder_for(table.load(), mcpu="r3")
+    for site, expected, name in TX_33CM_HOOKS:
+        end_site = site + len(expected)
+        if stock[site:end_site] != expected or app[site:end_site] != expected:
+            raise ValueError(f"33 cm hook at {site:#x} differs from the pinned v1.0.38 bytes")
+        target = symbol(shim, name) - IMAGE_BASE
+        redirect = raw_assembly(f"goto {target - site - 4}\n" + "nop\n" * ((len(expected) - 4) // 2))
+        instruction = decoder.decode(redirect, 0)
+        if (len(redirect) != len(expected) or not instruction or
+                instruction[2:] != (4, f"goto {target - site - 4}")):
+            raise ValueError(f"33 cm redirect at {site:#x} has the wrong width or destination")
+        app[site:end_site] = redirect
+    app[TX_33CM_SHIMS:end] = code
+    return {"hook_sites": [hex(site) for site, _, _ in TX_33CM_HOOKS],
+            "shims_app_offset": hex(TX_33CM_SHIMS), "shims_bytes": len(code),
+            "hardware_tested": False}
+
 
 def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool = False,
                    disable_morse: bool = False, dev_kiss: bool = False,
@@ -627,7 +675,14 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         if unified_menu:
             if not far_menu_body:
                 raise ValueError("Unified loader requires its far body")
-            definitions += (f".equ ML_LABELS_LOOP, {IMAGE_BASE + CHANNEL_LABEL_SHIMS:#x}\n"
+            far_program = elf.read((out / "far_menu.elf").read_bytes())
+            quick_entry = symbol(far_program, "radio_quick_menu")
+            if not FAR_MENU_CPU <= quick_entry < FAR_MENU_CPU + len(far_menu_body):
+                raise ValueError("Quick Change entry exceeds the verified far-menu body")
+            definitions += band_33cm_constants() + (f".equ ML_QUICK_ENTRY, {quick_entry:#x}\n"
+                            f".equ ML_STOCK_GNSS, {IMAGE_BASE + STOCK_GNSS:#x}\n"
+                            f".equ ML_STOCK_DISPATCH, {IMAGE_BASE + STOCK_DISPATCH + len(STOCK_DISPATCH_PROLOGUE):#x}\n"
+                            f".equ ML_LABELS_LOOP, {IMAGE_BASE + CHANNEL_LABEL_SHIMS:#x}\n"
                             f".equ ML_UNIFIED_MENU, 1\n.equ ML_UNIFIED_CPU, {FAR_MENU_CPU:#x}\n"
                             f".equ ML_UNIFIED_BYTES, {len(far_menu_body)}\n.equ ML_UNIFIED_CRC, {crc16(far_menu_body)}\n")
         if resident:
@@ -718,7 +773,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
     if auto_tx:
         tx_limit = next(end for start, end, _ in morse_disable.REMOVED if start == RESIDENT_TX_HOOKS)
         tx_hooks = apply_resident_tx(patched, stock, resident, out, tx_limit)
-    menu_patch = label_patch = None
+    menu_patch = label_patch = band_33cm_patch = None
     if unified_menu:
         if not far_menu_body:
             raise ValueError("Unified menu needs its matching far body")
@@ -727,6 +782,22 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         import radio_menu_patch
         def raw_assembly(source):
             return bytes(next(s for s in elf.read(asm.assemble_source(source)).sections if s.name == ".text").data)
+        band_33cm_patch = apply_33cm(patched, stock, out, raw_assembly)
+        site = STOCK_DISPATCH
+        end = site + len(STOCK_DISPATCH_PROLOGUE)
+        if stock[site:end] != STOCK_DISPATCH_PROLOGUE or patched[site:end] != STOCK_DISPATCH_PROLOGUE:
+            raise ValueError("Stock keypad dispatch prologue differs from the pinned bytes")
+        quick_dispatch = symbol(stub_prog, "ml_quick_dispatch") - IMAGE_BASE
+        redirect = raw_assembly(f"goto {quick_dispatch - end}\n")
+        if len(redirect) != len(STOCK_DISPATCH_PROLOGUE):
+            raise ValueError("Quick Change redirect must replace exactly the stock prologue")
+        patched[site:end] = redirect
+        stock_back = call_bytes(STOCK_GNSS, BACK_ACTION_CALL)
+        if stock[BACK_ACTION_CALL:BACK_ACTION_CALL + 4] != stock_back or patched[BACK_ACTION_CALL:BACK_ACTION_CALL + 4] != stock_back:
+            raise ValueError("Stock Back action call differs from pinned call")
+        quick_back = symbol(stub_prog, "ml_quick_back") - IMAGE_BASE
+        patched[BACK_ACTION_CALL:BACK_ACTION_CALL + 4] = call_bytes(quick_back, BACK_ACTION_CALL)
+
         menu_patch = radio_menu_patch.apply(stock, patched, symbol(stub_prog, "ml_main"),
                                            symbol(stub_prog, "ml_crc"), FAR_MENU_CPU,
                                            len(far_menu_body), crc16(far_menu_body), raw_assembly,
@@ -755,10 +826,13 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
     if auto_tx:
         expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in RESIDENT_TX_CALLS}
     if menu_patch:
+        expected |= {(site + 0x5100) & ~0xFFF for site in (STOCK_DISPATCH, BACK_ACTION_CALL)}
         for _, start, end in radio_menu_patch.REMOVED_UI:
             expected.update(range((start + 0x5100) & ~0xFFF, ((end - 1 + 0x5100) & ~0xFFF) + 0x1000, 0x1000))
     if label_patch:
         expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in CHANNEL_NAME_CALLS + CHANNEL_CLONE_CALLS}
+    if band_33cm_patch:
+        expected |= {(site + 0x5100) & ~0xFFF for site, _, _ in TX_33CM_HOOKS}
     if changed != expected:
         raise ValueError(f"changed sectors {sorted(map(hex, changed))}, expected {sorted(map(hex, expected))}")
     return {
@@ -787,6 +861,7 @@ def build_firmware(stock: bytes, stock_package: Path, out: Path, aprs_mute: bool
         "resident_tx_hooks": tx_hooks,
         "unified_menu": menu_patch,
         "channel_labels": label_patch,
+        "band_33cm": band_33cm_patch,
         "dev_kiss": kiss,
         "flash_helpers": {"app_offset": hex(FLASH_HELPERS), "bytes": len(flash),
                           "sha256": sha256(flash).hexdigest(), "exports": [name for name, _ in FLASH_EXPORTS]}

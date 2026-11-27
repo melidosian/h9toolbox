@@ -32,7 +32,7 @@ int radio_editor(const struct radio_storage *storage, const struct radio_setting
 { (void)storage; (void)setting; return 0; }
 int aprs_select_tx(struct ts_settings *settings) { (void)settings; return 1; }
 int radio_apply_pending(const struct h9_api *api) { (void)api; return 0; }
-int radio_action(const struct h9_api *api, unsigned action) { (void)api; (void)action; return 0; }
+int radio_action(const struct h9_api *api, unsigned action, uint16_t accent) { (void)api; (void)action; (void)accent; return 0; }
 static int read_setting(unsigned offset, void *dst, unsigned n) { memcpy(dst, settings_image + offset, n); return 0; }
 const struct radio_storage radio_stock_storage = { .read = read_setting };
 const char *aprs_setting_value(enum aprs_setting s, const struct ts_settings *config, char buffer[8])

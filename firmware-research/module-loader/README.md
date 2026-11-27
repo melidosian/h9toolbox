@@ -3,7 +3,7 @@
 Run programs stored on the 16 MB resource chip by copying them into RAM.
 This is H9 Toolbox Firmware (stock radio + the S2 resource service) with
 Brick Breaker taken out of main flash; Brick Breaker is now the first
-module. Supersedes the plan in [`../resource-loader/DESIGN.md`](../resource-loader/DESIGN.md).
+module. Supersedes the plan in [`../archive/resource-loader-design.md`](../archive/resource-loader-design.md).
 
 **On the radio:** hold **Back** for about half a second (as Brick Breaker's
 launcher). A menu lists the modules on the chip, then **USB UPDATE** (the

@@ -18,14 +18,18 @@ four APRS message entries and 16 native action rows.
 
 The top level starts with Radio Settings, Channel Settings and APRS.
 Radio Settings contains general settings and radio sections. Channel Settings
-opens the memories and VFO editor. App bundles can declare their menu
+opens the list of 199 memories. Hold Up or Down to scroll, or type a
+channel number to jump, then press Menu to edit it. Each row shows the
+channel number followed by its long name or short name. Back returns to the same
+place in the list. App bundles can declare their menu
 category. Maze Chase is listed under Games.
 
 Menu opens the highlighted folder or row. Back returns to the previous
 folder, and Back at the top level returns to the radio. The menu restores
-your folder and selection when a Toolbox app returns. Tap Up/Down to move
-one row or hold either key to scroll. Keypad shortcuts are numbered within
-the open folder.
+your folder and selection when a Toolbox app returns. Tap Up or Down to move
+one row. Hold either key for half a second to start scrolling. Repeats
+speed up at one second and again at 1.8 seconds. Keypad shortcuts are
+numbered within the open folder.
 
 Radio Settings → Display & buttons → Menu color uses the 18-color factory palette.
 Changes preview live. Menu saves the color for the whole menu, and Back
@@ -48,13 +52,17 @@ APRS client. It uses the existing APRS mailbox, replies and delivery
 indicators. The Stations screen's 3 MSG tab opens the same Messages menu.
 These APRS client changes require the app bundle produced with this firmware.
 
-The menu programs all 199 memories and both VFOs. Channel records preserve
+The menu programs all 199 memories. Channel records preserve
 unrelated bits, store actual TX frequency for VFO repeater offsets, and
-verify writes before publishing a memory.
+verify writes before publishing a memory. Use Up or Down for tone and
+other choice rows. Channel frequency rows use MHz. Enter three MHz digits followed by up to
+five fractional digits, then press Menu to save. For example, `14223`
+saves as 142.230 MHz and `14223456` saves as 142.23456 MHz. Back cancels
+the edit.
 
 Each memory has an eight-character Short Name used by the stock image and
-an optional 32-character Long Name. Edit either from Channel Settings â†’
-Channels / VFO. Name + number view uses a configured long name and falls
+an optional 32-character Long Name. Edit either after selecting a memory
+in Channel Settings. Name + number view uses a configured long name and falls
 back to the short name when the field is empty. For an overflowing name,
 the display holds the first page for one second, advances one cell every
 230 ms, and holds the end for one second. Single, Dual and Classic use
@@ -93,7 +101,9 @@ The firmware replaces five stock menu functions covering 11,950 bytes:
 the root, list builder, category entry, setting getter and setting saver.
 The replacement keeps the RF, storage and Bluetooth services it calls.
 The loader enters the far menu directly after verifying its CRC, including
-after a Toolbox app returns. Stock USB recovery remains available.
+after a Toolbox app returns. With no valid app bundle, the built-in menu
+still opens with its native settings and an empty app list. Stock USB
+recovery remains available.
 
 Run the host harnesses from `module-loader/`:
 
@@ -106,6 +116,49 @@ python -I menu-replacement/run_host_tests.py
 
 The C harnesses use the `h9-hostcc` Docker image. The coverage JSON generated
 alongside the firmware lists every stock row and its corresponding endpoint.
+
+## Quick Change
+
+Hold **Back** on the unlocked radio home screen to open a 3×3 grid,
+including when the squelch is open. Press
+`1`–`9` to choose the matching tile, or use Up/Down and Menu.
+Back or `#` closes the grid. PTT exits to the radio. Hold `*` on the home
+screen to lock or unlock the keypad. Hold `#` on the home screen to start
+the radio’s normal scan. Press `0` in the grid to open Radio Settings.
+
+| Key | Setting | Action |
+| --- | --- | --- |
+| 1 | TX power | Cycle Low, Mid and High |
+| 2 | Squelch | Pick 0–9 with the keypad or arrows |
+| 3 | Tone | Choose Off, CTCSS or DCS. Press `#` to select TX, RX or both |
+| 4 | Resume | Cycle the scan resume policy through Time, Carrier and Stop |
+| 5 | Monitor / TX Freq | Toggle the squelch latch on a memory. Edit the TX frequency in VFO mode |
+| 6 | VOX | Toggle voice-operated transmit. Reuses the last active gain during this session |
+| 7 | Dual watch | Toggle |
+| 8 | Width | Toggle 12.5 or 25 kHz |
+| 9 | Bright | Cycle levels 1–5 and apply the level immediately on the grid |
+
+In an editor, Menu saves and Back cancels. Enter a VFO TX frequency as
+eight digits (for example, 14560000 for 145.60000 MHz). Enter the receive
+frequency to return to simplex. Split frequencies must be in the same
+supported transmit band. Power, tones, split and bandwidth changes are
+saved for the selected memory or VFO. Squelch, VOX, dual watch and
+brightness are saved as radio-wide preferences. Monitor is a live latch.
+With the squelch open, Squelch, Monitor and Bright are available. Other
+RF settings that require a reload can be saved when the squelch is closed.
+The keypad layout follows [RadioFoundry's FM quick settings](https://radiofoundry.org/docs/user/08-fm).
+
+### Experimental 33 cm transmit
+
+In **Radio Settings → Radio**, **900TX** follows **500TX**. It enables
+902–928 MHz on the H9 Toolbox v1.0.38 base in Ham or unlocked mode. It
+defaults to Off and remembers the saved preference across reboots. With it enabled, the home-screen VFO keypad
+accepts 33 cm frequencies, Channel Settings accepts 33 cm RX and TX
+frequencies, and Quick Change accepts repeater splits within the band.
+
+The bench build has passed offline checks. Measure output power,
+synthesizer lock, and spurious emissions into a dummy load before using
+the radio on 33 cm.
 
 ## Findings from the pinned factory image
 

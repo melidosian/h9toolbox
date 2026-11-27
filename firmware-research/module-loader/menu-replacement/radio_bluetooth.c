@@ -1,4 +1,5 @@
 #include "app_theme.h"
+#include "key_ramp.h"
 #include "radio_bluetooth.h"
 
 int radio_bt_read(unsigned offset, void *dst, unsigned length)
@@ -88,7 +89,8 @@ int radio_bt_pairing(void)
         if (key != H9_KEY_MENU) continue;
         int result = radio_bt_platform.open(source);
         if (result) return result;
-        unsigned selected = 0, connecting = 0, sample = 0, stable = 0;
+        unsigned selected = 0, connecting = 0;
+        struct h9_key_ramp input = {0};
         const char *notice = 0;
         uint32_t last_draw = RADIO_BT_TICK - 100u, began = RADIO_BT_TICK;
         gfx_wait_release();
@@ -108,9 +110,8 @@ int radio_bt_pairing(void)
                 pairing_draw(source, count, selected, connecting, notice);
                 last_draw = RADIO_BT_TICK;
             }
-            key = h9_key();
-            if (key == sample && key != stable) {
-                stable = key;
+            key = h9_key_ramp(&input, h9_key(), RADIO_BT_TICK, connecting != 1);
+            if (key) {
                 if (key == H9_KEY_BACK || (key == H9_KEY_MENU && connecting == 2)) {
                     radio_bt_platform.close();
                     gfx_wait_release();
@@ -133,7 +134,6 @@ int radio_bt_pairing(void)
                     notice = 0; began = RADIO_BT_TICK; last_draw -= 20u;
                 }
             }
-            sample = key;
             h9_delay(20);
         }
     }

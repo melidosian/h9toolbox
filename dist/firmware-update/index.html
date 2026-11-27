@@ -21,11 +21,11 @@
   <link rel="icon" href="../favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../landing.css?v=20261108c">
-  <link rel="stylesheet" href="./update.css?v=20261119f">
+  <link rel="stylesheet" href="./update.css?v=20261126layout">
   <link rel="stylesheet" href="../boot-logo/logo.css?v=20261108c">
   <script src="../https-redirect.js"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"H9 Toolbox TD-H9 Web Flasher","url":"https://h9toolbox.com/firmware-update/","description":"Install H9 Toolbox Firmware or restore stock v1.0.38 on a TIDRADIO TD-H9 over USB-C (PTT + 2 HID mode) in Chrome or Edge.","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows, macOS, Linux, ChromeOS (desktop Chrome or Edge)","browserRequirements":"Requires WebHID in desktop Chrome or Edge over HTTPS","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Install H9 Toolbox Firmware","Restore stock v1.0.38","Quick firmware backup","Sector-by-sector verification","Resume after interruption","App Manager link for apps and boot logo"],"about":{"@type":"Product","name":"TIDRADIO TD-H9","brand":{"@type":"Brand","name":"TIDRADIO"},"category":"Handheld two-way radio"},"publisher":{"@type":"Organization","name":"H9 Toolbox","url":"https://h9toolbox.com/","sameAs":["https://github.com/melidosian/h9toolbox"]}}</script>
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"How to install custom firmware on the TIDRADIO TD-H9","description":"Install H9 Toolbox Firmware on a TD-H9 from your browser with the H9 Toolbox web flasher.","url":"https://h9toolbox.com/firmware-update/","tool":[{"@type":"HowToTool","name":"TIDRADIO TD-H9"},{"@type":"HowToTool","name":"Data-capable USB-C cable"},{"@type":"HowToTool","name":"Desktop Chrome or Edge"}],"step":[{"@type":"HowToStep","position":1,"name":"Prepare","text":"Open the updater in desktop Chrome or Edge over HTTPS. Have a charged TD-H9 and a data-capable USB-C cable ready.","url":"https://h9toolbox.com/firmware-update/"},{"@type":"HowToStep","position":2,"name":"Connect","text":"With USB connected, hold PTT + 2 while turning the radio on. Select the JieLi HID device.","url":"https://h9toolbox.com/firmware-update/"},{"@type":"HowToStep","position":3,"name":"Choose firmware","text":"Load H9 Toolbox Firmware or official stock Type-C v1.0.38.","url":"https://h9toolbox.com/firmware-update/"},{"@type":"HowToStep","position":4,"name":"Install and verify","text":"Read the confirmation and install. While the recovery backup runs, you can choose Skip backup. Keep the radio powered and connected until verification finishes.","url":"https://h9toolbox.com/firmware-update/"},{"@type":"HowToStep","position":5,"name":"Restart","text":"Wait for the radio to restart. If it stays in update mode, unplug USB and power-cycle it. With H9 Toolbox Firmware, hold Back from the channel screen to open the app menu.","url":"https://h9toolbox.com/firmware-update/"}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"How to install custom firmware on the TIDRADIO TD-H9","description":"Install H9 Toolbox Firmware on a TD-H9 from your browser with the H9 Toolbox web flasher.","url":"https://h9toolbox.com/firmware-update/","tool":[{"@type":"HowToTool","name":"TIDRADIO TD-H9"},{"@type":"HowToTool","name":"Data-capable USB-C cable"},{"@type":"HowToTool","name":"Desktop Chrome or Edge"}],"step":[{"@type":"HowToStep","position":1,"name":"Prepare","text":"Open the updater in desktop Chrome or Edge over HTTPS. Have a charged TD-H9 and a data-capable USB-C cable ready.","url":"https://h9toolbox.com/firmware-update/"},{"@type":"HowToStep","position":2,"name":"Connect","text":"With USB connected, hold PTT + 2 while turning the radio on. Select the JieLi HID device.","url":"https://h9toolbox.com/firmware-update/"},{"@type":"HowToStep","position":3,"name":"Choose firmware","text":"Load H9 Toolbox Firmware or official stock Type-C v1.0.38.","url":"https://h9toolbox.com/firmware-update/"},{"@type":"HowToStep","position":4,"name":"Install and verify","text":"Review the flash plan, then confirm and install. For an exact rollback, select the optional firmware backup. Keep the radio powered and connected until verification finishes.","url":"https://h9toolbox.com/firmware-update/"},{"@type":"HowToStep","position":5,"name":"Restart","text":"Wait for the radio to restart. If it stays in update mode, unplug USB and power-cycle it. With H9 Toolbox Firmware, hold Back from the channel screen to open the app menu.","url":"https://h9toolbox.com/firmware-update/"}]}</script>
 </head>
 <body>
   <div class="shell">
@@ -54,7 +54,7 @@
         <section class="guide-slide" aria-labelledby="prepare-title">
           <p class="guide-count">Step 1 of 5</p>
           <h2 id="prepare-title" tabindex="-1">Let’s get your radio ready</h2>
-          <p>Grab your TD-H9 and a data-capable USB-C cable. We’ll check your browser first, then back up the radio before installing.</p>
+          <p>Grab your TD-H9 and a data-capable USB-C cable. We’ll check your browser first, then help you choose firmware and review the flash plan.</p>
           <ul class="prepare-list">
             <li><strong>TD-H9 radio</strong><span>Start with a charged battery.</span></li>
             <li><strong>USB-C data cable</strong><span>Use a cable that can transfer files.</span></li>
@@ -90,26 +90,53 @@
         <section class="guide-slide" aria-labelledby="files-title" hidden>
           <p class="guide-count">Step 3 of 5</p>
           <h2 id="files-title" tabindex="-1">Choose your firmware</h2>
-          <p>Choose H9 Toolbox for the on-radio app menu. Choose stock to install the official Type-C v1.0.38 firmware.</p>
-          <div class="file-grid">
-            <div class="hosted-package" id="optBuild">
-              <strong>H9 Toolbox Firmware v0.1.5</strong><span class="selected-badge" aria-hidden="true" hidden>Selected</span>
-              <small>Includes the app loader, Bluetooth packet support, and an optional APRS modem update.</small>
-              <button class="button primary-button" id="loadBuild">Load H9 Toolbox v0.1.5</button>
-            </div>
-            <div class="hosted-package" id="optStock">
-              <strong>Stock Type-C v1.0.38</strong><span class="selected-badge" aria-hidden="true" hidden>Selected</span>
-              <small>Fetches and verifies the official package from the TDH9 GitHub mirror.</small>
-              <button class="button ghost" id="loadStockGitHub">Fetch stock firmware</button>
-              <label>Or choose a local stock .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label>
-            </div>
+          <div class="hosted-package" id="optBuild">
+            <strong>H9 Toolbox Firmware v0.1.5</strong><span class="selected-badge" aria-hidden="true" hidden>Selected</span>
+            <small>Includes the app loader, Bluetooth packet support, and an optional APRS modem update.</small>
+            <fieldset class="build-profiles" id="buildProfiles" hidden>
+              <legend>Build preset</legend>
+              <label><input type="radio" name="buildPreset" id="fullBuild" value="full"><span>Full <small id="fullBuildDescription">All options available in this installer.</small></span></label>
+              <label id="standardBuildOption" hidden><input type="radio" name="buildPreset" id="standardBuild" value="standard"><span>Standard <small>Quick Change and the APRS modem updater.</small></span></label>
+              <label><input type="radio" name="buildPreset" id="essentialsBuild" value="essentials"><span>Essentials <small>Core Toolbox features only.</small></span></label>
+              <label><input type="radio" name="buildPreset" id="customBuild" value="custom"><span>Custom <small>Choose which optional features to include.</small></span></label>
+            </fieldset>
+            <fieldset class="firmware-features" id="firmwareFeatures">
+              <legend>Features</legend>
+              <div id="coreFeatures" hidden>
+                <h3>Included in every preset</h3>
+                <ul>
+                  <li>Toolbox menu and app loader</li>
+                  <li>Long channel names</li>
+                  <li>Bluetooth packet support</li>
+                  <li>Persistent APRS messages</li>
+                </ul>
+              </div>
+              <div id="radioFeatures" hidden>
+                <h3>Radio controls</h3>
+                <label><input type="checkbox" id="quickControls"><span>Quick Change and channel controls <small>Keypad shortcuts, direct channel editing and faster scrolling ship together.</small></span></label>
+                <label><input type="checkbox" id="band33cm"><span>Experimental 33 cm controls <small>Adds tuning and the 900TX setting. Requires Quick Change.</small></span></label>
+              </div>
+              <div>
+                <h3 id="packetFeatures" hidden>APRS and packet</h3>
+                <label><input type="checkbox" id="includeModem" checked><span>APRS modem updater <small>Adds the keypad updater for V1.0.15X.</small></span></label>
+              </div>
+            </fieldset>
+            <button class="button primary-button" id="loadBuild">Load H9 Toolbox v0.1.5</button>
           </div>
-          <p id="bundledModemSetup" hidden>The installer includes the redesigned menu and the optional APRS modem stage. If APRS Info already shows <strong>V1.0.15X</strong>, you can skip the keypad modem update after installation.</p>
           <p id="rcPreviewLink" hidden><a href="./">Return to the v0.1.6 installer</a>.</p>
           <p class="selection-state" id="firmwareState" aria-live="polite">No firmware selected</p>
           <details class="guide-help" id="firmwareHelp" hidden>
             <summary>The download or file check failed</summary>
             <p>Check your internet connection and try loading the package again. If GitHub is unavailable, choose a local copy of the official Type-C v1.0.38 <strong>.fw</strong> file. This updater checks the exact package before installing it.</p>
+          </details>
+          <details class="stock-install" id="optStock">
+            <summary>Advanced · Install stock firmware <span class="selected-badge" aria-hidden="true" hidden>Selected</span></summary>
+            <div class="stock-install-content">
+              <strong>Stock Type-C v1.0.38</strong>
+              <small>Fetches and verifies the official package from the TDH9 GitHub mirror.</small>
+              <button class="button ghost" id="loadStockGitHub">Fetch stock firmware</button>
+              <label>Or choose a local stock .fw<input id="firmwareFile" type="file" accept=".fw,application/octet-stream"></label>
+            </div>
           </details>
         </section>
 
@@ -117,22 +144,41 @@
           <p class="guide-count">Step 4 of 5</p>
           <h2 id="write-title" tabindex="-1">Install and verify</h2>
           <p>Keep USB connected and the radio powered on until verification finishes. <span id="legacyStageNote">H9 Toolbox Firmware also stages the optional APRS modem update if space is available.</span></p>
-          <p id="rcInstallNote" hidden>The install saves a complete recovery backup and can take several minutes or longer. To retry or roll back, select that original <strong>.h9hid</strong> file.</p>
-          <p>By default, the updater saves a recovery backup before it installs. Keep the downloaded <strong>.h9hid</strong> file. A known firmware image can take seconds to back up. An unfamiliar image can take about an hour.</p>
+          <p id="rcInstallNote" hidden>The updater verifies both firmware regions for H9 Toolbox Firmware.</p>
+          <p>The updater checks the radio model and installs a verified firmware package. You can reinstall H9 Toolbox Firmware or choose stock Type-C v1.0.38 to recover. For an exact rollback to your current firmware, select the optional backup below.</p>
+          <label class="confirm"><input id="exactBackup" type="checkbox" disabled><span>(Optional) Save an exact firmware backup before installing (can take 45+ minutes). You may return to stock firmware any time.</span></label>
+          <div id="installFlashMap">
+            <section class="flash-map" id="flashMap" aria-labelledby="flashMapTitle" hidden>
+              <div class="flash-map-heading">
+                <h3 id="flashMapTitle" tabindex="-1">Flash map</h3>
+                <span>4 KiB per block</span>
+              </div>
+              <ul class="flash-legend">
+                <li data-state="planned">To write</li>
+                <li data-state="writing">Writing</li>
+                <li data-state="verified">Verified</li>
+                <li data-state="untouched">Left alone</li>
+                <li data-state="protected">Protected</li>
+                <li data-state="interrupted">Interrupted</li>
+              </ul>
+              <div id="flashBlocks"></div>
+              <p id="flashMapSummary"></p>
+            </section>
+          </div>
           <label class="confirm"><input id="acknowledge" type="checkbox" disabled><span>I understand this experimental update may leave my radio unable to start.</span></label>
-          <div class="controls"><button class="button primary-button" id="flash" disabled>Install selected firmware</button><button class="button ghost" id="skipBackup" hidden>Skip backup</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button></div>
+          <div class="controls"><button class="button primary-button" id="flash" disabled>Review flash plan</button><button class="button ghost" id="cancelBackup" hidden>Cancel backup</button></div>
           <p id="backupProgress" class="transfer-progress" hidden></p>
           <details class="restore-options" id="backupHelp" hidden>
             <summary>Backup stalled or download missing</summary>
             <p>Keep the radio powered on and connected while the backup is running. If the backup stops, check the cable and use step 2 to reconnect in update mode. Check your browser’s downloads for the <strong>.h9hid</strong> file before moving on.</p>
-            <p>The recovery file covers accessible firmware. The protected boot region is outside the backup. Save your channels and settings separately with the <a href="../programmer/">Bluetooth programmer</a>.</p>
+            <p>The recovery file covers the firmware regions managed by this install. Save your channels and settings separately with the <a href="../programmer/">Bluetooth programmer</a>.</p>
           </details>
           <details class="restore-options">
             <summary>Use a saved restore point</summary>
-            <p>You can choose a compatible <strong>.h9hid</strong> or raw <strong>.bin</strong> backup to restore. Known H9 Toolbox builds use verified stock v1.0.38 as the default restore point.</p>
+            <p>Choose a compatible <strong>.h9hid</strong> or raw <strong>.bin</strong> backup from this radio. You can also use an archive from the <a href="./h9-desktop-backup.zip" download>desktop backup tool</a>.</p>
             <label class="backup-file">Recovery backup<input id="backupFile" type="file" accept=".h9hid,.bin,application/octet-stream"></label>
             <p class="fine" id="backupState" aria-live="polite">No recovery backup selected.</p>
-            <p class="fine">An archive from the v0.1.6 updater includes both firmware regions. Restoring an older backup writes the main firmware only.</p>
+            <p class="fine">To roll back a combined firmware install, use an archive that includes both firmware regions. Main-only backups work with main-only installs.</p>
             <div class="controls"><button class="button ghost" id="restore" disabled>Restore backup</button></div>
           </details>
           <p id="planState" class="plan-state" aria-live="polite"></p>
@@ -140,8 +186,8 @@
           <div class="result-panel" id="writeResult" hidden></div>
           <details class="guide-help" id="writeHelp" hidden>
             <summary>The update stopped or the check failed</summary>
-            <p>Keep the selected firmware and original backup. If the radio disconnected, go back to step 2 and reconnect using <strong>PTT + 2</strong>, then return here. If the preflight check says the backup does not match, use <strong>Use a saved restore point</strong> above to select the original backup from this radio.</p>
-            <p>The updater checks the radio again before writing. If you reconnect after an interrupted write, select your original backup before retrying. To restore a saved backup instead, select it and choose <strong>Restore backup</strong>. If the radio still won’t connect or start, see the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
+            <p>If the radio disconnected, reconnect it using <strong>PTT + 2</strong>. Retry the same verified firmware or choose stock Type-C v1.0.38.</p>
+            <p>If you used an exact backup for the original install, select that same file before retrying or choose <strong>Restore backup</strong>. If the radio still won’t connect or start, see the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
           </details>
         </section>
 
@@ -149,6 +195,7 @@
           <p class="guide-count">Step 5 of 5</p>
           <h2 id="restart-title" tabindex="-1">Restart your radio</h2>
           <div class="result-panel" id="completedResult"></div>
+          <div id="completedFlashMap"></div>
           <p class="fine" id="kissGate" hidden>The APRS staging area is occupied. Its contents were preserved, so the keypad update is unavailable.</p>
           <details class="guide-help" id="unlock-kiss" hidden>
             <summary>Optional: Unlock KISS TNC</summary>
@@ -167,7 +214,7 @@
           <details class="guide-help">
             <summary>The radio won’t start or the app menu is missing</summary>
             <p>Unplug USB, then switch the radio off and back on without holding any buttons. If the radio still won’t start, follow the <a href="./recovery/" target="_blank" rel="noopener">TD-H9 recovery guide</a>.</p>
-            <p>After installing H9 Toolbox Firmware, wait for the channel screen and hold <strong>Back</strong> to open the app menu. If the App Manager can’t connect, enable Bluetooth on the computer and disconnect the radio from other apps.</p>
+            <p>Wait for the channel screen and follow the menu instructions above. If App Manager can’t connect over Bluetooth, enable Bluetooth on the computer and disconnect the radio from other apps.</p>
           </details>
         </section>
 
@@ -188,6 +235,6 @@
     </main>
     <footer><div class="footer-links">H9 Toolbox <span>Independent, experimental software · <a href="https://github.com/melidosian/h9toolbox">Source on GitHub</a></span></div><p class="ai-disclosure"><strong>AI disclosure:</strong> H9 Toolbox was entirely and responsibly AI generated under human direction. The full browser install and restore flow has been tested on one TD-H9 from macOS.</p></footer>
   </div>
-  <script type="module" src="./update.js?v=20261121release"></script>
+  <script type="module" src="./update.js?v=20261127stock"></script>
 </body>
 </html>

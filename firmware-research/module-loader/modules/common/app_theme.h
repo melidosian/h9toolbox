@@ -17,6 +17,9 @@
 
 enum { UI_LEFT = 3, UI_TITLE_Y = 4, UI_TITLE_H = 17, UI_FOOT_Y = 118, UI_CELLS = 26 };
 
+unsigned menu_luma(uint16_t rgb);
+uint16_t menu_ink(uint16_t accent);
+
 static inline void ui_title(const char *text)
 {
     gfx_fill(0, 0, H9_WIDTH, UI_TITLE_H, UI_BG);

@@ -1,6 +1,50 @@
 # Changelog
 
-## Unreleased: APRS app v1.0
+## H9 Toolbox Firmware v0.1.8
+
+- **Menu** opens the built-in Toolbox menu immediately after a fresh
+  firmware install. App Manager can add optional apps later. [#11](https://github.com/melidosian/h9toolbox/issues/11)
+
+- **Radio Settings → Radio → 900TX** enables experimental 902–928 MHz
+  transmit in Ham or unlocked mode. The setting defaults to Off and
+  saves across power cycles.
+- Enter a 33 cm frequency from the home-screen VFO or Channel Settings
+  with 900TX enabled. Quick Change supports splits within the band.
+- With 900TX Off, a 33 cm transmit request exits before the RF chip is
+  switched to transmit mode.
+
+## H9 Toolbox Firmware v0.1.7
+
+### Quick Change
+
+- Hold **Back** from the channel screen to open Quick Change, even with
+  Monitor on or the squelch set to 0. Hold **#** to start scanning and
+  hold **\*** to lock or unlock the keypad.
+- Use **1–9** for Power, Squelch, Tone, Scan Resume, Monitor or VFO TX
+  frequency, VOX, Dual Watch, Width and Brightness. Press **0** for
+  Radio Settings.
+- Brightness cycles and updates on the grid. Squelch can be raised from
+  level 0 while the receiver is open.
+
+### Toolbox menu
+
+- Press **Menu** on the channel screen to open Toolbox. The unified menu
+  brings together radio settings, channel editing and APRS.
+- The Type-C TD-H9 release includes the optional on-radio APRS modem
+  update and a matching App Manager catalog.
+
+### Channel Settings and scrolling
+
+- Open **Channel Settings** to pick a memory directly from **001–199**.
+  The list uses the Toolbox menu colors and shows long channel names
+  when available. Scrolling redraws just the channel rows.
+- Frequencies display at least three decimal places and keep up to five
+  fractional digits. Enter **14223** and press **Menu** to save **142.230 MHz**.
+- A tap of **Up** or **Down** moves one item. Hold for half a second to
+  repeat, then keep holding to scroll faster. The same behavior applies
+  across Toolbox menus and the APRS, GPS and satellite apps.
+
+### APRS app v1.0
 
 - The six-message on-radio inbox and outbox now survive power cycles in a
   guarded two-sector resource-flash journal. Outgoing messages retain their
@@ -17,7 +61,7 @@
 - Menu on a message detail opens Send addressed to that station. Send remembers a
   draft while switching APRS screens, and focuses the message field when a
   recipient is already selected. Send from Map uses its highlighted station.
-- The prepared dev App Manager catalog includes the hidden mailbox worker.
+- The matching App Manager catalog includes the hidden mailbox worker.
 - Station notes, messages and send previews wrap at word boundaries on the
   radio's narrow screen.
 

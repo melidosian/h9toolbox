@@ -50,6 +50,14 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
             summary="Press Menu to open Toolbox from the channel screen.",
             notes=["Use H9 Toolbox Firmware v0.1.6."],
         )
+        version = firmware["firmware_version"]
+        if (build.firmware_version_word(version) & 0xffffff) >= 0x000107:
+            menu.update(
+                version="2.2",
+                description="Unified Menu-key interface with settings, channels, APRS and Quick Change.",
+                controls=[*menu["controls"], "Hold Back on the channel screen to open Quick Change."],
+                notes=[f"Use matching H9 Toolbox Firmware v{version}."],
+            )
     apps = []
     for classic in meta["apps"]:
         app = {key: value for key, value in classic.items() if key != "screenshots"}
@@ -73,8 +81,8 @@ def smartbeacon_catalog(meta: dict, bundle_path: Path, data: bytes, built: dict)
             )
         apps.append(app)
     apps.append({
-        "id": "about", "name": "ABOUT", "title": "About", "version": "1.0-dev",
-        "category": "Setup", "description": "Show the Toolbox firmware and app loader version.",
+        "id": "about", "name": "ABOUT", "title": "About", "version": "1.1",
+        "category": "Setup", "description": "Show the installed firmware version and build options.",
     })
     return {"profile": "smartbeacon", "menu": menu, "apps": apps}
 

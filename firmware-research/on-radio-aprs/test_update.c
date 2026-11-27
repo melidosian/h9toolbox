@@ -9,11 +9,61 @@ static uint8_t image[APRS_IMAGE_SIZE];
 #ifdef APRS_IMAGE_PART_1_ADDRESS
 uint8_t first[APRS_IMAGE_PART_1_SIZE];
 uint8_t second[APRS_IMAGE_PART_2_SIZE];
+#ifdef APRS_IMAGE_PART_3_ADDRESS
+uint8_t third[APRS_IMAGE_PART_3_SIZE];
+#endif
+#ifdef APRS_IMAGE_PART_4_ADDRESS
+uint8_t fourth[APRS_IMAGE_PART_4_SIZE];
+#endif
+#ifdef APRS_IMAGE_PART_5_ADDRESS
+uint8_t fifth[APRS_IMAGE_PART_5_SIZE];
+#endif
+#ifdef APRS_IMAGE_PART_6_ADDRESS
+uint8_t sixth[APRS_IMAGE_PART_6_SIZE];
+#endif
+#ifdef APRS_IMAGE_PART_7_ADDRESS
+uint8_t seventh[APRS_IMAGE_PART_7_SIZE];
+#endif
+#ifdef APRS_IMAGE_PART_8_ADDRESS
+uint8_t eighth[APRS_IMAGE_PART_8_SIZE];
+#endif
+#ifdef APRS_IMAGE_PART_9_ADDRESS
+uint8_t ninth[APRS_IMAGE_PART_9_SIZE];
+#endif
 static uint8_t *transfer_image(void)
 {
     memcpy(first, image, sizeof(first));
     memcpy(second, image + sizeof(first), sizeof(second));
-    return image + sizeof(first) + sizeof(second);
+    unsigned offset = sizeof(first) + sizeof(second);
+#ifdef APRS_IMAGE_PART_3_ADDRESS
+    memcpy(third, image + offset, sizeof(third));
+    offset += sizeof(third);
+#endif
+#ifdef APRS_IMAGE_PART_4_ADDRESS
+    memcpy(fourth, image + offset, sizeof(fourth));
+    offset += sizeof(fourth);
+#endif
+#ifdef APRS_IMAGE_PART_5_ADDRESS
+    memcpy(fifth, image + offset, sizeof(fifth));
+    offset += sizeof(fifth);
+#endif
+#ifdef APRS_IMAGE_PART_6_ADDRESS
+    memcpy(sixth, image + offset, sizeof(sixth));
+    offset += sizeof(sixth);
+#endif
+#ifdef APRS_IMAGE_PART_7_ADDRESS
+    memcpy(seventh, image + offset, sizeof(seventh));
+    offset += sizeof(seventh);
+#endif
+#ifdef APRS_IMAGE_PART_8_ADDRESS
+    memcpy(eighth, image + offset, sizeof(eighth));
+    offset += sizeof(eighth);
+#endif
+#ifdef APRS_IMAGE_PART_9_ADDRESS
+    memcpy(ninth, image + offset, sizeof(ninth));
+    offset += sizeof(ninth);
+#endif
+    return image + offset;
 }
 #else
 static uint8_t *transfer_image(void) { return image; }

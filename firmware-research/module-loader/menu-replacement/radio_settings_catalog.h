@@ -591,13 +591,17 @@ static const struct radio_choice radio_choices_97[] = {
     { 1, "ON" },
 };
 static const struct radio_choice radio_choices_98[] = {
+    { 0, "OFF" },
+    { 1, "ON" },
+};
+static const struct radio_choice radio_choices_99[] = {
     { 0, "Level 1" },
     { 1, "Level 2" },
     { 2, "Level 3" },
     { 3, "Level 4" },
     { 4, "Level 5" },
 };
-static const struct radio_choice radio_choices_100[] = {
+static const struct radio_choice radio_choices_101[] = {
     { 255, "Off" },
     { 14, "*" },
     { 15, "#" },
@@ -606,19 +610,19 @@ static const struct radio_choice radio_choices_100[] = {
     { 12, "C" },
     { 13, "D" },
 };
-static const struct radio_choice radio_choices_112[] = {
+static const struct radio_choice radio_choices_113[] = {
     { 69, "East" },
     { 87, "West" },
 };
-static const struct radio_choice radio_choices_114[] = {
+static const struct radio_choice radio_choices_115[] = {
     { 78, "North" },
     { 83, "South" },
 };
-static const struct radio_choice radio_choices_120[] = {
+static const struct radio_choice radio_choices_121[] = {
     { 0, "Off" },
     { 1, "On" },
 };
-static const struct radio_choice radio_choices_121[] = {
+static const struct radio_choice radio_choices_122[] = {
     { 0, "Off" },
     { 1, "On" },
 };
@@ -652,7 +656,7 @@ static const struct radio_setting radio_settings[] = {
     { "beep", "Key beep", 3233, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 4, 2, 0, 0, radio_choices_3, 2, 0 },
     { "txLight", "Display on TX", 3232, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 128, 7, 0, 0, radio_choices_4, 2, 0 },
     { "rxLight", "Display on RX", 3232, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 64, 6, 0, 0, radio_choices_5, 2, 0 },
-    { "dualWatch", "Dual watch / sync", 3234, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 64, 6, 0, 0, radio_choices_6, 2, 0 },
+    { "dualWatchEnabled", "Dual Watch", 3235, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 4, 2, 0, 0, radio_choices_6, 2, 0 },
     { "voxGain", "VOX gain", 3239, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 7, 0, 0, 0, radio_choices_7, 6, 0 },
     { "voxDelay", "VOX delay", 3246, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 255, 0, 0, 0, radio_choices_8, 3, 0 },
     { "backlight", "Backlight timer", 3245, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 255, 0, 0, 0, radio_choices_9, 5, 0 },
@@ -744,9 +748,10 @@ static const struct radio_setting radio_settings[] = {
     { "tx200", "200TX", 3243, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 16, 4, 0, 0, radio_choices_95, 2, 0 },
     { "tx350", "350TX", 3243, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 8, 3, 0, 0, radio_choices_96, 2, 0 },
     { "tx500", "500TX", 3243, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 4, 2, 0, 0, radio_choices_97, 2, 0 },
-    { "amVolume", "AM volume level", 21391, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 255, 0, 0, 0, radio_choices_98, 5, 0 },
+    { "tx33cm", "900TX", 24578, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 255, 0, 0, 0, radio_choices_98, 2, 0 },
+    { "amVolume", "AM volume level", 21391, 1, RADIO_CHOICE, RADIO_GROUP_RADIO, 255, 0, 0, 0, radio_choices_99, 5, 0 },
     { "ani", "ANI code", 6176, 3, RADIO_DTMF_FIXED, RADIO_GROUP_DTMF, 255, 0, 0, 0, 0, 0, 0 },
-    { "dtmfGroup", "DTMF group code", 6185, 1, RADIO_CHOICE, RADIO_GROUP_DTMF, 255, 0, 0, 0, radio_choices_100, 7, 0 },
+    { "dtmfGroup", "DTMF group code", 6185, 1, RADIO_CHOICE, RADIO_GROUP_DTMF, 255, 0, 0, 0, radio_choices_101, 7, 0 },
     { "dtmf1", "DTMF code 1", 6192, 16, RADIO_DTMF_TERMINATED, RADIO_GROUP_DTMF, 255, 0, 0, 0, 0, 0, 0 },
     { "dtmf2", "DTMF code 2", 6208, 16, RADIO_DTMF_TERMINATED, RADIO_GROUP_DTMF, 255, 0, 0, 0, 0, 0, 0 },
     { "dtmf3", "DTMF code 3", 6224, 16, RADIO_DTMF_TERMINATED, RADIO_GROUP_DTMF, 255, 0, 0, 0, 0, 0, 0 },
@@ -758,16 +763,16 @@ static const struct radio_setting radio_settings[] = {
     { "botCode", "PTT ID start code", 6336, 16, RADIO_DTMF_LENGTH, RADIO_GROUP_DTMF, 255, 0, 0, 0, 0, 0, 0 },
     { "eotCode", "PTT ID end code", 6352, 16, RADIO_DTMF_LENGTH, RADIO_GROUP_DTMF, 255, 0, 0, 0, 0, 0, 0 },
     { "fixedLongitude", "Fixed longitude", 12396, 4, RADIO_DEGREES, RADIO_GROUP_GNSS, 255, 0, 0, 180000000, 0, 0, 0 },
-    { "longitudeSide", "Longitude direction", 12400, 1, RADIO_CHOICE, RADIO_GROUP_GNSS, 255, 0, 0, 0, radio_choices_112, 2, 0 },
+    { "longitudeSide", "Longitude direction", 12400, 1, RADIO_CHOICE, RADIO_GROUP_GNSS, 255, 0, 0, 0, radio_choices_113, 2, 0 },
     { "fixedLatitude", "Fixed latitude", 12401, 4, RADIO_DEGREES, RADIO_GROUP_GNSS, 255, 0, 0, 90000000, 0, 0, 0 },
-    { "latitudeSide", "Latitude direction", 12405, 1, RADIO_CHOICE, RADIO_GROUP_GNSS, 255, 0, 0, 0, radio_choices_114, 2, 0 },
+    { "latitudeSide", "Latitude direction", 12405, 1, RADIO_CHOICE, RADIO_GROUP_GNSS, 255, 0, 0, 0, radio_choices_115, 2, 0 },
     { "fixedAltitude", "Fixed altitude (m)", 12406, 4, RADIO_ALTITUDE, RADIO_GROUP_GNSS, 255, 0, -1000, 2147, 0, 0, 0 },
     { "calUhf", "UHF calibration (Hz)", 21220, 2, RADIO_SIGNED16, RADIO_GROUP_RADIO, 255, 0, -32768, 32767, 0, 0, 0 },
     { "calVhf", "VHF calibration (Hz)", 21222, 2, RADIO_SIGNED16, RADIO_GROUP_RADIO, 255, 0, -32768, 32767, 0, 0, 0 },
     { "aOffset", "VFO A offset (10 Hz)", 3248, 4, RADIO_FREQUENCY, RADIO_GROUP_VFO_SCAN, 255, 0, 0, 60000000, 0, 0, 0 },
     { "bOffset", "VFO B offset (10 Hz)", 3252, 4, RADIO_FREQUENCY, RADIO_GROUP_VFO_SCAN, 255, 0, 0, 60000000, 0, 0, 0 },
-    { "btInternalMic", "Bluetooth internal mic", 24576, 1, RADIO_CHOICE, RADIO_GROUP_BLUETOOTH, 255, 0, 0, 0, radio_choices_120, 2, 0 },
-    { "btInternalSpeaker", "Bluetooth internal speaker", 24577, 1, RADIO_CHOICE, RADIO_GROUP_BLUETOOTH, 255, 0, 0, 0, radio_choices_121, 2, 0 },
+    { "btInternalMic", "Bluetooth internal mic", 24576, 1, RADIO_CHOICE, RADIO_GROUP_BLUETOOTH, 255, 0, 0, 0, radio_choices_121, 2, 0 },
+    { "btInternalSpeaker", "Bluetooth internal speaker", 24577, 1, RADIO_CHOICE, RADIO_GROUP_BLUETOOTH, 255, 0, 0, 0, radio_choices_122, 2, 0 },
 };
 enum { RADIO_SETTING_COUNT = sizeof radio_settings / sizeof *radio_settings,
        RADIO_SETTING_GROUP_COUNT = sizeof radio_setting_groups / sizeof *radio_setting_groups };
